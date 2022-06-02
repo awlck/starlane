@@ -1,0 +1,6 @@
+[submodule "starlane-core/deps/zlib"]
+	path = starlane-core/deps/zlib
+	url = https://github.com/madler/zlib.git
+[submodule "starlane-core/deps/pugixml"]
+	path = starlane-core/deps/pugixml
+	url = https://github.com/zeux/pugixml.git
