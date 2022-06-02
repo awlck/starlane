@@ -4,7 +4,11 @@
 #define SLC_STARLANE_CORE_H
 
 namespace Starlane {
-	void InitBackend();
+void InitBackend();
+}
+
+namespace SLFrontend {
+void FatalError(const char *msg);
 }
 
 #endif  // !SLC_STARLANE_CORE_H
