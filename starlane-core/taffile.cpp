@@ -10,7 +10,7 @@
 // Use 10MB chunk size for zlib/miniz.
 // This should be sufficient to decompress most all ADRIFT games currently in
 // existence in a single inflate() call. (The largest, to my knowledge at the
-// time of writing, is Skybreak v1.3 at just over 9MB.)
+// time of writing, is Skybreak v1.3 at just over 9.5MB.)
 constexpr auto CHUNKSIZE = 104857609;
 
 namespace Starlane {
