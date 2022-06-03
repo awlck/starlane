@@ -3,6 +3,7 @@
 #include <stdint.h>
 #include <string.h>
 #include <sstream>
+#include <vector>
 
 #include "deps/miniz/miniz.h"
 
@@ -10,7 +11,7 @@
 // This should be sufficient to decompress most all ADRIFT games currently in
 // existence in a single inflate() call. (The largest, to my knowledge at the
 // time of writing, is Skybreak v1.3 at just over 9MB.)
-#define CHUNKSIZE 104857609
+constexpr auto CHUNKSIZE = 104857609;
 
 namespace Starlane {
 
@@ -183,7 +184,7 @@ std::string ExtractTaf(const uint8_t *input, size_t size) {
 		} else {
 			SLFrontend::FatalError("Starlane does not recognize the selected file.");
 		}
-		return nullptr;
+		return "";
 	}
 
 	const uint8_t *deobf;
@@ -213,10 +214,12 @@ std::string ExtractTaf(const uint8_t *input, size_t size) {
 
 	std::stringstream decompressed;
 	{
+		int32_t writtenInTotal = 0;
 		mz_stream zstm;
 		int ret;
 		unsigned char *z_in = (unsigned char *) deobf;
-		unsigned char *z_out = new unsigned char[CHUNKSIZE];
+		std::vector<unsigned char> outputBuffer(CHUNKSIZE);
+		unsigned char *z_out = outputBuffer.data();
 		memset(&zstm, 0, sizeof(mz_stream));
 		zstm.avail_in = deobflen;
 		zstm.next_in = z_in;
@@ -224,7 +227,7 @@ std::string ExtractTaf(const uint8_t *input, size_t size) {
 		if (ret != MZ_OK) {
 			SLFrontend::FatalError("Unable to initialize decompressor.");
 			if (needToFreeDeobf) delete[] deobf;
-			return nullptr;
+			return "";
 		}
 		do {
 			zstm.next_out = z_out;
@@ -237,13 +240,22 @@ std::string ExtractTaf(const uint8_t *input, size_t size) {
 				mz_inflateEnd(&zstm);
 				SLFrontend::FatalError("Unable to decompress.");
 				if (needToFreeDeobf) delete[] deobf;
-				return nullptr;
+				return "";
 			}
 			mz_ulong written = CHUNKSIZE - zstm.avail_out;
+			// Sanity check: bail out if the decompressed data goes beyond 100MB. (Note
+			// that we are not processing blorb files containing images and sound here, only
+			// the game's declarative code and text.) This could happen if the input file
+			// has been tampered with or is otherwise corrupted.
+			writtenInTotal += written;
+			if (writtenInTotal > 100 * 1024 * 1024) {
+				SLFrontend::FatalError("Selected file doesn't seem to end; presumed corrupted.");
+				if (needToFreeDeobf) delete[] deobf;
+				return "";
+			}
 			decompressed.write((char *) z_out, written);
 		} while (zstm.avail_out == 0 || ret != MZ_STREAM_END);
 		mz_inflateEnd(&zstm);
-		delete[] z_out;
 	}
 	
 	// free intermediary buffer of deobfuscated zlib data as necessary.
