@@ -2,11 +2,15 @@
 
 #include <stdint.h>
 #include <string.h>
+#include <sstream>
 
-#include "deps/puff.h"
+#include "deps/miniz/miniz.h"
 
-// use 256K chunks for zlib
-#define CHUNKSIZE 262144
+// Use 10MB chunk size for zlib/miniz.
+// This should be sufficient to decompress most all ADRIFT games currently in
+// existence in a single inflate() call. (The largest, to my knowledge at the
+// time of writing, is Skybreak v1.3 at just over 9MB.)
+#define CHUNKSIZE 104857609
 
 namespace Starlane {
 
@@ -80,15 +84,19 @@ constexpr uint8_t adriftKey[] = { 41, 236, 221, 117, 23, 189, 44, 187, 161, 96, 
 	83, 207, 191, 68, 155, 227, 47, 140, 142, 45, 84, 188, 20 };
 
 // Undo ADRIFT's obfuscation using the key above.
+// input: byte array to work with
+// length: total length of the input array
+// offset: how many bytes from the start of the array should be skipped
+// count: how many bytes (starting at `offset') to process
 uint8_t *DeobfuscateByteArray(const uint8_t *input, size_t length, size_t offset, size_t count) {
-	uint8_t *output = new uint8_t[count];
+	uint8_t *output = new uint8_t[length];
 	if (output == nullptr) return nullptr;
 	if (offset + count > length) return nullptr;
-	for (size_t i = 0; i < offset; i++)
-		output[i] = input[i];
-	for (size_t i = offset; i < offset + length; i++)
-		output[i] = (uint8_t) (input[i] ^ adriftKey[(i - offset) % 1024]);
-	for (size_t i = offset + length; i < count; i++)
+	 for (size_t i = 0; i < offset; i++)
+	 	output[i] = input[i];
+	for (size_t i = offset; i < offset + count; i++)
+		output[i - offset] = (uint8_t) (input[i] ^ adriftKey[(i - offset) % 1024]);
+	for (size_t i = offset + count; i < length; i++)
 		output[i] = input[i];
 	return output;
 }
@@ -162,7 +170,7 @@ int32_t ParseHex(const uint8_t *input, int len) {
 /* Using the raw data in `input' (procured by the frontend in a platform-dependent
 * manner), extract the textual AMF/XML representation of an ADRIFT game.
 */
-char *ExtractTaf(const uint8_t *input, size_t size) {
+std::string ExtractTaf(const uint8_t *input, size_t size) {
 	if (memcmp(input, V5ident, sizeof(V5ident)) != 0) {
 		if (memcmp(input, V4ident, sizeof(V4ident)) == 0) {
 			SLFrontend::FatalError("Starlane cannot play the selected file, which is an ADRIFT v4 game.");
@@ -203,31 +211,44 @@ char *ExtractTaf(const uint8_t *input, size_t size) {
 		needToFreeDeobf = false;
 	}
 
-	// Handle zlib compression.
-	int ret;
-	unsigned long decompressedSize;
-	unsigned long insize = deobflen;
-	const unsigned char *puff_input = deobf;
-	// determine necessary output size in first pass
-	ret = puff(nullptr, &decompressedSize, puff_input, &insize);
-	if (ret != 0) {
-		SLFrontend::FatalError("Selected game file appears to be broken.");
-		return nullptr;
-	}
-	// allocate memory accordingly
-	unsigned char *decompressed = new unsigned char[decompressedSize+1];
-	// reset input values and do the decompression, for real.
-	puff_input = deobf;
-	insize = deobflen;
-	ret = puff(decompressed, &decompressedSize, puff_input, &insize);
-	if (ret != 0) {  // shouldn't really happen at this point, but can't hurt either.
-		SLFrontend::FatalError("Selected game file appears to be broken.");
-		return nullptr;
+	std::stringstream decompressed;
+	{
+		mz_stream zstm;
+		int ret;
+		unsigned char *z_in = (unsigned char *) deobf;
+		unsigned char *z_out = new unsigned char[CHUNKSIZE];
+		memset(&zstm, 0, sizeof(mz_stream));
+		zstm.avail_in = deobflen;
+		zstm.next_in = z_in;
+		ret = mz_inflateInit(&zstm);
+		if (ret != MZ_OK) {
+			SLFrontend::FatalError("Unable to initialize decompressor.");
+			if (needToFreeDeobf) delete[] deobf;
+			return nullptr;
+		}
+		do {
+			zstm.next_out = z_out;
+			zstm.avail_out = CHUNKSIZE;
+			ret = mz_inflate(&zstm, MZ_FINISH);
+			switch (ret) {
+			case MZ_NEED_DICT:
+			case MZ_DATA_ERROR:
+			case MZ_MEM_ERROR:
+				mz_inflateEnd(&zstm);
+				SLFrontend::FatalError("Unable to decompress.");
+				if (needToFreeDeobf) delete[] deobf;
+				return nullptr;
+			}
+			mz_ulong written = CHUNKSIZE - zstm.avail_out;
+			decompressed.write((char *) z_out, written);
+		} while (zstm.avail_out == 0 || ret != MZ_STREAM_END);
+		mz_inflateEnd(&zstm);
+		delete[] z_out;
 	}
 	
 	// free intermediary buffer of deobfuscated zlib data as necessary.
 	if (needToFreeDeobf) delete[] deobf;
-	return (char *) decompressed;
+	return decompressed.str();
 }
 
 }  // namespace Starlane
