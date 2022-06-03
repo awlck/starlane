@@ -90,9 +90,8 @@ constexpr uint8_t adriftKey[] = { 41, 236, 221, 117, 23, 189, 44, 187, 161, 96, 
 // offset: how many bytes from the start of the array should be skipped
 // count: how many bytes (starting at `offset') to process
 uint8_t *DeobfuscateByteArray(const uint8_t *input, size_t length, size_t offset, size_t count) {
+	assert(offset + count <= length);
 	uint8_t *output = new uint8_t[length];
-	if (output == nullptr) return nullptr;
-	if (offset + count > length) return nullptr;
 	 for (size_t i = 0; i < offset; i++)
 	 	output[i] = input[i];
 	for (size_t i = offset; i < offset + count; i++)
