@@ -11,7 +11,7 @@
 // This should be sufficient to decompress most all ADRIFT games currently in
 // existence in a single inflate() call. (The largest, to my knowledge at the
 // time of writing, is Skybreak v1.3 at just over 9.5MB.)
-constexpr auto CHUNKSIZE = 104857609;
+constexpr auto CHUNKSIZE = 10485760;
 
 namespace Starlane {
 
@@ -95,7 +95,7 @@ uint8_t *DeobfuscateByteArray(const uint8_t *input, size_t length, size_t offset
 	 for (size_t i = 0; i < offset; i++)
 	 	output[i] = input[i];
 	for (size_t i = offset; i < offset + count; i++)
-		output[i - offset] = (uint8_t) (input[i] ^ adriftKey[(i - offset) % 1024]);
+		output[i - offset] = (uint8_t) (input[i] ^ adriftKey[(i - offset) % sizeof(adriftKey)]);
 	for (size_t i = offset + count; i < length; i++)
 		output[i] = input[i];
 	return output;
