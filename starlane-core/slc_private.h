@@ -23,6 +23,7 @@ class Game;
 class Description;
 class Restriction;
 class GameObj;
+class Property;
 
 // ID number of a description
 using DescrRef = size_t;

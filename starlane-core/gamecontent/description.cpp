@@ -19,7 +19,7 @@ Description::Segment Description::Segment::CreateFromXML(Game *g, const pugi::xm
 	result.text = xmlNode.child_value("Text");
 	result.displayWhen = Description::DisplayValue(xmlNode.child_value("DisplayWhen"));
 	auto once = xmlNode.child("DisplayOnce");
-	result.onceOnly = once.type() != pugi::node_null ? ParseBool(xmlNode.child_value("DisplayOnce")) : false;
+	result.onceOnly = once.type() == pugi::node_null ? false : ParseBool(xmlNode.child_value("DisplayOnce"));
 	auto restr = xmlNode.child("Restrictions");
 	if (restr.type() != pugi::node_null) {
 		result.restrictionId = g->CreateRestrictionsFromXML(restr);

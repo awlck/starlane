@@ -3,6 +3,7 @@
 #include <string>
 
 #include "gamecontent/description.h"
+#include "gamecontent/property.h"
 
 // Convenience macro to insert the stringified name of the type in question,
 // for the benefit of IDE auto-renaming of types.
@@ -41,6 +42,28 @@ Description::Display Description::DisplayValue(const char *txt) {
 	if (strcmp(txt, "AppendToPreviousDescription") == 0)
 		return Description::Display::Append;
 	throw VALERR(Description::Display, txt);
+}
+
+Property::ValueType Property::ParseValueType(const char *txt) {
+	if (strcmp(txt, "SelectionOnly") == 0)
+		return Property::ValueType::Bool;
+	if (strcmp(txt, "Integer") == 0)
+		return Property::ValueType::Int;
+	if (strcmp(txt, "Text") == 0)
+		return Property::ValueType::Text;
+	if (strcmp(txt, "ObjectKey") == 0)
+		return Property::ValueType::Object;
+	if (strcmp(txt, "CharacterKey") == 0)
+		return Property::ValueType::Object;
+	if (strcmp(txt, "LocationKey") == 0)
+		return Property::ValueType::Object;
+	if (strcmp(txt, "LocationGroupKey") == 0)
+		return Property::ValueType::Object;
+	if (strcmp(txt, "StateList") == 0)
+		return Property::ValueType::Enum;
+	if (strcmp(txt, "ValueList") == 0)
+		return Property::ValueType::Map;
+	throw VALERR(Property::ValueType, txt);
 }
 
 }

@@ -6,6 +6,7 @@
 
 #include "valueparsers.h"
 #include "gamecontent/description.h"
+#include "gamecontent/property.h"
 #include "gamecontent/restriction.h"
 
 namespace Starlane {
@@ -35,6 +36,11 @@ size_t Game::CreateDescFromXML(const pugi::xml_node &descNode) {
 size_t Game::CreateRestrictionsFromXML(const pugi::xml_node &restrNode) {
 	restrictions[++restrictionsSoFar] = Restriction::CreateFromXML(this, restrNode);
 	return restrictionsSoFar;
+}
+
+void Game::CreatePropertyFromXML(const pugi::xml_node &propNode) {
+	auto result = Property::CreateFromXML(propNode);
+	properties[result->Name()] = result;
 }
 
 }  // namespace Starlane
