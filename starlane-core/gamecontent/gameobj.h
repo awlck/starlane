@@ -5,6 +5,8 @@
 
 namespace Starlane {
 
+// GameObj is the base for everything that exists within the game world
+// (physical or otherwise).
 class GameObj {
 	
 };

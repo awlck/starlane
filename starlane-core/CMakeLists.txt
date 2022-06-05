@@ -10,10 +10,14 @@ add_subdirectory(deps/miniz)
 
 add_library(starlane-core STATIC
 	"starlane-core.cpp" "starlane-core.h"
-	"slc_private_header.h"
+	"slc_private.h"
 	"taffile.cpp" "taffile.h"
-	"gameloader.cpp"  "game.h"
-	"gameobjs/gameobj.h")
+	"game.cpp" "game.h"
+	"gameloader.cpp"
+	"valueparsers.cpp" "valueparsers.h"
+	"gamecontent/gameobj.h"
+	"gamecontent/description.cpp" "gamecontent/description.h"
+	"gamecontent/restriction.cpp" "gamecontent/restriction.h")
 target_compile_definitions(starlane-core PRIVATE SLC_BUILDING_SELF)
 target_link_libraries(starlane-core miniz pugixml-static)
 target_include_directories(starlane-core PRIVATE deps/miniz deps/pugixml/src)
