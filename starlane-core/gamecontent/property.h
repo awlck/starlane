@@ -21,6 +21,7 @@ public:
 	static Property *CreateFromXML(const pugi::xml_node &xmlNode);
 
 	enum class ValueType {
+		ErrorType,
 		Bool,  // PropStorage<bool>
 		Int,  // PropStorage<int32_t>
 		Text,  // PropStorage<DescrRef>
@@ -63,8 +64,17 @@ public:
 		return mapValues.at((int32_t) intStorage.at(objkey));
 	}
 
+	void SetIntValue(const std::string &objkey, int64_t val) {
+		intStorage[objkey] = val;
+	}
+	void SetStringValue(const std::string &objkey, const std::string &val) {
+		stringStorage[objkey] = val;
+	}
+
 private:
-	ValueType type;
+	Property() = default;
+
+	ValueType type = ValueType::ErrorType;
 	std::string name;
 	std::string desc;
 
