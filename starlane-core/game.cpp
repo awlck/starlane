@@ -17,13 +17,15 @@ Game::Game(const Game &rhs) {
 		objects[it.first] = it.second->Clone();
 	for (const auto &it : rhs.tasks)
 		tasks[it.first] = new Task(*it.second);
-	for (const auto &it : rhs.properties)
-		properties[it.first] = new Property(*it.second);
 	for (const auto &it : rhs.descriptions)
 		descriptions[it.first] = new Description(*it.second);
+	// TODO: events
+	// TODO: variables
+	// TODO: groups
 
 	// For restrictions (immutable), it's enough to copy the references.
 	restrictions = rhs.restrictions;
+	properties = rhs.properties;
 
 	// Finally, the simple data copies.
 	gameTitle = rhs.gameTitle;

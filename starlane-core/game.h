@@ -44,7 +44,6 @@ private:
 	// mutable game state (objects copied for undo state)
 	std::unordered_map<std::string, GameObj *> objects;
 	std::unordered_map<std::string, Task *> tasks;  // tasks can be set or unset
-	std::unordered_map<std::string, Property *> properties;  // also stores property data
 	std::unordered_map<DescrRef, Description *> descriptions;  // can be shown or not shown
 	std::unordered_map<std::string, Event *> events;
 	std::unordered_map<std::string, Variable *> variables;
@@ -52,6 +51,7 @@ private:
 
 	// immutable content (only exists once)
 	std::unordered_map<RestrRef, Restriction *> restrictions;
+	std::unordered_map<std::string, Property *> properties;
 
 	std::string gameTitle;
 	std::string gameAuthor;

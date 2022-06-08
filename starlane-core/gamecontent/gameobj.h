@@ -8,11 +8,13 @@
 #include <string>
 #include <vector>
 
+#include "propholder.h"
+
 namespace Starlane {
 
 // GameObj is the base for everything that exists within the game world
 // (physical or otherwise).
-class GameObj {
+class GameObj: public PropHolder {
 public:
 	static GameObj *CreateFromXML(const pugi::xml_node &xmlNode);
 	virtual GameObj *Clone() const;  // sort of a copy constructor that respects subclassing.

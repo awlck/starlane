@@ -30,43 +30,6 @@ public:
 	[[nodiscard]] ValueType Type() const { return type; }
 	[[nodiscard]] const std::string &Key() const { return key; }
 
-	[[nodiscard]] bool GetBoolValue(const std::string &objkey) const {
-		if (type != ValueType::Text)
-			throw std::logic_error(std::string("Can't get bool value of property `") + key + "`!");
-		return (bool) intStorage.at(objkey);
-	}
-	[[nodiscard]] int32_t GetIntValue(const std::string &objkey) const {
-		if (type != ValueType::Text)
-			throw std::logic_error(std::string("Can't get int value of property `") + key + "`!");
-		return (int32_t) intStorage.at(objkey);
-	}
-	[[nodiscard]] DescrRef GetDescValue(const std::string &objkey) const {
-		if (type != ValueType::Text)
-			throw std::logic_error(std::string("Can't get description value of property `") + key + "`!");
-		return (DescrRef) intStorage.at(objkey);
-	}
-	[[nodiscard]] const std::string &GetStringValue(const std::string &objkey) const {
-		if (type < ValueType::Object)
-			throw std::logic_error(std::string("Can't get string value of property `") + key + "`!");
-		if (type == ValueType::Map) {
-			return GetMappedValue(objkey);
-		} else {
-			return stringStorage.at(objkey);
-		}
-	}
-	[[nodiscard]] const std::string &GetMappedValue(const std::string &objkey) const {
-		if (type != ValueType::Map)
-			throw std::logic_error(std::string("Can't get mapped value of non-map property `") + key + "`!");
-		return mapValues.at((int32_t) intStorage.at(objkey));
-	}
-
-	void SetIntValue(const std::string &objkey, int64_t val) {
-		intStorage[objkey] = val;
-	}
-	void SetStringValue(const std::string &objkey, const std::string &val) {
-		stringStorage[objkey] = val;
-	}
-
 private:
 	Property() = default;
 
@@ -76,9 +39,6 @@ private:
 
 	std::vector<std::string> enumValues;
 	std::unordered_map<int32_t, std::string> mapValues;
-
-	std::unordered_map<std::string, int64_t> intStorage;
-	std::unordered_map<std::string, std::string> stringStorage;
 };
 
 }
