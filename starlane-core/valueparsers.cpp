@@ -1,6 +1,10 @@
 #include "valueparsers.h"
 
+// The C++ STL header for `std::string':
 #include <string>
+// The C library header for `strcmp':
+// (Microsoft's STL includes this implicitly, but others don't)
+#include <string.h>
 
 #include "gamecontent/description.h"
 #include "gamecontent/property.h"

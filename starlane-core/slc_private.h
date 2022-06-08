@@ -18,6 +18,9 @@
 #ifndef SLC_PRIVATE_H
 #define SLC_PRIVATE_H
 
+// gcc doesn't define `size_t' by default, so:
+#include <stddef.h>
+
 namespace pugi {
 class xml_node;
 }
