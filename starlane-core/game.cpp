@@ -54,6 +54,7 @@ Game::~Game() {
 		delete it.second;
 	// TODO: events
 	// TODO: variables
+	// TODO: groups
 
 	if (theGame == this) {
 		// We are the current (presumably last) game instance -- destroy everything.

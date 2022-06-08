@@ -28,10 +28,13 @@ class xml_node;
 namespace Starlane {
 class Game;
 class Description;
+class Event;
+class Group;
 class Restriction;
 class GameObj;
 class Property;
 class Task;
+class Variable;
 
 // ID number of a description
 // (with zero meaning "no text at all")

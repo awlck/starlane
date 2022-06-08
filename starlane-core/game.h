@@ -21,7 +21,10 @@ public:
 	void CreateObjFromXML(const pugi::xml_node &objNode);
 	void CreatePropertyFromXML(const pugi::xml_node &propNode);
 	RestrRef CreateRestrictionsFromXML(const pugi::xml_node &restrNode);
-	void CreateTaskFromXML(const pugi::xml_node &propNode);
+	void CreateTaskFromXML(const pugi::xml_node &taskNode);
+	void CreateEventFromXML(const pugi::xml_node &evtNode);
+	void CreateVariableFromXML(const pugi::xml_node &varNode);
+	void CreateGroupFromXML(const pugi::xml_node &grpNode);
 
 	GameObj *GetObject(const std::string &key);
 
@@ -43,8 +46,9 @@ private:
 	std::unordered_map<std::string, Task *> tasks;  // tasks can be set or unset
 	std::unordered_map<std::string, Property *> properties;  // also stores property data
 	std::unordered_map<DescrRef, Description *> descriptions;  // can be shown or not shown
-	// TODO: events
-	// TODO: variables
+	std::unordered_map<std::string, Event *> events;
+	std::unordered_map<std::string, Variable *> variables;
+	std::unordered_map<std::string, Group *> groups;
 
 	// immutable content (only exists once)
 	std::unordered_map<RestrRef, Restriction *> restrictions;
@@ -60,7 +64,7 @@ private:
 	size_t descriptionsSoFar = 0;
 	size_t restrictionsSoFar = 0;
 
-	// the Game instance holding the current state of the game, for the benefit of any
+	// The Game instance holding the current state of the game, for the benefit of any
 	// functions that might need it (restrictions, descriptions, action processing)
 	// [fun fact: static data members need to be declared `inline`, otherwise they function
 	//  like an `extern` global declaration]

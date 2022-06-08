@@ -7,6 +7,7 @@
 #include "starlane-core.h"
 #include "valueparsers.h"
 #include "gamecontent/description.h"
+#include "gamecontent/gameobj.h"
 #include "gamecontent/property.h"
 #include "gamecontent/restriction.h"
 #include "gamecontent/task.h"
@@ -31,14 +32,28 @@ Game *Game::LoadFromXML(const std::string &gameTxt) {
 	result->showExits = ParseBool(theGame.child("ShowExits").child_value());
 	result->gameIntro = result->CreateDescFromXML(theGame.child("Introduction"));
 
+	// It is important that all properties are created before anything tries to use them.
 	for (const auto &it: theGame.children("Property"))
 		result->CreatePropertyFromXML(it);
 
+	for (const auto &it : theGame.children("Location"))
+		result->CreateObjFromXML(it);
+	for (const auto &it : theGame.children("Character"))
+		result->CreateObjFromXML(it);
 	for (const auto &it: theGame.children("Object"))
 		result->CreateObjFromXML(it);
 
 	for (const auto &it: theGame.children("Task"))
 		result->CreateTaskFromXML(it);
+
+	for (const auto &it : theGame.children("Event"))
+		result->CreateEventFromXML(it);
+	
+	for (const auto &it : theGame.children("Variable"))
+		result->CreateVariableFromXML(it);
+
+	for (const auto &it : theGame.children("Group"))
+		result->CreateGroupFromXML(it);
 
 	Game::theGame = result;
 	return result;
@@ -50,7 +65,8 @@ size_t Game::CreateDescFromXML(const pugi::xml_node &descNode) {
 }
 
 void Game::CreateObjFromXML(const pugi::xml_node &objNode) {
-
+	auto result = GameObj::CreateFromXML(objNode);
+	objects[result->Key()] = result;
 }
 
 void Game::CreatePropertyFromXML(const pugi::xml_node &propNode) {
@@ -66,6 +82,18 @@ size_t Game::CreateRestrictionsFromXML(const pugi::xml_node &restrNode) {
 void Game::CreateTaskFromXML(const pugi::xml_node &propNode) {
 	auto result = Task::CreateFromXML(this, propNode);
 	tasks[result->Key()] = result;
+}
+
+void Game::CreateEventFromXML(const pugi::xml_node &evtNode) {
+
+}
+
+void Game::CreateVariableFromXML(const pugi::xml_node &varNode) {
+
+}
+
+void Game::CreateGroupFromXML(const pugi::xml_node &grpNode) {
+
 }
 
 }  // namespace Starlane
