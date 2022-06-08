@@ -1,6 +1,7 @@
 #include "game.h"
 
 #include "gamecontent/gameobj.h"
+#include "gamecontent/group.h"
 #include "gamecontent/task.h"
 #include "gamecontent/property.h"
 #include "gamecontent/description.h"
@@ -21,7 +22,8 @@ Game::Game(const Game &rhs) {
 		descriptions[it.first] = new Description(*it.second);
 	// TODO: events
 	// TODO: variables
-	// TODO: groups
+	for (const auto &it : rhs.groups)
+		groups[it.first] = new Group(*it.second);
 
 	// For restrictions (immutable), it's enough to copy the references.
 	restrictions = rhs.restrictions;
@@ -56,7 +58,8 @@ Game::~Game() {
 		delete it.second;
 	// TODO: events
 	// TODO: variables
-	// TODO: groups
+	for (const auto &it : groups)
+		delete it.second;
 
 	if (theGame == this) {
 		// We are the current (presumably last) game instance -- destroy everything.

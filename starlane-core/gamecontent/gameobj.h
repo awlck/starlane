@@ -5,6 +5,7 @@
 
 #include "../slc_private.h"
 
+#include <set>
 #include <string>
 #include <vector>
 
@@ -22,12 +23,23 @@ public:
 	[[nodiscard]] const std::string &Key() const { return key; }
 	std::string GetDisplayName();
 	const std::string &GetParentKey() const { return parent; }
+
+	// Note that this object is becoming a member of the given group.
+	void BecomeGroupMember(const std::string &grpKey) {
+		groupMembership.insert(grpKey);
+	}
+	// Note that is object is no longer a member of the given group.
+	void CeaseBeingGroupMember(const std::string &grpKey) {
+		groupMembership.erase(grpKey);
+	}
+
 private:
 	std::string key;
 	std::string parent;
 	std::string article;
 	std::string prefix;
 	std::vector<std::string> descriptors;
+	std::set<std::string> groupMembership;
 };
 
 }

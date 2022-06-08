@@ -19,7 +19,9 @@ add_library(starlane-core STATIC
 	"gamecontent/description.cpp" "gamecontent/description.h"
 	"gamecontent/restriction.cpp" "gamecontent/restriction.h"
 	"gamecontent/property.cpp" "gamecontent/property.h"
-	"gamecontent/task.cpp" "gamecontent/task.h")
+	"gamecontent/task.cpp" "gamecontent/task.h" 
+	"gamecontent/group.cpp" "gamecontent/group.h"
+	"gamecontent/propholder.h")
 target_compile_definitions(starlane-core PRIVATE SLC_BUILDING_SELF)
 target_link_libraries(starlane-core miniz pugixml-static)
 target_include_directories(starlane-core PRIVATE deps/miniz deps/pugixml/src)
