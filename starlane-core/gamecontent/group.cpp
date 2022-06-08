@@ -15,6 +15,8 @@ Group *Group::CreateFromXML(const pugi::xml_node &xmlNode) {
 	// so doing this is OK:
 	for (const auto &it : xmlNode.children("Member"))
 		result->AddObj(it.child_value());
+	for (const auto &it : xmlNode.children("Property"))
+		result->SetPropValueFromXML(it);
 	return result;
 }
 

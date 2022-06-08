@@ -26,7 +26,8 @@ public:
 	void CreateVariableFromXML(const pugi::xml_node &varNode);
 	void CreateGroupFromXML(const pugi::xml_node &grpNode);
 
-	GameObj *GetObject(const std::string &key);
+	GameObj *GetObject(const std::string &key) { return objects.at(key); }
+	Property *GetPropMeta(const std::string &key) { return properties.at(key); }
 
 	// Save the current game state to the undo list.
 	void SaveUndo();

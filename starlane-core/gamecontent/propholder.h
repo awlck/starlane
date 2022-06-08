@@ -3,6 +3,8 @@
 #ifndef SLC_PROPHOLDER_H
 #define SLC_RPOPHOLDER_H
 
+#include "../slc_private.h"
+
 #include <type_traits>
 #include <unordered_map>
 
@@ -21,6 +23,9 @@ public:
 	void SetPropValue(const std::string &key, const std::string &value) {
 		strValuedProps[key] = value;
 	}
+
+	void SetPropValueFromXML(const pugi::xml_node &xmlNode);
+	
 private:
 	std::unordered_map<std::string, int64_t> intValuedProps;
 	std::unordered_map<std::string, std::string> strValuedProps;
