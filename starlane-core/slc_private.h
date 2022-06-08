@@ -18,14 +18,20 @@
 #ifndef SLC_PRIVATE_H
 #define SLC_PRIVATE_H
 
+namespace pugi {
+class xml_node;
+}
+
 namespace Starlane {
 class Game;
 class Description;
 class Restriction;
 class GameObj;
 class Property;
+class Task;
 
 // ID number of a description
+// (with zero meaning "no text at all")
 using DescrRef = size_t;
 // ID number of a restriction block
 using RestrRef = size_t;

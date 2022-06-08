@@ -10,10 +10,6 @@
 #include <unordered_map>
 #include <vector>
 
-namespace pugi {
-class xml_node;
-}
-
 namespace Starlane {
 
 class Property {
@@ -32,26 +28,26 @@ public:
 	static ValueType ParseValueType(const char *txt);
 
 	[[nodiscard]] ValueType Type() const { return type; }
-	[[nodiscard]] const std::string &Name() const { return name; }
+	[[nodiscard]] const std::string &Key() const { return key; }
 
 	[[nodiscard]] bool GetBoolValue(const std::string &objkey) const {
 		if (type != ValueType::Text)
-			throw std::logic_error(std::string("Can't get bool value of property `") + name + "`!");
+			throw std::logic_error(std::string("Can't get bool value of property `") + key + "`!");
 		return (bool) intStorage.at(objkey);
 	}
 	[[nodiscard]] int32_t GetIntValue(const std::string &objkey) const {
 		if (type != ValueType::Text)
-			throw std::logic_error(std::string("Can't get int value of property `") + name + "`!");
+			throw std::logic_error(std::string("Can't get int value of property `") + key + "`!");
 		return (int32_t) intStorage.at(objkey);
 	}
 	[[nodiscard]] DescrRef GetDescValue(const std::string &objkey) const {
 		if (type != ValueType::Text)
-			throw std::logic_error(std::string("Can't get description value of property `") + name + "`!");
+			throw std::logic_error(std::string("Can't get description value of property `") + key + "`!");
 		return (DescrRef) intStorage.at(objkey);
 	}
 	[[nodiscard]] const std::string &GetStringValue(const std::string &objkey) const {
 		if (type < ValueType::Object)
-			throw std::logic_error(std::string("Can't get string value of property `") + name + "`!");
+			throw std::logic_error(std::string("Can't get string value of property `") + key + "`!");
 		if (type == ValueType::Map) {
 			return GetMappedValue(objkey);
 		} else {
@@ -60,7 +56,7 @@ public:
 	}
 	[[nodiscard]] const std::string &GetMappedValue(const std::string &objkey) const {
 		if (type != ValueType::Map)
-			throw std::logic_error(std::string("Can't get mapped value of non-map property `") + name + "`!");
+			throw std::logic_error(std::string("Can't get mapped value of non-map property `") + key + "`!");
 		return mapValues.at((int32_t) intStorage.at(objkey));
 	}
 
@@ -75,7 +71,7 @@ private:
 	Property() = default;
 
 	ValueType type = ValueType::ErrorType;
-	std::string name;
+	std::string key;
 	std::string desc;
 
 	std::vector<std::string> enumValues;

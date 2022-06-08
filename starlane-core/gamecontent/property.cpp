@@ -7,7 +7,7 @@ namespace Starlane {
 
 Property *Property::CreateFromXML(const pugi::xml_node &xmlNode) {
 	auto result = new Property;
-	result->name = xmlNode.child_value("Key");
+	result->key = xmlNode.child_value("Key");
 	result->desc = xmlNode.child_value("Description");
 	result->type = ParseValueType(xmlNode.child_value("Type"));
 

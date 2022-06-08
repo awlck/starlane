@@ -9,11 +9,6 @@
 #include <string>
 #include <vector>
 
-namespace pugi {
-class xml_node;
-}
-
-
 namespace Starlane {
 
 class Restriction {

@@ -9,6 +9,7 @@
 #include "gamecontent/description.h"
 #include "gamecontent/property.h"
 #include "gamecontent/restriction.h"
+#include "gamecontent/task.h"
 
 namespace Starlane {
 
@@ -33,6 +34,12 @@ Game *Game::LoadFromXML(const std::string &gameTxt) {
 	for (const auto &it: theGame.children("Property"))
 		result->CreatePropertyFromXML(it);
 
+	for (const auto &it: theGame.children("Object"))
+		result->CreateObjFromXML(it);
+
+	for (const auto &it: theGame.children("Task"))
+		result->CreateTaskFromXML(it);
+
 	return result;
 }
 
@@ -41,14 +48,23 @@ size_t Game::CreateDescFromXML(const pugi::xml_node &descNode) {
 	return descriptionsSoFar;
 }
 
+void Game::CreateObjFromXML(const pugi::xml_node &objNode) {
+
+}
+
+void Game::CreatePropertyFromXML(const pugi::xml_node &propNode) {
+	auto result = Property::CreateFromXML(propNode);
+	properties[result->Key()] = result;
+}
+
 size_t Game::CreateRestrictionsFromXML(const pugi::xml_node &restrNode) {
 	restrictions[++restrictionsSoFar] = Restriction::CreateFromXML(this, restrNode);
 	return restrictionsSoFar;
 }
 
-void Game::CreatePropertyFromXML(const pugi::xml_node &propNode) {
-	auto result = Property::CreateFromXML(propNode);
-	properties[result->Name()] = result;
+void Game::CreateTaskFromXML(const pugi::xml_node &propNode) {
+	auto result = Task::CreateFromXML(this, propNode);
+	tasks[result->Key()] = result;
 }
 
 }  // namespace Starlane

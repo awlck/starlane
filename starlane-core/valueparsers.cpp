@@ -4,6 +4,7 @@
 
 #include "gamecontent/description.h"
 #include "gamecontent/property.h"
+#include "gamecontent/task.h"
 
 // Convenience macro to insert the stringified name of the type in question,
 // for the benefit of IDE auto-renaming of types.
@@ -64,6 +65,16 @@ Property::ValueType Property::ParseValueType(const char *txt) {
 	if (strcmp(txt, "ValueList") == 0)
 		return Property::ValueType::Map;
 	throw VALERR(Property::ValueType, txt);
+}
+
+Task::Type Task::ParseType(const char *txt) {
+	if (strcmp(txt, "General") == 0)
+		return Task::Type::General;
+	if (strcmp(txt, "Specific") == 0)
+		return Task::Type::Specific;
+	if (strcmp(txt, "System") == 0)
+		return Task::Type::System;
+	throw VALERR(Task::Type, txt);
 }
 
 }
