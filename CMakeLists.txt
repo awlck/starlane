@@ -4,6 +4,9 @@
 cmake_minimum_required (VERSION 3.8)
 
 project("starlane")
+set(CMAKE_CXX_STANDARD 17)
+set(CMAKE_CXX_EXTENSIONS OFF)
+set(CMAKE_CXX_STANDARD_REQUIRED ON)
 
 option(SL_BUILD_QT "Build the Starlane Qt frontent" ON)
 

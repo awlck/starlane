@@ -40,6 +40,7 @@ Game *Game::LoadFromXML(const std::string &gameTxt) {
 	for (const auto &it: theGame.children("Task"))
 		result->CreateTaskFromXML(it);
 
+	Game::theGame = result;
 	return result;
 }
 

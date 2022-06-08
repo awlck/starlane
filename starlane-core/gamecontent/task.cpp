@@ -35,6 +35,19 @@ Task::Action Task::Action::CreateFromXML(const pugi::xml_node &xmlNode) {
 	while (std::getline(strm, t, ' ') && ++i < 4)
 		tokens.push_back(t);
 
+	if (name == "EndGame") {
+		result.refType = ActionRefType::Meta;
+		if (tokens[0] == "Neutral")
+			result.type = ActionType::GameEndNeutral;
+		else if (tokens[0] == "Win")
+			result.type = ActionType::GameWin;
+		else if (tokens[0] == "Lose")
+			result.type = ActionType::GameLose;
+		else
+			result.type = ActionType::GameContinue;
+		return result;
+	}
+
 	if (tokens[0] == "Object") result.refType = ActionRefType::SingleObj;
 	result.lhs = tokens[1];
 
