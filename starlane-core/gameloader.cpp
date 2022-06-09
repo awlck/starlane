@@ -1,7 +1,5 @@
 #include "game.h"
 
-#include <iostream>
-
 #include <pugixml.hpp>
 
 #include "starlane-core.h"
@@ -12,9 +10,6 @@
 #include "gamecontent/restriction.h"
 #include "gamecontent/variable.h"
 #include "gamecontent/task.h"
-
-#include <iterator>
-#include <iostream>
 
 namespace Starlane {
 

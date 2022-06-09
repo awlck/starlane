@@ -25,7 +25,7 @@ Variable *Variable::CreateFromXML(const pugi::xml_node &xmlNode) {
 			result->intVals.reserve(result->capacity);
 			std::istringstream i(val);
 			std::string v;
-			while (std::getline(i, v, '\n')) {
+			while (std::getline(i, v, ',')) {
 				result->intVals.push_back(ParseInt(v.c_str()));
 			}
 			result->type = Type::IntArray;
