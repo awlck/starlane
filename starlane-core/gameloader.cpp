@@ -12,6 +12,9 @@
 #include "gamecontent/restriction.h"
 #include "gamecontent/task.h"
 
+#include <iterator>
+#include <iostream>
+
 namespace Starlane {
 
 Game *Game::LoadFromXML(const std::string &gameTxt) {
@@ -21,41 +24,41 @@ Game *Game::LoadFromXML(const std::string &gameTxt) {
 		SLFrontend::FatalError((std::string("Unable to load game: ") + parseResult.description()).c_str());
 		return nullptr;
 	}
-	auto theGame = doc.child("Adventure");
+	auto gameNode = doc.child("Adventure");
 
 	auto result = new Game;
-	result->gameTitle = theGame.child_value("Title");
-	result->gameAuthor = theGame.child_value("Author");
-	result->gameAdriftVersion = theGame.child_value("Version");
-	result->gameStatusLine = theGame.child_value("UserStatus");
-	result->showFirstLocation = ParseBool(theGame.child("ShowFirstLocation").child_value());
-	result->showExits = ParseBool(theGame.child("ShowExits").child_value());
-	result->gameIntro = result->CreateDescFromXML(theGame.child("Introduction"));
+	result->gameTitle = gameNode.child_value("Title");
+	result->gameAuthor = gameNode.child_value("Author");
+	result->gameAdriftVersion = gameNode.child_value("Version");
+	result->gameStatusLine = gameNode.child_value("UserStatus");
+	result->showFirstLocation = ParseBool(gameNode.child("ShowFirstLocation").child_value());
+	result->showExits = ParseBool(gameNode.child("ShowExits").child_value());
+	result->gameIntro = result->CreateDescFromXML(gameNode.child("Introduction"));
+	Game::theGame = result;
 
 	// It is important that all properties are created before anything tries to use them.
-	for (const auto &it: theGame.children("Property"))
+	for (const auto &it: gameNode.children("Property"))
 		result->CreatePropertyFromXML(it);
 
-	for (const auto &it : theGame.children("Location"))
+	for (const auto &it : gameNode.children("Location"))
 		result->CreateObjFromXML(it);
-	for (const auto &it : theGame.children("Character"))
+	for (const auto &it : gameNode.children("Character"))
 		result->CreateObjFromXML(it);
-	for (const auto &it: theGame.children("Object"))
+	for (const auto &it: gameNode.children("Object"))
 		result->CreateObjFromXML(it);
 
-	for (const auto &it: theGame.children("Task"))
+	for (const auto &it: gameNode.children("Task"))
 		result->CreateTaskFromXML(it);
 
-	for (const auto &it : theGame.children("Event"))
+	for (const auto &it : gameNode.children("Event"))
 		result->CreateEventFromXML(it);
 	
-	for (const auto &it : theGame.children("Variable"))
+	for (const auto &it : gameNode.children("Variable"))
 		result->CreateVariableFromXML(it);
 
-	for (const auto &it : theGame.children("Group"))
+	for (const auto &it : gameNode.children("Group"))
 		result->CreateGroupFromXML(it);
 
-	Game::theGame = result;
 	return result;
 }
 

@@ -11,6 +11,7 @@ Location *Location::CreateFromXML(const pugi::xml_node &xmlNode) {
 	auto theGame = Game::Get();
 	result->locationName = theGame->CreateDescFromXML(xmlNode.child("ShortDescription"));
 	result->description = theGame->CreateDescFromXML(xmlNode.child("LongDescription"));
+	result->MakeCommonValues(xmlNode);
 
 	for (const auto &m: xmlNode.children("Movement")) {
 		std::string direction = m.child_value("Direction");
