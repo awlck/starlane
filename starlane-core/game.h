@@ -36,6 +36,8 @@ public:
 	// Discard the oldest saved game state.
 	// Does nothing if there currently aren't any undo states.
 	void DiscardUndo();
+	// Is there at least one undo state avaiable?
+	bool UndoAvailable() const { return !undoStates.empty(); }
 
 private:
 	Game() = default;
@@ -45,14 +47,16 @@ private:
 	// mutable game state (objects copied for undo state)
 	std::unordered_map<std::string, GameObj *> objects;
 	std::unordered_map<std::string, Task *> tasks;  // tasks can be set or unset
-	std::unordered_map<DescrRef, Description *> descriptions;  // can be shown or not shown
 	std::unordered_map<std::string, Event *> events;
 	std::unordered_map<std::string, Variable *> variables;
 	std::unordered_map<std::string, Group *> groups;
+	// stores the shown-ness of descriptions to avoid needing to copy the entire descriptions for saves.
+	std::unordered_map<DescrRef, bool> descriptionShownStorage;
 
 	// immutable content (only exists once)
 	std::unordered_map<RestrRef, Restriction *> restrictions;
 	std::unordered_map<std::string, Property *> properties;
+	std::unordered_map<DescrRef, Description *> descriptions;
 
 	std::string gameTitle;
 	std::string gameAuthor;

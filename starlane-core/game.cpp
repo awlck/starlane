@@ -18,8 +18,6 @@ Game::Game(const Game &rhs) {
 		objects[it.first] = it.second->Clone();
 	for (const auto &it : rhs.tasks)
 		tasks[it.first] = new Task(*it.second);
-	for (const auto &it : rhs.descriptions)
-		descriptions[it.first] = new Description(*it.second);
 	// TODO: events
 	// TODO: variables
 	for (const auto &it : rhs.groups)
@@ -28,6 +26,9 @@ Game::Game(const Game &rhs) {
 	// For restrictions (immutable), it's enough to copy the references.
 	restrictions = rhs.restrictions;
 	properties = rhs.properties;
+	descriptions = rhs.descriptions;
+	// just bools, so a vector copy is sufficient.
+	descriptionShownStorage = rhs.descriptionShownStorage;
 
 	// Finally, the simple data copies.
 	gameTitle = rhs.gameTitle;
