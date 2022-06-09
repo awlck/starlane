@@ -47,6 +47,7 @@ private:
 		MakeSittingOn,
 		MakeLyingOn,
 		SetVarTo,
+		SetPropTo,
 		ExecTask,
 		UnsetTask,
 		GameWin,
@@ -83,6 +84,7 @@ private:
 		ActionRefType refType;
 		ActionType type;
 		std::string lhs;
+		std::string prop;
 		std::string rhs;
 	};
 
