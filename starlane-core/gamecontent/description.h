@@ -19,7 +19,7 @@ public:
 	// Create a description object using the given XML node
 	static Description *CreateFromXML(Game *g, const pugi::xml_node &xmlNode);
 	// Build a string from this description
-	std::string Output(const Game *g) const;
+	std::string Output(bool commit = true);
 
 private:
 	enum class Display {

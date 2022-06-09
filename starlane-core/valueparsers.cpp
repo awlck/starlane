@@ -7,6 +7,8 @@
 #include <string.h>
 
 #include "gamecontent/description.h"
+#include "gamecontent/gameobj.h"
+#include "gamecontent/character.h"
 #include "gamecontent/property.h"
 #include "gamecontent/task.h"
 
@@ -79,6 +81,44 @@ Task::Type Task::ParseType(const char *txt) {
 	if (strcmp(txt, "System") == 0)
 		return Task::Type::System;
 	throw VALERR(Task::Type, txt);
+}
+
+std::pair<GameObj::HoldingType, std::string> GameObj::ParseHoldingType(const char *txt) {
+	if (STREQ(txt, "Hidden") || STREQ(txt, "Nowhere"))
+		return { GameObj::HoldingType::Hidden, "" };
+	if (STREQ(txt, "Single Location"))
+		return { GameObj::HoldingType::AtLocation, "AtLocation" };
+	if (STREQ(txt, "In Location"))
+		return { GameObj::HoldingType::AtLocation, "InLocation" };
+	if (STREQ(txt, "Location Group"))
+		return { GameObj::HoldingType::AtLocationGroup, "AtLocationGroup" };
+	if (STREQ(txt, "Everywhere"))
+		return { GameObj::HoldingType::Everywhere, "" };
+	if (STREQ(txt, "Inside Object"))
+		return { GameObj::HoldingType::InObject, "InsideWhat" };
+	if (STREQ(txt, "On Object"))
+		return { GameObj::HoldingType::OnObject, "OnWhat" };
+	if (STREQ(txt, "Worn by Character"))
+		return { GameObj::HoldingType::Worn, "WornByWho" };
+	if (STREQ(txt, "Part of Character"))
+		return { GameObj::HoldingType::PartOf, "PartOfWhat" };
+	if (STREQ(txt, "Part of Object"))
+		return { GameObj::HoldingType::PartOf, "PartOfWho" };
+	throw VALERR(GameObj::HoldingType, txt);
+}
+
+std::pair<GameObj::HoldingType, std::string> Character::ParseHoldingType(const char *txt) {
+	if (STREQ(txt, "Hidden") || STREQ(txt, "Nowhere"))
+		return { GameObj::HoldingType::Hidden, "" };
+	if (STREQ(txt, "At Location"))
+		return { GameObj::HoldingType::AtLocation, "CharacterAtLocation" };
+	if (STREQ(txt, "In Object"))
+		return { GameObj::HoldingType::InObject, "CharInsideWhat" };
+	if (STREQ(txt, "On Object"))
+		return { GameObj::HoldingType::OnObject, "CharOnWhat" };
+	if (STREQ(txt, "On Character"))
+		return { GameObj::HoldingType::OnObject, "CharOnWho" };
+	throw VALERR(GameObj::HoldingType, txt);
 }
 
 }

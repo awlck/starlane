@@ -21,6 +21,9 @@
 // gcc doesn't define `size_t' by default, so:
 #include <stddef.h>
 
+// A simplification of `strcmp`:
+#define STREQ(a, b) (strcmp((a), (b)) == 0)
+
 namespace pugi {
 class xml_node;
 }

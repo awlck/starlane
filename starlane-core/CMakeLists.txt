@@ -16,6 +16,8 @@ add_library(starlane-core STATIC
 	"gameloader.cpp"
 	"valueparsers.cpp" "valueparsers.h"
 	"gamecontent/gameobj.h" "gamecontent/gameobj.cpp"
+	"gamecontent/character.cpp" "gamecontent/character.h"
+	"gamecontent/location.cpp" "gamecontent/location.h"
 	"gamecontent/description.cpp" "gamecontent/description.h"
 	"gamecontent/restriction.cpp" "gamecontent/restriction.h"
 	"gamecontent/property.cpp" "gamecontent/property.h"
