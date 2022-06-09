@@ -20,20 +20,20 @@
 namespace Starlane {
 
 bool ParseBool(const char *txt) {
-	if (strcmp(txt, "1") == 0) return true;
-	if (strcmp(txt, "yes") == 0) return true;
-	if (strcmp(txt, "Yes") == 0) return true;
-	if (strcmp(txt, "YES") == 0) return true;
-	if (strcmp(txt, "true") == 0) return true;
-	if (strcmp(txt, "True") == 0) return true;
-	if (strcmp(txt, "TRUE") == 0) return true;
-	if (strcmp(txt, "0") == 0) return false;
-	if (strcmp(txt, "no") == 0) return false;
-	if (strcmp(txt, "No") == 0) return false;
-	if (strcmp(txt, "NO") == 0) return false;
-	if (strcmp(txt, "false") == 0) return false;
-	if (strcmp(txt, "False") == 0) return false;
-	if (strcmp(txt, "FALSE") == 0) return false;
+	if (STREQ(txt, "1")) return true;
+	if (STREQ(txt, "yes")) return true;
+	if (STREQ(txt, "Yes")) return true;
+	if (STREQ(txt, "YES")) return true;
+	if (STREQ(txt, "true")) return true;
+	if (STREQ(txt, "True")) return true;
+	if (STREQ(txt, "TRUE")) return true;
+	if (STREQ(txt, "0")) return false;
+	if (STREQ(txt, "no")) return false;
+	if (STREQ(txt, "No")) return false;
+	if (STREQ(txt, "NO")) return false;
+	if (STREQ(txt, "false")) return false;
+	if (STREQ(txt, "False")) return false;
+	if (STREQ(txt, "FALSE")) return false;
 	throw VALERR(bool, txt);
 }
 
@@ -42,43 +42,43 @@ int64_t ParseInt(const char *txt) {
 }
 
 Description::Display Description::DisplayValue(const char *txt) {
-	if (strcmp(txt, "StartDescriptionWithThis") == 0)
+	if (STREQ(txt, "StartDescriptionWithThis"))
 		return Description::Display::BeginHere;
-	if (strcmp(txt, "StartAfterDefaultDescription") == 0)
+	if (STREQ(txt, "StartAfterDefaultDescription"))
 		return Description::Display::AfterDefault;
-	if (strcmp(txt, "AppendToPreviousDescription") == 0)
+	if (STREQ(txt, "AppendToPreviousDescription"))
 		return Description::Display::Append;
 	throw VALERR(Description::Display, txt);
 }
 
 Property::ValueType Property::ParseValueType(const char *txt) {
-	if (strcmp(txt, "SelectionOnly") == 0)
+	if (STREQ(txt, "SelectionOnly"))
 		return Property::ValueType::Bool;
-	if (strcmp(txt, "Integer") == 0)
+	if (STREQ(txt, "Integer"))
 		return Property::ValueType::Int;
-	if (strcmp(txt, "Text") == 0)
+	if (STREQ(txt, "Text"))
 		return Property::ValueType::Text;
-	if (strcmp(txt, "ObjectKey") == 0)
+	if (STREQ(txt, "ObjectKey"))
 		return Property::ValueType::Object;
-	if (strcmp(txt, "CharacterKey") == 0)
+	if (STREQ(txt, "CharacterKey"))
 		return Property::ValueType::Object;
-	if (strcmp(txt, "LocationKey") == 0)
+	if (STREQ(txt, "LocationKey"))
 		return Property::ValueType::Object;
-	if (strcmp(txt, "LocationGroupKey") == 0)
+	if (STREQ(txt, "LocationGroupKey"))
 		return Property::ValueType::Object;
-	if (strcmp(txt, "StateList") == 0)
+	if (STREQ(txt, "StateList"))
 		return Property::ValueType::Enum;
-	if (strcmp(txt, "ValueList") == 0)
+	if (STREQ(txt, "ValueList"))
 		return Property::ValueType::Map;
 	throw VALERR(Property::ValueType, txt);
 }
 
 Task::Type Task::ParseType(const char *txt) {
-	if (strcmp(txt, "General") == 0)
+	if (STREQ(txt, "General"))
 		return Task::Type::General;
-	if (strcmp(txt, "Specific") == 0)
+	if (STREQ(txt, "Specific"))
 		return Task::Type::Specific;
-	if (strcmp(txt, "System") == 0)
+	if (STREQ(txt, "System"))
 		return Task::Type::System;
 	throw VALERR(Task::Type, txt);
 }

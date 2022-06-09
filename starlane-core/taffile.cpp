@@ -91,7 +91,7 @@ constexpr uint8_t adriftKey[] = { 41, 236, 221, 117, 23, 189, 44, 187, 161, 96, 
 // count: how many bytes (starting at `offset') to process
 uint8_t *DeobfuscateByteArray(const uint8_t *input, size_t length, size_t offset, size_t count) {
 	assert(offset + count <= length);
-	uint8_t *output = new uint8_t[length];
+	auto output = new uint8_t[length];
 	 for (size_t i = 0; i < offset; i++)
 	 	output[i] = input[i];
 	for (size_t i = offset; i < offset + count; i++)
@@ -101,7 +101,7 @@ uint8_t *DeobfuscateByteArray(const uint8_t *input, size_t length, size_t offset
 	return output;
 }
 
-// for some reason, strtol doesn't seem to want to work, so ínstead we do this terribleness:
+// for some reason, strtol doesn't seem to want to work, so instead we do this terribleness:
 int32_t ParseHex(const uint8_t *input, int len) {
 	long result = 0;
 	for (size_t i = 0; i < len; i++) {
@@ -213,10 +213,10 @@ std::string ExtractTaf(const uint8_t *input, size_t size) {
 
 	std::stringstream decompressed;
 	{
-		int32_t writtenInTotal = 0;
+		mz_ulong writtenInTotal = 0;
 		mz_stream zstm;
 		int ret;
-		unsigned char *z_in = (unsigned char *) deobf;
+		auto z_in = (unsigned char *) deobf;
 		std::vector<unsigned char> outputBuffer(CHUNKSIZE);
 		unsigned char *z_out = outputBuffer.data();
 		memset(&zstm, 0, sizeof(mz_stream));
