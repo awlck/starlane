@@ -10,6 +10,7 @@
 #include "gamecontent/gameobj.h"
 #include "gamecontent/property.h"
 #include "gamecontent/restriction.h"
+#include "gamecontent/variable.h"
 #include "gamecontent/task.h"
 
 #include <iterator>
@@ -92,7 +93,9 @@ void Game::CreateEventFromXML(const pugi::xml_node &evtNode) {
 }
 
 void Game::CreateVariableFromXML(const pugi::xml_node &varNode) {
-
+	auto result = Variable::CreateFromXML(varNode);
+	variables[result->Key()] = result;
+	varNames[result->Name()] = result->Key();
 }
 
 void Game::CreateGroupFromXML(const pugi::xml_node &grpNode) {

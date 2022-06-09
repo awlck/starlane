@@ -1,11 +1,13 @@
 #include "game.h"
 
+#include "gamecontent/event.h"
 #include "gamecontent/gameobj.h"
 #include "gamecontent/group.h"
 #include "gamecontent/task.h"
 #include "gamecontent/property.h"
 #include "gamecontent/description.h"
 #include "gamecontent/restriction.h"
+#include "gamecontent/variable.h"
 
 namespace Starlane {
 
@@ -18,8 +20,10 @@ Game::Game(const Game &rhs) {
 		objects[it.first] = it.second->Clone();
 	for (const auto &it : rhs.tasks)
 		tasks[it.first] = new Task(*it.second);
-	// TODO: events
-	// TODO: variables
+	for (const auto &it : rhs.events)
+		events[it.first] = new Event(*it.second);
+	for (const auto &it : rhs.variables)
+		variables[it.first] = new Variable(*it.second);
 	for (const auto &it : rhs.groups)
 		groups[it.first] = new Group(*it.second);
 
@@ -27,6 +31,7 @@ Game::Game(const Game &rhs) {
 	restrictions = rhs.restrictions;
 	properties = rhs.properties;
 	descriptions = rhs.descriptions;
+	varNames = rhs.varNames;
 	// just bools, so a vector copy is sufficient.
 	descriptionShownStorage = rhs.descriptionShownStorage;
 
@@ -57,8 +62,10 @@ Game::~Game() {
 		delete it.second;
 	for (const auto &it : descriptions)
 		delete it.second;
-	// TODO: events
-	// TODO: variables
+	for (const auto &it : events)
+		delete it.second;
+	for (const auto &it : variables)
+		delete it.second;
 	for (const auto &it : groups)
 		delete it.second;
 

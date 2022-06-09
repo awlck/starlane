@@ -28,6 +28,8 @@ public:
 
 	GameObj *GetObject(const std::string &key) { return objects.at(key); }
 	Property *GetPropMeta(const std::string &key) { return properties.at(key); }
+	Variable *GetVariable(const std::string &key) { return variables.at(key); }
+	Variable *GetVarByName(const std::string &name) { return variables.at(varNames.at(name)); }
 
 	// Save the current game state to the undo list.
 	void SaveUndo();
@@ -57,6 +59,7 @@ private:
 	std::unordered_map<RestrRef, Restriction *> restrictions;
 	std::unordered_map<std::string, Property *> properties;
 	std::unordered_map<DescrRef, Description *> descriptions;
+	std::unordered_map<std::string, std::string> varNames;
 
 	std::string gameTitle;
 	std::string gameAuthor;
