@@ -1,10 +1,11 @@
 #pragma once
 
 #ifndef SLC_PROPHOLDER_H
-#define SLC_RPOPHOLDER_H
+#define SLC_PROPHOLDER_H
 
 #include "../slc_private.h"
 
+#include <string>
 #include <type_traits>
 #include <unordered_map>
 

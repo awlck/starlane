@@ -1,5 +1,7 @@
 #include "propholder.h"
 
+#include <stdexcept>
+
 #include <pugixml.hpp>
 
 #include "../game.h"
@@ -25,9 +27,11 @@ void PropHolder::SetPropValueFromXML(const pugi::xml_node &xmlNode) {
 		SetPropValue(propkey, ParseInt(xmlNode.child_value("Value")));
 		return;
 	case Property::ValueType::Text:
-		SetPropValue(propkey, Game::Get()->CreateDescFromXML(xmlNode.child("Value").child("Description")));
+		SetPropValue(propkey, (int64_t) Game::Get()->CreateDescFromXML(xmlNode.child("Value").child("Description")));
 		return;
-	}
+    case Property::ValueType::ErrorType:
+        throw std::runtime_error("Attempted to assign to error-type property.");
+    }
 }
 
 }
