@@ -96,14 +96,16 @@ std::pair<GameObj::HoldingType, std::string> GameObj::ParseHoldingType(const cha
 		return { GameObj::HoldingType::Everywhere, "" };
 	if (STREQ(txt, "Inside Object"))
 		return { GameObj::HoldingType::InObject, "InsideWhat" };
-	if (STREQ(txt, "On Object"))
+    if (STREQ(txt, "Held By Character"))
+        return { GameObj::HoldingType::InObject, "HeldByWho" };
+    if (STREQ(txt, "On Object"))
 		return { GameObj::HoldingType::OnObject, "OnWhat" };
-	if (STREQ(txt, "Worn by Character"))
+	if (STREQ(txt, "Worn By Character"))
 		return { GameObj::HoldingType::Worn, "WornByWho" };
 	if (STREQ(txt, "Part of Character"))
-		return { GameObj::HoldingType::PartOf, "PartOfWhat" };
-	if (STREQ(txt, "Part of Object"))
 		return { GameObj::HoldingType::PartOf, "PartOfWho" };
+	if (STREQ(txt, "Part of Object"))
+		return { GameObj::HoldingType::PartOf, "PartOfWhat" };
 	throw VALERR(GameObj::HoldingType, txt);
 }
 
