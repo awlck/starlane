@@ -34,4 +34,18 @@ void PropHolder::SetPropValueFromXML(const pugi::xml_node &xmlNode) {
     }
 }
 
+void PropHolder::ErasePropValue(const std::string &key) {
+    switch (Game::Get()->GetPropMeta(key)->Type()) {
+    case Property::ValueType::Object:
+    case Property::ValueType::Enum:
+        if (strValuedProps.count(key))
+            strValuedProps.erase(key);
+        break;
+    default:
+        if (intValuedProps.count(key))
+            intValuedProps.erase(key);
+        break;
+    }
+}
+
 }

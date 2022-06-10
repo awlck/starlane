@@ -12,14 +12,17 @@ Character *Character::CreateFromXML(const pugi::xml_node &xmlNode) {
 	result->properName = xmlNode.child_value("Name");
 	result->description = Game::Get()->CreateDescFromXML(xmlNode.child("Description"));
 
-	const auto &cl = xmlNode.select_node("//Property[Key=\"CharacterLocation\"]/Value").node();
-	auto ht = ParseHoldingType(cl.child_value());
+	auto ht = ParseHoldingType(result->GetPropValue<std::string>("CharacterLocation").c_str());
+    result->ErasePropValue("CharacterLocation");
 	result->relation = ht.first;
 	std::string nextProp(ht.second);
-	if (result->relation != GameObj::HoldingType::Hidden)
-		result->parent = xmlNode.select_node(("//Property[Key=\"" + nextProp + "\"]/Value").c_str()).node().child_value();
+	if (result->relation != GameObj::HoldingType::Hidden) {
+        result->parent = result->GetPropValue<std::string>(nextProp);
+        result->ErasePropValue(nextProp);
+    }
 
 	// TODO: Walks
+    // TODO: Conversation
 
 	return result;
 }

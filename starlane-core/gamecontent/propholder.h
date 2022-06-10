@@ -26,6 +26,9 @@ public:
 	}
 
 	void SetPropValueFromXML(const pugi::xml_node &xmlNode);
+
+protected:
+    void ErasePropValue(const std::string &key);
 	
 private:
 	std::unordered_map<std::string, int64_t> intValuedProps;
