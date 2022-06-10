@@ -55,7 +55,8 @@ Game *Game::LoadFromXML(const std::string &gameTxt) {
 	for (const auto &it : gameNode.children("Group"))
 		result->CreateGroupFromXML(it);
 
-	return result;
+    result->StartupSanityCheck();
+    return result;
 }
 
 size_t Game::CreateDescFromXML(const pugi::xml_node &descNode) {
@@ -95,6 +96,19 @@ void Game::CreateVariableFromXML(const pugi::xml_node &varNode) {
 
 void Game::CreateGroupFromXML(const pugi::xml_node &grpNode) {
 
+}
+
+void Game::StartupSanityCheck() const {
+    size_t sanityCheck = 0;
+    for (const auto &_: descriptions)
+        sanityCheck++;
+    if (sanityCheck != descriptionsSoFar || sanityCheck != descriptions.size() || descriptionsSoFar != descriptions.size())
+        SLFrontend::FatalError("Startup sanity check failed: description count mismatch.");
+    sanityCheck = 0;
+    for (const auto &_: restrictions)
+        sanityCheck++;
+    if (sanityCheck != restrictionsSoFar || sanityCheck != restrictions.size() || restrictionsSoFar != restrictions.size())
+        SLFrontend::FatalError("Startup sanity check failed: restriction count mismatch.");
 }
 
 }  // namespace Starlane

@@ -46,6 +46,8 @@ private:
 	Game(const Game &);  // copy constructor -- for undo state saving
 	~Game();
 
+    void StartupSanityCheck() const;
+
 	// mutable game state (objects copied for undo state)
 	std::unordered_map<std::string, GameObj *> objects;
 	std::unordered_map<std::string, Task *> tasks;  // tasks can be set or unset
