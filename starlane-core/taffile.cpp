@@ -204,7 +204,11 @@ std::string ExtractTaf(const uint8_t *input, size_t size) {
 		int babelLen = ParseHex(input + 0xc, 4);
 		deobflen = size - 26 - babelLen - 4;
 		deobf = DeobfuscateByteArray(input + 16 + babelLen, deobflen, 0, deobflen);
-	} else {
+	} else if (memcmp("0000", input + 0xc, 4) == 0 && input[0x10] == (0x78 ^ adriftKey[0])) {
+        // Current format but without Babel data (i.e., extracted from Blorb file)
+        deobflen = size - 26;
+        deobf = DeobfuscateByteArray(input + 0x10, deobflen, 0, deobflen);
+    } else {
 		// pre 5.0.20 format: simply strip the first 12 bytes and go
 		deobflen = size - 26;
 		deobf = input + 12;
