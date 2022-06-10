@@ -13,13 +13,13 @@ namespace Starlane {
 
 class Restriction {
 public:
-	static Restriction *CreateFromXML(Game *g, const pugi::xml_node &xmlNode);
+	static Restriction *CreateFromXML(const pugi::xml_node &xmlNode);
 
 	std::pair<bool, DescrRef> PassRestrictionBlock(const Game *g);
 
 	class Single {
 	public:
-		static Single *CreateFromXML(Game *g, const pugi::xml_node &xmlNode);
+		static Single *CreateFromXML(const pugi::xml_node &xmlNode);
 
 	private:
 		Single() = default;

@@ -2,7 +2,7 @@
 
 namespace Starlane {
 
-Restriction *Restriction::CreateFromXML(Game *g, const pugi::xml_node &xmlNode) {
+Restriction *Restriction::CreateFromXML(const pugi::xml_node &xmlNode) {
 	auto result = new Restriction;
 	return result;
 }

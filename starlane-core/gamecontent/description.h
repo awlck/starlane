@@ -17,7 +17,7 @@ namespace Starlane {
 class Description {
 public:
 	// Create a description object using the given XML node
-	static Description *CreateFromXML(Game *g, const pugi::xml_node &xmlNode);
+	static Description *CreateFromXML(const pugi::xml_node &xmlNode);
 	// Build a string from this description
 	std::string Output(bool commit = true);
 
@@ -31,7 +31,7 @@ private:
 
 	class Segment {
 	public:
-		static Segment CreateFromXML(Game *g, const pugi::xml_node &xmlNode);
+		static Segment CreateFromXML(const pugi::xml_node &xmlNode);
 	private:
 		Segment() = default;
 

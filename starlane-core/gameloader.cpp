@@ -63,7 +63,7 @@ Game *Game::LoadFromXML(const std::string &gameTxt) {
 }
 
 size_t Game::CreateDescFromXML(const pugi::xml_node &descNode) {
-	descriptions[++descriptionsSoFar] = Description::CreateFromXML(this, descNode);
+	descriptions[++descriptionsSoFar] = Description::CreateFromXML(descNode);
 	return descriptionsSoFar;
 }
 
@@ -78,7 +78,7 @@ void Game::CreatePropertyFromXML(const pugi::xml_node &propNode) {
 }
 
 size_t Game::CreateRestrictionsFromXML(const pugi::xml_node &restrNode) {
-	restrictions[++restrictionsSoFar] = Restriction::CreateFromXML(this, restrNode);
+	restrictions[++restrictionsSoFar] = Restriction::CreateFromXML(restrNode);
 	return restrictionsSoFar;
 }
 

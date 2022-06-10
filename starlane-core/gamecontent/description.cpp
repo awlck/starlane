@@ -7,14 +7,14 @@
 
 namespace Starlane {
 
-Description *Description::CreateFromXML(Game *g, const pugi::xml_node &xmlNode) {
+Description *Description::CreateFromXML(const pugi::xml_node &xmlNode) {
     auto result = new Description;
 	for (const auto &it: xmlNode.children("Description"))
-		result->segments.emplace_back(Segment::CreateFromXML(g, it));
+		result->segments.emplace_back(Segment::CreateFromXML(it));
 	return result;
 }
 
-Description::Segment Description::Segment::CreateFromXML(Game *g, const pugi::xml_node &xmlNode) {
+Description::Segment Description::Segment::CreateFromXML(const pugi::xml_node &xmlNode) {
 	Description::Segment result;
 	result.text = xmlNode.child_value("Text");
 	result.displayWhen = Description::DisplayValue(xmlNode.child_value("DisplayWhen"));
@@ -22,7 +22,7 @@ Description::Segment Description::Segment::CreateFromXML(Game *g, const pugi::xm
 	result.onceOnly = once.type() == pugi::node_null ? false : ParseBool(xmlNode.child_value("DisplayOnce"));
 	auto restr = xmlNode.child("Restrictions");
 	if (restr.type() != pugi::node_null) {
-		result.restrictionId = g->CreateRestrictionsFromXML(restr);
+		result.restrictionId = Game::Get()->CreateRestrictionsFromXML(restr);
 	}
 	return result;
 }
