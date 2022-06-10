@@ -6,6 +6,7 @@
 #include "valueparsers.h"
 #include "gamecontent/description.h"
 #include "gamecontent/gameobj.h"
+#include "gamecontent/group.h"
 #include "gamecontent/property.h"
 #include "gamecontent/restriction.h"
 #include "gamecontent/variable.h"
@@ -95,7 +96,8 @@ void Game::CreateVariableFromXML(const pugi::xml_node &varNode) {
 }
 
 void Game::CreateGroupFromXML(const pugi::xml_node &grpNode) {
-
+    auto result = Group::CreateFromXML(grpNode);
+    groups[result->Key()] = result;
 }
 
 void Game::StartupSanityCheck() const {
