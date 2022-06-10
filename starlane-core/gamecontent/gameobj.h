@@ -20,6 +20,7 @@ class GameObj: public PropHolder {
 public:
 	static GameObj *CreateFromXML(const pugi::xml_node &xmlNode);
 	virtual GameObj *Clone() const;  // sort of a copy constructor that respects subclassing.
+    virtual ~GameObj() = default;
 
 	[[nodiscard]] const std::string &Key() const { return key; }
 	std::string GetDisplayName();

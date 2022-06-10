@@ -25,7 +25,7 @@ GameObj *GameObj::CreateFromXML(const pugi::xml_node &xmlNode) {
 	auto result = new GameObj;
 	result->MakeCommonValues(xmlNode);
 	for (const auto &it : xmlNode.children("Name"))
-		result->nouns.emplace_back(xmlNode.child_value());
+		result->nouns.emplace_back(it.child_value());
 	result->description = Game::Get()->CreateDescFromXML(xmlNode.child("Description"));
 
 	// Handle location-related properties separately:
