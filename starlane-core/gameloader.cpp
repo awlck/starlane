@@ -1,5 +1,7 @@
 #include "game.h"
 
+#include <iterator>
+
 #include <pugixml.hpp>
 
 #include "starlane-core.h"
@@ -101,14 +103,10 @@ void Game::CreateGroupFromXML(const pugi::xml_node &grpNode) {
 }
 
 void Game::StartupSanityCheck() const {
-    size_t sanityCheck = 0;
-    for (const auto &_: descriptions)
-        sanityCheck++;
+    size_t sanityCheck = std::distance(descriptions.begin(), descriptions.end());
     if (sanityCheck != descriptionsSoFar || sanityCheck != descriptions.size() || descriptionsSoFar != descriptions.size())
         SLFrontend::FatalError("Startup sanity check failed: description count mismatch.");
-    sanityCheck = 0;
-    for (const auto &_: restrictions)
-        sanityCheck++;
+    sanityCheck = std::distance(restrictions.begin(), restrictions.end());
     if (sanityCheck != restrictionsSoFar || sanityCheck != restrictions.size() || restrictionsSoFar != restrictions.size())
         SLFrontend::FatalError("Startup sanity check failed: restriction count mismatch.");
 }

@@ -10,8 +10,6 @@
 #include "location.h"
 #include "group.h"
 
-#define KEYEQ(node, val) (strcmp((node).child_value("Key"), (val)) == 0)
-
 namespace Starlane {
 
 GameObj *GameObj::CreateFromXML(const pugi::xml_node &xmlNode) {
