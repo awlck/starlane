@@ -5,6 +5,7 @@
 
 namespace Starlane {
 void InitBackend();
+void TimeTick();
 }
 
 namespace SLFrontend {

@@ -11,6 +11,9 @@ namespace Starlane {
 bool ParseBool(const char *txt);
 int64_t ParseInt(const char *txt);
 
+// Check whether the C-style string `txt` contains only digits.
+bool IsDigits(const char *txt);
+
 }
 
 #endif  // !SLC_VALUEPARSERS_H

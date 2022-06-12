@@ -48,7 +48,7 @@ Game::Game(const Game &rhs) {
 }
 
 /* Destruct Game instance. This requires a bit of extra attention,
- * since we must not destruct any of the non-modifyable game content
+ * since we must not destruct any of the non-modifiable game content
  * (descriptions, restrictions) when we are not the currently-used
  * game state object.
  */
@@ -98,6 +98,10 @@ void Game::DiscardUndo() {
 	auto gameToDelete = undoStates.front();
 	delete gameToDelete;
 	undoStates.pop_front();
+}
+
+void Game::Tick() {
+	// TODO
 }
 
 }

@@ -7,6 +7,7 @@
 #include "starlane-core.h"
 #include "valueparsers.h"
 #include "gamecontent/description.h"
+#include "gamecontent/event.h"
 #include "gamecontent/gameobj.h"
 #include "gamecontent/group.h"
 #include "gamecontent/property.h"
@@ -88,7 +89,8 @@ void Game::CreateTaskFromXML(const pugi::xml_node &propNode) {
 }
 
 void Game::CreateEventFromXML(const pugi::xml_node &evtNode) {
-
+	auto result = Event::CreateFromXML(evtNode);
+	events[result->Key()] = result;
 }
 
 void Game::CreateVariableFromXML(const pugi::xml_node &varNode) {

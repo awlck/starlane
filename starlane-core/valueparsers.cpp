@@ -7,6 +7,7 @@
 #include <string.h>
 
 #include "gamecontent/description.h"
+#include "gamecontent/event.h"
 #include "gamecontent/gameobj.h"
 #include "gamecontent/character.h"
 #include "gamecontent/property.h"
@@ -14,12 +15,13 @@
 
 // Convenience macro to insert the stringified name of the type in question,
 // for the benefit of IDE auto-renaming of types.
-//#define VALERR(T, val) Starlane::ValueError(#T, val)
 #define VALERR(T, val) std::runtime_error(std::string("Invalid value for type `" #T "`: ") + val)
 
 namespace Starlane {
 
 bool ParseBool(const char *txt) {
+	if (txt == nullptr) return false;
+	if (*txt == '\0') return false;
 	if (STREQ(txt, "1")) return true;
 	if (STREQ(txt, "yes")) return true;
 	if (STREQ(txt, "Yes")) return true;
@@ -39,6 +41,14 @@ bool ParseBool(const char *txt) {
 
 int64_t ParseInt(const char *txt) {
 	return std::stoll(txt);
+}
+
+bool IsDigits(const char *txt) {
+	if (!txt || !*txt) return false;
+	for (; *txt; ++txt) {
+		if (!isdigit(*txt)) return false;
+	}
+	return true;
 }
 
 Description::Display Description::DisplayValue(const char *txt) {
@@ -121,6 +131,28 @@ std::pair<GameObj::HoldingType, std::string> Character::ParseHoldingType(const c
 	if (STREQ(txt, "On Character"))
 		return { GameObj::HoldingType::OnObject, "CharOnWho" };
 	throw VALERR(GameObj::HoldingType, txt);
+}
+
+Event::StartType Event::ParseStartType(const char *txt) {
+	if (STREQ(txt, "Immediately"))
+		return StartType::Immediately;
+	if (STREQ(txt, "BetweenXandYTurns"))
+		return StartType::TimeBased;
+	if (STREQ(txt, "AfterATask"))
+		return StartType::TaskBased;
+	// In the ADRIFT source code, this enum starts with 1, yet somehow '0' appears
+	// in at least one game. I'm assuming that means the event never actually happens?
+	if (STREQ(txt, "0"))
+		return StartType::Invalid;
+	throw VALERR(Event::StartType, txt);
+}
+
+Event::TimeType Event::ParseTimeType(const char *txt) {
+	if (STREQ(txt, "TurnBased") || STREQ(txt, "Turns"))
+		return TimeType::Turns;
+	if (STREQ(txt, "TimeBased") || STREQ(txt, "Seconds"))
+		return TimeType::RealTime;
+	throw VALERR(Event::TimeType, txt);
 }
 
 }

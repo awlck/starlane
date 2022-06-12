@@ -41,6 +41,9 @@ public:
 	// Is there at least one undo state avaiable?
 	bool UndoAvailable() const { return !undoStates.empty(); }
 
+	// This function should be called once per second to advance real-time-based events.
+	void Tick();
+
 private:
 	Game() = default;
 	Game(const Game &);  // copy constructor -- for undo state saving
