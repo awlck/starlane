@@ -5,6 +5,7 @@
 // The C library header for `strcmp':
 // (Microsoft's STL includes this implicitly, but others don't)
 #include <string.h>
+#include <sstream>
 
 #include "gamecontent/description.h"
 #include "gamecontent/event.h"
@@ -12,6 +13,7 @@
 #include "gamecontent/character.h"
 #include "gamecontent/property.h"
 #include "gamecontent/task.h"
+#include "gamecontent/utility.h"
 
 // Convenience macro to insert the stringified name of the type in question,
 // for the benefit of IDE auto-renaming of types.
@@ -153,6 +155,30 @@ Event::TimeType Event::ParseTimeType(const char *txt) {
 	if (STREQ(txt, "TimeBased") || STREQ(txt, "Seconds"))
 		return TimeType::RealTime;
 	throw VALERR(Event::TimeType, txt);
+}
+
+Util::Range::Range(const char *txt) {
+	if (IsDigits(txt)) {
+		Util::Range(ParseInt(txt));
+	} else {
+		std::istringstream strm((std::string(txt)));
+		std::string t;
+		int cnt = 0;
+		value = (uint32_t) -1;
+		while (std::getline(strm, t, ' ')) {
+			cnt++;
+			if (cnt == 1 && IsDigits(t.c_str())) {
+				min = ParseInt(t.c_str());
+			} else if (cnt == 2 && t == "to") {
+				// nothing to be done, just swallow up "to"
+			} else if (cnt == 3 && IsDigits(t.c_str())) {
+				max = ParseInt(t.c_str());
+			} else {
+				// Should never get here unless the value is gibberish
+				throw VALERR(Util::Range, txt);
+			}
+		}
+	}
 }
 
 }
