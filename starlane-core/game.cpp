@@ -56,11 +56,7 @@ Game::~Game() {
 	// destroy mutable game state
 	for (const auto &it : objects)
 		delete it.second;
-	for (const auto &it : tasks)
-		delete it.second;
 	for (const auto &it : properties)
-		delete it.second;
-	for (const auto &it : descriptions)
 		delete it.second;
 	for (const auto &it : events)
 		delete it.second;
@@ -73,6 +69,10 @@ Game::~Game() {
 		// We are the current (presumably last) game instance -- destroy everything.
 		// (Should really only happen when shutting down the interpreter / loading a new game.)
 		for (const auto &it : restrictions)
+			delete it.second;
+		for (const auto &it : descriptions)
+			delete it.second;
+		for (const auto &it : tasks)
 			delete it.second;
 	}
 }
