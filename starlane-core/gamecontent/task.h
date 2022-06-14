@@ -58,9 +58,19 @@ private:
 		MakeSittingOn,
 		MakeLyingOn,
 		SetVarTo,
+		IncVar,
+		DecVar,
 		SetPropTo,
 		ExecTask,
 		UnsetTask,
+		SkipTurns,
+		ConvoGreet,
+		ConvoFarewell,
+		ConvoAsk,
+		ConvoTell,
+		ConvoCmd,
+		ConvoEnter,
+		ConvoLeave,
 		GameWin,
 		GameLose,
 		GameEndNeutral,
@@ -83,8 +93,7 @@ private:
 		LocationOf,
 		LocationsInGroup,
 		LocationsWithProp,
-		Variable,
-		Meta
+		None
 	};
 
 	class Action {
