@@ -19,6 +19,7 @@
 // for the benefit of IDE auto-renaming of types.
 #define VALERR(T, val) std::runtime_error(std::string("Invalid value for type `" #T "`: ") + val)
 
+
 namespace Starlane {
 
 bool ParseBool(const char *txt) {
@@ -157,6 +158,28 @@ Event::TimeType Event::ParseTimeType(const char *txt) {
 	throw VALERR(Event::TimeType, txt);
 }
 
+Event::SEType Event::ParseSEType(const char *txt) {
+	if (STREQ(txt, "DisplayMessage"))
+		return SEType::DisplayMessage;
+	if (STREQ(txt, "SetLook"))
+		return SEType::SetLook;
+	if (STREQ(txt, "ExecuteTask"))
+		return SEType::ExecuteTask;
+	if (STREQ(txt, "UnsetTask"))
+		return SEType::UnsetTask;
+	throw VALERR(Event::SEType, txt);
+}
+
+Event::SERefType Event::ParseSERefType(const char *txt) {
+	if (STREQ(txt, "FromLastSubEvent"))
+		return SERefType::LastSubEvent;
+	if (STREQ(txt, "FromStartOfEvent"))
+		return SERefType::EventBegin;
+	if (STREQ(txt, "BeforeEndOfEvent"))
+		return SERefType::EventEnd;
+	throw VALERR(Event::SERefType, txt);
+}
+
 Util::Range::Range(const char *txt) {
 	if (IsDigits(txt)) {
 		Util::Range(ParseInt(txt));
@@ -179,6 +202,17 @@ Util::Range::Range(const char *txt) {
 			}
 		}
 	}
+}
+
+const char *SkipText(const char *input, const char *toSkip) {
+	const char *output = strstr(input, toSkip);
+	if (output != input) {
+		// `toSkip` not first in input string
+		return nullptr;
+	}
+	// Since the string `input` starts with `toSkip`, we know that `input` must be at least
+	// as long as `toSkip`. In other words, this is always safe:
+	return output + strlen(toSkip);
 }
 
 }

@@ -15,6 +15,7 @@ add_library(starlane-core STATIC
 	"game.cpp" "game.h"
 	"gameloader.cpp"
 	"valueparsers.cpp" "valueparsers.h"
+	"random.cpp" "random.h"
 	"gamecontent/gameobj.h" "gamecontent/gameobj.cpp"
 	"gamecontent/character.cpp" "gamecontent/character.h"
 	"gamecontent/location.cpp" "gamecontent/location.h"
@@ -25,7 +26,8 @@ add_library(starlane-core STATIC
 	"gamecontent/group.cpp" "gamecontent/group.h"
 	"gamecontent/propholder.cpp" "gamecontent/propholder.h"
 	"gamecontent/variable.cpp" "gamecontent/variable.h"
-	"gamecontent/event.cpp" "gamecontent/event.h" gamecontent/utility.h random.cpp random.h)
+	"gamecontent/event.cpp" "gamecontent/event.h"
+	"gamecontent/utility.h")
 target_compile_definitions(starlane-core PRIVATE SLC_BUILDING_SELF)
 target_link_libraries(starlane-core miniz pugixml-static)
 target_include_directories(starlane-core PRIVATE deps/miniz deps/pugixml/src)
