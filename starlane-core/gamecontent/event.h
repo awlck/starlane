@@ -58,8 +58,19 @@ public:
 		std::string onlyAtLocation;
 	};
 
+	void ReceiveTaskNotification(Util::Control::Condition ctrl, const std::string &taskKey);
+
 private:
 	Event() = default;
+	void Start();
+	void Stop();
+
+	enum class State {
+		NotOngoing,
+		Running,
+		Paused
+	};
+
 	std::string key;
 	std::vector<Util::Control> controls;
 	std::vector<Subevent> subevents;
@@ -68,6 +79,7 @@ private:
 	Util::Range duration;
 	bool repeating;
 	bool repeatCountdown;
+	State state = State::NotOngoing;
 };
 
 }

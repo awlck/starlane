@@ -28,7 +28,7 @@ Event *Event::CreateFromXML(const pugi::xml_node &xmlNode) {
 				c.action = Util::Control::Action::Start;
 			} else if ((x = SkipText(ctrlTxt, "Stop "))) {
 				c.action = Util::Control::Action::Stop;
-			} else if ((x = SkipText(ctrlTxt, "Pause "))) {
+			} else if ((x = SkipText(ctrlTxt, "Suspend "))) {
 				c.action = Util::Control::Action::Pause;
 			} else if ((x = SkipText(ctrlTxt, "Resume "))) {
 				c.action = Util::Control::Action::Resume;
@@ -76,6 +76,36 @@ Event *Event::CreateFromXML(const pugi::xml_node &xmlNode) {
 	}
 
 	return result;
+}
+
+void Event::Start() {
+	// TODO
+}
+
+void Event::Stop() {
+	// TODO
+}
+
+void Event::ReceiveTaskNotification(Util::Control::Condition cond, const std::string &taskKey) {
+	const auto &c = *std::find_if(controls.cbegin(), controls.cend(), [&](const auto &ctrl){
+		return ctrl.condition == cond && ctrl.taskName == taskKey;
+	});
+	switch (c.action) {
+		case Util::Control::Action::Start:
+			Start();
+			return;
+		case Util::Control::Action::Stop:
+			Stop();
+			return;
+		case Util::Control::Action::Pause:
+			if (state == State::Running)
+				state = State::Paused;
+			return;
+		case Util::Control::Action::Resume:
+			if (state == State::Paused)
+				state = State::Running;
+			return;
+	}
 }
 
 }

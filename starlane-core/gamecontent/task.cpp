@@ -5,6 +5,7 @@
 
 #include "../game.h"
 #include "../valueparsers.h"
+#include "event.h"
 
 namespace Starlane {
 
@@ -52,6 +53,36 @@ Task::Action Task::Action::CreateFromXML(const pugi::xml_node &xmlNode) {
 	result.lhs = tokens[1];
 
 	return result;
+}
+
+void Task::RegisterNotification(const std::string &evtKey, Util::Control::Condition cond) {
+	switch (cond) {
+		case Util::Control::Condition::Completion:
+			completeSubs.emplace_back(evtKey);
+			break;
+		case Util::Control::Condition::Uncompletion:
+			uncompleteSubs.push_back(evtKey);
+			break;
+	}
+}
+
+void Task::Uncomplete() {
+	if (done) {
+		SendUncompleteNotifications();
+		done = false;
+	}
+}
+
+void Task::SendCompleteNotifications() const {
+	for (const auto &it: completeSubs) {
+		Game::Get()->GetEvent(it)->ReceiveTaskNotification(Util::Control::Condition::Completion, key);
+	}
+}
+
+void Task::SendUncompleteNotifications() const {
+	for (const auto &it: uncompleteSubs) {
+		Game::Get()->GetEvent(it)->ReceiveTaskNotification(Util::Control::Condition::Uncompletion, key);
+	}
 }
 
 }

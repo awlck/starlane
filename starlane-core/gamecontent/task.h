@@ -8,6 +8,8 @@
 #include <string>
 #include <vector>
 
+#include "utility.h"
+
 namespace Starlane {
 
 class Task {
@@ -27,8 +29,16 @@ public:
 	static OverrideType ParseOverrideType(const char *txt);
 
 	[[nodiscard]] const std::string &Key() const { return key; }
+
+	void RegisterNotification(const std::string &evtKey, Util::Control::Condition cond);
+
+	void Uncomplete();
+
 private:
 	Task() = default;
+
+	void SendCompleteNotifications() const;
+	void SendUncompleteNotifications() const;
 
 	enum class ActionType {
 		MoveToLocation,
@@ -98,6 +108,9 @@ private:
 	DescrRef completionMsg;
 	RestrRef restrictions;
 	std::vector<Action> actions;
+
+	std::vector<std::string> completeSubs;
+	std::vector<std::string> uncompleteSubs;
 };
 
 }

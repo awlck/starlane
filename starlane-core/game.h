@@ -26,6 +26,7 @@ public:
 	void CreateVariableFromXML(const pugi::xml_node &varNode);
 	void CreateGroupFromXML(const pugi::xml_node &grpNode);
 
+	Event *GetEvent(const std::string &key) { return events.at(key); }
 	GameObj *GetObject(const std::string &key) { return objects.at(key); }
 	Property *GetPropMeta(const std::string &key) { return properties.at(key); }
 	Variable *GetVariable(const std::string &key) { return variables.at(key); }
