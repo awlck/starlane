@@ -25,6 +25,7 @@ public:
 		TaskBased
 	};
 	static StartType ParseStartType(const char *txt);
+	StartType GetStartType() const { return startType; }
 
 	enum class TimeType {
 		Turns,
@@ -59,10 +60,10 @@ public:
 	};
 
 	void ReceiveTaskNotification(Util::Control::Condition ctrl, const std::string &taskKey);
+	void Start();
 
 private:
 	Event() = default;
-	void Start();
 	void Stop();
 
 	enum class State {

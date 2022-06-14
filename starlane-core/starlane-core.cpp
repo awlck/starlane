@@ -9,6 +9,12 @@ void InitBackend(const FECapabilities &settings) {
 	SeedRNG(settings.randomSeed);
 }
 
+void BeginGame() {
+	auto theGame = Game::Get();
+	if (theGame)
+		theGame->Begin();
+}
+
 void TimeTick() {
 	auto theGame = Game::Get();
 	if (theGame)

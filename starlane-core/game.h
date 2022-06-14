@@ -47,6 +47,9 @@ public:
 	// Is there at least one undo state avaiable?
 	bool UndoAvailable() const { return !undoStates.empty(); }
 
+	// This function must be called to start the game. It will start relevant events and
+	// output the initial batch of text.
+	void Begin();
 	// This function should be called once per second to advance real-time-based events.
 	void Tick();
 
@@ -73,6 +76,8 @@ private:
 	std::unordered_map<DescrRef, Description *> descriptions;
 	std::unordered_map<std::string, Task *> tasks;
 	std::unordered_map<std::string, std::string> varNames;
+
+	bool gameHasBegun = false;
 
 	std::string gameTitle;
 	std::string gameAuthor;

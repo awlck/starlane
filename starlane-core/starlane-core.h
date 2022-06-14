@@ -21,8 +21,9 @@ struct FECapabilities {
 
 // Initialize the backend with the given settings.
 void InitBackend(const FECapabilities &settings);
-
+// Perform last-minute data fixups and output the initial batch of text.
 void BeginGame();
+// Call this once per second to advance real-time events.
 void TimeTick();
 }
 

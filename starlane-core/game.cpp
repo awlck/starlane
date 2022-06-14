@@ -100,6 +100,18 @@ void Game::DiscardUndo() {
 	undoStates.pop_front();
 }
 
+void Game::Begin() {
+	for (const auto &it: descriptions)
+		descriptionShownStorage[it.first] = false;
+	for (const auto &it: tasks)
+		taskCompletedStorage[it.first] = false;
+	for (const auto &it: events) {
+		if (it.second->GetStartType() == Event::StartType::Immediately)
+			it.second->Start();
+	}
+	gameHasBegun = true;
+}
+
 void Game::Tick() {
 	// TODO
 }
