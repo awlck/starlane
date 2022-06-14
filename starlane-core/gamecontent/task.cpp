@@ -55,6 +55,10 @@ Task::Action Task::Action::CreateFromXML(const pugi::xml_node &xmlNode) {
 	return result;
 }
 
+bool Task::Completed() const {
+	return Game::Get()->GetIsTaskCompleted(key);
+}
+
 void Task::RegisterNotification(const std::string &evtKey, Util::Control::Condition cond) {
 	switch (cond) {
 		case Util::Control::Condition::Completion:
@@ -67,9 +71,9 @@ void Task::RegisterNotification(const std::string &evtKey, Util::Control::Condit
 }
 
 void Task::Uncomplete() {
-	if (done) {
+	if (Completed()) {
 		SendUncompleteNotifications();
-		done = false;
+		Game::Get()->SetTaskCompleted(key, false);
 	}
 }
 

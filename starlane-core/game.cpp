@@ -18,8 +18,6 @@ Game::Game(const Game &rhs) {
 	// For objects, we also need to respect subclassing...
 	for (const auto &it : rhs.objects)
 		objects[it.first] = it.second->Clone();
-	for (const auto &it : rhs.tasks)
-		tasks[it.first] = new Task(*it.second);
 	for (const auto &it : rhs.events)
 		events[it.first] = new Event(*it.second);
 	for (const auto &it : rhs.variables)
@@ -31,9 +29,11 @@ Game::Game(const Game &rhs) {
 	restrictions = rhs.restrictions;
 	properties = rhs.properties;
 	descriptions = rhs.descriptions;
+	tasks = rhs.tasks;
 	varNames = rhs.varNames;
 	// just bools, so a vector copy is sufficient.
 	descriptionShownStorage = rhs.descriptionShownStorage;
+	taskCompletedStorage = rhs.taskCompletedStorage;
 
 	// Finally, the simple data copies.
 	gameTitle = rhs.gameTitle;

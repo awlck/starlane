@@ -32,6 +32,11 @@ public:
 	Variable *GetVariable(const std::string &key) { return variables.at(key); }
 	Variable *GetVarByName(const std::string &name) { return variables.at(varNames.at(name)); }
 
+	bool GetIsDescriptionShown(DescrRef desc) { return descriptionShownStorage.at(desc); }
+	void SetDescriptionShown(DescrRef desc, bool val) { descriptionShownStorage[desc] = val; }
+	bool GetIsTaskCompleted(const std::string &key) { return taskCompletedStorage.at(key); }
+	void SetTaskCompleted(const std::string &key, bool val) { taskCompletedStorage[key] = val; }
+
 	// Save the current game state to the undo list.
 	void SaveUndo();
 	// If any undo states are available, discard the current state and go back one step.
@@ -54,17 +59,19 @@ private:
 
 	// mutable game state (objects copied for undo state)
 	std::unordered_map<std::string, GameObj *> objects;
-	std::unordered_map<std::string, Task *> tasks;  // tasks can be set or unset
 	std::unordered_map<std::string, Event *> events;
 	std::unordered_map<std::string, Variable *> variables;
 	std::unordered_map<std::string, Group *> groups;
 	// stores the shown-ness of descriptions to avoid needing to copy the entire descriptions for saves.
 	std::unordered_map<DescrRef, bool> descriptionShownStorage;
+	// stores the completed-ness of tasks to avoid needing to copy the entire tasks for saves.
+	std::unordered_map<std::string, bool> taskCompletedStorage;
 
 	// immutable content (only exists once)
 	std::unordered_map<RestrRef, Restriction *> restrictions;
 	std::unordered_map<std::string, Property *> properties;
 	std::unordered_map<DescrRef, Description *> descriptions;
+	std::unordered_map<std::string, Task *> tasks;
 	std::unordered_map<std::string, std::string> varNames;
 
 	std::string gameTitle;

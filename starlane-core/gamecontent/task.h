@@ -29,6 +29,7 @@ public:
 	static OverrideType ParseOverrideType(const char *txt);
 
 	[[nodiscard]] const std::string &Key() const { return key; }
+	bool Completed() const;
 
 	void RegisterNotification(const std::string &evtKey, Util::Control::Condition cond);
 
@@ -104,7 +105,6 @@ private:
 	Type type;
 	uint64_t priority;
 	bool repeatable;
-	bool done = false;
 	DescrRef completionMsg;
 	RestrRef restrictions;
 	std::vector<Action> actions;
