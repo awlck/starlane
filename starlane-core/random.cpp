@@ -15,7 +15,10 @@ void SeedRNG() {
 }
 
 void SeedRNG(uint32_t seed) {
-	engine.seed(seed);
+	if (seed == 0) {
+		SeedRNG();
+		return;
+	} else engine.seed(seed);
 }
 
 uint32_t RandomInt(uint32_t max) {

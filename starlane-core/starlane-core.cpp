@@ -5,8 +5,8 @@
 
 namespace Starlane {
 
-void InitBackend() {
-	SeedRNG();
+void InitBackend(const FECapabilities &settings) {
+	SeedRNG(settings.randomSeed);
 }
 
 void TimeTick() {
