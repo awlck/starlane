@@ -111,14 +111,31 @@ private:
 	std::string key;
 	std::string command;
 	std::string descr;
-	Type type;
 	uint64_t priority;
 	bool repeatable;
 	DescrRef completionMsg;
+	DescrRef overrideFailMsg = 0;
 	RestrRef restrictions;
 	std::vector<Action> actions;
 
+	enum class SpType {
+		Object,
+		Text
+	};
+	struct SpecificInfo {
+		SpType type;
+		bool multiple;
+		std::string key;
+	};
+	// Is this a generic, specific, or system task?
+	Type type;
+	// For specific tasks, the key of the general task we are overriding
+	std::string overridesTask;
+	std::vector<SpecificInfo> specificRefs;
+
+	// Events subscribed to this task being completed.
 	std::vector<std::string> completeSubs;
+	// Events subscribed to this task being uncompleted.
 	std::vector<std::string> uncompleteSubs;
 };
 

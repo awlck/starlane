@@ -16,9 +16,27 @@ Task *Task::CreateFromXML(Game *g, const pugi::xml_node &xmlNode) {
 	result->type = Task::ParseType(xmlNode.child_value("Type"));
 	result->command = xmlNode.child_value("Command");
 	result->descr = xmlNode.child_value("Description");
-	result->completionMsg = g->CreateDescFromXML(xmlNode.child("CompletionMessage"));
+	result->completionMsg = Game::Get()->CreateDescFromXML(xmlNode.child("CompletionMessage"));
 	result->repeatable = ParseBool(xmlNode.child_value("Repeatable"));
 	result->restrictions = g->CreateRestrictionsFromXML(xmlNode.child("Restrictions"));
+	{
+		const auto &foNode = xmlNode.child("FailOverride");
+		if (foNode.type() != pugi::node_null)
+			result->overrideFailMsg = Game::Get()->CreateDescFromXML(foNode);
+	}
+	if (result->type == Type::Specific) {
+		for (const auto &spcNode: xmlNode.children("Specific")) {
+			SpecificInfo spi;
+			spi.type = STREQ(spcNode.child_value("Type"), "Text") ? SpType::Text : SpType::Object;
+			spi.multiple = ParseBool(spcNode.child_value("Multiple"));
+			if (spi.type != SpType::Text) {
+				spi.key = spcNode.child_value("Key");
+			}
+			if (std::count_if(spcNode.begin(), spcNode.end(), [&](const auto &item) {
+				return STREQ(item.name(), "Key");
+			}) > 1) throw std::runtime_error(std::string("In task ") + result->key + ": specific tasks with multiple explicitly-named objects in the same reference are currently unsupported.");
+		}
+	}
 
 	for (auto it: xmlNode.child("Actions").children())
 		result->actions.push_back(Action::CreateFromXML(it));
