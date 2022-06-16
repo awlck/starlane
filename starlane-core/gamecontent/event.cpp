@@ -51,11 +51,13 @@ Event *Event::CreateFromXML(const pugi::xml_node &xmlNode) {
 			while (*rtypeTxt && (isdigit(*rtypeTxt) || *rtypeTxt == ' ' || *rtypeTxt == 't' || *rtypeTxt == 'o'))
 				rtypeTxt++;
 			ptrdiff_t rangeLen = rtypeTxt - rangeTxtOrig;
-			char *rangeTxt = new char[rangeLen + 1];
+			if (rangeLen >= 64)
+				throw std::runtime_error(std::string("Range specifier too long in ") + rangeTxtOrig);
+			char rangeTxt[64];
 			strncpy(rangeTxt, rangeTxtOrig, rangeLen);
+			rangeTxt[rangeLen] = 0;
 			se.when = Util::Range(rangeTxt);
 			se.whenRefType = ParseSERefType(rtypeTxt);
-			delete[] rangeTxt;
 		}
 		se.actionType = ParseSEType(it.child_value("What"));
 		se.timeType = ParseTimeType(it.child_value("Measure"));
