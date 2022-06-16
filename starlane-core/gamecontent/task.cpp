@@ -1,6 +1,8 @@
 #include "task.h"
 
+#include <algorithm>
 #include <sstream>
+
 #include <pugixml.hpp>
 
 #include "../game.h"
@@ -36,9 +38,10 @@ Task *Task::CreateFromXML(Game *g, const pugi::xml_node &xmlNode) {
 				return STREQ(item.name(), "Key");
 			}) > 1) throw std::runtime_error(std::string("In task ") + result->key + ": specific tasks with multiple explicitly-named objects in the same reference are currently unsupported.");
 		}
+		result->overrideType = ParseOverrideType(xmlNode.child_value("SpecificOverrideType"));
 	}
 
-	for (auto it: xmlNode.child("Actions").children())
+	for (const auto &it: xmlNode.child("Actions").children())
 		result->actions.push_back(Action::CreateFromXML(it));
 
 	return result;
@@ -51,12 +54,16 @@ Task::Action Task::Action::CreateFromXML(const pugi::xml_node &xmlNode) {
 	std::string t;
 	std::vector<std::string> tokens;
 	int i = 0;
-	while (std::getline(strm, t, ' ') && ++i < 4)
+	while (std::getline(strm, t, ' '))
 		tokens.push_back(t);
 
 	if (name == "MoveObject" || name == "MoveCharacter") {
 		result.lhs = tokens[1];
-		result.lhs = tokens[3];
+		if (tokens[2] == "ToParentLocation") {
+			result.type = ActionType::MoveToParent;
+		} else {
+			result.rhs = tokens[3];
+		}
 		if (tokens[2] == "ToLocation") {
 			result.type = ActionType::MoveToLocation;
 		} else if (tokens[2] == "ToSameLocationAs") {

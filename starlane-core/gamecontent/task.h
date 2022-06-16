@@ -23,8 +23,21 @@ public:
 	};
 	static Type ParseType(const char *txt);
 
-	enum class OverrideType {
-
+	/* enum class OverrideType {
+		Override = 0,
+		ParentText = 0b0001,
+		ParentActions = 0b0010,
+		Before = 0b0100,
+		After = 0b1000
+	}; */
+	struct OverrideType {
+		static constexpr int Override = 0;  // execute the specific task only
+		static constexpr int ParentText = 0b0001;  // also show parent's text
+		static constexpr int ParentActions = 0b0010;  // also run parent's action
+		static constexpr int BeforeParent = 0b0100;  // run this task before the specified parent text/actions
+		static constexpr int AfterParent = 0b1000;  // run this task after the specified parent text/actions
+		OverrideType(uint8_t val) : v(val) {}
+		uint8_t v;
 	};
 	static OverrideType ParseOverrideType(const char *txt);
 
@@ -132,6 +145,7 @@ private:
 	// For specific tasks, the key of the general task we are overriding
 	std::string overridesTask;
 	std::vector<SpecificInfo> specificRefs;
+	OverrideType overrideType = 0;
 
 	// Events subscribed to this task being completed.
 	std::vector<std::string> completeSubs;

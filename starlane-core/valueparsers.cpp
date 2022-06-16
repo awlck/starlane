@@ -96,6 +96,24 @@ Task::Type Task::ParseType(const char *txt) {
 	throw VALERR(Task::Type, txt);
 }
 
+Task::OverrideType Task::ParseOverrideType(const char *txt) {
+	if (STREQ(txt, "BeforeTextAndActions"))
+		return OverrideType::BeforeParent | OverrideType::ParentText | OverrideType::ParentActions;
+	if (STREQ(txt, "BeforeActionsOnly"))
+		return OverrideType::BeforeParent | OverrideType::ParentActions;
+	if (STREQ(txt, "BeforeTextOnly"))
+		return OverrideType::BeforeParent | OverrideType::ParentText;
+	if (STREQ(txt, "Override"))
+		return OverrideType::Override;
+	if (STREQ(txt, "AfterTextOnly"))
+		return OverrideType::AfterParent | OverrideType::ParentText;
+	if (STREQ(txt, "AfterActionsOnly"))
+		return OverrideType::AfterParent | OverrideType::ParentActions;
+	if (STREQ(txt, "AfterTextAndActions"))
+		return OverrideType::AfterParent | OverrideType::ParentText | OverrideType::ParentActions;
+	throw VALERR(Task::OverrideType, txt);
+}
+
 std::pair<GameObj::HoldingType, std::string> GameObj::ParseHoldingType(const char *txt) {
 	if (STREQ(txt, "Hidden") || STREQ(txt, "Nowhere"))
 		return { GameObj::HoldingType::Hidden, "" };
