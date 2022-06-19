@@ -9,8 +9,6 @@
 #include <string>
 #include <vector>
 
-#include "../mechanus.h"
-
 namespace Starlane {
 
 class Restriction {
@@ -23,8 +21,14 @@ private:
 	Restriction() = default;
 
 	struct Single {
+		bool Pass() const;
+
 		std::string restrText;
 		DescrRef failureMsg = 0;
+
+		// True if this is a `must be` restriction.
+		bool positive = true;
+
 	};
 
 	std::vector<Single> restrs;
