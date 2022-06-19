@@ -12,6 +12,7 @@
 #include "gamecontent/gameobj.h"
 #include "gamecontent/character.h"
 #include "gamecontent/property.h"
+#include "gamecontent/restriction.h"
 #include "gamecontent/task.h"
 #include "gamecontent/utility.h"
 
@@ -196,6 +197,22 @@ Event::SERefType Event::ParseSERefType(const char *txt) {
 	if (STREQ(txt, "BeforeEndOfEvent"))
 		return SERefType::EventEnd;
 	throw VALERR(Event::SERefType, txt);
+}
+
+Restriction::TargetType Restriction::ParseTargetType(const char *txt) {
+	if (STREQ(txt, "Location") || STREQ(txt, "Object") || STREQ(txt, "Character") || STREQ(txt, "Item"))
+		return TargetType::Object;
+	if (STREQ(txt, "Property"))
+		return TargetType::Property;
+	if (STREQ(txt, "Task"))
+		return TargetType::Task;
+	if (STREQ(txt, "Variable"))
+		return TargetType::Variable;
+	if (STREQ(txt, "Direction"))
+		return TargetType::Direction;
+	if (STREQ(txt, "Expression"))
+		return TargetType::Expression;
+	throw VALERR(Restriction::TargetType, txt);
 }
 
 Util::Range::Range(const char *txt) {

@@ -1,10 +1,12 @@
 #include "restriction.h"
 
+#include <sstream>
 #include <stdexcept>
 
 #include <pugixml.hpp>
 
 #include "../game.h"
+#include "../valueparsers.h"
 
 namespace Starlane {
 
@@ -61,6 +63,23 @@ void SkipRemainderOfBlock(const std::string &seq, size_t &tidx, size_t &ridx, si
 	}
 }
 
+std::string NextToken(const char **const str) {
+	// if the parameter is NULL
+	if (!str) return "";
+	// if the string pointed to is NULL
+	if (!*str) return "";
+	// if the first character of the string pointed to is '\0'
+	if (!**str) return "";
+
+	size_t i = 0;
+	std::string result;
+	while (**str && isspace(**str)) (*str)++;
+	while ((*str)[i] && !isspace((*str)[i++])) ;
+	result.append(*str, i-1);
+	(*str) += i-1;
+	return result;
+}
+
 }  // anonymous namespace
 
 Restriction *Restriction::CreateFromXML(const pugi::xml_node &xmlNode) {
@@ -68,9 +87,8 @@ Restriction *Restriction::CreateFromXML(const pugi::xml_node &xmlNode) {
 	for (const auto &it : xmlNode.children("Restriction")) {
 		Single s;
 		const auto &txt = it.first_child();
-		s.restrText.reserve(strlen(txt.child_value()) + 15);
-		s.restrText = txt.name();
-		s.restrText.append(" ").append(txt.child_value());
+		s.targetType = ParseTargetType(txt.name());
+		s.restrText = txt.child_value();
 		const auto &msg = it.child("Message");
 		if (msg.type() != pugi::node_null)
 			s.failureMsg = Game::Get()->CreateDescFromXML(msg);
@@ -126,7 +144,40 @@ bool Restriction::Single::Pass() const {
 }
 
 void Restriction::Single::Translate() {
-
+	if (targetType == TargetType::Expression) {
+		// Expresions are not touched at this stage.
+		return;
+	}
+	if (targetType == TargetType::Direction) {
+		// This is only valid in restrictions on special tasks referencing
+		// the player movement task. It has a special two-token syntax.
+		const char *x;
+		if ((x = SkipText(restrText.c_str(), "MustNot Be")))
+			positive = false;
+		else if (!(x = SkipText(restrText.c_str(), "Must Be")))
+			throw std::runtime_error("Invalid direction restriction: " + restrText);
+		lhs = x;
+		return;
+	}
+	const char *x = restrText.c_str();
+	std::string tok;
+	if ((tok = NextToken(&x)).empty()) {
+		throw std::runtime_error("Unable to handle restriction text: " + restrText);
+	}
+	if (targetType == TargetType::Property) {
+		prop = tok;
+		if ((tok = NextToken(&x)).empty()) {
+			throw std::runtime_error("Unable to handle restriction text: " + restrText);
+		}
+	}
+	lhs = tok;
+	if ((tok = NextToken(&x)).empty()) {
+		throw std::runtime_error("Unable to handle restriction text: " + restrText);
+	}
+	if (tok == "Must") positive = true;
+	else if (tok == "MustNot") positive = false;
+	else throw std::runtime_error("Unable to handle restriction text: " + restrText);
+	// TODO
 }
 
 }

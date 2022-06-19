@@ -17,12 +17,28 @@ public:
 
 	std::pair<bool, DescrRef> PassRestrictionBlock() const;
 
+	enum class TargetType {
+		Object,  // Object/Location/Character/Item
+		Property,
+		Task,
+		Variable,
+		Direction,
+		Expression
+	};
+	static TargetType ParseTargetType(const char *txt);
+
+	enum class RelationType {
+		Exist,
+		BeEqualTo,
+		// TODO
+	};
+
 private:
 	Restriction() = default;
 
 	std::pair<bool, DescrRef> PassRestrictionBlock(size_t &tidx, size_t &ridx, size_t brackets) const;
 
-	struct Single {
+		struct Single {
 		bool Pass() const;
 		void Translate();
 
@@ -32,6 +48,10 @@ private:
 		// True if this is a `must be` restriction, false otherwise.
 		bool positive = true;
 
+		TargetType targetType;
+		std::string lhs;
+		std::string prop;
+		std::string rhs;
 	};
 
 	std::vector<Single> restrs;
