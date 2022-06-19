@@ -9,30 +9,26 @@
 #include <string>
 #include <vector>
 
+#include "../mechanus.h"
+
 namespace Starlane {
 
 class Restriction {
 public:
 	static Restriction *CreateFromXML(const pugi::xml_node &xmlNode);
 
-	std::pair<bool, DescrRef> PassRestrictionBlock(const Game *g);
-
-	class Single {
-	public:
-		static Single *CreateFromXML(const pugi::xml_node &xmlNode);
-
-	private:
-		Single() = default;
-
-		std::string restrText;
-		DescrRef failureMsg;
-	};
+	std::pair<bool, DescrRef> PassRestrictionBlock() const;
 
 private:
 	Restriction() = default;
 
+	struct Single {
+		std::string restrText;
+		DescrRef failureMsg = 0;
+	};
+
 	std::vector<Single> restrs;
-	std::string ordering;
+	std::string sequence;
 };
 
 }
