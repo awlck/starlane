@@ -10,6 +10,7 @@
 #include <unordered_map>
 
 namespace Starlane {
+namespace Mechanus { struct FilteredObjIter; }
 
 class Game {
 public:
@@ -97,6 +98,8 @@ private:
 	inline static Game *theGame = nullptr;
 	// The list of former game states maintained for use with the UNDO command.
 	inline static std::deque<Game *> undoStates;
+
+	friend struct Mechanus::FilteredObjIter;
 };
 
 }

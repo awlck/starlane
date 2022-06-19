@@ -63,7 +63,15 @@ Game *Game::LoadFromXML(const std::string &gameTxt) {
     return result;
 }
 
-size_t Game::CreateDescFromXML(const pugi::xml_node &descNode) {
+DescrRef Game::CreateDescFromXML(const pugi::xml_node &descNode) {
+	// On 32-bit systems, the maximum number of description objects that can be handled
+	// is some 4.3 billion. It's very unlikely that any game will ever run into this
+	// limitation (unless programmatically generated specifically to test Starlane),
+	// but it's perhaps best to be cautiuous.
+	if (descriptionsSoFar == std::numeric_limits<DescrRef>::max()) {
+		SLFrontend::FatalError("My brain just exploded: This game has more text than I know how to deal with.");
+		return 0;
+	}
 	descriptions[++descriptionsSoFar] = Description::CreateFromXML(descNode);
 	return descriptionsSoFar;
 }
@@ -78,7 +86,11 @@ void Game::CreatePropertyFromXML(const pugi::xml_node &propNode) {
 	properties[result->Key()] = result;
 }
 
-size_t Game::CreateRestrictionsFromXML(const pugi::xml_node &restrNode) {
+RestrRef Game::CreateRestrictionsFromXML(const pugi::xml_node &restrNode) {
+	if (restrictionsSoFar == std::numeric_limits<RestrRef>::max()) {
+		SLFrontend::FatalError("My brain just exploded: This game has more restrictions than I know how to deal with.");
+		return 0;
+	}
 	restrictions[++restrictionsSoFar] = Restriction::CreateFromXML(restrNode);
 	return restrictionsSoFar;
 }
@@ -111,6 +123,14 @@ void Game::StartupSanityCheck() const {
     sanityCheck = std::distance(restrictions.begin(), restrictions.end());
     if (sanityCheck != restrictionsSoFar || sanityCheck != restrictions.size() || restrictionsSoFar != restrictions.size())
         SLFrontend::FatalError("Startup sanity check failed: restriction count mismatch.");
+
+	// `DescrRef` is a `size_t`, but the Mechanus interpreter deals in `int64_t`.
+	// This means that, on 64-bit systems, we can create descriptions that Mechanus
+	// can't reference. Abort if this is the case.
+	// (Still, that's over 9 quintillion -- 9x10^18 -- description objects. It is very
+	//  unlikely that any games will ever run into this.)
+	if (descriptionsSoFar >= std::numeric_limits<int64_t>::max())
+		SLFrontend::FatalError("My brain just exploded: This game has more text than I know how to deal with.");
 }
 
 }  // namespace Starlane
