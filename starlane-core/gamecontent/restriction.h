@@ -20,13 +20,16 @@ public:
 private:
 	Restriction() = default;
 
+	std::pair<bool, DescrRef> PassRestrictionBlock(size_t &tidx, size_t &ridx, size_t brackets) const;
+
 	struct Single {
 		bool Pass() const;
+		void Translate();
 
 		std::string restrText;
 		DescrRef failureMsg = 0;
 
-		// True if this is a `must be` restriction.
+		// True if this is a `must be` restriction, false otherwise.
 		bool positive = true;
 
 	};

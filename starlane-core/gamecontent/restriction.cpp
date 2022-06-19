@@ -19,7 +19,8 @@ size_t LastIndexOf(const char *str, char c, size_t maxidx) {
 	return result;
 }
 
-// In ADRIFT5, 'and' binds more strongly than 'or', so transform:
+// In ADRIFT5, like many languages, 'and' binds more strongly than 'or'.
+// In order to simplify the interpreter logic below, we transform:
 // #A#O# => (#A#)O#
 // #A#A#O# => (#A#A#)O#
 // (#O#)A#O# => ((#O#)A#)O#
@@ -37,7 +38,30 @@ void TransformRestrictionSequence(std::string &seq) {
 	}
 }
 
+void SkipRemainderOfBlock(const std::string &seq, size_t &tidx, size_t &ridx, size_t bracketLevel) {
+	size_t b = bracketLevel;
+	while (tidx < seq.size() && b >= bracketLevel) {
+		switch (seq[++tidx]) {
+		case '(':
+			b++;
+			tidx++;
+			break;
+		case ')':
+			tidx++;
+			break;
+		case '#':
+			ridx++;
+			tidx++;
+			break;
+		case 'A':
+		case 'O':
+			tidx++;
+			break;
+		}
+	}
 }
+
+}  // anonymous namespace
 
 Restriction *Restriction::CreateFromXML(const pugi::xml_node &xmlNode) {
 	auto result = new Restriction;
@@ -50,6 +74,7 @@ Restriction *Restriction::CreateFromXML(const pugi::xml_node &xmlNode) {
 		const auto &msg = it.child("Message");
 		if (msg.type() != pugi::node_null)
 			s.failureMsg = Game::Get()->CreateDescFromXML(msg);
+		s.Translate();
 		result->restrs.emplace_back(std::move(s));
 	}
 	std::string sequence(xmlNode.child_value("BracketSequence"));
@@ -59,11 +84,49 @@ Restriction *Restriction::CreateFromXML(const pugi::xml_node &xmlNode) {
 }
 
 std::pair<bool, DescrRef> Restriction::PassRestrictionBlock() const {
-	return { true, 0 };
+	size_t tidx = 0;
+	size_t ridx = 0;
+	return PassRestrictionBlock(tidx, ridx, 0);
+}
+
+std::pair<bool, DescrRef> Restriction::PassRestrictionBlock(size_t &tidx, size_t &ridx, size_t brackets) const {
+	std::pair<bool, DescrRef> state;
+	while (tidx < sequence.size()) {
+		if (sequence[tidx] == '(') {
+			state = PassRestrictionBlock(++tidx, ridx, brackets + 1);
+			continue;
+		} else if (sequence[tidx] == ')') {
+			++tidx;
+			return state;
+		} else if ((sequence[tidx] == 'O' && state.first) || (sequence[tidx] == 'A' && !state.first)) {
+			// `true OR any` and `false AND any` are always true or false, respectively. In those
+			// cases, we are done with this block. Skip remainder, including any bracketed sub-blocks.
+			// The reverse cases of `false OR any` and `true AND any` are not handled specially: they
+			// simply continue through the loop.
+			SkipRemainderOfBlock(sequence, tidx, ridx, brackets);
+			return state;
+		} else if (sequence[tidx] == '#') {
+			// Check whether the particular restriction in the sequence passes and record the result.
+			if (restrs[ridx].Pass()) {
+				state = { true, 0 };
+			} else {
+				state = { false, restrs[ridx].failureMsg };
+			}
+			ridx++;
+		} else {
+			throw std::runtime_error("Unrecognized character in restriction sequence: " + sequence);
+		}
+		tidx++;
+	}
+	return state;
 }
 
 bool Restriction::Single::Pass() const {
 	return true;
+}
+
+void Restriction::Single::Translate() {
+
 }
 
 }
