@@ -46,6 +46,8 @@ public:
 	void DiscardUndo();
 	// Is there at least one undo state avaiable?
 	bool UndoAvailable() const { return !undoStates.empty(); }
+	// Restart the game.
+	void Restart();
 
 	// This function must be called to start the game. It will start relevant events and
 	// output the initial batch of text.
@@ -97,6 +99,9 @@ private:
 	inline static Game *theGame = nullptr;
 	// The list of former game states maintained for use with the UNDO command.
 	inline static std::deque<Game *> undoStates;
+	// The initial state right as the game starts. Maintained for the benefit of the
+	// `restart` command.
+	Game *startupState = nullptr;
 };
 
 }

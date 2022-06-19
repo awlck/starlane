@@ -100,7 +100,17 @@ void Game::DiscardUndo() {
 	undoStates.pop_front();
 }
 
+void Game::Restart() {
+	theGame = startupState;
+	for (auto i : undoStates)
+		delete i;
+	delete this;
+	theGame->Begin();
+}
+
 void Game::Begin() {
+	if (!startupState)
+		startupState = new Game(*this);
 	for (const auto &it: descriptions)
 		descriptionShownStorage[it.first] = false;
 	for (const auto &it: tasks)
