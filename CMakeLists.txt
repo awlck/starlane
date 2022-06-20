@@ -9,6 +9,7 @@ set(CMAKE_CXX_EXTENSIONS OFF)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
 
 option(SL_BUILD_QT "Build the Starlane Qt frontent" ON)
+option(SL_BUILD_TOOLS "Build command-line utilities" ON)
 
 # Global compiler options: warnings, security, optimizations
 if(MSVC)
@@ -42,6 +43,7 @@ endif()
 
 
 add_subdirectory("starlane-core")
+add_subdirectory("starlane-utils")
 
 if(SL_BUILD_QT)
 	add_subdirectory("starlane-qt")

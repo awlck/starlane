@@ -3,9 +3,14 @@
 
 #include <starlane-core.h>
 
+namespace SLFrontend {
+void FatalError(const char *msg) {}
+}
+
 
 int main(int argc, char **argv) {
 	QApplication app(argc, argv);
-	Starlane::InitBackend();
+	Starlane::FECapabilities settings;
+	Starlane::InitBackend(settings);
 	return app.exec();
 }
