@@ -1,5 +1,4 @@
 
-
 #include <pugixml.hpp>
 #include <iostream>
 #include <stdexcept>
@@ -7,7 +6,6 @@
 #include <sstream>
 
 void textdump_run(const std::string &gametxt) {
-	
 	pugi::xml_document doc;
 	auto parseResult = doc.load_string(gametxt.c_str());
 	if (parseResult.status != pugi::status_ok) {

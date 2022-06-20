@@ -2,6 +2,7 @@
 
 #include <taffile.h>
 
+void mapper_run(const std::string &gametxt);
 void textdump_run(const std::string &gametxt);
 
 namespace SLFrontend {
@@ -25,7 +26,11 @@ int main(int argc, char **argv) {
 	fclose(f);
 	auto result = Starlane::ExtractTaf(input, fsize);
 
-	if (std::string(argv[1]) == "txtdump") {
+	if (strcmp(argv[1], "txtdump") == 0) {
 		textdump_run(result);
+	} else if (strcmp(argv[1], "mapper") == 0) {
+		mapper_run(result);
 	}
+
+	return 0;
 }
