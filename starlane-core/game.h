@@ -28,7 +28,8 @@ public:
 
 	Event *GetEvent(const std::string &key) { return events.at(key); }
 	GameObj *GetObject(const std::string &key) { return objects.at(key); }
-	Property *GetPropMeta(const std::string &key) { return properties.at(key); }
+	const Property *GetPropMeta(const std::string &key) const { return properties.at(key); }
+	const Restriction *GetRestriction(RestrRef key) const { return restrictions.at(key); }
 	Variable *GetVariable(const std::string &key) { return variables.at(key); }
 	Variable *GetVarByName(const std::string &name) { return variables.at(varNames.at(name)); }
 

@@ -131,7 +131,7 @@ std::pair<bool, DescrRef> Restriction::PassRestrictionBlock(size_t &tidx, size_t
 				state = { false, restrs[ridx].failureMsg };
 			}
 			ridx++;
-		} else {
+		} else if (sequence[tidx] != 'O' && sequence[tidx] != 'A')  {
 			throw std::runtime_error("Unrecognized character in restriction sequence: " + sequence);
 		}
 		tidx++;
@@ -142,6 +142,8 @@ std::pair<bool, DescrRef> Restriction::PassRestrictionBlock(size_t &tidx, size_t
 bool Restriction::Single::Pass() const {
 	return true;
 }
+
+#define GET_TOKEN do { if ((tok = NextToken(&x)).empty()) throw std::runtime_error("Unable to handle restriction text: " + restrText); } while (0)
 
 void Restriction::Single::Translate() {
 	if (targetType == TargetType::Expression) {
@@ -161,19 +163,13 @@ void Restriction::Single::Translate() {
 	}
 	const char *x = restrText.c_str();
 	std::string tok;
-	if ((tok = NextToken(&x)).empty()) {
-		throw std::runtime_error("Unable to handle restriction text: " + restrText);
-	}
+	GET_TOKEN;
 	if (targetType == TargetType::Property) {
 		prop = tok;
-		if ((tok = NextToken(&x)).empty()) {
-			throw std::runtime_error("Unable to handle restriction text: " + restrText);
-		}
+		GET_TOKEN;
 	}
 	lhs = tok;
-	if ((tok = NextToken(&x)).empty()) {
-		throw std::runtime_error("Unable to handle restriction text: " + restrText);
-	}
+	GET_TOKEN;
 	if (tok == "Must") positive = true;
 	else if (tok == "MustNot") positive = false;
 	else throw std::runtime_error("Unable to handle restriction text: " + restrText);
