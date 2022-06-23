@@ -80,6 +80,18 @@ std::string NextToken(const char **const str) {
 	return result;
 }
 
+constexpr bool ConditionHasRHS(Restriction::ConditionType t) {
+	switch (t) {
+	case Restriction::ConditionType::Alone:
+	case Restriction::ConditionType::BeHidden:
+	case Restriction::ConditionType::Exist:
+	case Restriction::ConditionType::Complete:
+		return false;
+	default:
+		return true;
+	}
+}
+
 }  // anonymous namespace
 
 Restriction *Restriction::CreateFromXML(const pugi::xml_node &xmlNode) {
@@ -140,6 +152,7 @@ std::pair<bool, DescrRef> Restriction::PassRestrictionBlock(size_t &tidx, size_t
 }
 
 bool Restriction::Single::Pass() const {
+	// TODO
 	return true;
 }
 
@@ -165,15 +178,125 @@ void Restriction::Single::Translate() {
 	std::string tok;
 	GET_TOKEN;
 	if (targetType == TargetType::Property) {
+		// For restrictions on properties, the property name is first
 		prop = tok;
 		GET_TOKEN;
 	}
+	// The object/variable in question
 	lhs = tok;
+
+	// Handle must / must not
 	GET_TOKEN;
 	if (tok == "Must") positive = true;
 	else if (tok == "MustNot") positive = false;
 	else throw std::runtime_error("Unable to handle restriction text: " + restrText);
-	// TODO
+
+	// Figure out the condition we're dealing with.
+	bool reverseConditionSides = false;
+	GET_TOKEN;
+	if (tok == "SeenByCharacter" || tok == "HaveBeenSeenByCharacter") {
+		cond = ConditionType::SeenByChar;
+	} else if (tok == "BeInGroup" || tok == "BeMemberOfGroup") {
+		cond = ConditionType::InGroup;
+	} else if (tok == "HaveProperty") {
+		cond = ConditionType::HaveProp;
+	} else if (tok == "BeLocation" || tok == "BeObject" || tok == "BeCharacter") {
+		cond = ConditionType::EqualTo;
+	} else if (tok == "Exist") {
+		cond = ConditionType::Exist;
+	} else if (tok == "EqualTo" || tok == "BeEqualTo" || tok == "BeExactText") {
+		cond = ConditionType::EqualTo;
+	} else if (tok == "BeGreaterThan") {
+		cond = ConditionType::GreaterThan;
+	} else if (tok == "BeGreaterThanOrEqualTo") {
+		cond = ConditionType::GreaterOrEqual;
+	} else if (tok == "BeLessThan") {
+		cond = ConditionType::LessOrEqual;
+	} else if (tok == "BeLessThanOrEqualTo") {
+		cond = ConditionType::LessOrEqual;
+	} else if (tok == "BeContain") {
+		cond = ConditionType::ContainText;
+	} else if (tok == "BeAtLocation") {
+		cond = ConditionType::AtLocation;
+	} else if (tok == "BeInSameLocationAsCharacter" || tok == "BeInSameLocationAsObject") {
+		cond = ConditionType::InSameLocationAs;
+	} else if (tok == "BeInsideObject") {
+		cond = ConditionType::InObject;
+	} else if (tok == "BeOnCharacter" || tok == "BeOnObject") {
+		cond = ConditionType::OnObject;
+	} else if (tok == "BeType") {
+		cond = ConditionType::OfType;
+	} else if (tok == "BeAlone") {
+		cond = ConditionType::Alone;
+	} else if (tok == "BeAloneWith") {
+		cond = ConditionType::AloneWith;
+	} else if (tok == "BeInConversationWith") {
+		cond = ConditionType::InConversationWith;
+	} else if (tok == "HaveRouteInDirection") {
+		cond = ConditionType::HaveRoute;
+	} else if (tok == "HaveSeenCharacter" || tok == "HaveSeenLocation" || tok == "HaveSeenObject") {
+		// `x has seen y` == `y has been seen by x`
+		reverseConditionSides = true;
+		cond = ConditionType::SeenByChar;
+	} else if (tok == "BeHoldingObject") {
+		// `x is holding y` == `y is held by x`
+		reverseConditionSides = true;
+		cond = ConditionType::HeldBy;
+	} else if (tok == "BeWearingObject") {
+		reverseConditionSides = true;
+		cond = ConditionType::WornBy;
+	} else if (tok == "BeOfGender") {
+		cond = ConditionType::OfGender;
+	} else if (tok == "BeSittingOnObject") {
+		// These should really by two separate checks: "Is on object" and "is in position",
+		// but that would require inserting a new ANDed restriction into the block, adjusting
+		// the sequencing and all that -- it's just too much hassle.
+		cond = ConditionType::SittingOn;
+	} else if (tok == "BeStandingOnObject") {
+		cond = ConditionType::StandingOn;
+	} else if (tok == "BeLyingOnObject") {
+		cond = ConditionType::LyingOn;
+	} else if (tok == "BeInPosition") {
+		cond = ConditionType::InPosition;
+	} else if (tok == "BeVisibleToCharacter") {
+		// currently visible, rather than ever having been visible
+		cond = ConditionType::VisibleTo;
+	} else if (tok == "BeHeldByCharacter") {
+		cond = ConditionType::HeldBy;
+	} else if (tok == "BeWornByCharacter") {
+		cond = ConditionType::WornBy;
+	} else if (tok == "BeInState") {
+		cond = ConditionType::InState;
+	} else if (tok == "BeHidden") {
+		cond = ConditionType::BeHidden;
+	} else if (tok == "BePartOfCharacter" || tok == "BePartOfObject") {
+		cond = ConditionType::PartOf;
+	} else if (tok == "BeWithinLocationGroup") {
+		cond = ConditionType::WithinGroup;
+	} else if (tok == "BeComplet") {
+		cond = ConditionType::Complete;
+	} else {
+		throw std::runtime_error("Unable to handle restriction text: " + restrText);
+	}
+
+	// For conditions that don't have a right-hand side, we are done.
+	if (!ConditionHasRHS(cond))
+		return;
+
+	if (targetType == TargetType::Variable || targetType == TargetType::Property) {
+		// Conditions on properties and variables have an expression as their right-hand sides.
+		rhs = x;
+		return;
+	}
+
+	// Get the right-hand side of the condition, swapping them if necessary.
+	GET_TOKEN;
+	if (reverseConditionSides) {
+		rhs = lhs;
+		lhs = tok;
+	} else {
+		rhs = tok;
+	}
 }
 
 }

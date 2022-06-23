@@ -27,10 +27,40 @@ public:
 	};
 	static TargetType ParseTargetType(const char *txt);
 
-	enum class RelationType {
+	enum class ConditionType {
+		EqualTo,
+		GreaterThan,
+		GreaterOrEqual,
+		LessThan,
+		LessOrEqual,
+		ContainText,
 		Exist,
-		BeEqualTo,
-		// TODO
+		SeenByChar,
+		InGroup,  // be member of that group
+		WithinGroup,  // in a location that is a member of that group
+		HaveProp,
+		AtLocation,
+		InSameLocationAs,
+		InObject,
+		OnObject,
+		OfType,
+		Alone,  // is only character in the location
+		AloneWith,  // lhs and rhs are only chars in location
+		InConversationWith,
+		HaveRoute,
+		OfGender,
+		LyingOn,
+		SittingOn,
+		StandingOn,
+		InPosition,
+		VisibleTo,
+		BeHidden,
+		HeldBy,
+		WornBy,
+		InState,
+		PartOf,
+		// on tasks:
+		Complete
 	};
 
 private:
@@ -51,6 +81,7 @@ private:
 		TargetType targetType;
 		std::string lhs;
 		std::string prop;
+		ConditionType cond;
 		std::string rhs;
 	};
 
