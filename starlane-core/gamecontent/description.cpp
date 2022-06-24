@@ -14,6 +14,18 @@ Description *Description::CreateFromXML(const pugi::xml_node &xmlNode) {
 	return result;
 }
 
+std::string Description::Build(bool commit) {
+	// TODO: Handle alternatives, restrictions, substitutions, etc.
+	std::string result;
+	for (auto &s : segments) {
+		if (!s.onceOnly || !s.shown) {
+			if (commit) s.shown = true;
+			result.append(s.text);
+		}
+	}
+	return result;
+}
+
 Description::Segment Description::Segment::CreateFromXML(const pugi::xml_node &xmlNode) {
 	Description::Segment result;
 	result.text = xmlNode.child_value("Text");

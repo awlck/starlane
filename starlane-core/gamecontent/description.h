@@ -19,7 +19,8 @@ public:
 	// Create a description object using the given XML node
 	static Description *CreateFromXML(const pugi::xml_node &xmlNode);
 	// Build a string from this description
-	std::string Output(bool commit = true);
+	// `commit` should be true when displaying, false when building the text for comparison purposes.
+	std::string Build(bool commit = true);
 
 private:
 	enum class Display {
@@ -29,16 +30,15 @@ private:
 	};
 	static Display DisplayValue(const char *txt);
 
-	class Segment {
-	public:
+	struct Segment {
 		static Segment CreateFromXML(const pugi::xml_node &xmlNode);
-	private:
 		Segment() = default;
 
 		Display displayWhen;
 		size_t restrictionId;
 		std::string text;
 		bool onceOnly;
+		bool shown;
 	};
 
 	Description() = default;
