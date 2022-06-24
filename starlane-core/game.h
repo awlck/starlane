@@ -34,6 +34,8 @@ public:
 	Variable *GetVariable(const std::string &key) { return variables.at(key); }
 	Variable *GetVarByName(const std::string &name) { return variables.at(varNames.at(name)); }
 
+	bool ObjectExists(const std::string &key) const { return objects.count(key) > 0; }
+
 	bool GetIsTaskCompleted(const std::string &key) { return taskCompletedStorage.at(key); }
 	void SetTaskCompleted(const std::string &key, bool val) { taskCompletedStorage[key] = val; }
 

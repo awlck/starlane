@@ -48,6 +48,20 @@ GameObj *GameObj::CreateFromXML(const pugi::xml_node &xmlNode) {
 	return result;
 }
 
+const std::string &GameObj::GetLocationKey() const {
+	if (parent.empty()) return parent;
+	const GameObj *o = this;
+	Game *theGame = Game::Get();
+	while ((o = theGame->GetObject(o->parent))->parent != "");
+	return o->parent;
+}
+
+Location *GameObj::GetLocation() const {
+	const std::string &lkey = GetLocationKey();
+	if (lkey.empty()) return nullptr;
+	return dynamic_cast<Location *>(Game::Get()->GetObject(lkey));
+}
+
 void GameObj::MakeCommonValues(const pugi::xml_node &xmlNode) {
 	key = xmlNode.child_value("Key");
 	article = xmlNode.child_value("Article");

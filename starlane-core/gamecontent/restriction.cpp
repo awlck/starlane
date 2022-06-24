@@ -9,10 +9,10 @@
 
 #include "../game.h"
 #include "../valueparsers.h"
+#include "character.h"
 #include "description.h"
-#include "variable.h"
 #include "property.h"
-#include "gameobj.h"
+#include "variable.h"
 
 namespace Starlane {
 
@@ -143,8 +143,19 @@ std::pair<bool, DescrRef> Restriction::PassRestrictionBlock(size_t &tidx, size_t
 			return state;
 		} else if (sequence[tidx] == '#') {
 			// Check whether the particular restriction in the sequence passes and record the result.
-			if (restrs[ridx].Pass()) {
+			
+			// Allow the restriction-processing mechanism to change the failure message. This is only
+			// applicable to the "has route in direction" restriction, so doing this is more convenient
+			// than returning a pair.
+			DescrRef txt = 0;
+			if (restrs[ridx].Pass(&txt)) {
 				state = { true, 0 };
+			} else if (txt && !Game::Get()->GetDescription(txt)->Build(false).empty()) {
+				// If the failure message was overridden and the override message doesn't
+				// come out empty, use that.
+				state = { false, txt };
+				// ... but still mark the original text as displayed.
+				(void) Game::Get()->GetDescription(restrs[ridx].failureMsg)->Build(true);
 			} else {
 				state = { false, restrs[ridx].failureMsg };
 			}
@@ -157,7 +168,7 @@ std::pair<bool, DescrRef> Restriction::PassRestrictionBlock(size_t &tidx, size_t
 	return state;
 }
 
-bool Restriction::Single::Pass() const {
+bool Restriction::Single::PassImpl(DescrRef *out) const {
 	switch (targetType) {
 	case TargetType::Object:
 		// Handled below.
@@ -237,7 +248,113 @@ bool Restriction::Single::Pass() const {
 		break;
 	}
 
-	// TODO
+	Game *g = Game::Get();
+	// And now for all the various restrictions on objects...
+	switch (cond) {
+	case ConditionType::EqualTo:
+		return lhs == rhs;
+	case ConditionType::Exist:
+		return g->ObjectExists(lhs);
+	case Starlane::Restriction::ConditionType::SeenByChar:
+		break;
+	case ConditionType::InGroup:
+		return g->GetObject(lhs)->IsMemberOfGroup(rhs);
+	case ConditionType::WithinGroup:
+	{
+		auto *loc = (GameObj *) g->GetObject(lhs)->GetLocation();
+		if (!loc) return false;
+		return loc->IsMemberOfGroup(rhs);
+	}
+	case Starlane::Restriction::ConditionType::HaveProp:
+		break;
+	case ConditionType::AtLocation:
+		return g->GetObject(lhs)->GetLocationKey() == rhs;
+	case ConditionType::InSameLocationAs:
+		return g->GetObject(lhs)->GetLocationKey() == g->GetObject(rhs)->GetLocationKey();
+	case ConditionType::InObject:
+	case ConditionType::HeldBy:
+	{
+		GameObj *l = g->GetObject(lhs);
+		return l->GetParentKey() == rhs && l->GetParentRelation() == GameObj::HoldingType::InObject;
+	}
+	case ConditionType::OnObject:
+	{
+		GameObj *l = g->GetObject(lhs);
+		return l->GetParentKey() == rhs && l->GetParentRelation() == GameObj::HoldingType::OnObject;
+	}
+	case Starlane::Restriction::ConditionType::OfType:  // ?
+		break;
+	case Starlane::Restriction::ConditionType::Alone:
+		break;
+	case Starlane::Restriction::ConditionType::AloneWith:
+		break;
+	case Starlane::Restriction::ConditionType::InConversationWith:
+		break;
+	case ConditionType::HaveRoute:
+	{
+		auto ch = dynamic_cast<Character *>(g->GetObject(lhs));
+		if (!ch) return false;
+		auto result = ch->HasRoute(rhs);
+		*out = result.second;
+		return result.first;
+	}
+		break;
+	case ConditionType::OfGender:
+		// This is stored as a mandatory library property rather than as an attribute
+		// of the character object itself. We can't just turn these into a C++ enum in
+		// Starlane's code because someone could amend the list of possible values for their game.
+		return g->GetObject(lhs)->GetPropValue<std::string>("Gender") == rhs;
+	case ConditionType::LyingOn:
+	{
+		auto l = g->GetObject(lhs);
+		return l->GetParentKey() == rhs
+			&& l->GetParentRelation() == GameObj::HoldingType::OnObject
+			&& l->GetPropValue<std::string>("CharacterPosition") == "Lying";
+	}
+	case ConditionType::SittingOn:
+	{
+		auto l = g->GetObject(lhs);
+		return l->GetParentKey() == rhs
+			&& l->GetParentRelation() == GameObj::HoldingType::OnObject
+			&& l->GetPropValue<std::string>("CharacterPosition") == "Sitting";
+	}
+	case ConditionType::StandingOn:
+	{
+		auto l = g->GetObject(lhs);
+		return l->GetParentKey() == rhs
+			&& l->GetParentRelation() == GameObj::HoldingType::OnObject
+			&& l->GetPropValue<std::string>("CharacterPosition") == "Standing";
+	}
+	case ConditionType::InPosition:
+		// Another mandatory property
+		return g->GetObject(lhs)->GetPropValue<std::string>("CharacterPosition") == rhs;
+	case Starlane::Restriction::ConditionType::VisibleTo:
+		break;
+	case ConditionType::BeHidden:
+		return g->GetObject(lhs)->GetLocationKey().empty();
+	case ConditionType::WornBy:
+	{
+		GameObj *l = g->GetObject(lhs);
+		return l->GetParentKey() == rhs && l->GetParentRelation() == GameObj::HoldingType::Worn;
+	}
+	case Starlane::Restriction::ConditionType::InState:
+	{	// This can be the value of any Enum property, without actually naming the property we need to check...
+		GameObj *l = g->GetObject(lhs);
+		for (const auto &p : l->GetAllStrProps()) {
+			if (g->GetPropMeta(p.first)->Type() == Property::ValueType::Enum && p.second == rhs)
+				return true;
+		}
+		return false;
+	}
+	case ConditionType::PartOf:
+	{
+		GameObj *l = g->GetObject(lhs);
+		return l->GetParentKey() == rhs && l->GetParentRelation() == GameObj::HoldingType::PartOf;
+	}
+	default:
+		break;
+	}
+
 	return true;
 }
 

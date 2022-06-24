@@ -22,6 +22,11 @@ public:
 		if (intValuedProps.count(key) == 0) return false;
 		return (bool) intValuedProps.at(key);
 	}
+	const std::unordered_map<std::string, std::string> &GetAllStrProps() const {
+		// This is unfortunately necessary for the "object is in state" test,
+		// which can refer to any enum property without naming it explicitly.
+		return strValuedProps;
+	}
 	void SetPropValue(const std::string &key, int64_t value) {
 		intValuedProps[key] = value;
 	}

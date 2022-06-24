@@ -3,6 +3,8 @@
 #include <pugixml.hpp>
 
 #include "../game.h"
+#include "location.h"
+#include "restriction.h"
 
 namespace Starlane {
 
@@ -25,6 +27,16 @@ Character *Character::CreateFromXML(const pugi::xml_node &xmlNode) {
     // TODO: Conversation
 
 	return result;
+}
+
+std::pair<bool, DescrRef> Character::HasRoute(const std::string &dir) const {
+	auto *loc = GetLocation();
+	if (!loc || !loc->HasExit(dir))
+		return { false, 0 };
+	const auto &exit = loc->GetExit(dir);
+	if (exit.restr == 0)
+		return { true, 0 };
+	return Game::Get()->GetRestriction(exit.restr)->PassRestrictionBlock();
 }
 
 GameObj *Character::Clone() const {

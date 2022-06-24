@@ -16,6 +16,8 @@ public:
 	static Character *CreateFromXML(const pugi::xml_node &xmlNode);
 	[[nodiscard]] GameObj *Clone() const override;
 
+	std::pair<bool, DescrRef> HasRoute(const std::string &dir) const;
+
 	// Characters have their own set of properties storing their location. Brilliant!
 	static std::pair<HoldingType, std::string> ParseHoldingType(const char *txt);
 private:

@@ -19,6 +19,9 @@ public:
 		RestrRef restr;
 	};
 
+	const ExitSpec &GetExit(const std::string &dir) const { return exits.at(dir); }
+	bool HasExit(const std::string &dir) const { return exits.count(dir) > 0; }
+
 private:
 	Location() = default;
 

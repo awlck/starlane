@@ -75,7 +75,7 @@ private:
 	// A single condition in the larger block of restrictions
 	struct Single {
 		// Whether or not this condition is fulfilled.
-		bool Pass() const;
+		bool Pass(DescrRef *out) const { return positive == PassImpl(out); };
 		// Break the `restrText` into conditions.
 		void Translate();
 
@@ -97,6 +97,7 @@ private:
 
 		const Expression *exprContent = nullptr;
 
+		Single() = default;
 		// Need to be careful about that pointer...
 		~Single() { if (exprContent) delete exprContent; }
 		Single(const Single &) = delete;
@@ -110,7 +111,9 @@ private:
 		Single &operator=(const Single &) = delete;
 		Single &operator=(Single &&) = delete;
 
-		Single() = default;
+	private:
+		// Whether the underlying condidion is fulfilled, not accounting for the `positive` flag.
+		bool PassImpl(DescrRef *out) const;
 	};
 
 	std::vector<Single> restrs;

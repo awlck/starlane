@@ -20,7 +20,7 @@ public:
 	static Description *CreateFromXML(const pugi::xml_node &xmlNode);
 	// Build a string from this description
 	// `commit` should be true when displaying, false when building the text for comparison purposes.
-	std::string Build(bool commit = true);
+	[[nodiscard]] std::string Build(bool commit = true);
 
 private:
 	enum class Display {
