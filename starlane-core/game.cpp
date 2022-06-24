@@ -24,15 +24,16 @@ Game::Game(const Game &rhs) {
 		variables[it.first] = new Variable(*it.second);
 	for (const auto &it : rhs.groups)
 		groups[it.first] = new Group(*it.second);
+	for (const auto &it : rhs.descriptions) {
+		descriptions[it.first] = new Description(*it.second);
+	}
 
 	// For restrictions (immutable), it's enough to copy the references.
 	restrictions = rhs.restrictions;
 	properties = rhs.properties;
-	descriptions = rhs.descriptions;
 	tasks = rhs.tasks;
 	varNames = rhs.varNames;
 	// just bools, so a vector copy is sufficient.
-	descriptionShownStorage = rhs.descriptionShownStorage;
 	taskCompletedStorage = rhs.taskCompletedStorage;
 
 	// Finally, the simple data copies.
@@ -111,8 +112,6 @@ void Game::Restart() {
 void Game::Begin() {
 	if (!startupState)
 		startupState = new Game(*this);
-	for (const auto &it: descriptions)
-		descriptionShownStorage[it.first] = false;
 	for (const auto &it: tasks)
 		taskCompletedStorage[it.first] = false;
 	for (const auto &it: events) {

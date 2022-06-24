@@ -26,6 +26,7 @@ public:
 	void CreateVariableFromXML(const pugi::xml_node &varNode);
 	void CreateGroupFromXML(const pugi::xml_node &grpNode);
 
+	Description *GetDescription(DescrRef d) { return descriptions.at(d); }
 	Event *GetEvent(const std::string &key) { return events.at(key); }
 	GameObj *GetObject(const std::string &key) { return objects.at(key); }
 	const Property *GetPropMeta(const std::string &key) const { return properties.at(key); }
@@ -33,8 +34,6 @@ public:
 	Variable *GetVariable(const std::string &key) { return variables.at(key); }
 	Variable *GetVarByName(const std::string &name) { return variables.at(varNames.at(name)); }
 
-	bool GetIsDescriptionShown(DescrRef desc) { return descriptionShownStorage.at(desc); }
-	void SetDescriptionShown(DescrRef desc, bool val) { descriptionShownStorage[desc] = val; }
 	bool GetIsTaskCompleted(const std::string &key) { return taskCompletedStorage.at(key); }
 	void SetTaskCompleted(const std::string &key, bool val) { taskCompletedStorage[key] = val; }
 
@@ -68,15 +67,13 @@ private:
 	std::unordered_map<std::string, Event *> events;
 	std::unordered_map<std::string, Variable *> variables;
 	std::unordered_map<std::string, Group *> groups;
-	// stores the shown-ness of descriptions to avoid needing to copy the entire descriptions for saves.
-	std::unordered_map<DescrRef, bool> descriptionShownStorage;
+	std::unordered_map<DescrRef, Description *> descriptions;
 	// stores the completed-ness of tasks to avoid needing to copy the entire tasks for saves.
 	std::unordered_map<std::string, bool> taskCompletedStorage;
 
 	// immutable content (only exists once)
 	std::unordered_map<RestrRef, Restriction *> restrictions;
 	std::unordered_map<std::string, Property *> properties;
-	std::unordered_map<DescrRef, Description *> descriptions;
 	std::unordered_map<std::string, Task *> tasks;
 	std::unordered_map<std::string, std::string> varNames;
 
