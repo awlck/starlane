@@ -1,5 +1,6 @@
 #include "restriction.h"
 
+#include <iterator>
 #include <sstream>
 #include <stdexcept>
 #include <string.h>
@@ -8,6 +9,10 @@
 
 #include "../game.h"
 #include "../valueparsers.h"
+#include "description.h"
+#include "variable.h"
+#include "property.h"
+#include "gameobj.h"
 
 namespace Starlane {
 
@@ -153,6 +158,85 @@ std::pair<bool, DescrRef> Restriction::PassRestrictionBlock(size_t &tidx, size_t
 }
 
 bool Restriction::Single::Pass() const {
+	switch (targetType) {
+	case TargetType::Object:
+		// Handled below.
+		break;
+	case TargetType::Task:
+		if (cond == ConditionType::Complete)
+			return Game::Get()->GetIsTaskCompleted(lhs);
+		else
+			throw std::runtime_error("Invalid condition on tasks while evaluating restriction.");
+	case TargetType::Expression:
+		return exprContent->EvaluateBool();
+	case TargetType::Property:
+	case TargetType::Variable:
+	{
+		int64_t intVal;
+		std::string strVal;
+		bool isInt = false;
+		if (targetType == TargetType::Variable) {
+			const Variable *theVar = Game::Get()->GetVariable(lhs);
+			if (theVar->GetType() <= Variable::Type::IntArray) {
+				intVal = theVar->GetValue<int64_t>(varIdx);
+				isInt = true;
+			} else {
+				strVal = theVar->GetValue<std::string>(varIdx);
+			}
+		} else {  // Property
+			const Property *meta = Game::Get()->GetPropMeta(prop);
+			const GameObj *obj = Game::Get()->GetObject(lhs);
+			switch (meta->Type()) {
+			case Property::ValueType::Int:
+			case Property::ValueType::Map:
+			case Property::ValueType::Bool:  // Should never happen here, but just to be sure...
+				intVal = obj->GetPropValue<int64_t>(prop);
+				isInt = true;
+				break;
+			case Property::ValueType::Object:
+			case Property::ValueType::Enum:
+				strVal = obj->GetPropValue<std::string>(prop);
+				break;
+			case Property::ValueType::Text:
+				strVal = Game::Get()->GetDescription(obj->GetPropValue<DescrRef>(prop))->Build(false);
+				break;
+			default:
+				throw std::runtime_error("Invalid property type while evaluating restriction.");
+			}
+		}
+
+		if (isInt) {
+			int64_t result = exprContent->EvaluateInt();
+			switch (cond) {
+			case ConditionType::EqualTo:
+				return intVal == result;
+			case ConditionType::GreaterThan:
+				return intVal > result;
+			case ConditionType::GreaterOrEqual:
+				return intVal >= result;
+			case ConditionType::LessThan:
+				return intVal < result;
+			case ConditionType::LessOrEqual:
+				return intVal <= result;
+			default:
+				throw std::runtime_error("Invalid int operation while evaluating restriction.");
+			}
+		} else {
+			std::string result = exprContent->EvaluateStr();
+			if (cond == ConditionType::EqualTo)
+				return strVal == result;
+			else if (cond == ConditionType::ContainText)
+				return strstr(strVal.c_str(), result.c_str()) != nullptr;
+			else
+				throw std::runtime_error("Invalid string operation while evaluating restriction.");
+		}
+	}
+		break;
+	case TargetType::Direction:
+		throw std::runtime_error("Sorry, cannot handle 'Direction' restrictions yet.");
+		break;
+	}
+
 	// TODO
 	return true;
 }
@@ -161,7 +245,7 @@ bool Restriction::Single::Pass() const {
 
 void Restriction::Single::Translate() {
 	if (targetType == TargetType::Expression) {
-		// Expresions are not touched at this stage.
+		exprContent = new Expression(restrText);
 		return;
 	}
 	if (targetType == TargetType::Direction) {
@@ -183,8 +267,22 @@ void Restriction::Single::Translate() {
 		prop = tok;
 		GET_TOKEN;
 	}
-	// The object/variable in question
-	lhs = tok;
+	// The object/variable in question.
+	if (targetType == TargetType::Variable) {
+		// Find array index for variable, if necessary.
+		auto &idxiter = std::find(tok.cbegin(), tok.cend(), '[');
+		if (idxiter != tok.cend()) {
+			lhs = tok.substr(0, std::distance(tok.cbegin(), idxiter));
+			++idxiter;
+			while (isdigit(*idxiter)) {
+				varIdx *= 10;
+				varIdx += (*idxiter) - '0';
+			}
+		} else {
+			varIdx = 1;
+			lhs = tok;
+		}
+	} else lhs = tok;
 
 	// Handle must / must not
 	GET_TOKEN;
@@ -209,7 +307,7 @@ void Restriction::Single::Translate() {
 		cond = ConditionType::EqualTo;
 	} else if (tok == "BeGreaterThan") {
 		cond = ConditionType::GreaterThan;
-	} else if (tok == "BeGreaterThanOrEqualTo") {
+	} else if (tok == "BeGreaterThanOrEqualTo" || tok == "GreaterThanOrEqualTo") {
 		cond = ConditionType::GreaterOrEqual;
 	} else if (tok == "BeLessThan") {
 		cond = ConditionType::LessOrEqual;
@@ -276,6 +374,11 @@ void Restriction::Single::Translate() {
 		cond = ConditionType::WithinGroup;
 	} else if (tok == "BeComplet") {
 		cond = ConditionType::Complete;
+	} else if (targetType == TargetType::Property && Game::Get()->GetPropMeta(prop)->Type() == Property::ValueType::Object) {
+		// Restrictions on object-valued properties are stored as "prop lhs Must rhs", implying "must/must not be equal"
+		cond = ConditionType::EqualTo;
+		rhs = tok;
+		return;
 	} else {
 		throw std::runtime_error("Unable to handle restriction text: " + restrText);
 	}
@@ -285,8 +388,7 @@ void Restriction::Single::Translate() {
 		return;
 
 	if (targetType == TargetType::Variable || targetType == TargetType::Property) {
-		// Conditions on properties and variables have an expression as their right-hand sides.
-		rhs = x;
+		exprContent = new Expression(x);
 		return;
 	}
 

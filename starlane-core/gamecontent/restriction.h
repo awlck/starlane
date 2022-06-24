@@ -9,6 +9,8 @@
 #include <string>
 #include <vector>
 
+#include "../expressions.h"
+
 namespace Starlane {
 
 class Restriction {
@@ -18,6 +20,7 @@ public:
 	std::pair<bool, DescrRef> PassRestrictionBlock() const;
 
 	enum class TargetType {
+		ErrorType,
 		Object,  // Object/Location/Character/Item
 		Property,
 		Task,
@@ -28,6 +31,7 @@ public:
 	static TargetType ParseTargetType(const char *txt);
 
 	enum class ConditionType {
+		ErrorType,
 		EqualTo,
 		GreaterThan,
 		GreaterOrEqual,
@@ -68,21 +72,45 @@ private:
 
 	std::pair<bool, DescrRef> PassRestrictionBlock(size_t &tidx, size_t &ridx, size_t brackets) const;
 
-		struct Single {
+	// A single condition in the larger block of restrictions
+	struct Single {
+		// Whether or not this condition is fulfilled.
 		bool Pass() const;
+		// Break the `restrText` into conditions.
 		void Translate();
 
+		// The text of the restriction as it appears in the XML file
 		std::string restrText;
+		// Reference for the message to be displayed if this restriction isn't fulfilled.
 		DescrRef failureMsg = 0;
 
 		// True if this is a `must be` restriction, false otherwise.
 		bool positive = true;
 
-		TargetType targetType;
+		TargetType targetType = TargetType::ErrorType;
 		std::string lhs;
+		// For variables, also store the index
+		uint32_t varIdx = 0;
 		std::string prop;
-		ConditionType cond;
+		ConditionType cond = ConditionType::ErrorType;
 		std::string rhs;
+
+		const Expression *exprContent = nullptr;
+
+		// Need to be careful about that pointer...
+		~Single() { if (exprContent) delete exprContent; }
+		Single(const Single &) = delete;
+		Single(Single &&rhs) : restrText(std::move(rhs.restrText)), failureMsg(rhs.failureMsg),
+				positive(rhs.positive), targetType(rhs.targetType), lhs(std::move(rhs.lhs)),
+				rhs(std::move(rhs.rhs)), varIdx(rhs.varIdx), prop(std::move(rhs.prop)),
+				cond(rhs.cond), exprContent(rhs.exprContent)
+		{
+			rhs.exprContent = nullptr;
+		}
+		Single &operator=(const Single &) = delete;
+		Single &operator=(Single &&) = delete;
+
+		Single() = default;
 	};
 
 	std::vector<Single> restrs;

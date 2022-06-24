@@ -13,10 +13,14 @@ namespace Starlane {
 
 class PropHolder {
 public:
-	template <typename T> T GetPropValue(const std::string &key) {
+	template <typename T> T GetPropValue(const std::string &key) const {
 		if constexpr (std::is_integral_v<T>) {
 			return (T) intValuedProps.at(key);
 		} else return strValuedProps.at(key);
+	}
+	template<> bool GetPropValue(const std::string &key) const {
+		if (intValuedProps.count(key) == 0) return false;
+		return (bool) intValuedProps.at(key);
 	}
 	void SetPropValue(const std::string &key, int64_t value) {
 		intValuedProps[key] = value;
