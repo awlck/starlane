@@ -53,7 +53,6 @@ Task::Action Task::Action::CreateFromXML(const pugi::xml_node &xmlNode) {
 	std::istringstream strm(std::string(xmlNode.child_value()));
 	std::string t;
 	std::vector<std::string> tokens;
-	int i = 0;
 	while (std::getline(strm, t, ' '))
 		tokens.push_back(t);
 

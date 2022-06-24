@@ -104,7 +104,7 @@ uint8_t *DeobfuscateByteArray(const uint8_t *input, size_t length, size_t offset
 // for some reason, strtol doesn't seem to want to work, so instead we do this terribleness:
 int32_t ParseHex(const uint8_t *input, int len) {
 	long result = 0;
-	for (size_t i = 0; i < len; i++) {
+	for (int i = 0; i < len; i++) {
 		result *= 16;
 		switch (input[i]) {
 		case '0':

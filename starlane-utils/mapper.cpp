@@ -25,6 +25,7 @@ std::string MakeNameSafe(const std::string &s, bool forCode = true) {
 			continue;
 		case ' ':
 			if (forCode) result.append(1, '-');
+			[[fallthrough]];
 		default:
 			result.append(1, c);
 			continue;
