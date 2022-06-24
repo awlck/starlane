@@ -1,5 +1,6 @@
 #include "event.h"
 
+#include <algorithm>
 #include <sstream>
 
 #include <pugixml.hpp>

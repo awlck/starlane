@@ -9,6 +9,7 @@
 #include <stddef.h>
 
 // A simplification of `strcmp`:
+#include <string.h>
 #define STREQ(a, b) (strcmp((a), (b)) == 0)
 
 namespace pugi {
