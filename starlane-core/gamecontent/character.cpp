@@ -3,6 +3,7 @@
 #include <pugixml.hpp>
 
 #include "../game.h"
+#include "group.h"
 #include "location.h"
 #include "restriction.h"
 
@@ -37,6 +38,33 @@ std::pair<bool, DescrRef> Character::HasRoute(const std::string &dir) const {
 	if (exit.restr == 0)
 		return { true, 0 };
 	return Game::Get()->GetRestriction(exit.restr)->PassRestrictionBlock();
+}
+
+bool Character::CanSee(const std::string &key) const {
+	const auto &myCeiling = GetVisbilityCeiling();
+
+	// By definition we can't see anything when we're hidden.
+	if (myCeiling.empty()) return false;
+
+	// seeing a group means seeing any member of the group
+	if (Game::Get()->GroupExists(key)) {
+		const Group *grp = Game::Get()->GetGroup(key);
+		return std::any_of(grp->GetAllMembers().begin(), grp->GetAllMembers().end(), [this](const auto &o) {
+			return CanSee(o);
+		});
+	}
+
+	const auto &otherCeiling = Game::Get()->GetObject(key)->GetVisbilityCeiling();
+	// If the other object's ceiling is a group, we can see it if our own visibility ceiling is also a member of that group.
+	if (Game::Get()->GroupExists(otherCeiling)) {
+		const Group *grp = Game::Get()->GetGroup(otherCeiling);
+		return grp->GetAllMembers().count(myCeiling) > 0;
+	}
+
+	// Otherwise, we can see the object if our visibility ceilings are the same,
+	// or otherwise if that object is our visibility ceiling. (The latter case allows
+	// the player to open the container they're in.)
+	return myCeiling == otherCeiling || myCeiling == key;
 }
 
 GameObj *Character::Clone() const {

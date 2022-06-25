@@ -35,6 +35,11 @@ public:
 		members.erase(key);
 	}
 
+	bool ContainsObj(const std::string &key) const {
+		return members.count(key) > 1;
+	}
+	const std::set<std::string> &GetAllMembers() const { return members; }
+
 private:
 	Group() = default;
 

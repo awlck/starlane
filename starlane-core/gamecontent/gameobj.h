@@ -46,6 +46,9 @@ public:
 	// A null pointer is returned if this object is hidden, or if the ultimate location somehow
 	// isn't of type `Location` after all.
 	Location *GetLocation() const;
+	// Get the visibility ceiling (usually the location, but when in a closed container
+	// this would be that container).
+	const std::string &GetVisbilityCeiling() const;
 
 	enum class HoldingType {
 		Hidden,

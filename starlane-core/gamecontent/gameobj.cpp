@@ -52,7 +52,7 @@ const std::string &GameObj::GetLocationKey() const {
 	if (parent.empty()) return parent;
 	const GameObj *o = this;
 	Game *theGame = Game::Get();
-	while ((o = theGame->GetObject(o->parent))->parent != "");
+	while (!(o = theGame->GetObject(o->parent))->parent.empty());
 	return o->parent;
 }
 
@@ -60,6 +60,25 @@ Location *GameObj::GetLocation() const {
 	const std::string &lkey = GetLocationKey();
 	if (lkey.empty()) return nullptr;
 	return dynamic_cast<Location *>(Game::Get()->GetObject(lkey));
+}
+
+const std::string &GameObj::GetVisbilityCeiling() const {
+	switch (relation) {
+		case HoldingType::InObject:
+		{
+			auto o = Game::Get()->GetObject(parent);
+			if (!o->GetPropValue<bool>("Openable") || o->GetPropValue<std::string>("OpenStatus") == "Open")
+				return o->GetVisbilityCeiling();
+			else return o->Key();
+		}
+		case HoldingType::Worn:
+		case HoldingType::PartOf:
+		case HoldingType::OnObject:
+			return Game::Get()->GetObject(parent)->GetVisbilityCeiling();
+		case HoldingType::AtLocation:
+		default:
+			return parent;
+	}
 }
 
 void GameObj::MakeCommonValues(const pugi::xml_node &xmlNode) {

@@ -274,7 +274,7 @@ bool Restriction::Single::PassImpl(DescrRef *out) const {
 		if (!loc) return false;
 		return loc->IsMemberOfGroup(rhs);
 	}
-	case Starlane::Restriction::ConditionType::HaveProp:
+	case ConditionType::HaveProp:
 	{
 		const GameObj *l = g->GetObject(lhs);
 		switch (g->GetPropMeta(rhs)->Type()) {

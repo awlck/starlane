@@ -19,7 +19,7 @@ public:
 
 	std::pair<bool, DescrRef> HasRoute(const std::string &dir) const;
 	// Whether this character can currently see the object in question.
-	bool CanSee(const std::string &key) const { return false; }  // TODO
+	bool CanSee(const std::string &key) const;
 	// Whether this character has ever seen the object in question.
 	bool HasSeen(const std::string &key) const { return seenStorage.count(key) > 0; }
 

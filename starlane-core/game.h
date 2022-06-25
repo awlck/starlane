@@ -28,12 +28,14 @@ public:
 
 	Description *GetDescription(DescrRef d) { return descriptions.at(d); }
 	Event *GetEvent(const std::string &key) { return events.at(key); }
+	Group *GetGroup(const std::string &key) { return groups.at(key); }
 	GameObj *GetObject(const std::string &key) { return objects.at(key); }
 	const Property *GetPropMeta(const std::string &key) const { return properties.at(key); }
 	const Restriction *GetRestriction(RestrRef key) const { return restrictions.at(key); }
 	Variable *GetVariable(const std::string &key) { return variables.at(key); }
 	Variable *GetVarByName(const std::string &name) { return variables.at(varNames.at(name)); }
 
+	bool GroupExists(const std::string &key) const { return groups.count(key) > 0; }
 	bool ObjectExists(const std::string &key) const { return objects.count(key) > 0; }
 	const std::unordered_map<std::string, GameObj *> &GetAllObjects() const { return objects; }
 
