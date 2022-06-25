@@ -39,6 +39,10 @@ else()
 		"-Wimplicit-fallthrough"  # warn on implicit switch statement fallthrough
 		"-Werror=return-type"  # treat return-related issues as errors
 		"-fstack-protector"  # enable stack protection
+		$<$<NOT:$<CONFIG:Debug>>:-flto>  # release only: link-time whole-program optimization
+	)
+	add_link_options(
+		$<$<NOT:$<CONFIG:Debug>>:-flto>
 	)
 endif()
 
