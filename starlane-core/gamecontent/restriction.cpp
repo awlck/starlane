@@ -1,5 +1,6 @@
 #include "restriction.h"
 
+#include <algorithm>
 #include <iterator>
 #include <sstream>
 #include <stdexcept>
@@ -340,11 +341,9 @@ bool Restriction::Single::PassImpl(DescrRef *out) const {
 	case Starlane::Restriction::ConditionType::InState:
 	{	// This can be the value of any Enum property, without actually naming the property we need to check...
 		GameObj *l = g->GetObject(lhs);
-		for (const auto &p : l->GetAllStrProps()) {
-			if (g->GetPropMeta(p.first)->Type() == Property::ValueType::Enum && p.second == rhs)
-				return true;
-		}
-		return false;
+		return std::any_of(l->GetAllStrProps().cbegin(), l->GetAllStrProps().cend(), [this](const auto &p) {
+			return Game::Get()->GetPropMeta(p.first)->Type() == Property::ValueType::Enum && p.second == rhs;
+		});
 	}
 	case ConditionType::PartOf:
 	{
@@ -387,7 +386,7 @@ void Restriction::Single::Translate() {
 	// The object/variable in question.
 	if (targetType == TargetType::Variable) {
 		// Find array index for variable, if necessary.
-		auto &idxiter = std::find(tok.cbegin(), tok.cend(), '[');
+		auto idxiter = std::find(tok.cbegin(), tok.cend(), '[');
 		if (idxiter != tok.cend()) {
 			lhs = tok.substr(0, std::distance(tok.cbegin(), idxiter));
 			++idxiter;

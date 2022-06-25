@@ -19,6 +19,7 @@ if(MSVC)
 		# MSVC doesn't provide a falltrough warning during regular compilation.
 		"/Zc:throwingNew"  # optimize for throwing `operator new`
 		"/Zc:preprocessor"  # enable conforming preprocessor
+		"/permissive-"  # enable conforming mode. You'd think this would be the default, but it isn't.
 		"/Zf"  # improve debug info generation speed for parallel builds
 		"/GS"  # enable the stack guard
 		"/guard:cf"  # enable control flow guard for indirect calls
