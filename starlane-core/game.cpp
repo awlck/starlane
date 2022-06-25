@@ -15,15 +15,20 @@ namespace Starlane {
  * the mutable game state objects.
  */
 Game::Game(const Game &rhs) {
+	objects.reserve(rhs.objects.size());
 	// For objects, we also need to respect subclassing...
 	for (const auto &it : rhs.objects)
 		objects[it.first] = it.second->Clone();
+	events.reserve(rhs.events.size());
 	for (const auto &it : rhs.events)
 		events[it.first] = new Event(*it.second);
+	variables.reserve(rhs.variables.size());
 	for (const auto &it : rhs.variables)
 		variables[it.first] = new Variable(*it.second);
+	groups.reserve(rhs.groups.size());
 	for (const auto &it : rhs.groups)
 		groups[it.first] = new Group(*it.second);
+	descriptions.reserve(rhs.descriptions.size());
 	for (const auto &it : rhs.descriptions) {
 		descriptions[it.first] = new Description(*it.second);
 	}
@@ -112,6 +117,7 @@ void Game::Restart() {
 void Game::Begin() {
 	if (!startupState)
 		startupState = new Game(*this);
+	taskCompletedStorage.reserve(tasks.size());
 	for (const auto &it: tasks)
 		taskCompletedStorage[it.first] = false;
 	for (const auto &it: events) {
