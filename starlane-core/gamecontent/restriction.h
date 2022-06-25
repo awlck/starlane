@@ -99,12 +99,12 @@ private:
 
 		Single() = default;
 		// Need to be careful about that pointer...
-		~Single() { if (exprContent) delete exprContent; }
+		~Single() { delete exprContent; }
 		Single(const Single &) = delete;
-		Single(Single &&rhs) : restrText(std::move(rhs.restrText)), failureMsg(rhs.failureMsg),
+		Single(Single &&rhs)  noexcept : restrText(std::move(rhs.restrText)), failureMsg(rhs.failureMsg),
 				positive(rhs.positive), targetType(rhs.targetType), lhs(std::move(rhs.lhs)),
-				rhs(std::move(rhs.rhs)), varIdx(rhs.varIdx), prop(std::move(rhs.prop)),
-				cond(rhs.cond), exprContent(rhs.exprContent)
+				varIdx(rhs.varIdx), prop(std::move(rhs.prop)), cond(rhs.cond), rhs(std::move(rhs.rhs)),
+				exprContent(rhs.exprContent)
 		{
 			rhs.exprContent = nullptr;
 		}

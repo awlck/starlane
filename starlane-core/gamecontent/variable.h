@@ -25,7 +25,7 @@ public:
 
 	const std::string &Key() const { return key; }
 	const std::string &Name() const { return varName; }
-	const Type GetType() const { return type; }
+	Type GetType() const { return type; }
 
 	template <typename T> T GetValue(uint32_t idx = 1) const {
 		if (idx == 0 || idx > capacity) {
