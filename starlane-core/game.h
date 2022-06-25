@@ -35,6 +35,7 @@ public:
 	Variable *GetVarByName(const std::string &name) { return variables.at(varNames.at(name)); }
 
 	bool ObjectExists(const std::string &key) const { return objects.count(key) > 0; }
+	const std::unordered_map<std::string, GameObj *> &GetAllObjects() const { return objects; }
 
 	bool GetIsTaskCompleted(const std::string &key) { return taskCompletedStorage.at(key); }
 	void SetTaskCompleted(const std::string &key, bool val) { taskCompletedStorage[key] = val; }

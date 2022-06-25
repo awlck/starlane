@@ -256,8 +256,16 @@ bool Restriction::Single::PassImpl(DescrRef *out) const {
 		return lhs == rhs;
 	case ConditionType::Exist:
 		return g->ObjectExists(lhs);
-	case Starlane::Restriction::ConditionType::SeenByChar:
-		break;
+	case ConditionType::SeenByChar:
+	{
+		const Character *c = dynamic_cast<Character *>(g->GetObject(rhs));
+		return c->HasSeen(lhs);
+	}
+	case ConditionType::VisibleTo:
+	{
+		const Character *c = dynamic_cast<Character *>(g->GetObject(rhs));
+		return c->CanSee(lhs);
+	}
 	case ConditionType::InGroup:
 		return g->GetObject(lhs)->IsMemberOfGroup(rhs);
 	case ConditionType::WithinGroup:
@@ -267,13 +275,28 @@ bool Restriction::Single::PassImpl(DescrRef *out) const {
 		return loc->IsMemberOfGroup(rhs);
 	}
 	case Starlane::Restriction::ConditionType::HaveProp:
-		break;
+	{
+		const GameObj *l = g->GetObject(lhs);
+		switch (g->GetPropMeta(rhs)->Type()) {
+		case Property::ValueType::ErrorType:
+			throw std::runtime_error("Invalid type for property " + rhs + " while evaluating restriction.");
+		case Property::ValueType::Bool:
+			return l->GetPropValue<bool>(rhs);
+		case Property::ValueType::Int:
+		case Property::ValueType::Text:
+		case Property::ValueType::Map:
+			return l->GetAllIntProps().count(rhs) > 0;
+		case Property::ValueType::Object:
+		case Property::ValueType::Enum:
+			return l->GetAllStrProps().count(rhs) > 0;
+		}
+	}
 	case ConditionType::AtLocation:
 		return g->GetObject(lhs)->GetLocationKey() == rhs;
 	case ConditionType::InSameLocationAs:
 		return g->GetObject(lhs)->GetLocationKey() == g->GetObject(rhs)->GetLocationKey();
 	case ConditionType::InObject:
-	case ConditionType::HeldBy:
+	case ConditionType::HeldBy:  // Starlane trats `held by` simply as `in`.
 	{
 		GameObj *l = g->GetObject(lhs);
 		return l->GetParentKey() == rhs && l->GetParentRelation() == GameObj::HoldingType::InObject;
@@ -285,10 +308,21 @@ bool Restriction::Single::PassImpl(DescrRef *out) const {
 	}
 	case Starlane::Restriction::ConditionType::OfType:  // ?
 		break;
-	case Starlane::Restriction::ConditionType::Alone:
-		break;
-	case Starlane::Restriction::ConditionType::AloneWith:
-		break;
+	case ConditionType::Alone:
+	{  // "Alone" meaning "no other character is in the same location as the lhs"
+		return !std::any_of(g->GetAllObjects().cbegin(), g->GetAllObjects().cend(), [this](const auto &o) {
+			return o.first != lhs && dynamic_cast<Character *>(o.second)
+				&& o.second->GetLocationKey() != Game::Get()->GetObject(lhs)->GetLocationKey();
+		});
+	}
+	case ConditionType::AloneWith:
+	{  // "Alone with" meaning "no other character except rhs is in the same location as the lhs"
+		if (g->GetObject(lhs)->GetLocationKey() != g->GetObject(rhs)->GetLocationKey()) return false;
+		return !std::any_of(g->GetAllObjects().cbegin(), g->GetAllObjects().cend(), [this](const auto &o) {
+			return o.first != lhs && o.first != rhs && dynamic_cast<Character *>(o.second)
+				&& o.second->GetLocationKey() != Game::Get()->GetObject(lhs)->GetLocationKey();
+		});
+	}
 	case Starlane::Restriction::ConditionType::InConversationWith:
 		break;
 	case ConditionType::HaveRoute:
@@ -328,8 +362,6 @@ bool Restriction::Single::PassImpl(DescrRef *out) const {
 	case ConditionType::InPosition:
 		// Another mandatory property
 		return g->GetObject(lhs)->GetPropValue<std::string>("CharacterPosition") == rhs;
-	case Starlane::Restriction::ConditionType::VisibleTo:
-		break;
 	case ConditionType::BeHidden:
 		return g->GetObject(lhs)->GetLocationKey().empty();
 	case ConditionType::WornBy:
@@ -337,7 +369,7 @@ bool Restriction::Single::PassImpl(DescrRef *out) const {
 		GameObj *l = g->GetObject(lhs);
 		return l->GetParentKey() == rhs && l->GetParentRelation() == GameObj::HoldingType::Worn;
 	}
-	case Starlane::Restriction::ConditionType::InState:
+	case ConditionType::InState:
 	{	// This can be the value of any Enum property, without actually naming the property we need to check...
 		GameObj *l = g->GetObject(lhs);
 		return std::any_of(l->GetAllStrProps().cbegin(), l->GetAllStrProps().cend(), [this](const auto &p) {

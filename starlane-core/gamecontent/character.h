@@ -6,6 +6,7 @@
 #include "gameobj.h"
 
 #include <string>
+#include <unordered_set>
 
 #include "../slc_private.h"
 
@@ -17,6 +18,10 @@ public:
 	[[nodiscard]] GameObj *Clone() const override;
 
 	std::pair<bool, DescrRef> HasRoute(const std::string &dir) const;
+	// Whether this character can currently see the object in question.
+	bool CanSee(const std::string &key) const { return false; }  // TODO
+	// Whether this character has ever seen the object in question.
+	bool HasSeen(const std::string &key) const { return seenStorage.count(key) > 0; }
 
 	// Characters have their own set of properties storing their location. Brilliant!
 	static std::pair<HoldingType, std::string> ParseHoldingType(const char *txt);
@@ -24,6 +29,7 @@ private:
 	Character() = default;
 
 	std::string properName;
+	std::unordered_set<std::string> seenStorage;
 };
 
 }
