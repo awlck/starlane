@@ -17,7 +17,7 @@ class Restriction {
 public:
 	static Restriction *CreateFromXML(const pugi::xml_node &xmlNode);
 
-	std::pair<bool, DescrRef> PassRestrictionBlock() const;
+	std::pair<bool, DescrRef> PassRestrictionBlock(bool ignoreUnsetRefs = false) const;
 
 	enum class TargetType {
 		ErrorType,
@@ -70,12 +70,12 @@ public:
 private:
 	Restriction() = default;
 
-	std::pair<bool, DescrRef> PassRestrictionBlock(size_t &tidx, size_t &ridx, size_t brackets) const;
+	std::pair<bool, DescrRef> PassRestrictionBlock(size_t &tidx, size_t &ridx, size_t brackets, bool ignoreUnsetRefs) const;
 
 	// A single condition in the larger block of restrictions
 	struct Single {
 		// Whether or not this condition is fulfilled.
-		bool Pass(DescrRef *out) const { return positive == PassImpl(out); };
+		bool Pass(DescrRef *out, bool ignoreUnsetRefs) const { return positive == PassImpl(out, ignoreUnsetRefs); };
 		// Break the `restrText` into conditions.
 		void Translate();
 
@@ -91,9 +91,13 @@ private:
 		std::string lhs;
 		// For variables, also store the index
 		uint32_t varIdx = 0;
+		// Whether the left-hand object is really a reference to the input.
+		bool lhsIsRef = false;
 		std::string prop;
 		ConditionType cond = ConditionType::ErrorType;
 		std::string rhs;
+		// Whether the right-hand object is really a reference to the input.
+		bool rhsIsRef = false;
 
 		const Expression *exprContent = nullptr;
 
@@ -102,9 +106,9 @@ private:
 		~Single() { delete exprContent; }
 		Single(const Single &) = delete;
 		Single(Single &&rhs)  noexcept : restrText(std::move(rhs.restrText)), failureMsg(rhs.failureMsg),
-				positive(rhs.positive), targetType(rhs.targetType), lhs(std::move(rhs.lhs)),
-				varIdx(rhs.varIdx), prop(std::move(rhs.prop)), cond(rhs.cond), rhs(std::move(rhs.rhs)),
-				exprContent(rhs.exprContent)
+				positive(rhs.positive), targetType(rhs.targetType), lhs(std::move(rhs.lhs)), varIdx(rhs.varIdx),
+				lhsIsRef(rhs.lhsIsRef), prop(std::move(rhs.prop)), cond(rhs.cond), rhs(std::move(rhs.rhs)),
+				rhsIsRef(rhs.rhsIsRef), exprContent(rhs.exprContent)
 		{
 			rhs.exprContent = nullptr;
 		}
@@ -113,7 +117,7 @@ private:
 
 	private:
 		// Whether the underlying condidion is fulfilled, not accounting for the `positive` flag.
-		bool PassImpl(DescrRef *out) const;
+		bool PassImpl(DescrRef *out, bool ignoreUnsetRefs) const;
 	};
 
 	std::vector<Single> restrs;

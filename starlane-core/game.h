@@ -41,6 +41,18 @@ public:
 
 	bool GetIsTaskCompleted(const std::string &key) { return taskCompletedStorage.at(key); }
 	void SetTaskCompleted(const std::string &key, bool val) { taskCompletedStorage[key] = val; }
+	// Get an object referred to by the input.
+	const std::string &GetReference(const std::string &rk) {
+		if (rk == "%Player%") return playerKey;
+		// This will insert a new element into the map if there is no such entry.
+		// Not ideal, but there can only ever be twenty or so references, so I think it's OK.
+		return currentRefs[rk];
+	}
+	// Determine if this reference holds anything.
+	bool RefExists(const std::string &rk) const {
+		if (rk == "%Player%") return true;
+		return currentRefs.count(rk) > 0;
+	}
 
 	// Save the current game state to the undo list.
 	void SaveUndo();
@@ -75,12 +87,18 @@ private:
 	std::unordered_map<DescrRef, Description *> descriptions;
 	// stores the completed-ness of tasks to avoid needing to copy the entire tasks for saves.
 	std::unordered_map<std::string, bool> taskCompletedStorage;
+	// the current player character
+	std::string playerKey;
 
 	// immutable content (only exists once)
 	std::unordered_map<RestrRef, Restriction *> restrictions;
 	std::unordered_map<std::string, Property *> properties;
 	std::unordered_map<std::string, Task *> tasks;
 	std::unordered_map<std::string, std::string> varNames;
+
+	// transient storage -- only relevant while evaluating commands.
+	// Never needs to be retained for UNDO/SAVE.
+	std::unordered_map<std::string, std::string> currentRefs;
 
 	bool gameHasBegun = false;
 

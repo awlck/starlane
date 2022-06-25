@@ -23,13 +23,6 @@ public:
 	};
 	static Type ParseType(const char *txt);
 
-	/* enum class OverrideType {
-		Override = 0,
-		ParentText = 0b0001,
-		ParentActions = 0b0010,
-		Before = 0b0100,
-		After = 0b1000
-	}; */
 	struct OverrideType {
 		static constexpr int Override = 0;  // execute the specific task only
 		static constexpr int ParentText = 0b0001;  // also show parent's text
@@ -43,10 +36,16 @@ public:
 
 	[[nodiscard]] const std::string &Key() const { return key; }
 	bool Completed() const;
+	void Uncomplete();
+
+	// Tentatively decide whether the restrictions for this task are currently satisfied.
+	// Restrictions on referenced objects that haven't been determined are ignored.
+	std::pair<bool, DescrRef> Eligible() const;
+	// Attempt to carry out this task. Returns whether or not the task succeeded,
+	// and the success or failure message to be printed.
+	std::pair<bool, DescrRef> Execute();
 
 	void RegisterNotification(const std::string &evtKey, Util::Control::Condition cond);
-
-	void Uncomplete();
 
 private:
 	Task() = default;
@@ -106,6 +105,7 @@ private:
 		LocationOf,
 		LocationsInGroup,
 		LocationsWithProp,
+		Task,
 		None
 	};
 

@@ -99,6 +99,15 @@ constexpr bool ConditionHasRHS(Restriction::ConditionType t) {
 	}
 }
 
+constexpr bool IsReference(const std::string &o) {
+	return o == "ReferencedObject" || o == "ReferencedObject1" || o == "ReferencedObject2" ||
+	       o == "ReferencedObject3" || o == "ReferencedObject4" || o == "ReferencedObject5" ||
+	       o == "ReferencedObjects" ||
+	       o == "ReferencedDirection" || o == "ReferencedCharacter" || o == "ReferencedCharacter1" ||
+	       o == "ReferencedCharacter2" || o == "ReferencedCharacter3" || o == "ReferencedCharacter4" ||
+	       o == "ReferencedCharacter5" || o == "ReferencedLocation" || o == "ReferencedItem";
+}
+
 }  // anonymous namespace
 
 Restriction *Restriction::CreateFromXML(const pugi::xml_node &xmlNode) {
@@ -120,17 +129,17 @@ Restriction *Restriction::CreateFromXML(const pugi::xml_node &xmlNode) {
 	return result;
 }
 
-std::pair<bool, DescrRef> Restriction::PassRestrictionBlock() const {
+std::pair<bool, DescrRef> Restriction::PassRestrictionBlock(bool ignoreUnsetRefs) const {
 	size_t tidx = 0;
 	size_t ridx = 0;
-	return PassRestrictionBlock(tidx, ridx, 0);
+	return PassRestrictionBlock(tidx, ridx, 0, ignoreUnsetRefs);
 }
 
-std::pair<bool, DescrRef> Restriction::PassRestrictionBlock(size_t &tidx, size_t &ridx, size_t brackets) const {
+std::pair<bool, DescrRef> Restriction::PassRestrictionBlock(size_t &tidx, size_t &ridx, size_t brackets, bool ignoreUnsetRefs) const {
 	std::pair<bool, DescrRef> state;
 	while (tidx < sequence.size()) {
 		if (sequence[tidx] == '(') {
-			state = PassRestrictionBlock(++tidx, ridx, brackets + 1);
+			state = PassRestrictionBlock(++tidx, ridx, brackets + 1, ignoreUnsetRefs);
 			continue;
 		} else if (sequence[tidx] == ')') {
 			++tidx;
@@ -149,7 +158,7 @@ std::pair<bool, DescrRef> Restriction::PassRestrictionBlock(size_t &tidx, size_t
 			// applicable to the "has route in direction" restriction, so doing this is more convenient
 			// than returning a pair.
 			DescrRef txt = 0;
-			if (restrs[ridx].Pass(&txt)) {
+			if (restrs[ridx].Pass(&txt, ignoreUnsetRefs)) {
 				state = { true, 0 };
 			} else if (txt && !Game::Get()->GetDescription(txt)->Build(false).empty()) {
 				// If the failure message was overridden and the override message doesn't
@@ -169,7 +178,14 @@ std::pair<bool, DescrRef> Restriction::PassRestrictionBlock(size_t &tidx, size_t
 	return state;
 }
 
-bool Restriction::Single::PassImpl(DescrRef *out) const {
+bool Restriction::Single::PassImpl(DescrRef *out, bool ignoreUnsetRefs) const {
+	const std::string &lhs_ = lhsIsRef ? Game::Get()->GetReference(lhs) : lhs;
+	if (ignoreUnsetRefs && lhs_.empty())
+		return positive;
+	const std::string &rhs_ = rhsIsRef ? Game::Get()->GetReference(rhs) : rhs;
+	if (ignoreUnsetRefs && !ConditionHasRHS(cond) && rhs_.empty())
+		return positive;
+
 	switch (targetType) {
 	case TargetType::Object:
 		// Handled below.
@@ -404,6 +420,7 @@ void Restriction::Single::Translate() {
 		else if (!(x = SkipText(restrText.c_str(), "Must Be")))
 			throw std::runtime_error("Invalid direction restriction: " + restrText);
 		lhs = x;
+		lhsIsRef = IsReference(lhs);
 		return;
 	}
 	const char *x = restrText.c_str();
@@ -430,6 +447,7 @@ void Restriction::Single::Translate() {
 			lhs = tok;
 		}
 	} else lhs = tok;
+	lhsIsRef = IsReference(lhs);
 
 	// Handle must / must not
 	GET_TOKEN;
@@ -525,6 +543,7 @@ void Restriction::Single::Translate() {
 		// Restrictions on object-valued properties are stored as "prop lhs Must rhs", implying "must/must not be equal"
 		cond = ConditionType::EqualTo;
 		rhs = tok;
+		rhsIsRef = IsReference(rhs);
 		return;
 	} else {
 		throw std::runtime_error("Unable to handle restriction text: " + restrText);
@@ -547,6 +566,9 @@ void Restriction::Single::Translate() {
 	} else {
 		rhs = tok;
 	}
+
+	lhsIsRef = IsReference(lhs);
+	rhsIsRef = IsReference(rhs);
 }
 
 }

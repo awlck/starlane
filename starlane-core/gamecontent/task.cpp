@@ -8,6 +8,7 @@
 #include "../game.h"
 #include "../valueparsers.h"
 #include "event.h"
+#include "restriction.h"
 
 namespace Starlane {
 
@@ -117,7 +118,7 @@ Task::Action Task::Action::CreateFromXML(const pugi::xml_node &xmlNode) {
 		else if (tokens[0] == "FOR")
 			throw std::runtime_error("Looped task execution is currenly unsupported.");
 		else result.type = ActionType::UnsetTask;
-		result.refType = ActionRefType::None;
+		result.refType = ActionRefType::Task;
 		result.lhs = tokens[1];
 		return result;
 	} else if (name == "Time") {
@@ -223,6 +224,19 @@ Task::Action Task::Action::CreateFromXML(const pugi::xml_node &xmlNode) {
 
 bool Task::Completed() const {
 	return Game::Get()->GetIsTaskCompleted(key);
+}
+
+std::pair<bool, DescrRef> Task::Eligible() const {
+	if (restrictions == 0)  // i.e., no restrictions set
+		return { true, 0 };
+	return Game::Get()->GetRestriction(restrictions)->PassRestrictionBlock(true);
+}
+
+std::pair<bool, DescrRef> Task::Execute() {
+	auto elig = Game::Get()->GetRestriction(restrictions)->PassRestrictionBlock();
+	if (!elig.first) return elig;
+	// TODO
+	return { true, completionMsg };
 }
 
 void Task::RegisterNotification(const std::string &evtKey, Util::Control::Condition cond) {
