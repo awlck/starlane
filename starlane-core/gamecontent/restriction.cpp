@@ -243,10 +243,10 @@ bool Restriction::Single::PassImpl(DescrRef *out) const {
 				throw std::runtime_error("Invalid string operation while evaluating restriction.");
 		}
 	}
-		break;
 	case TargetType::Direction:
 		throw std::runtime_error("Sorry, cannot handle 'Direction' restrictions yet.");
-		break;
+	case TargetType::ErrorType:
+		throw std::runtime_error("Unknown restriction type while evaluating restriction.");
 	}
 
 	Game *g = Game::Get();
@@ -299,7 +299,6 @@ bool Restriction::Single::PassImpl(DescrRef *out) const {
 		*out = result.second;
 		return result.first;
 	}
-		break;
 	case ConditionType::OfGender:
 		// This is stored as a mandatory library property rather than as an attribute
 		// of the character object itself. We can't just turn these into a C++ enum in
