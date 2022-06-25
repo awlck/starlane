@@ -99,7 +99,7 @@ constexpr bool ConditionHasRHS(Restriction::ConditionType t) {
 	}
 }
 
-constexpr bool IsReference(const std::string &o) {
+bool IsReference(const std::string &o) {
 	return o == "ReferencedObject" || o == "ReferencedObject1" || o == "ReferencedObject2" ||
 	       o == "ReferencedObject3" || o == "ReferencedObject4" || o == "ReferencedObject5" ||
 	       o == "ReferencedObjects" ||

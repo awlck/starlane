@@ -1,5 +1,6 @@
 #include "character.h"
 
+#include <algorithm>
 #include <pugixml.hpp>
 
 #include "../game.h"
