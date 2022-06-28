@@ -18,10 +18,6 @@ public:
 			return (T) intValuedProps.at(key);
 		} else return strValuedProps.at(key);
 	}
-	template<> bool GetPropValue(const std::string &key) const {
-		if (intValuedProps.count(key) == 0) return false;
-		return (bool) intValuedProps.at(key);
-	}
 
 	const std::unordered_map<std::string, std::string> &GetAllStrProps() const {
 		// This is unfortunately necessary for the "object is in state" test,
@@ -50,6 +46,12 @@ private:
 	std::unordered_map<std::string, std::string> strValuedProps;
 };
 
+	// Needing to move this template specialization outside of the class is probably one of the
+	// weirdest rules surrounding C++ templates.
+	template<> bool PropHolder::GetPropValue(const std::string &key) const {
+		if (intValuedProps.count(key) == 0) return false;
+		return (bool) intValuedProps.at(key);
+	}
 }
 
 #endif  // !SLC_PROPHOLDER_H
