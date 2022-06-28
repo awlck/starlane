@@ -306,6 +306,8 @@ bool Restriction::Single::PassImpl(DescrRef *out, bool ignoreUnsetRefs) const {
 		case Property::ValueType::Enum:
 			return l->GetAllStrProps().count(rhs) > 0;
 		}
+		// should never be able to get here, but gcc apparently thinks we can...
+		return false;
 	}
 	case ConditionType::AtLocation:
 		return g->GetObject(lhs)->GetLocationKey() == rhs;
