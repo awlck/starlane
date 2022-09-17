@@ -23,13 +23,13 @@ Description *Description::CreateFromXML(const pugi::xml_node &xmlNode) {
 }
 
 std::string Description::Build(bool commit) {
-	// TODO: Handle alternatives, restrictions, substitutions, etc.
+	// TODO: Handle alternatives, substitutions, etc.
 	std::string result;
 	for (auto &s : segments) {
 		auto pass = Game::Get()->GetRestriction(s.restrictionId)->PassRestrictionBlock();
 		if (pass.first && (!s.onceOnly || !s.shown)) {
 			if (commit) s.shown = true;
-			result.append(s.text);
+			result.append(s.Build());
 		}
 	}
 	return result;
@@ -50,6 +50,25 @@ Description::Segment Description::Segment::CreateFromXML(const pugi::xml_node &x
 	auto restr = xmlNode.child("Restrictions");
 	if (restr.type() != pugi::node_null) {
 		result.restrictionId = Game::Get()->CreateRestrictionsFromXML(restr);
+	}
+	return result;
+}
+
+std::string Description::Segment::Build() const {
+	// make a single string out of our contents again, consisting of the plain text snippets
+	// and expression evaluation results.
+
+	// return our plain text representation if for some reason we haven't been resolved yet
+	if (!text.empty()) return text;
+	// otherwise build as explained
+	std::string result;
+	result.reserve(initialTextLength);
+	for (auto ref : content) {
+		if (ref & TOPBIT) {  // an expression
+			result.append(Game::Get()->GetExpression(ref)->EvaluateStr());
+		} else {  // a plain text snippet
+			result.append(Game::Get()->GetPlainTextSnippet(ref));
+		}
 	}
 	return result;
 }
@@ -75,6 +94,7 @@ static size_t SkipSingleOOExpression(std::string_view theText) {
 
 void Description::Segment::ResolveText() {
 	ResolveText(text);
+	initialTextLength = text.length();
 	// `content` now holds references to everything we need to display,
 	// so we can delete our copy of the original text.
 	text.clear();

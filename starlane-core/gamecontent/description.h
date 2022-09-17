@@ -45,8 +45,13 @@ private:
 		// (And because having a variant of PlainTextRef and ExprRef is hard, because they're
 		// both size_t under the hood, we'll do some wild shit with bit-flags instead.)
 		std::vector<size_t> content;
+		// remember how long the initial text (with expressions) was, as an estimate for how much
+		// memory we need to reserve when building the text back.
+		size_t initialTextLength = 0;
 		bool onceOnly;
 		bool shown;
+
+		std::string Build() const;
 
 		void ResolveText();
 	private:

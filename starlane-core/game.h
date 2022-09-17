@@ -38,7 +38,8 @@ public:
 	const Restriction *GetRestriction(RestrRef key) const { return restrictions.at(key); }
 	Variable *GetVariable(const std::string &key) { return variables.at(key); }
 	Variable *GetVarByName(const std::string &name) { return variables.at(varNames.at(name)); }
-	std::string GetPlainTextSnippet(PlainTextRef ref) { return plainTextSnippets.at(ref); }
+	Expression *GetExpression(ExprRef ref) { return expressions.at(ref); }
+	const char *GetPlainTextSnippet(PlainTextRef ref) { return plainTextSnippets.at(ref); }
 
 	bool GroupExists(const std::string &key) const { return groups.count(key) > 0; }
 	bool ObjectExists(const std::string &key) const { return objects.count(key) > 0; }
