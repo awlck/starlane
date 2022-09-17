@@ -6,6 +6,7 @@
 #include "../slc_private.h"
 
 #include <string>
+#include <string_view>
 #include <vector>
 
 namespace pugi {
@@ -22,6 +23,8 @@ public:
 	// `commit` should be true when displaying, false when building the text for comparison purposes.
 	[[nodiscard]] std::string Build(bool commit = true);
 
+	void ResolveText();
+
 private:
 	enum class Display {
 		BeginHere,
@@ -36,9 +39,20 @@ private:
 
 		Display displayWhen;
 		size_t restrictionId;
+		// At load time, store the entire text here
 		std::string text;
+		// After resolving references, we get this instead:
+		// (And because having a variant of PlainTextRef and ExprRef is hard, because they're
+		// both size_t under the hood, we'll do some wild shit with bit-flags instead.)
+		std::vector<size_t> content;
 		bool onceOnly;
 		bool shown;
+
+		void ResolveText();
+	private:
+		void ResolveText(std::string_view);
+		void ResolveExpressions(std::string_view);
+		void ResolveOO(std::string_view);
 	};
 
 	Description() = default;

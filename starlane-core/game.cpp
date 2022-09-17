@@ -38,6 +38,7 @@ Game::Game(const Game &rhs) {
 	properties = rhs.properties;
 	tasks = rhs.tasks;
 	varNames = rhs.varNames;
+	expressions = rhs.expressions;
 	// just bools, so a vector copy is sufficient.
 	taskCompletedStorage = rhs.taskCompletedStorage;
 
@@ -51,6 +52,7 @@ Game::Game(const Game &rhs) {
 	gameIntro = rhs.gameIntro;
 	descriptionsSoFar = rhs.descriptionsSoFar;
 	restrictionsSoFar = rhs.restrictionsSoFar;
+	textSnippetsSoFar = rhs.textSnippetsSoFar;
 }
 
 /* Destruct Game instance. This requires a bit of extra attention,
@@ -79,6 +81,10 @@ Game::~Game() {
 		for (const auto &it : descriptions)
 			delete it.second;
 		for (const auto &it : tasks)
+			delete it.second;
+		for (const auto &it : expressions)
+			delete it.second;
+		for (const auto &it : plainTextSnippets)
 			delete it.second;
 	}
 }

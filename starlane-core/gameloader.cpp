@@ -1,6 +1,7 @@
 #include "game.h"
 
 #include <iterator>
+#include <limits>
 
 #include <pugixml.hpp>
 
@@ -60,6 +61,14 @@ Game *Game::LoadFromXML(const std::string &gameTxt) {
 		result->CreateGroupFromXML(it);
 
     result->StartupSanityCheck();
+
+	// Finally, pre-split all descriptions into runs of plain text and expressions.
+	// (This needs to happen after objects are loaded since we need to determine whether
+	//  'A.B' is indeed accessing property 'B' of object with key 'A' (if 'A' is a valid object key)
+	//  or just a period not followed by a space (if 'A' is not a valid object key).)
+	for (auto &it : result->descriptions)
+		it.second->ResolveText();
+
     return result;
 }
 
@@ -102,6 +111,41 @@ void Game::CreateVariableFromXML(const pugi::xml_node &varNode) {
 void Game::CreateGroupFromXML(const pugi::xml_node &grpNode) {
     auto result = Group::CreateFromXML(grpNode);
     groups[result->Key()] = result;
+}
+
+// Parts of the program use the top bit to differentiate between plain text snippet references
+// and expression references, so we must make sure that we never allocate a plain text
+// reference so large that it uses the top bit.
+static void CheckSnippetsInRange(size_t snips) {
+	if (snips > (((size_t) 1) << (std::numeric_limits<size_t>::digits - 1))) {
+		std::stringstream s;
+		s << "My brain just exploded: On your system, I can only handle "
+			<< (((size_t) 1) << (std::numeric_limits<size_t>::digits - 1))
+			<< " individual runs of plain text, but this game requires more than that.";
+		SLFrontend::FatalError(s.str().c_str());
+		throw std::out_of_range(s.str());
+	}
+}
+
+PlainTextRef Game::StorePlainTextSnippet(const std::string &snip) {
+	char *c = new char[snip.length() + 1];
+	strcpy(c, snip.c_str());
+	plainTextSnippets.emplace(++textSnippetsSoFar, c);
+	CheckSnippetsInRange(textSnippetsSoFar);
+	return textSnippetsSoFar;
+}
+PlainTextRef Game::StorePlainTextSnippet(std::string_view snip) {
+	char *c = new char[snip.length() + 1];
+	strncpy(c, snip.data(), snip.length());
+	c[snip.length()] = 0;
+	plainTextSnippets.emplace(++textSnippetsSoFar, c);
+	CheckSnippetsInRange(textSnippetsSoFar);
+	return textSnippetsSoFar;
+}
+
+ExprRef Game::CreateExpression(const std::string &expr) {
+	expressions.emplace(++expressionsSoFar, new Expression(expr));
+	return expressionsSoFar;
 }
 
 void Game::StartupSanityCheck() const {

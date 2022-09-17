@@ -6,6 +6,7 @@
 #include "slc_private.h"
 
 #include <deque>
+#include <limits>
 #include <string>
 #include <unordered_map>
 
@@ -25,6 +26,9 @@ public:
 	void CreateEventFromXML(const pugi::xml_node &evtNode);
 	void CreateVariableFromXML(const pugi::xml_node &varNode);
 	void CreateGroupFromXML(const pugi::xml_node &grpNode);
+	PlainTextRef StorePlainTextSnippet(const std::string &snip);
+	PlainTextRef StorePlainTextSnippet(std::string_view snip);
+	ExprRef CreateExpression(const std::string &expr);
 
 	Description *GetDescription(DescrRef d) { return descriptions.at(d); }
 	Event *GetEvent(const std::string &key) { return events.at(key); }
@@ -34,6 +38,7 @@ public:
 	const Restriction *GetRestriction(RestrRef key) const { return restrictions.at(key); }
 	Variable *GetVariable(const std::string &key) { return variables.at(key); }
 	Variable *GetVarByName(const std::string &name) { return variables.at(varNames.at(name)); }
+	std::string GetPlainTextSnippet(PlainTextRef ref) { return plainTextSnippets.at(ref); }
 
 	bool GroupExists(const std::string &key) const { return groups.count(key) > 0; }
 	bool ObjectExists(const std::string &key) const { return objects.count(key) > 0; }
@@ -95,6 +100,11 @@ private:
 	std::unordered_map<std::string, Property *> properties;
 	std::unordered_map<std::string, Task *> tasks;
 	std::unordered_map<std::string, std::string> varNames;
+	std::unordered_map<ExprRef, Expression *> expressions;
+	// Snippets of "Plain text", simple strings that do not contain any expressions
+	// and can be output as-is. Maintained like this to reduce the amount of text
+	// that is unnecessarily duplicated when copying descriptions for undo/save.
+	std::unordered_map<PlainTextRef, const char *> plainTextSnippets;
 
 	// transient storage -- only relevant while evaluating commands.
 	// Never needs to be retained for UNDO/SAVE.
@@ -112,6 +122,8 @@ private:
 
 	size_t descriptionsSoFar = 0;
 	size_t restrictionsSoFar = 0;
+	size_t textSnippetsSoFar = 0;
+	size_t expressionsSoFar = ((size_t) 1) << (std::numeric_limits<size_t>::digits-1);
 
 	// The Game instance holding the current state of the game, for the benefit of any
 	// functions that might need it (restrictions, descriptions, action processing)

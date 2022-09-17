@@ -26,12 +26,17 @@ class GameObj;
 class Property;
 class Task;
 class Variable;
+struct Expression;
 
 // ID number of a description
 // (with zero meaning "no text at all")
 using DescrRef = size_t;
+// ID number of a piece of plain text
+using PlainTextRef = size_t;
 // ID number of a restriction block
 using RestrRef = size_t;
+// ID number of an expression/function call
+using ExprRef = size_t;
 }
 
 #endif  // !SLC_PRIVATE_H
