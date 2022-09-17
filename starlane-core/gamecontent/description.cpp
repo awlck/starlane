@@ -26,8 +26,8 @@ std::string Description::Build(bool commit) {
 	// TODO: Handle alternatives, substitutions, etc.
 	std::string result;
 	for (auto &s : segments) {
-		auto pass = Game::Get()->GetRestriction(s.restrictionId)->PassRestrictionBlock();
-		if (pass.first && (!s.onceOnly || !s.shown)) {
+		bool pass = s.restrictionId == 0 ? true : Game::Get()->GetRestriction(s.restrictionId)->PassRestrictionBlock().first;
+		if (pass && (!s.onceOnly || !s.shown)) {
 			if (commit) s.shown = true;
 			result.append(s.Build());
 		}

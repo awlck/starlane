@@ -38,7 +38,7 @@ private:
 		Segment() = default;
 
 		Display displayWhen;
-		size_t restrictionId;
+		size_t restrictionId = 0;
 		// At load time, store the entire text here
 		std::string text;
 		// After resolving references, we get this instead:
