@@ -9,6 +9,8 @@ namespace SLFrontend {
 // Show a fatal error message. The frontend should refuse any further input
 // after a fatal error has been issued.
 void FatalError(const char *msg);
+// Send text to the output.
+void OutputText(const char *txt);
 }
 
 namespace Starlane {

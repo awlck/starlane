@@ -1,5 +1,6 @@
 #include "game.h"
 
+#include "starlane-core.h"
 #include "gamecontent/event.h"
 #include "gamecontent/gameobj.h"
 #include "gamecontent/group.h"
@@ -131,6 +132,8 @@ void Game::Begin() {
 			it.second->Start();
 	}
 	gameHasBegun = true;
+	if (gameIntro != 0)
+		SLFrontend::OutputText(GetDescription(gameIntro)->Build().c_str());
 }
 
 void Game::Tick() {
