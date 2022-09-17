@@ -46,12 +46,15 @@ private:
 	std::unordered_map<std::string, std::string> strValuedProps;
 };
 
-	// Needing to move this template specialization outside of the class is probably one of the
-	// weirdest rules surrounding C++ templates.
-	template<> bool PropHolder::GetPropValue(const std::string &key) const {
-		if (intValuedProps.count(key) == 0) return false;
-		return (bool) intValuedProps.at(key);
-	}
+// Needing to move this template specialization outside of the class is probably one of the
+// weirdest rules surrounding C++ templates.
+// (But also need to mark it inline because otherwise we get duplicate symbols with every
+// source file that includes this file.)
+template<> inline bool PropHolder::GetPropValue(const std::string &key) const {
+	if (intValuedProps.count(key) == 0) return false;
+	return (bool) intValuedProps.at(key);
+}
+
 }
 
 #endif  // !SLC_PROPHOLDER_H
