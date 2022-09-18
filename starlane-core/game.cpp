@@ -125,9 +125,9 @@ void Game::Begin() {
 	if (!startupState)
 		startupState = new Game(*this);
 	taskCompletedStorage.reserve(tasks.size());
-	for (const auto &it: tasks)
+	for (const auto &it : tasks)
 		taskCompletedStorage[it.first] = false;
-	for (const auto &it: events) {
+	for (const auto &it : events) {
 		if (it.second->GetStartType() == Event::StartType::Immediately)
 			it.second->Start();
 	}

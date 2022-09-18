@@ -16,8 +16,8 @@
 namespace Starlane {
 
 Description *Description::CreateFromXML(const pugi::xml_node &xmlNode) {
-    auto result = new Description;
-	for (const auto &it: xmlNode.children("Description"))
+	auto result = new Description;
+	for (const auto &it : xmlNode.children("Description"))
 		result->segments.emplace_back(Segment::CreateFromXML(it));
 	return result;
 }
@@ -36,7 +36,7 @@ std::string Description::Build(bool commit) {
 }
 
 void Description::ResolveText() {
-	for (auto &sd: segments) {
+	for (auto &sd : segments) {
 		sd.ResolveText();
 	}
 }
@@ -103,7 +103,7 @@ void Description::Segment::ResolveText() {
 }
 
 void Description::Segment::ResolveText(std::string_view theText) {
-	ResolveText_FakeTailcall:
+ResolveText_FakeTailcall:
 	// deal with %functions% first
 	int bracketDepth = 0;
 	int percents = 0;
@@ -122,13 +122,13 @@ void Description::Segment::ResolveText(std::string_view theText) {
 			--bracketDepth;
 			continue;
 		case '<':
-			if (pos+1 < theText.length() && theText[pos+1] == '#') {
+			if (pos + 1 < theText.length() && theText[pos + 1] == '#') {
 				// found an embedded expression, will not handle contained %function%s.
 				nonstopmode = true;
 			}
 			continue;
 		case '>':
-			if (nonstopmode && theText[pos-1] == '#') {
+			if (nonstopmode && theText[pos - 1] == '#') {
 				// end of an embedded expression
 				nonstopmode = false;
 			}
@@ -147,7 +147,7 @@ void Description::Segment::ResolveText(std::string_view theText) {
 			//ResolveExpressions(std::string(theText, beginningOfFunc - theText).c_str());
 			ResolveExpressions(theText.substr(0, beginningOfFunc));
 			// check wheter we also need to resolve an OO-style property for the resulting value
-			if (pos+1 < theText.length() && theText[pos+1] == '.') {
+			if (pos + 1 < theText.length() && theText[pos + 1] == '.') {
 				pos += SkipSingleOOExpression(theText.substr(pos));
 			} else {
 				pos += 1;
@@ -167,7 +167,7 @@ void Description::Segment::ResolveText(std::string_view theText) {
 }
 
 void Description::Segment::ResolveExpressions(std::string_view theText) {
-	ResolveExpressions_FakeTailcall:
+ResolveExpressions_FakeTailcall:
 	// deal with <# expressions #> second
 	size_t exprBegin;
 	if ((exprBegin = theText.find("<#")) != std::string_view::npos) {
@@ -191,7 +191,7 @@ static std::string_view GetPotentialObjKey(std::string_view word) {
 }
 
 void Description::Segment::ResolveOO(std::string_view theText) {
-	ResolveOO_FakeTailcall:
+ResolveOO_FakeTailcall:
 	// A word is an OO expression if it contains a period and the first segment
 	// is a known object key.
 
