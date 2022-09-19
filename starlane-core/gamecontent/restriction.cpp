@@ -279,11 +279,18 @@ bool Restriction::Single::PassImpl(DescrRef *out, bool ignoreUnsetRefs) const {
 	case ConditionType::SeenByChar:
 	{
 		const Character *c = dynamic_cast<Character *>(g->GetObject(rhs));
+		// The ADRIFT Developer application shouldn't generate files in which
+		// rhs is not of type character, but better safe than sorry...
+		// We'll have to see whether we should throw an error here, or just silently return false.
+		if (!c)
+			throw std::runtime_error("Restriction on characters references an object which isn't a character: " + rhs);
 		return c->HasSeen(lhs);
 	}
 	case ConditionType::VisibleTo:
 	{
 		const Character *c = dynamic_cast<Character *>(g->GetObject(rhs));
+		if (!c)
+			throw std::runtime_error("Restriction on characters references an object which isn't a character: " + rhs);
 		return c->CanSee(lhs);
 	}
 	case ConditionType::InGroup:
@@ -310,7 +317,7 @@ bool Restriction::Single::PassImpl(DescrRef *out, bool ignoreUnsetRefs) const {
 		case Property::ValueType::Enum:
 			return l->GetAllStrProps().count(rhs) > 0;
 		}
-		// should never be able to get here, but gcc apparently thinks we can...
+		// should never be able to get here since the above enum is exhaustive, but gcc apparently thinks we can...
 		return false;
 	}
 	case ConditionType::AtLocation:
@@ -350,7 +357,8 @@ bool Restriction::Single::PassImpl(DescrRef *out, bool ignoreUnsetRefs) const {
 	case ConditionType::HaveRoute:
 	{
 		auto ch = dynamic_cast<Character *>(g->GetObject(lhs));
-		if (!ch) return false;
+		if (!ch)
+			throw std::runtime_error("Restriction on characters references an object which isn't a character: " + lhs);
 		auto result = ch->HasRoute(rhs);
 		*out = result.second;
 		return result.first;
