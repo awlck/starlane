@@ -80,9 +80,13 @@ std::string NextToken(const char **const str) {
 
 	size_t i = 0;
 	std::string result;
+	// skip multiple spaces
 	while (**str && isspace(**str)) (*str)++;
+	// determine the number of consecutive characters that aren't spaces
 	while ((*str)[i] && !isspace((*str)[i++])) ;
+	// add those characters to the result
 	result.append(*str, i-1);
+	// advance the input pointer
 	(*str) += i-1;
 	return result;
 }
@@ -181,10 +185,10 @@ std::pair<bool, DescrRef> Restriction::PassRestrictionBlock(size_t &tidx, size_t
 bool Restriction::Single::PassImpl(DescrRef *out, bool ignoreUnsetRefs) const {
 	const std::string &lhs_ = lhsIsRef ? Game::Get()->GetReference(lhs) : lhs;
 	if (ignoreUnsetRefs && lhs_.empty())
-		return positive;
+		return true;
 	const std::string &rhs_ = rhsIsRef ? Game::Get()->GetReference(rhs) : rhs;
-	if (ignoreUnsetRefs && !ConditionHasRHS(cond) && rhs_.empty())
-		return positive;
+	if (ignoreUnsetRefs && ConditionHasRHS(cond) && rhs_.empty())
+		return true;
 
 	switch (targetType) {
 	case TargetType::Object:
