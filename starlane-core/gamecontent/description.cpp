@@ -13,6 +13,9 @@
 // magical bit fuckery
 #define TOPBIT (((size_t) 1) << (std::numeric_limits<size_t>::digits - 1))
 
+// "no position": basically just size_t_max
+#define NPOS ((size_t) -1)
+
 namespace Starlane {
 
 Description *Description::CreateFromXML(const pugi::xml_node &xmlNode) {
@@ -36,17 +39,72 @@ static bool NeedSpace(std::string_view textSoFar) {
 	}
 }
 
+void Description::HandleSegmentShown(size_t idx) {
+	auto &s = segments.at(idx);
+	s.shown = true;
+	if (!s.returnToDefault) return;
+	// if the current segment is marked "return to default", return all segments to
+	// the left of it to non-shown status.
+	for (size_t i = 0; i < idx; i++) {
+		segments.at(i).shown = false;
+	}
+}
+
 std::string Description::Build(bool commit) {
-	// TODO: Handle alternatives, substitutions, etc.
-	std::string result;
-	for (auto &s : segments) {
-		bool pass = s.restrictionId == 0 ? true : Game::Get()->GetRestriction(s.restrictionId)->PassRestrictionBlock().first;
-		if (pass && (!s.onceOnly || !s.shown)) {
-			if (commit) s.shown = true;
-			result.append(s.Build());
-			if (NeedSpace(result)) result.append(1, ' ');
+	// The ADRIFT Runner's way of handling descriptions goes something like this:
+	// "Build the text. If some segment wants to be first and passes restrictions,
+	//  throw the already-built text away and start over."
+	// This mode of action is probably fine for the ADRIFT Runner since it doesn't
+	// evaluate expressions in the text until it is actually sent to the screen, but
+	// I think we should take a bit more care since we will evaluate expressions right now.
+	// The ADRIFT code also handles the case when a segment's restrictions fail but that
+	// restriction failure outputs some text. We won't handle that case here, since the
+	// ADRIFT Developer doesn't actually allow you to enter restriction failure text
+	// for restrictions on description segments.
+
+	// First, find the rightmost segment with "BeginHere" mode that passes restrictions
+	size_t beginning = NPOS;
+	for (size_t i = segments.size() - 1; i != NPOS; i--) {
+		const auto &s = segments.at(i);
+		// note that this is guaranteed to exist: the very first segment always fulfills
+		// these conditions by definition, the ADRIFT Developer will not allow you to
+		// set restrictions on it or change its display mode.
+		if (s.displayWhen == Display::BeginHere && (s.restrictionId == 0 || Game::Get()->GetRestriction(s.restrictionId)->PassRestrictionBlock(false).first)) {
+			beginning = i;
+			break;
 		}
 	}
+
+	// Second, find the rightmost segment with "AfterDefault" mode that passes restrictions,
+	// but no further to the left than the value of 'beginning' we just determined.
+	// Confusingly, if this exists we need to set 'beginning' back to 0
+	// (meaning we will go back to showing the 'default' description).
+	size_t continuation = NPOS;
+	for (size_t i = segments.size() - 1; i > beginning; i--) {
+		const auto &s = segments.at(i);
+		if ((!s.onceOnly || !s.shown) && s.displayWhen == Display::AfterDefault && (s.restrictionId == 0 || Game::Get()->GetRestriction(s.restrictionId)->PassRestrictionBlock(false).first)) {
+			continuation = i;
+			beginning = 0;
+			break;
+		}
+	}
+
+	std::string result(segments.at(beginning).Build());
+	HandleSegmentShown(beginning);
+	size_t nextSegment = beginning + 1;
+	if (continuation != NPOS) {
+		result.append(segments.at(continuation).Build());
+		HandleSegmentShown(continuation);
+		nextSegment = continuation + 1;
+	}
+	for (size_t i = nextSegment; i < segments.size(); i++) {
+		const auto &s = segments.at(i);
+		if ((!s.onceOnly || !s.shown) && s.displayWhen == Display::Append && (s.restrictionId == 0 || Game::Get()->GetRestriction(s.restrictionId)->PassRestrictionBlock(false).first)) {
+			result.append(s.Build());
+			HandleSegmentShown(i);
+		}
+	}
+
 	return result;
 }
 
@@ -61,7 +119,9 @@ Description::Segment Description::Segment::CreateFromXML(const pugi::xml_node &x
 	result.text = xmlNode.child_value("Text");
 	result.displayWhen = Description::DisplayValue(xmlNode.child_value("DisplayWhen"));
 	auto once = xmlNode.child("DisplayOnce");
-	result.onceOnly = once.type() == pugi::node_null ? false : ParseBool(xmlNode.child_value("DisplayOnce"));
+	result.onceOnly = once.type() == pugi::node_null ? false : ParseBool(once.child_value());
+	auto retDefault = xmlNode.child("ReturnToDefault");
+	result.returnToDefault = retDefault.type() == pugi::node_null ? false : ParseBool(retDefault.child_value());
 	auto restr = xmlNode.child("Restrictions");
 	if (restr.type() != pugi::node_null) {
 		result.restrictionId = Game::Get()->CreateRestrictionsFromXML(restr);

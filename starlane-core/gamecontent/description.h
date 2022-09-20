@@ -33,6 +33,8 @@ private:
 	};
 	static Display DisplayValue(const char *txt);
 
+	void HandleSegmentShown(size_t idx);
+
 	struct Segment {
 		static Segment CreateFromXML(const pugi::xml_node &xmlNode);
 		Segment() = default;
@@ -49,6 +51,7 @@ private:
 		// memory we need to reserve when building the text back.
 		size_t initialTextLength = 0;
 		bool onceOnly;
+		bool returnToDefault;
 		bool shown;
 
 		std::string Build() const;
