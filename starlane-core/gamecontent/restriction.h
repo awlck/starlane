@@ -11,6 +11,9 @@
 
 #include "../expressions.h"
 
+#define RESTRICTION_PASSES(id) ((id) == 0 || Game::Get()->GetRestriction((id))->PassRestrictionBlock().first)
+#define RESTRICTION_RESULT(id) ((id) == 0 ? { true, 0 } : Game::Get()->GetRestriction((id))->PassRestrictionBlock())
+
 namespace Starlane {
 
 class Restriction {

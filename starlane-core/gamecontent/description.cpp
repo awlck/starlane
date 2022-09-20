@@ -16,6 +16,10 @@
 // "no position": basically just size_t_max
 #define NPOS ((size_t) -1)
 
+// A description segment is eligible to be displayed if it passes restrictions
+// and has either not been displayed yet, or is allowed to be displayed multiple times.
+#define SEGMENT_ELIGIBLE(s) ((!(s).onceOnly || !(s).shown) && RESTRICTION_PASSES((s).restrictionId))
+
 namespace Starlane {
 
 Description *Description::CreateFromXML(const pugi::xml_node &xmlNode) {
@@ -69,7 +73,7 @@ std::string Description::Build(bool commit) {
 		// note that this is guaranteed to exist: the very first segment always fulfills
 		// these conditions by definition, the ADRIFT Developer will not allow you to
 		// set restrictions on it or change its display mode.
-		if (s.displayWhen == Display::BeginHere && (s.restrictionId == 0 || Game::Get()->GetRestriction(s.restrictionId)->PassRestrictionBlock(false).first)) {
+		if (s.displayWhen == Display::BeginHere && SEGMENT_ELIGIBLE(s)) {
 			beginning = i;
 			break;
 		}
@@ -82,7 +86,7 @@ std::string Description::Build(bool commit) {
 	size_t continuation = NPOS;
 	for (size_t i = segments.size() - 1; i > beginning; i--) {
 		const auto &s = segments.at(i);
-		if ((!s.onceOnly || !s.shown) && s.displayWhen == Display::AfterDefault && (s.restrictionId == 0 || Game::Get()->GetRestriction(s.restrictionId)->PassRestrictionBlock(false).first)) {
+		if (s.displayWhen == Display::AfterDefault && SEGMENT_ELIGIBLE(s)) {
 			continuation = i;
 			beginning = 0;
 			break;
@@ -99,7 +103,7 @@ std::string Description::Build(bool commit) {
 	}
 	for (size_t i = nextSegment; i < segments.size(); i++) {
 		const auto &s = segments.at(i);
-		if ((!s.onceOnly || !s.shown) && s.displayWhen == Display::Append && (s.restrictionId == 0 || Game::Get()->GetRestriction(s.restrictionId)->PassRestrictionBlock(false).first)) {
+		if (s.displayWhen == Display::Append && SEGMENT_ELIGIBLE(s)) {
 			result.append(s.Build());
 			HandleSegmentShown(i);
 		}
