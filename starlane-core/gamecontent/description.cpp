@@ -22,6 +22,20 @@ Description *Description::CreateFromXML(const pugi::xml_node &xmlNode) {
 	return result;
 }
 
+static bool NeedSpace(std::string_view textSoFar) {
+	if (textSoFar.empty()) return false;
+	size_t lastChar = textSoFar.length() - 1;
+	switch (textSoFar[lastChar]) {
+	case '.':
+	case '?':
+	case '!':
+		// add a space at the end of a sentence.
+		return true;
+	default:
+		return false;
+	}
+}
+
 std::string Description::Build(bool commit) {
 	// TODO: Handle alternatives, substitutions, etc.
 	std::string result;
@@ -30,6 +44,7 @@ std::string Description::Build(bool commit) {
 		if (pass && (!s.onceOnly || !s.shown)) {
 			if (commit) s.shown = true;
 			result.append(s.Build());
+			if (NeedSpace(result)) result.append(1, ' ');
 		}
 	}
 	return result;
