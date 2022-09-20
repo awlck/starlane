@@ -72,4 +72,9 @@ GameObj *Character::Clone() const {
 	return new Character(*this);
 }
 
+void Character::MakePosture(const std::string &newParent, Posture p) {
+	MoveTo(newParent, GameObj::HoldingType::OnObject);
+	posture = p;
+}
+
 }

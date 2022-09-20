@@ -29,6 +29,10 @@ public:
 		return intValuedProps;
 	}
 
+	bool HasProp(const std::string &key) const {
+		return intValuedProps.count(key) > 0 || strValuedProps.count(key) > 0;
+	}
+
 	void SetPropValue(const std::string &key, int64_t value) {
 		intValuedProps[key] = value;
 	}

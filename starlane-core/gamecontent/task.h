@@ -47,12 +47,6 @@ public:
 
 	void RegisterNotification(const std::string &evtKey, Util::Control::Condition cond);
 
-private:
-	Task() = default;
-
-	void SendCompleteNotifications() const;
-	void SendUncompleteNotifications() const;
-
 	enum class ActionType {
 		MoveToLocation,
 		MoveToLocationOf,
@@ -109,16 +103,24 @@ private:
 		None
 	};
 
+private:
+	Task() = default;
+
+	void SendCompleteNotifications() const;
+	void SendUncompleteNotifications() const;
+
 	class Action {
 	public:
 		static Action CreateFromXML(const pugi::xml_node &xmlNode);
-		void Perform() {}
+		void Perform();
 	private:
 		ActionRefType refType;
 		ActionType type;
 		std::string lhs;
 		std::string prop;
 		std::string rhs;
+
+		void PerformImpl();
 	};
 
 	std::string key;

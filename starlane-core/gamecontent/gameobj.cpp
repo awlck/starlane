@@ -81,6 +81,11 @@ const std::string &GameObj::GetVisbilityCeiling() const {
 	}
 }
 
+void GameObj::MoveTo(const std::string &newParent, HoldingType newRelation) {
+	parent = newParent;
+	relation = newRelation;
+}
+
 void GameObj::MakeCommonValues(const pugi::xml_node &xmlNode) {
 	key = xmlNode.child_value("Key");
 	article = xmlNode.child_value("Article");

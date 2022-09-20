@@ -68,6 +68,9 @@ public:
 	// Gets the relationship this object has to its parent.
 	HoldingType GetParentRelation() const { return relation; }
 
+	// Move this object so that it has this parent and relation
+	void MoveTo(const std::string &newParent, HoldingType newRelation);
+
 protected:
 	void MakeCommonValues(const pugi::xml_node &xmlNode);
 

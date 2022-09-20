@@ -7,7 +7,9 @@
 
 #include "../game.h"
 #include "../valueparsers.h"
+#include "character.h"
 #include "event.h"
+#include "location.h"
 #include "restriction.h"
 
 namespace Starlane {
@@ -266,6 +268,263 @@ void Task::SendCompleteNotifications() const {
 void Task::SendUncompleteNotifications() const {
 	for (const auto &it: uncompleteSubs) {
 		Game::Get()->GetEvent(it)->ReceiveTaskNotification(Util::Control::Condition::Uncompletion, key);
+	}
+}
+
+void Task::Action::Perform() {
+	std::string lhs_ = Util::IsReference(lhs) ? Game::Get()->GetReference(lhs) : lhs;
+	std::string rhs_ = Util::IsReference(rhs) ? Game::Get()->GetReference(rhs) : rhs;
+
+	// ugly hack is ugly, but I'm not certain what else to do here
+	// still beats modifying this and hoping that we don't forget to undo the modification
+	// before returning.
+	if (Util::IsList(lhs_)) {
+		Task::Action act(*this);
+		act.rhs = rhs_;
+		// yet another impromptu string splitting implementation, yay me!
+		// remind me why again I thought C++ would be a good language for working with lots of text?
+		size_t saveidx = 0;
+		for (size_t i = 0; i < lhs_.size(); i++) {
+			if (lhs_[i] != '|') continue;
+			act.lhs = lhs_.substr(saveidx, i - saveidx - 1);
+			act.Perform();
+		}
+	} else if (Util::IsList(rhs_)) {
+		Task::Action act(*this);
+		act.lhs = lhs_;
+		size_t saveidx = 0;
+		for (size_t i = 0; i < lhs_.size(); i++) {
+			if (rhs_[i] != '|') continue;
+			act.rhs = rhs_.substr(saveidx, i - saveidx - 1);
+			act.Perform();
+		}
+	} else if (lhs != lhs_ || rhs != rhs_) {
+		Task::Action act(*this);
+		act.lhs = lhs_;
+		act.rhs = rhs_;
+		act.PerformImpl();
+	} else return PerformImpl();
+}
+
+static inline constexpr GameObj::HoldingType ActionTypeToHoldingType(Task::ActionType t) {
+	switch (t) {
+	case Task::ActionType::MoveToLocation:
+		return GameObj::HoldingType::AtLocation;
+	case Task::ActionType::MoveInsideObj:
+	case Task::ActionType::MakeCarriedBy:
+		return GameObj::HoldingType::InObject;
+	case Task::ActionType::MoveOntoObj:
+		return GameObj::HoldingType::OnObject;
+	case Task::ActionType::MakeWornBy:
+		return GameObj::HoldingType::Worn;
+	case Task::ActionType::MakePartOf:
+		return GameObj::HoldingType::PartOf;
+	default:
+		throw std::logic_error("Invalid shortcut in action handling.");
+	}
+}
+
+static inline constexpr Character::Posture ActionTypeToPosture(Task::ActionType t) {
+	switch (t) {
+	case Task::ActionType::MakeLyingOn:
+		return Character::Posture::Lying;
+	case Task::ActionType::MakeSittingOn:
+		return Character::Posture::Sitting;
+	case Task::ActionType::MakeStandingOn:
+		return Character::Posture::Standing;
+	default:
+		throw std::logic_error("Invalid posture in posture action handling.");
+	}
+}
+
+static inline constexpr GameObj::HoldingType ActionRefToHoldingType(Task::ActionRefType t) {
+	switch (t) {
+	case Task::ActionRefType::ObjsHeldBy:
+	case Task::ActionRefType::ObjsInside:
+	case Task::ActionRefType::CharsInside:
+		return GameObj::HoldingType::InObject;
+	case Task::ActionRefType::ObjsAtLocation:
+	case Task::ActionRefType::CharsAtLocation:
+		return GameObj::HoldingType::AtLocation;
+	case Task::ActionRefType::ObjsOn:
+	case Task::ActionRefType::CharsOn:
+		return GameObj::HoldingType::OnObject;
+	case Task::ActionRefType::ObjsWornBy:
+		return GameObj::HoldingType::Worn;
+	default:
+		throw std::logic_error("Invalid shortcut in action ref handling.");
+	}
+}
+
+static inline constexpr bool ObjIsAppropriate(Task::ActionRefType t, GameObj *o) {
+	switch (t) {
+	case Task::ActionRefType::ObjsHeldBy:
+	case Task::ActionRefType::ObjsInside:
+	case Task::ActionRefType::ObjsWornBy:
+	case Task::ActionRefType::ObjsOn:
+	case Task::ActionRefType::ObjsAtLocation:
+	case Task::ActionRefType::ObjsWithProp:
+		return !dynamic_cast<Character *>(o) && !dynamic_cast<Location *>(o);
+	case Task::ActionRefType::CharsInside:
+	case Task::ActionRefType::CharsOn:
+	case Task::ActionRefType::CharsAtLocation:
+	case Task::ActionRefType::CharsWithProp:
+		return dynamic_cast<Character *>(o);
+	case Task::ActionRefType::LocationOf:
+	case Task::ActionRefType::LocationsInGroup:
+	case Task::ActionRefType::LocationsWithProp:
+		return dynamic_cast<Location *>(o);
+	default:
+		return false;
+	}
+}
+
+void Task::Action::PerformImpl() {
+	// at this stage, all references and lists are resolved.
+	Game *g = Game::Get();
+	switch (type) {
+	case ActionType::MoveToLocation:
+	case ActionType::MoveInsideObj:
+	case ActionType::MoveOntoObj:
+	case ActionType::MakeCarriedBy:
+	case ActionType::MakeWornBy:
+	case ActionType::MakePartOf:
+		switch (refType) {
+		case ActionRefType::SingleObj:
+			g->GetObject(lhs)->MoveTo(rhs, ActionTypeToHoldingType(type));
+			break;
+		case ActionRefType::ObjsHeldBy:
+		case ActionRefType::ObjsInside:
+		case ActionRefType::ObjsWornBy:
+		case ActionRefType::ObjsOn:
+		case ActionRefType::ObjsAtLocation:
+		case ActionRefType::CharsInside:
+		case ActionRefType::CharsOn:
+		case ActionRefType::CharsAtLocation: {
+			auto &allObjs = g->GetAllObjects();
+			auto ht = ActionRefToHoldingType(refType);
+			for (auto &o : allObjs) {
+				if (ObjIsAppropriate(refType, o.second) && o.second->GetParentKey() == lhs && o.second->GetParentRelation() == ht)
+					o.second->MoveTo(rhs, ActionTypeToHoldingType(type));
+			}
+		}
+			break;
+		case ActionRefType::ObjsWithProp:
+		case ActionRefType::CharsWithProp:
+			// TODO: this is actually objects having a property set to a specific value!
+			//       Need to load and store that first.
+			break;
+		case ActionRefType::ObjsInGroup:
+		case ActionRefType::CharsInGroup: {
+			auto &allObjs = g->GetAllObjects();
+			for (auto &o : allObjs) {
+				if (ObjIsAppropriate(refType, o.second) && o.second->IsMemberOfGroup(lhs))
+					o.second->MoveTo(rhs, ActionTypeToHoldingType(type));
+			}
+		}
+			break;
+		case ActionRefType::LocationOf:
+		case ActionRefType::LocationsInGroup:
+		case ActionRefType::LocationsWithProp:
+			throw std::runtime_error("Task tried to move a location.");
+		case ActionRefType::Task:
+			throw std::runtime_error("Task tried to move a task.");
+		case ActionRefType::None:
+			throw std::runtime_error("Task tried to move nothing.");
+		default:
+			break;
+		}
+		break;
+	case Starlane::Task::ActionType::MoveToLocationOf:
+		break;
+	case Starlane::Task::ActionType::MoveToGroup:
+		break;
+	case Starlane::Task::ActionType::MoveInDirection:
+		break;
+	case Starlane::Task::ActionType::MoveToParent:
+		break;
+	case Starlane::Task::ActionType::AddToGroup:
+		break;
+	case Starlane::Task::ActionType::RemoveFromGroup:
+		break;
+	case ActionType::MakeStandingOn:
+	case ActionType::MakeSittingOn:
+	case ActionType::MakeLyingOn:
+		switch (refType) {
+		case ActionRefType::SingleObj: {
+			GameObj *theObj = Game::Get()->GetObject(lhs);
+			Character *c;
+			if (!(c = dynamic_cast<Character *>(theObj)))
+				throw std::runtime_error("Tried to set the posture of a non-character");
+			c->MakePosture(rhs, ActionTypeToPosture(type));
+		}
+			break;
+		case ActionRefType::CharsAtLocation:
+		case ActionRefType::CharsInside:
+		case ActionRefType::CharsOn: {
+			auto &allObjs = g->GetAllObjects();
+			auto ht = ActionRefToHoldingType(refType);
+			for (auto &o : allObjs) {
+				Character *c;
+				if ((c = dynamic_cast<Character *>(o.second)) && o.second->GetParentKey() == lhs && o.second->GetParentRelation() == ht)
+					c->MakePosture(rhs, ActionTypeToPosture(type));
+			}
+		}
+			break;
+		case Starlane::Task::ActionRefType::CharsWithProp:
+			// TODO
+			break;
+		case ActionRefType::CharsInGroup: {
+			auto &allObjs = g->GetAllObjects();
+			for (auto &o : allObjs) {
+				Character *c;
+				if ((c = dynamic_cast<Character *>(o.second)) && o.second->IsMemberOfGroup(lhs))
+					c->MakePosture(rhs, ActionTypeToPosture(type));
+			}
+		}
+			break;
+		default:
+			throw std::runtime_error("Tried to change the posture of a non-character.");
+		}
+		break;
+	case Starlane::Task::ActionType::SetVarTo:
+		break;
+	case Starlane::Task::ActionType::IncVar:
+		break;
+	case Starlane::Task::ActionType::DecVar:
+		break;
+	case Starlane::Task::ActionType::SetPropTo:
+		break;
+	case Starlane::Task::ActionType::ExecTask:
+		break;
+	case Starlane::Task::ActionType::UnsetTask:
+		break;
+	case Starlane::Task::ActionType::SkipTurns:
+		break;
+	case Starlane::Task::ActionType::ConvoGreet:
+		break;
+	case Starlane::Task::ActionType::ConvoFarewell:
+		break;
+	case Starlane::Task::ActionType::ConvoAsk:
+		break;
+	case Starlane::Task::ActionType::ConvoTell:
+		break;
+	case Starlane::Task::ActionType::ConvoCmd:
+		break;
+	case Starlane::Task::ActionType::ConvoEnter:
+		break;
+	case Starlane::Task::ActionType::ConvoLeave:
+		break;
+	case Starlane::Task::ActionType::GameWin:
+		break;
+	case Starlane::Task::ActionType::GameLose:
+		break;
+	case Starlane::Task::ActionType::GameEndNeutral:
+		break;
+	case Starlane::Task::ActionType::GameContinue:
+		break;
+	default:
+		break;
 	}
 }
 

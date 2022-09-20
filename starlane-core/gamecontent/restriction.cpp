@@ -13,6 +13,7 @@
 #include "character.h"
 #include "description.h"
 #include "property.h"
+#include "utility.h"
 #include "variable.h"
 
 namespace Starlane {
@@ -101,15 +102,6 @@ constexpr bool ConditionHasRHS(Restriction::ConditionType t) {
 	default:
 		return true;
 	}
-}
-
-bool IsReference(const std::string &o) {
-	return o == "ReferencedObject" || o == "ReferencedObject1" || o == "ReferencedObject2" ||
-	       o == "ReferencedObject3" || o == "ReferencedObject4" || o == "ReferencedObject5" ||
-	       o == "ReferencedObjects" ||
-	       o == "ReferencedDirection" || o == "ReferencedCharacter" || o == "ReferencedCharacter1" ||
-	       o == "ReferencedCharacter2" || o == "ReferencedCharacter3" || o == "ReferencedCharacter4" ||
-	       o == "ReferencedCharacter5" || o == "ReferencedLocation" || o == "ReferencedItem";
 }
 
 }  // anonymous namespace
@@ -434,7 +426,7 @@ void Restriction::Single::Translate() {
 		else if (!(x = SkipText(restrText.c_str(), "Must Be")))
 			throw std::runtime_error("Invalid direction restriction: " + restrText);
 		lhs = x;
-		lhsIsRef = IsReference(lhs);
+		lhsIsRef = Util::IsReference(lhs);
 		return;
 	}
 	const char *x = restrText.c_str();
@@ -461,7 +453,7 @@ void Restriction::Single::Translate() {
 			lhs = tok;
 		}
 	} else lhs = tok;
-	lhsIsRef = IsReference(lhs);
+	lhsIsRef = Util::IsReference(lhs);
 
 	// Handle must / must not
 	GET_TOKEN;
@@ -557,7 +549,7 @@ void Restriction::Single::Translate() {
 		// Restrictions on object-valued properties are stored as "prop lhs Must rhs", implying "must/must not be equal"
 		cond = ConditionType::EqualTo;
 		rhs = tok;
-		rhsIsRef = IsReference(rhs);
+		rhsIsRef = Util::IsReference(rhs);
 		return;
 	} else {
 		throw std::runtime_error("Unable to handle restriction text: " + restrText);
@@ -581,8 +573,8 @@ void Restriction::Single::Translate() {
 		rhs = tok;
 	}
 
-	lhsIsRef = IsReference(lhs);
-	rhsIsRef = IsReference(rhs);
+	lhsIsRef = Util::IsReference(lhs);
+	rhsIsRef = Util::IsReference(rhs);
 }
 
 }
