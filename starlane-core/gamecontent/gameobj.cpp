@@ -82,7 +82,7 @@ const std::string &GameObj::GetVisbilityCeiling() const {
 }
 
 void GameObj::MoveTo(const std::string &newParent, HoldingType newRelation) {
-	parent = newParent;
+	parent = newParent == "Hidden" ? "" : newParent;
 	relation = newRelation;
 }
 

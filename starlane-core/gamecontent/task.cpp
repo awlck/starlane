@@ -382,6 +382,7 @@ static inline constexpr bool ObjIsAppropriate(Task::ActionRefType t, GameObj *o)
 void Task::Action::PerformImpl() {
 	// at this stage, all references and lists are resolved.
 	Game *g = Game::Get();
+	std::string moveTarget;
 	switch (type) {
 	case ActionType::MoveToLocation:
 	case ActionType::MoveInsideObj:
@@ -389,6 +390,19 @@ void Task::Action::PerformImpl() {
 	case ActionType::MakeCarriedBy:
 	case ActionType::MakeWornBy:
 	case ActionType::MakePartOf:
+		moveTarget = rhs;
+		goto ActionPerformMove;
+	case ActionType::MoveToLocationOf:
+		if (moveTarget.empty())  // jumped here directly rather than falling through
+			moveTarget = g->GetObject(rhs)->GetParentKey();
+		goto ActionPerformMove;
+	case ActionType::MoveToParent:  // moving a character "up" one level
+		if (moveTarget.empty()) {  // jumped here directly rather than falling through
+			const std::string &parent = g->GetObject(lhs)->GetParentKey();
+			if (!g->GetObject(parent)->GetParentKey().empty())
+				moveTarget = g->GetObject(parent)->GetParentKey();
+		}
+		ActionPerformMove:
 		switch (refType) {
 		case ActionRefType::SingleObj:
 			g->GetObject(lhs)->MoveTo(rhs, ActionTypeToHoldingType(type));
@@ -435,13 +449,9 @@ void Task::Action::PerformImpl() {
 			break;
 		}
 		break;
-	case Starlane::Task::ActionType::MoveToLocationOf:
-		break;
 	case Starlane::Task::ActionType::MoveToGroup:
 		break;
 	case Starlane::Task::ActionType::MoveInDirection:
-		break;
-	case Starlane::Task::ActionType::MoveToParent:
 		break;
 	case Starlane::Task::ActionType::AddToGroup:
 		break;
