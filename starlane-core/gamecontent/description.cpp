@@ -66,6 +66,9 @@ std::string Description::Build(bool commit) {
 	// ADRIFT Developer doesn't actually allow you to enter restriction failure text
 	// for restrictions on description segments.
 
+	// do nothing íf there is no text
+	if (segments.size() == 0) return "";
+
 	// First, find the rightmost segment with "BeginHere" mode that passes restrictions
 	size_t beginning = NPOS;
 	for (size_t i = segments.size() - 1; i != NPOS; i--) {
