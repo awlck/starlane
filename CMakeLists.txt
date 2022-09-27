@@ -25,6 +25,9 @@ if(MSVC)
 		"/guard:cf"  # enable control flow guard for indirect calls
 		"/guard:ehcont"  # enable exception continuation guards
 		$<$<NOT:$<CONFIG:Debug>>:/GL>  # release only: whole program optimization
+		"/Qvec-report:2"
+		"/Qpar"
+		"/Qpar-report:2"
 	)
 	add_link_options(
 		"/guard:cf"  # linker support for indirect call guarding
@@ -53,3 +56,8 @@ add_subdirectory("starlane-utils")
 if(SL_BUILD_QT)
 	add_subdirectory("starlane-qt")
 endif()
+
+add_executable(sltest "testing.cpp")
+target_link_libraries(sltest starlane-core)
+target_compile_definitions(sltest PRIVATE SLC_BUILDING_SELF)
+target_include_directories(sltest PRIVATE starlane-core)

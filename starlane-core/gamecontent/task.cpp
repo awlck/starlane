@@ -10,6 +10,7 @@
 #include "character.h"
 #include "event.h"
 #include "location.h"
+#include "property.h"
 #include "restriction.h"
 
 namespace Starlane {
@@ -58,6 +59,31 @@ Task::Action Task::Action::CreateFromXML(const pugi::xml_node &xmlNode) {
 	std::vector<std::string> tokens;
 	while (std::getline(strm, t, ' '))
 		tokens.push_back(t);
+
+	if (tokens[0] == "EverythingWithProperty" || tokens[0] == "EveryoneWithProperty") {
+		// special cases. love it.
+		result.prop = tokens[1];
+		std::string temp;
+		for (size_t idx = 2; idx < tokens.size()-2; idx++) {
+			if (idx != 2)
+				temp += ' ';
+			temp += tokens[idx];
+		}
+		// make an expression if necessary
+		switch (Game::Get()->GetPropMeta(result.prop)->Type()) {
+		case Property::ValueType::Object:
+		case Property::ValueType::Enum:
+			result.lhs = temp;
+			break;
+		case Property::ValueType::Bool:
+			// this means that the property must be "set" (i.e., true)
+			break;
+		default:
+			result.expr = Game::Get()->CreateExpression(temp);
+		}
+		// hackily remove the stuff we've handled so the rest of the function doesn't throw up
+		tokens.erase(tokens.begin() + 2, tokens.end() - 2);
+	}
 
 	if (name == "MoveObject" || name == "MoveCharacter") {
 		result.lhs = tokens[1];
@@ -109,8 +135,20 @@ Task::Action Task::Action::CreateFromXML(const pugi::xml_node &xmlNode) {
 		result.lhs = tokens[0];
 		result.prop = tokens[1];
 		result.rhs = tokens[2];
+		std::string temp;
 		for (size_t idx = 3; idx < tokens.size(); idx++) {
-			result.rhs += " " + tokens[idx];
+			if (idx != 3)
+				temp += ' ';
+			temp += tokens[idx];
+		}
+		// make an expression if necessary
+		switch (Game::Get()->GetPropMeta(result.prop)->Type()) {
+		case Property::ValueType::Object:
+		case Property::ValueType::Enum:
+			result.rhs = temp;
+			break;
+		default:
+			result.expr = Game::Get()->CreateExpression(temp);
 		}
 		result.refType = ActionRefType::None;
 		return result;
@@ -140,10 +178,11 @@ Task::Action Task::Action::CreateFromXML(const pugi::xml_node &xmlNode) {
 		result.refType = ActionRefType::None;
 		result.lhs = tokens[0];
 		// ignore tokens[1]
-		result.rhs = tokens[2];
+		std::string temp(tokens[2]);
 		for (size_t idx = 3; idx < tokens.size(); idx++) {
-			result.rhs += " " + tokens[idx];
+			temp += ' ' + tokens[idx];
 		}
+		result.expr = Game::Get()->CreateExpression(temp);
 		return result;
 	} else if (name == "Conversation") {
 		result.refType = ActionRefType::None;

@@ -120,6 +120,10 @@ private:
 		std::string prop;
 		std::string rhs;
 
+		// there are no reference mode / action combinations that have an expression both
+		// on the left and the right side, so we can get away with just one reference here.
+		ExprRef expr = 0;
+
 		void PerformImpl();
 	};
 
