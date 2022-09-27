@@ -97,18 +97,18 @@ std::string Description::Build(bool commit) {
 	}
 
 	std::string result(segments.at(beginning).Build());
-	HandleSegmentShown(beginning);
+	if (commit) HandleSegmentShown(beginning);
 	size_t nextSegment = beginning + 1;
 	if (continuation != NPOS) {
 		result.append(segments.at(continuation).Build());
-		HandleSegmentShown(continuation);
+		if (commit) HandleSegmentShown(continuation);
 		nextSegment = continuation + 1;
 	}
 	for (size_t i = nextSegment; i < segments.size(); i++) {
 		const auto &s = segments.at(i);
 		if (s.displayWhen == Display::Append && SEGMENT_ELIGIBLE(s)) {
 			result.append(s.Build());
-			HandleSegmentShown(i);
+			if (commit) HandleSegmentShown(i);
 		}
 	}
 
