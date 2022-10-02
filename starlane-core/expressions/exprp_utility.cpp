@@ -4,6 +4,7 @@
 
 #include <stdlib.h>
 #include <cassert>
+#include <iostream>
 
 namespace {
 ast_node_t *CreateNode(system_t *ctx, ast_node_type_t type, range_t range) {
@@ -33,6 +34,10 @@ void *system__reallocate_memory(system_t *ctx, void *ptr, size_t size) {
 void system__deallocate_memory(system_t *ctx, void *ptr) {
 	auto expr = (Starlane::Expression *) ctx;
 	expr->ParserFree(ptr);
+}
+
+void system__handle_syntax_error(system_t *obj, syntax_error_t error, range_t range) {
+    throw std::runtime_error("Syntax error.");
 }
 
 ast_node_t *system__create_ast_node_terminal(system_t *ctx, ast_node_type_t type, range_t range) {
@@ -141,3 +146,52 @@ void ast_node__append_child(ast_node_t *obj, ast_node_t *node) {
     }
     obj->arity++;
 }
+
+#ifndef NDEBUG
+void ast_node__dump(system_t *ctx, ast_node_t *node, int level) {
+    const char *type = "UNKNOWN";
+    switch (node->type) {
+    case AST_NODE_TYPE_INVALID:             type = "INVALID";             break;
+    case AST_NODE_TYPE_IDENTIFIER:          type = "IDENTIFIER";          break;
+    case AST_NODE_TYPE_VARIABLE:            type = "VARIABLE";            break;
+    case AST_NODE_TYPE_INTEGER:             type = "INTEGER";             break;
+    case AST_NODE_TYPE_STRING:              type = "STRING";              break;
+    case AST_NODE_TYPE_OPERATOR_PLUS:       type = "OPERATOR_PLUS";       break;
+    case AST_NODE_TYPE_OPERATOR_MINUS:      type = "OPERATOR_MINUS";      break;
+    case AST_NODE_TYPE_OPERATOR_INV:        type = "OPERATOR_INV";        break;
+    case AST_NODE_TYPE_OPERATOR_NOT:        type = "OPERATOR_NOT";        break;
+    case AST_NODE_TYPE_OPERATOR_ADD:        type = "OPERATOR_ADD";        break;
+    case AST_NODE_TYPE_OPERATOR_SUB:        type = "OPERATOR_SUB";        break;
+    case AST_NODE_TYPE_OPERATOR_MUL:        type = "OPERATOR_MUL";        break;
+    case AST_NODE_TYPE_OPERATOR_DIV:        type = "OPERATOR_DIV";        break;
+    case AST_NODE_TYPE_OPERATOR_MOD:        type = "OPERATOR_MOD";        break;
+    case AST_NODE_TYPE_OPERATOR_AND:        type = "OPERATOR_AND";        break;
+    case AST_NODE_TYPE_OPERATOR_OR:         type = "OPERATOR_OR";         break;
+    case AST_NODE_TYPE_OPERATOR_EQ:         type = "OPERATOR_EQ";         break;
+    case AST_NODE_TYPE_OPERATOR_NE:         type = "OPERATOR_NE";         break;
+    case AST_NODE_TYPE_OPERATOR_LT:         type = "OPERATOR_LT";         break;
+    case AST_NODE_TYPE_OPERATOR_LE:         type = "OPERATOR_LE";         break;
+    case AST_NODE_TYPE_OPERATOR_GT:         type = "OPERATOR_GT";         break;
+    case AST_NODE_TYPE_OPERATOR_GE:         type = "OPERATOR_GE";         break;
+    case AST_NODE_TYPE_OPERATOR_COND:       type = "OPERATOR_COND";       break;
+    case AST_NODE_TYPE_OPERATOR_COMMA:      type = "OPERATOR_COMMA";      break;
+    case AST_NODE_TYPE_OPERATOR_ASSIGN:     type = "OPERATOR_ASSIGN";     break;
+    case AST_NODE_TYPE_FUNCCALL:            type = "FUNCCALL";            break;
+    case AST_NODE_TYPE_ERROR_SKIP:          type = "ERROR_SKIP";          break;
+    case AST_NODE_TYPE_UNEXPECTED_TOKEN:    type = "UNEXPECTED_TOKEN";    break;
+    default: break;
+    }
+    if (node->arity > 0 ) {
+        printf("%*s%s: arity = %zu\n", 2 * level, "", type, node->arity);
+        for (ast_node_t *p = node->child.first; p != NULL; p = p->sibling.next) {
+            ast_node__dump(ctx, p, level + 1);
+        }
+    } else {
+        auto expr = (Starlane::Expression *) ctx;
+        for (size_t i = 0; i < level; i++)
+            std::cout << "  " ;
+        std::cout << type << ": value = '" << expr->GetNodeText(node) << "'\n";
+
+    }
+}
+#endif

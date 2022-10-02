@@ -11,10 +11,8 @@ struct ast_node_tag;
 namespace Starlane {
 
 struct Expression {
-	// TODO: Parse expression.
-	Expression (const std::string &expr) : exprStr(expr) {}
-
-	// TODO: destructor
+	Expression(const std::string &expr);
+	~Expression();
 
 	std::string exprStr;
 
@@ -30,7 +28,7 @@ struct Expression {
 	}
 	inline void *ParserAllocate(size_t bytes) {
 		void *result = ::operator new(bytes);
-		parserMemBlocks[result] = bytes;;
+		parserMemBlocks[result] = bytes;
 		return result;
 	}
 	inline void *ParserReallocate(void *block, size_t newSize) {

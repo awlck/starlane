@@ -15,6 +15,11 @@
 #define PCC_FREE(auxil, ptr) system__deallocate_memory(auxil, ptr)
 }
 
+main <- _ e:expr _ end_of_input
+	{
+		$$ = e;
+	}
+
 expr
 	<- l:expr _ ',' _ e:expr_assignment
 	{
@@ -30,37 +35,9 @@ expr_assignment
 	{
 		$$ = system__create_ast_node_binary(auxil, AST_NODE_TYPE_OPERATOR_ASSIGN, range__new($0s, $0e), e, r);
 	}
-	 / e:expr_funccall
-	{
-		$$ = e;
-	}
-
-expr_funccall
-	<- l:expr_funccall '.' c:simplecall '.' e:identifier
-	{
-		$$ = system__create_ast_node_ternary(auxil, AST_NODE_TYPE_FUNCCALL, range__new($0s, $0e), l, c, e);
-	}
-	 / e:identifier '[' _ r:expr _ ']'
-	{
-		$$ = system__create_ast_node_binary(auxil, AST_NODE_TYPE_FUNCCALL, range__new($0s, $0e), e, r);
-	}
-	 / l:expr_funccall '.' e:identifier
-	{
-		$$ = system__create_ast_node_binary(auxil, AST_NODE_TYPE_FUNCCALL, range__new($0s, $0e), l, e);
-	}
-	 / e:simplecall
-	{
-		$$ = e;
-	}
 	 / e:expr_or
 	{
 		$$ = e;
-	}
-
-simplecall
-	<- e:identifier '(' _ r:expr _ ')'
-	{
-		$$ = system__create_ast_node_binary(auxil, AST_NODE_TYPE_FUNCCALL, range__new($0s, $0e), e, r);
 	}
 
 expr_or
@@ -174,9 +151,47 @@ expr_unary
 	{
 		$$ = system__create_ast_node_unary(auxil, AST_NODE_TYPE_OPERATOR_NOT, range__new($0s, $0e), e);
 	}
+	 / e:expr_funccall
+	{
+		$$ = e;
+	}
+
+expr_funccall
+	<- l:expr_funccall '.' c:simplecall '.' e:identifier
+	{
+		$$ = system__create_ast_node_ternary(auxil, AST_NODE_TYPE_FUNCCALL, range__new($0s, $0e), l, c, e);
+	}
+	 / '%' e:bracketcall '%'
+	{
+		$$ = e;
+	}
+	 / e:bracketcall
+	{
+		$$ = e;
+	}
+	 / l:expr_funccall '.' e:identifier
+	{
+		$$ = system__create_ast_node_binary(auxil, AST_NODE_TYPE_FUNCCALL, range__new($0s, $0e), l, e);
+	}
+	 / e:simplecall
+	{
+		$$ = e;
+	}
 	 / e:expr_primary
 	{
 		$$ = e;
+	}
+
+simplecall
+	<- e:identifier '(' _ r:expr _ ')'
+	{
+		$$ = system__create_ast_node_binary(auxil, AST_NODE_TYPE_FUNCCALL, range__new($0s, $0e), e, r);
+	}
+
+bracketcall
+	<- e:identifier '[' _ r:expr _ ']'
+	{
+		$$ = system__create_ast_node_binary(auxil, AST_NODE_TYPE_FUNCCALL, range__new($0s, $0e), e, r);
 	}
 
 expr_primary
@@ -186,10 +201,15 @@ expr_primary
 	 / '(' _ e:expr _ ')' { $$ = e; }
 
 identifier
-	<- L(L/D)*
+	<- '%' L(L/D)* '%'
+	{
+		$$ = system__create_ast_node_terminal(auxil, AST_NODE_TYPE_VARIABLE, range__new($0s+1, $0e-1));
+	}
+	 / L(L/D)*
 	{
 		$$ = system__create_ast_node_terminal(auxil, AST_NODE_TYPE_IDENTIFIER, range__new($0s, $0e));
 	}
+	
 
 integer
 	<- !'0' D+
@@ -209,4 +229,4 @@ strcontent <- !'"' / '\\"'
 
 _ <- space*
 space <- [ \t\v\f]
-# end_of_input <- !.
+end_of_input <- !.
