@@ -6,7 +6,7 @@
 #include <pugixml.hpp>
 
 #include "../game.h"
-#include "../expressions.h"
+#include "../expression.h"
 #include "../valueparsers.h"
 #include "restriction.h"
 

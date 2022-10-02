@@ -1,3 +1,6 @@
 [submodule "starlane-core/deps/pugixml"]
 	path = starlane-core/deps/pugixml
 	url = https://github.com/zeux/pugixml.git
+[submodule "starlane-core/deps/packcc"]
+	path = starlane-core/deps/packcc
+	url = https://github.com/arithy/packcc

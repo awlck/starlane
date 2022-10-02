@@ -8,6 +8,13 @@ set(CMAKE_CXX_EXTIONSION OFF)
 add_subdirectory(deps/pugixml)
 add_subdirectory(deps/miniz)
 
+add_executable(packcc "deps/packcc/src/packcc.c")
+
+add_custom_command(
+	OUTPUT "${CMAKE_CURRENT_BINARY_DIR}/exprparser.c" "${CMAKE_CURRENT_BINARY_DIR}/exprparser.h"
+	COMMAND packcc ARGS -o "${CMAKE_CURRENT_BINARY_DIR}/exprparser" "${CMAKE_CURRENT_SOURCE_DIR}/exprgrammar.peg"
+)
+
 add_library(starlane-core STATIC
 	"starlane-core.cpp" "starlane-core.h"
 	"slc_private.h"
@@ -16,7 +23,7 @@ add_library(starlane-core STATIC
 	"gameloader.cpp"
 	"valueparsers.cpp" "valueparsers.h"
 	"random.cpp" "random.h"
-	"expressions.h"
+	"expression.h"
 	"gamecontent/gameobj.h" "gamecontent/gameobj.cpp"
 	"gamecontent/character.cpp" "gamecontent/character.h"
 	"gamecontent/location.cpp" "gamecontent/location.h"

@@ -25,9 +25,6 @@ if(MSVC)
 		"/guard:cf"  # enable control flow guard for indirect calls
 		"/guard:ehcont"  # enable exception continuation guards
 		$<$<NOT:$<CONFIG:Debug>>:/GL>  # release only: whole program optimization
-		"/Qvec-report:2"
-		"/Qpar"
-		"/Qpar-report:2"
 	)
 	add_link_options(
 		"/guard:cf"  # linker support for indirect call guarding

@@ -8,6 +8,7 @@
 
 #include <pugixml.hpp>
 
+#include "../expression.h"
 #include "../game.h"
 #include "../valueparsers.h"
 #include "character.h"
@@ -192,7 +193,7 @@ bool Restriction::Single::PassImpl(DescrRef *out, bool ignoreUnsetRefs) const {
 		else
 			throw std::runtime_error("Invalid condition on tasks while evaluating restriction.");
 	case TargetType::Expression:
-		return exprContent->EvaluateBool();
+		return Game::Get()->GetExpression(exprContent)->EvaluateBool();
 	case TargetType::Property:
 	case TargetType::Variable:
 	{
@@ -230,7 +231,7 @@ bool Restriction::Single::PassImpl(DescrRef *out, bool ignoreUnsetRefs) const {
 		}
 
 		if (isInt) {
-			int64_t result = exprContent->EvaluateInt();
+			int64_t result = Game::Get()->GetExpression(exprContent)->EvaluateInt();
 			switch (cond) {
 			case ConditionType::EqualTo:
 				return intVal == result;
@@ -246,7 +247,7 @@ bool Restriction::Single::PassImpl(DescrRef *out, bool ignoreUnsetRefs) const {
 				throw std::runtime_error("Invalid int operation while evaluating restriction.");
 			}
 		} else {
-			std::string result = exprContent->EvaluateStr();
+			std::string result = Game::Get()->GetExpression(exprContent)->EvaluateStr();
 			if (cond == ConditionType::EqualTo)
 				return strVal == result;
 			else if (cond == ConditionType::ContainText)
@@ -414,7 +415,7 @@ bool Restriction::Single::PassImpl(DescrRef *out, bool ignoreUnsetRefs) const {
 
 void Restriction::Single::Translate() {
 	if (targetType == TargetType::Expression) {
-		exprContent = new Expression(restrText);
+		exprContent = Game::Get()->CreateExpression(restrText);
 		return;
 	}
 	if (targetType == TargetType::Direction) {
@@ -560,7 +561,7 @@ void Restriction::Single::Translate() {
 		return;
 
 	if (targetType == TargetType::Variable || targetType == TargetType::Property) {
-		exprContent = new Expression(x);
+		exprContent = Game::Get()->CreateExpression(x);
 		return;
 	}
 

@@ -9,8 +9,6 @@
 #include <string>
 #include <vector>
 
-#include "../expressions.h"
-
 #define RESTRICTION_PASSES(id) ((id) == 0 || Game::Get()->GetRestriction((id))->PassRestrictionBlock().first)
 #define RESTRICTION_RESULT(id) ((id) == 0 ? { true, 0 } : Game::Get()->GetRestriction((id))->PassRestrictionBlock())
 
@@ -102,21 +100,7 @@ private:
 		// Whether the right-hand object is really a reference to the input.
 		bool rhsIsRef = false;
 
-		const Expression *exprContent = nullptr;
-
-		Single() = default;
-		// Need to be careful about that pointer...
-		~Single() { delete exprContent; }
-		Single(const Single &) = delete;
-		Single(Single &&rhs)  noexcept : restrText(std::move(rhs.restrText)), failureMsg(rhs.failureMsg),
-				positive(rhs.positive), targetType(rhs.targetType), lhs(std::move(rhs.lhs)), varIdx(rhs.varIdx),
-				lhsIsRef(rhs.lhsIsRef), prop(std::move(rhs.prop)), cond(rhs.cond), rhs(std::move(rhs.rhs)),
-				rhsIsRef(rhs.rhsIsRef), exprContent(rhs.exprContent)
-		{
-			rhs.exprContent = nullptr;
-		}
-		Single &operator=(const Single &) = delete;
-		Single &operator=(Single &&) = delete;
+		ExprRef exprContent = 0;
 
 	private:
 		// Whether the underlying condidion is fulfilled, not accounting for the `positive` flag.
