@@ -168,7 +168,19 @@ static size_t SkipSingleOOExpression(std::string_view theText) {
 
 	// go to the first space:
 	size_t pos;
-	for (pos = 0; pos < theText.length() && theText[pos] != ' '; pos++);
+	bool openParens = false;
+	for (pos = 0; pos < theText.length(); pos++) {
+		char x = theText[pos];
+		if (x == '!' || x == '?' || x == '/' || x == '\n') break;
+		if (x == '(') openParens = true;
+		if ((x == ',' || x == ' ') && !openParens) break;
+		if (x == ')') {
+			if (openParens) openParens = false;
+			else break;
+		}
+	}
+	// but make sure not to include any periods that are simply part of the text
+	while (pos > 0 && theText[pos-1] == '.') --pos;
 	// return the number of characters to skip so the calling functions can continue
 	// with its business
 	return pos;
@@ -223,19 +235,23 @@ ResolveText_FakeTailcall:
 			}
 			percents += 1;
 			break;  // and continue below.
+		case '\n':
+			if (functionFound) {  // if we find a line break while scanning a %function%, give up and treat as text instead
+				functionFound = false;
+				beginningOfFunc = std::string_view::npos;
+				percents = 0;
+			}
 		}
 		if (percents % 2 == 0 && bracketDepth == 0 && functionFound) {  // at end of this function call
 			// handle all the text prior to the first '%'
-			//ResolveExpressions(std::string(theText, beginningOfFunc - theText).c_str());
 			ResolveExpressions(theText.substr(0, beginningOfFunc));
 			// check wheter we also need to resolve an OO-style property for the resulting value
-			if (pos + 1 < theText.length() && theText[pos + 1] == '.') {
+			if (pos + 2 < theText.length() && theText[pos + 1] == '.' && theText[pos + 2]) {
 				pos += SkipSingleOOExpression(theText.substr(pos));
 			} else {
 				pos += 1;
 			}
 			// no, beginningOfFunc cannot be null; it is always set when functionFound is true.
-			//content.push_back(Game::Get()->CreateExpression(std::string(beginningOfFunc, beginningOfFunc - c)));
 			content.push_back(Game::Get()->CreateExpression(std::string(theText.substr(beginningOfFunc, pos - beginningOfFunc))));
 			// deal with the remainder of the text "recursively":
 			//return ResolveText(theText.substr(pos));
@@ -285,14 +301,20 @@ ResolveOO_FakeTailcall:
 	bool havePeriod = false;
 	// Where the current word begun (that is, the position of the character after the most recent space)
 	size_t wordBegan = 0;
+	// Whether we have also read some more letters since reading the last period
+	// (To catch occasions where the last word in the sentence happens to be an object key.)
+	int reallyInExpr = 0;
 	for (pos = 0; pos < theText.length(); pos++) {
-		if (theText[pos] == ' ') {
+		if (theText[pos] == ' ' || theText[pos] == '\n') {
 			inWord = false;
-			if (havePeriod) {
+			if (reallyInExpr == 1) {
 				auto theKey = GetPotentialObjKey(theText.substr(wordBegan, pos - wordBegan));
 				if (Game::Get()->ObjectExists(std::string(theKey))) {  // this is indeed a (usable) OO expression
-					// save text prior to this word
-					content.push_back(Game::Get()->StorePlainTextSnippet(theText.substr(0, pos)));
+					// save text prior to this word, if any
+					if (wordBegan > 0)
+						content.push_back(Game::Get()->StorePlainTextSnippet(theText.substr(0, wordBegan)));
+					// walk back any end-of-sentence periods
+					while (pos > 0 && theText[pos - 1] == '.') --pos;
 					// save expression
 					content.push_back(Game::Get()->CreateExpression(std::string(theText.substr(wordBegan, pos - wordBegan))));
 					// continue processing recursively
@@ -302,11 +324,21 @@ ResolveOO_FakeTailcall:
 				}
 				// otherwise do nothing -- this was just a missing space after a period after all.
 				havePeriod = false;
+				reallyInExpr = 0;
 			}
+			continue;
+		}
+		if (havePeriod && theText[pos] == '.' && theText[pos - 1] == '.') {
+			// guard against 'someKey...nextsentence'
+			reallyInExpr = -1;
 			continue;
 		}
 		if (inWord && theText[pos] == '.') {
 			havePeriod = true;
+			continue;
+		}
+		if (havePeriod && theText[pos] != '.' && reallyInExpr == 0) {
+			reallyInExpr = 1;
 			continue;
 		}
 		if (!inWord && (isalnum(theText[pos]) || theText[pos] == '_')) {
