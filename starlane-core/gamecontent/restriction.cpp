@@ -483,7 +483,7 @@ void Restriction::Single::Translate() {
 		cond = ConditionType::GreaterOrEqual;
 	} else if (tok == "BeLessThan") {
 		cond = ConditionType::LessOrEqual;
-	} else if (tok == "BeLessThanOrEqualTo") {
+	} else if (tok == "BeLessThanOrEqualTo" || tok == "LessThanOrEqualTo") {
 		cond = ConditionType::LessOrEqual;
 	} else if (tok == "BeContain") {
 		cond = ConditionType::ContainText;
