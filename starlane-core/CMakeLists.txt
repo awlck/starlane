@@ -12,10 +12,17 @@ add_executable(packcc "deps/packcc/src/packcc.c")
 
 add_custom_command(
 	OUTPUT "${CMAKE_CURRENT_BINARY_DIR}/exprparser.c" "${CMAKE_CURRENT_BINARY_DIR}/exprparser.h"
-	COMMAND packcc ARGS -o "${CMAKE_CURRENT_BINARY_DIR}/exprparser" "${CMAKE_CURRENT_SOURCE_DIR}/exprgrammar.peg"
+	COMMAND packcc ARGS -o "${CMAKE_CURRENT_BINARY_DIR}/exprparser" "${CMAKE_CURRENT_SOURCE_DIR}/expressions/exprgrammar.peg"
+	MAIN_DEPENDENCY "${CMAKE_CURRENT_SOURCE_DIR}/expressions/exprgrammar.peg"
 )
 
+add_library(slc_exprparser STATIC
+	"${CMAKE_CURRENT_BINARY_DIR}/exprparser.c" "${CMAKE_CURRENT_BINARY_DIR}/exprparser.h"
+)
+target_include_directories(slc_exprparser PRIVATE "${CMAKE_CURRENT_SOURCE_DIR}/expressions")
+
 add_library(starlane-core STATIC
+	# core files
 	"starlane-core.cpp" "starlane-core.h"
 	"slc_private.h"
 	"taffile.cpp" "taffile.h"
@@ -23,7 +30,10 @@ add_library(starlane-core STATIC
 	"gameloader.cpp"
 	"valueparsers.cpp" "valueparsers.h"
 	"random.cpp" "random.h"
-	"expression.h"
+	# expression handling
+	"expressions/expression.cpp" "expression.h"
+	"expressions/exprp_utility.cpp" "expressions/exprp_utility.h"
+	# game content (objects, tasks et al.)
 	"gamecontent/gameobj.h" "gamecontent/gameobj.cpp"
 	"gamecontent/character.cpp" "gamecontent/character.h"
 	"gamecontent/location.cpp" "gamecontent/location.h"
@@ -37,5 +47,5 @@ add_library(starlane-core STATIC
 	"gamecontent/event.cpp" "gamecontent/event.h"
 	"gamecontent/utility.h")
 target_compile_definitions(starlane-core PRIVATE SLC_BUILDING_SELF)
-target_link_libraries(starlane-core miniz pugixml-static)
+target_link_libraries(starlane-core miniz pugixml-static slc_exprparser)
 target_include_directories(starlane-core PRIVATE deps/miniz deps/pugixml/src)

@@ -1,0 +1,212 @@
+%prefix "exprp"
+
+%value "ast_node_t *"
+%auxil "system_t *"
+
+%header {
+#include "exprp_utility.h"
+}
+
+%source {
+#define PCC_ERROR(auxil) system__handle_syntax_error(auxil, SYNTAX_ERROR_UNKNOWN, range__void())
+#define PCC_GETCHAR(auxil) system__get_next_char(auxil)
+#define PCC_MALLOC(auxil, size) system__allocate_memory(auxil, size)
+#define PCC_REALLOC(auxil, ptr, size) system__reallocate_memory(auxil, ptr, size)
+#define PCC_FREE(auxil, ptr) system__deallocate_memory(auxil, ptr)
+}
+
+expr
+	<- l:expr _ ',' _ e:expr_assignment
+	{
+		$$ = system__create_ast_node_binary(auxil, AST_NODE_TYPE_OPERATOR_COMMA, range__new($0s, $0e), l, e);
+	}
+	 / e:expr_assignment
+	{
+		$$ = e;
+	}
+
+expr_assignment
+	<- e:expr_or _ '=' _ r:expr_assignment
+	{
+		$$ = system__create_ast_node_binary(auxil, AST_NODE_TYPE_OPERATOR_ASSIGN, range__new($0s, $0e), e, r);
+	}
+	 / e:expr_funccall
+	{
+		$$ = e;
+	}
+
+expr_funccall
+	<- l:expr_funccall '.' c:simplecall '.' e:identifier
+	{
+		$$ = system__create_ast_node_ternary(auxil, AST_NODE_TYPE_FUNCCALL, range__new($0s, $0e), l, c, e);
+	}
+	 / e:identifier '[' _ r:expr _ ']'
+	{
+		$$ = system__create_ast_node_binary(auxil, AST_NODE_TYPE_FUNCCALL, range__new($0s, $0e), e, r);
+	}
+	 / l:expr_funccall '.' e:identifier
+	{
+		$$ = system__create_ast_node_binary(auxil, AST_NODE_TYPE_FUNCCALL, range__new($0s, $0e), l, e);
+	}
+	 / e:simplecall
+	{
+		$$ = e;
+	}
+	 / e:expr_or
+	{
+		$$ = e;
+	}
+
+simplecall
+	<- e:identifier '(' _ r:expr _ ')'
+	{
+		$$ = system__create_ast_node_binary(auxil, AST_NODE_TYPE_FUNCCALL, range__new($0s, $0e), e, r);
+	}
+
+expr_or
+	<- l:expr_or _ 'OR' _ e:expr_and
+	{
+		$$ = system__create_ast_node_binary(auxil, AST_NODE_TYPE_OPERATOR_OR, range__new($0s, $0e), l, e);
+	}
+	 / e:expr_and
+	{
+		$$ = e;
+	}
+
+expr_and
+	<- l:expr_and _ 'AND' _ e:expr_or
+	{
+		$$ = system__create_ast_node_binary(auxil, AST_NODE_TYPE_OPERATOR_AND, range__new($0s, $0e), l, e);
+	}
+	 / e:expr_equality
+	{
+		$$ = e;
+	}
+
+expr_equality
+	<- l:expr_equality _ 'EQ' _ e:expr_relation
+	{
+		$$ = system__create_ast_node_binary(auxil, AST_NODE_TYPE_OPERATOR_EQ, range__new($0s, $0e), l, e);
+	}
+	 / l:expr_equality _ 'NE' _ e:expr_relation
+	{
+		$$ = system__create_ast_node_binary(auxil, AST_NODE_TYPE_OPERATOR_NE, range__new($0s, $0e), l, e);
+	}
+	 / e:expr_relation
+	{
+		$$ = e;
+	}
+
+expr_relation
+	<- l:expr_relation _ 'LE' _ e:expr_addition
+	{
+		$$ = system__create_ast_node_binary(auxil, AST_NODE_TYPE_OPERATOR_LE, range__new($0s, $0e), l, e);
+	}
+	 / l:expr_relation _ 'GE' _ e:expr_addition
+	{
+		$$ = system__create_ast_node_binary(auxil, AST_NODE_TYPE_OPERATOR_GE, range__new($0s, $0e), l, e);
+	}
+	 / l:expr_relation _ 'LT' _ e:expr_addition
+	{
+		$$ = system__create_ast_node_binary(auxil, AST_NODE_TYPE_OPERATOR_LT, range__new($0s, $0e), l, e);
+	}
+	 / l:expr_relation _ 'GT' _ e:expr_addition
+	{
+		$$ = system__create_ast_node_binary(auxil, AST_NODE_TYPE_OPERATOR_GT, range__new($0s, $0e), l, e);
+	}
+	 / e:expr_addition
+	{
+		$$ = e;
+	}
+
+expr_addition
+	<- l:expr_addition _ '+' _ e:expr_multiplication
+	{
+		$$ = system__create_ast_node_binary(auxil, AST_NODE_TYPE_OPERATOR_ADD, range__new($0s, $0e), l, e);
+	}
+	 / l:expr_addition _ '-' _ e:expr_multiplication
+	{
+		$$ = system__create_ast_node_binary(auxil, AST_NODE_TYPE_OPERATOR_SUB, range__new($0s, $0e), l, e);
+	}
+	 / e:expr_multiplication
+	{
+		$$ = e;
+	}
+
+expr_multiplication
+	<- l:expr_multiplication _ '*' _ e:expr_pow
+	{
+		$$ = system__create_ast_node_binary(auxil, AST_NODE_TYPE_OPERATOR_MUL, range__new($0s, $0e), l, e);
+	}
+	 / l:expr_multiplication _ '/' _ e:expr_pow
+	{
+		$$ = system__create_ast_node_binary(auxil, AST_NODE_TYPE_OPERATOR_DIV, range__new($0s, $0e), l, e);
+	}
+	 / l:expr_multiplication _ 'mod' _ e:expr_pow
+	{
+		$$ = system__create_ast_node_binary(auxil, AST_NODE_TYPE_OPERATOR_MOD, range__new($0s, $0e), l, e);
+	}
+	 / e:expr_pow
+	{
+		$$ = e;
+	}
+
+expr_pow
+	<- e:expr_pow _ '^' _ r:expr_unary
+	{
+		$$ = system__create_ast_node_binary(auxil, AST_NODE_TYPE_OPERATOR_POW, range__new($0s, $0e), e, r);
+	}
+	 / e:expr_unary
+	{
+		$$ = e;
+	}
+
+expr_unary
+	<- '+' _ e:expr_unary
+	{
+		$$ = system__create_ast_node_unary(auxil, AST_NODE_TYPE_OPERATOR_PLUS, range__new($0s, $0e), e);
+	}
+	 / '-' _ e:expr_unary
+	{
+		$$ = system__create_ast_node_unary(auxil, AST_NODE_TYPE_OPERATOR_MINUS, range__new($0s, $0e), e);
+	}
+	 / 'NOT' _ e:expr_unary  # starlane extension
+	{
+		$$ = system__create_ast_node_unary(auxil, AST_NODE_TYPE_OPERATOR_NOT, range__new($0s, $0e), e);
+	}
+	 / e:expr_primary
+	{
+		$$ = e;
+	}
+
+expr_primary
+	<- e:identifier { $$ = e; }
+	 / e:integer { $$ = e; }
+	 / e:string { $$ = e; }
+	 / '(' _ e:expr _ ')' { $$ = e; }
+
+identifier
+	<- L(L/D)*
+	{
+		$$ = system__create_ast_node_terminal(auxil, AST_NODE_TYPE_IDENTIFIER, range__new($0s, $0e));
+	}
+
+integer
+	<- !'0' D+
+	{
+		$$ = system__create_ast_node_terminal(auxil, AST_NODE_TYPE_INTEGER, range__new($0s, $0e));
+	}
+
+string
+	<- '"' strcontent '"'
+	{
+		$$ = system__create_ast_node_terminal(auxil, AST_NODE_TYPE_STRING, range__new($0s, $0e));
+	}
+
+L <- [a-zA-Z_]
+D <- [0-9]
+strcontent <- !'"' / '\\"'
+
+_ <- space*
+space <- [ \t\v\f]
+# end_of_input <- !.

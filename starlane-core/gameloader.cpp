@@ -6,6 +6,7 @@
 #include <pugixml.hpp>
 
 #include "starlane-core.h"
+#include "expression.h"
 #include "valueparsers.h"
 #include "gamecontent/description.h"
 #include "gamecontent/event.h"
