@@ -43,6 +43,7 @@ public:
 
 	bool GroupExists(const std::string &key) const { return groups.count(key) > 0; }
 	bool ObjectExists(const std::string &key) const { return objects.count(key) > 0; }
+	bool VarOfNameExists(const std::string &name) const { return varNames.count(name) > 0; }
 	const std::unordered_map<std::string, GameObj *> &GetAllObjects() const { return objects; }
 
 	bool GetIsTaskCompleted(const std::string &key) { return taskCompletedStorage.at(key); }
@@ -110,6 +111,9 @@ private:
 	// transient storage -- only relevant while evaluating commands.
 	// Never needs to be retained for UNDO/SAVE.
 	std::unordered_map<std::string, std::string> currentRefs;
+
+	// used at load-time to prevent duplicating expressions too much
+	std::unordered_map<std::string, ExprRef> knownExprs;
 
 	bool gameHasBegun = false;
 

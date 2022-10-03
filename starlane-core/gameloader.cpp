@@ -145,8 +145,14 @@ PlainTextRef Game::StorePlainTextSnippet(std::string_view snip) {
 }
 
 ExprRef Game::CreateExpression(const std::string &expr) {
-	expressions.emplace(++expressionsSoFar, new Expression(expr));
-	return expressionsSoFar;
+	auto x = knownExprs[expr];
+	if (x != 0) return x;
+
+	x = ++expressionsSoFar;
+	auto y = new Expression(expr);
+	expressions.emplace(x, y);
+	knownExprs[expr] = x;
+	return x;
 }
 
 void Game::StartupSanityCheck() const {
