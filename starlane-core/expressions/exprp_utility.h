@@ -65,7 +65,7 @@ typedef enum ast_node_type_tag {
 
 typedef enum syntax_error_tag {
     SYNTAX_ERROR_MISSING_QUOTEMARK,
-    SYNTAX_ERROR_UNEXPECTED_TOKEN,
+    SYNTAX_ERROR_SPURIOUS_COMMA,
     SYNTAX_ERROR_UNKNOWN
 } syntax_error_t;
 

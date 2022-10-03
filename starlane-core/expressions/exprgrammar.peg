@@ -38,6 +38,12 @@ expr
 	{
 		$$ = e;
 	}
+	 / l:expr _ < ',' _ (',' _)+ > e:expr_assignment  # error condition
+	{
+		system__handle_syntax_error(auxil, SYNTAX_ERROR_SPURIOUS_COMMA, range__new($1s, $1e));
+		$$ = system__create_ast_node_binary(auxil, AST_NODE_TYPE_OPERATOR_COMMA, range__new($0s, $0e), l, e);
+	}
+
 
 expr_assignment
 	<- e:expr_or _ '=' _ r:expr_assignment
@@ -70,11 +76,11 @@ expr_and
 	}
 
 expr_equality
-	<- l:expr_equality _ 'EQ' _ e:expr_relation
+	<- l:expr_equality _ ('EQ'/'=') _ e:expr_relation
 	{
 		$$ = system__create_ast_node_binary(auxil, AST_NODE_TYPE_OPERATOR_EQ, range__new($0s, $0e), l, e);
 	}
-	 / l:expr_equality _ 'NE' _ e:expr_relation
+	 / l:expr_equality _ ('NE'/'!='/'<>') _ e:expr_relation
 	{
 		$$ = system__create_ast_node_binary(auxil, AST_NODE_TYPE_OPERATOR_NE, range__new($0s, $0e), l, e);
 	}
@@ -199,6 +205,11 @@ expr_funccall
 simplecall
 	<- e:identifier _ '(' _ r:expr _ ')'
 	{
+		$$ = system__create_ast_node_binary(auxil, AST_NODE_TYPE_FUNCCALL, range__new($0s, $0e), e, r);
+	}
+	 / e:identifier _ '(' _ r:expr _ < (',' _)+ ')' >  # error condition
+	{
+		system__handle_syntax_error(auxil, SYNTAX_ERROR_SPURIOUS_COMMA, range__new($1s, $1e));
 		$$ = system__create_ast_node_binary(auxil, AST_NODE_TYPE_FUNCCALL, range__new($0s, $0e), e, r);
 	}
 

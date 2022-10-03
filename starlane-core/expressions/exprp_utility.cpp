@@ -7,6 +7,7 @@
 #include <iostream>
 
 namespace {
+
 ast_node_t *CreateNode(system_t *ctx, ast_node_type_t type, range_t range) {
 	auto expr = (Starlane::Expression *) ctx;
 	auto node = expr->CreateNode();
@@ -14,7 +15,57 @@ ast_node_t *CreateNode(system_t *ctx, ast_node_type_t type, range_t range) {
 	node->range = range;
     return node;
 }
+
+void FormatError(const std::string &fullText, range_t errRange, const char *errdesc) {
+    std::cerr << "Syntax error parsing expression: " << errdesc << ":\n  ";
+    std::string_view errtxt;
+    bool ellipsisStart = false;
+    bool ellipsisEnd = false;
+    if (fullText.length() < 78) {
+        errtxt = fullText;
+    } else if (errRange.max - errRange.min >= 78) {
+        int start = 0;
+        int stop = 0;
+        start = errRange.min > 5 ? errRange.min - 3 : 0;
+        stop = errRange.max < fullText.length() - 6 ? errRange.max + 3 : fullText.length();
+        ellipsisStart = errRange.min != 0;
+        ellipsisEnd = errRange.max != fullText.length();
+        errtxt = std::string_view(fullText).substr(start, stop - start);
+        errRange.min -= start;
+        errRange.max -= start;
+    } else {
+        // full text is more than 78 chars but the erroneous portion isn't
+        int start = 0;
+        int stop = 0;
+        // add 10 characters of context on each side, if available (no matter the resulting length
+        start = errRange.min > 10 ? errRange.min - 10 : 0;
+        stop = errRange.max < fullText.length() - 10 ? errRange.max + 10 : errRange.max;
+        while (stop - start < 78) {
+            if (start > 0) --start;
+            if (stop < fullText.length()) ++stop;
+        }
+        ellipsisStart = errRange.min != 0;
+        ellipsisEnd = errRange.max != fullText.length();
+        errtxt = std::string_view(fullText).substr(start, stop - start);
+        errRange.min -= start;
+        errRange.max -= start;
+    }
+    if (ellipsisStart)
+        std::cerr << "...";
+    std::cerr << errtxt;
+    if (ellipsisEnd)
+        std::cerr << "...";
+    std::cerr << "\n  ";
+    if (ellipsisStart)
+        std::cerr << "   ";
+    for (int i = 0; i < errRange.min; i++)
+        std::cerr << ' ';
+    for (int i = errRange.min; i < errRange.max; i++)
+        std::cerr << '^';
+    std::cerr << std::endl;
 }
+
+}  // anonymous namespace
 
 int system__get_next_char(system_t *ctx) {
 	auto expr = (Starlane::Expression *) ctx;
@@ -37,11 +88,22 @@ void system__deallocate_memory(system_t *ctx, void *ptr) {
 }
 
 void system__handle_syntax_error(system_t *obj, syntax_error_t error, range_t range) {
-    if (error == SYNTAX_ERROR_MISSING_QUOTEMARK) {
-        auto expr = (Starlane::Expression *) obj;
-        std::cerr << "Syntax error in expression: missing quotation mark: '" << std::string_view(expr->exprStr).substr(range.min, range.max - range.min)
-            << "', continuing anyways.\n";
-    } else throw std::runtime_error("Syntax error.");
+    auto expr = (Starlane::Expression *) obj;
+    switch (error) {
+    case SYNTAX_ERROR_MISSING_QUOTEMARK:
+        FormatError(expr->exprStr, range, "missing quotation mark");
+        //std::cerr << "Syntax error in expression: missing quotation mark: '" << std::string_view(expr->exprStr).substr(range.min, range.max - range.min)
+        //    << "', continuing anyways.\n";
+        return;
+    case SYNTAX_ERROR_SPURIOUS_COMMA:
+        FormatError(expr->exprStr, range, "spurious comma");
+        //std::cerr << "Syntax error in expression: spurious comma: '" << std::string_view(expr->exprStr).substr(range.min, range.max - range.min)
+        //    << "', continuing anyways.\n";
+        return;
+    default:
+        std::cerr << "General syntax error parsing expression:\n  " << expr->exprStr << std::endl;
+        throw std::runtime_error("Syntax error.");
+    }
 }
 
 ast_node_t *system__create_ast_node_terminal(system_t *ctx, ast_node_type_t type, range_t range) {
