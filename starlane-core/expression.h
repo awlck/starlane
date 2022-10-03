@@ -18,7 +18,7 @@ struct Expression {
 
 	// TODO
 	bool EvaluateBool() const { return false; };
-	int64_t EvaluateInt() const { return 0; };
+	int64_t EvaluateInt() const { if (constexType == ConstexprType::Int) return constValInt; return 0; };
 	std::string EvaluateStr() const { return exprStr; };
 	
 	// parsing related stuff
@@ -55,6 +55,14 @@ private:
 	ast_node_tag *lastNode = nullptr;
 
 	std::map<void *, size_t> parserMemBlocks;
+
+	enum class ConstexprType {
+		None,
+		Int,
+		String
+	};
+	ConstexprType constexType;
+	int64_t constValInt;
 };
 
 }

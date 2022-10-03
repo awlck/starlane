@@ -1,4 +1,5 @@
 #include "../expression.h"
+#include "../valueparsers.h"
 #include "exprp_utility.h"
 #include "exprparser.h"
 
@@ -8,6 +9,14 @@
 namespace Starlane {
 
 Expression::Expression(const std::string &expr) : exprStr(expr) {
+	if (expr.empty()) return;
+	int ws = 0;
+	while (isspace(expr[ws])) ++ws;
+	if (IsDigits(expr.c_str()+ws)) {
+		constexType = ConstexprType::Int;
+		constValInt = ParseInt(expr.c_str()+ws);
+		return;
+	}
 	exprp_context_t *ctx = exprp_create(this);
 	ast_node_t *root;
 	int remaining = exprp_parse(ctx, &root);
