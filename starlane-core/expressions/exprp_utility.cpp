@@ -37,7 +37,11 @@ void system__deallocate_memory(system_t *ctx, void *ptr) {
 }
 
 void system__handle_syntax_error(system_t *obj, syntax_error_t error, range_t range) {
-    throw std::runtime_error("Syntax error.");
+    if (error == SYNTAX_ERROR_MISSING_QUOTEMARK) {
+        auto expr = (Starlane::Expression *) obj;
+        std::cerr << "Syntax error in expression: missing quotation mark: '" << std::string_view(expr->exprStr).substr(range.min, range.max - range.min)
+            << "', continuing anyways.\n";
+    } else throw std::runtime_error("Syntax error.");
 }
 
 ast_node_t *system__create_ast_node_terminal(system_t *ctx, ast_node_type_t type, range_t range) {
