@@ -41,6 +41,9 @@ Game *Game::LoadFromXML(const std::string &gameTxt) {
 	// It is important that all properties are created before anything tries to use them.
 	for (const auto &it: gameNode.children("Property"))
 		result->CreatePropertyFromXML(it);
+	// Similarly, variables must be known before considering restrictions and task actions.
+	for (const auto &it : gameNode.children("Variable"))
+		result->CreateVariableFromXML(it);
 
 	for (const auto &it : gameNode.children("Location"))
 		result->CreateObjFromXML(it);
@@ -54,9 +57,6 @@ Game *Game::LoadFromXML(const std::string &gameTxt) {
 
 	for (const auto &it : gameNode.children("Event"))
 		result->CreateEventFromXML(it);
-	
-	for (const auto &it : gameNode.children("Variable"))
-		result->CreateVariableFromXML(it);
 
 	for (const auto &it : gameNode.children("Group"))
 		result->CreateGroupFromXML(it);

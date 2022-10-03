@@ -12,8 +12,27 @@
 #include "location.h"
 #include "property.h"
 #include "restriction.h"
+#include "variable.h"
 
 namespace Starlane {
+
+namespace {
+bool MaybeIsExpr(const std::string &s) {
+	size_t pos = 0;
+	/*int percents = 0;
+	int brackets = 0;
+	bool haveSeenBrackets = false;
+	int parens = 0;
+	bool haveSeenParens = false;
+	int timeSincePeriod = -1; */
+	for (; pos < s.length(); ++pos) {
+		auto x = s[pos];
+		if (x == '%' || x == '"' || x == '.') return true;
+		if (x == ' ') return false;
+	}
+	return false;
+}
+}
 
 Task *Task::CreateFromXML(Game *g, const pugi::xml_node &xmlNode) {
 	auto result = new Task;
@@ -180,6 +199,18 @@ Task::Action Task::Action::CreateFromXML(const pugi::xml_node &xmlNode) {
 		std::string temp(tokens[2]);
 		for (size_t idx = 3; idx < tokens.size(); idx++) {
 			temp += ' ' + tokens[idx];
+		}
+		// remove extraneous quotation marks that Adrift adds here
+		if (!temp.empty() && temp[0] == '"' && temp[temp.length() - 1] == '"') {
+			std::string varnameToSearch;
+			size_t l;
+			if ((l = tokens[0].find('[')) != std::string::npos) {
+				varnameToSearch = tokens[0].substr(0, l);
+			} else varnameToSearch = tokens[0];
+			Variable::Type vartype = Game::Get()->GetVariable(varnameToSearch)->GetType();
+			auto temp2 = temp.substr(1, temp.length() - 2);
+			if (vartype != Variable::Type::String || MaybeIsExpr(temp2))
+				temp2.swap(temp);
 		}
 		result.expr = Game::Get()->CreateExpression(temp);
 		return result;
