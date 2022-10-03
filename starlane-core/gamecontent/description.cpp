@@ -178,6 +178,8 @@ static size_t SkipSingleOOExpression(std::string_view theText) {
 			if (openParens) openParens = false;
 			else break;
 		}
+		// because certail people hate spaces, a fix for 'foo...bar'
+		if (x == '.' && pos > 0 && theText[pos - 1] == '.') break;
 	}
 	// but make sure not to include any periods that are simply part of the text
 	while (pos > 0 && theText[pos-1] == '.') --pos;
@@ -204,12 +206,14 @@ ResolveText_FakeTailcall:
 	size_t pos;
 	bool functionFound = false;
 	bool nonstopmode = false;
+	bool anybrackets = false;
 	size_t beginningOfFunc = std::string_view::npos;
 	for (pos = 0; pos < theText.length(); pos++) {
 		switch (theText[pos]) {
 		case '[':
 			if (nonstopmode) continue;
 			++bracketDepth;
+			if (functionFound) anybrackets = true;
 			continue;
 		case ']':
 			if (nonstopmode) continue;
@@ -229,11 +233,12 @@ ResolveText_FakeTailcall:
 			continue;
 		case '%':
 			if (nonstopmode) continue;
-			if (!functionFound) {
+			if (!functionFound && bracketDepth == 0) {
+				// (A certain someone decided to write '[%]: %academic%', and I hate them for it.)
 				functionFound = true;
 				beginningOfFunc = pos;
 			}
-			percents += 1;
+			if (functionFound) percents += 1;
 			break;  // and continue below.
 		case '\n':
 			if (functionFound) {  // if we find a line break while scanning a %function%, give up and treat as text instead
@@ -243,6 +248,18 @@ ResolveText_FakeTailcall:
 			}
 		}
 		if (percents % 2 == 0 && bracketDepth == 0 && functionFound) {  // at end of this function call
+			if (!anybrackets) {
+				auto vname = std::string(theText.substr(beginningOfFunc + 1, pos));
+				// When there aren't any brackets, the name between the percentage signs must be a
+				// known variable or built-in function.
+				if (!Game::Get()->VarOfNameExists(vname) && vname != "AloneWithChar" && vname != "ConvCharacter" && vname != "Player" && vname != "CharacterName") {
+					// no known name: just some gibberish and not a function/variable after all
+					ResolveExpressions(theText.substr(0, pos+1));
+					//return ResolveText(theText.substr(pos+1));
+					theText = theText.substr(pos + 1);
+					goto ResolveText_FakeTailcall;
+				}
+			}
 			// handle all the text prior to the first '%'
 			ResolveExpressions(theText.substr(0, beginningOfFunc));
 			// check wheter we also need to resolve an OO-style property for the resulting value
@@ -322,10 +339,10 @@ ResolveOO_FakeTailcall:
 					theText = theText.substr(pos);
 					goto ResolveOO_FakeTailcall;
 				}
-				// otherwise do nothing -- this was just a missing space after a period after all.
-				havePeriod = false;
-				reallyInExpr = 0;
 			}
+			// otherwise do nothing -- this was just a missing space after a period after all.
+			havePeriod = false;
+			reallyInExpr = 0;
 			continue;
 		}
 		if (havePeriod && theText[pos] == '.' && theText[pos - 1] == '.') {
