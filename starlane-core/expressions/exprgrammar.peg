@@ -30,30 +30,7 @@ main
 	}
 
 expr
-	<- l:expr _ ',' _ e:expr_assignment
-	{
-		$$ = system__create_ast_node_binary(auxil, AST_NODE_TYPE_OPERATOR_COMMA, range__new($0s, $0e), l, e);
-	}
-	 / e:expr_assignment
-	{
-		$$ = e;
-	}
-	 / l:expr _ < ',' _ (',' _)+ > e:expr_assignment  # error condition
-	{
-		system__handle_syntax_error(auxil, SYNTAX_ERROR_SPURIOUS_COMMA, range__new($1s, $1e));
-		$$ = system__create_ast_node_binary(auxil, AST_NODE_TYPE_OPERATOR_COMMA, range__new($0s, $0e), l, e);
-	}
-
-
-expr_assignment
-	<- e:expr_or _ '=' _ r:expr_assignment
-	{
-		$$ = system__create_ast_node_binary(auxil, AST_NODE_TYPE_OPERATOR_ASSIGN, range__new($0s, $0e), e, r);
-	}
-	 / e:expr_or
-	{
-		$$ = e;
-	}
+	<- e:expr_or { $$ = e; }
 
 expr_or
 	<- l:expr_or _ 'OR' _ e:expr_and
@@ -120,6 +97,10 @@ expr_addition
 	{
 		$$ = system__create_ast_node_binary(auxil, AST_NODE_TYPE_OPERATOR_SUB, range__new($0s, $0e), l, e);
 	}
+	 / l:expr_addition _ '&' _ e:expr_multiplication
+	{
+		$$ = system__create_ast_node_binary(auxil, AST_NODE_TYPE_OPERATOR_CONCAT, range__new($0s, $0e), l, e);
+	}
 	 / e:expr_multiplication
 	{
 		$$ = e;
@@ -172,11 +153,6 @@ expr_unary
 	}
 
 expr_funccall
-	#<- l:expr_funccall '.' c:simplecall '.' e:identifier
-	#{
-	#	$$ = system__create_ast_node_ternary(auxil, AST_NODE_TYPE_FUNCCALL, range__new($0s, $0e), l, c, e);
-	#}
-	# / '%' e:bracketcall '%'
 	<- '%' e:bracketcall '%'
 	{
 		$$ = e;
@@ -187,11 +163,11 @@ expr_funccall
 	}
 	 / l:expr_funccall '.' e:simplecall
 	{
-		$$ = system__create_ast_node_binary(auxil, AST_NODE_TYPE_FUNCCALL, range__new($0s, $0e), l, e);
+		$$ = system__create_ast_node_binary(auxil, AST_NODE_TYPE_ITEMFUNC, range__new($0s, $0e), l, e);
 	}
 	 / l:expr_funccall '.' e:identifier
 	{
-		$$ = system__create_ast_node_binary(auxil, AST_NODE_TYPE_FUNCCALL, range__new($0s, $0e), l, e);
+		$$ = system__create_ast_node_binary(auxil, AST_NODE_TYPE_ITEMFUNC, range__new($0s, $0e), l, e);
 	}
 	 / e:simplecall
 	{
@@ -203,27 +179,43 @@ expr_funccall
 	}
 
 simplecall
-	<- e:identifier _ '(' _ r:expr _ ')'
+	<- e:identifier _ '(' _ r:funcargs _ ')'
 	{
 		$$ = system__create_ast_node_binary(auxil, AST_NODE_TYPE_FUNCCALL, range__new($0s, $0e), e, r);
 	}
-	 / e:identifier _ '(' _ r:expr _ < (',' _)+ ')' >  # error condition
+	 / e:identifier _ '(' _ r:funcargs _ < (',' _)+ ')' >  # error condition
 	{
 		system__handle_syntax_error(auxil, SYNTAX_ERROR_SPURIOUS_COMMA, range__new($1s, $1e));
 		$$ = system__create_ast_node_binary(auxil, AST_NODE_TYPE_FUNCCALL, range__new($0s, $0e), e, r);
 	}
 
+funcargs
+	<- e:expr _ ',' _ r:funcargs
+	{
+		$$ = r;
+		$$->range = range__new($0s, $0e);
+		ast_node__prepend_child($$, e);
+	}
+	 / e:expr
+	{
+		$$ = system__create_ast_node_variadic(auxil, AST_NODE_TYPE_FUNCARGS, range__new($0s, $0e));
+		ast_node__prepend_child($$, e);
+	}
+	 / e:expr _ < ',' _ (',' _)+ > r:funcargs  # error condition
+	{
+		system__handle_syntax_error(auxil, SYNTAX_ERROR_SPURIOUS_COMMA, range__new($1s, $1e));
+		$$ = r;
+		$$->range = range__new($0s, $0e);
+		ast_node__prepend_child($$, e);
+	}
+
 bracketcall
-	<- e:identifier '[' _ r:expr _ ']'
+	<- e:identifier '[' _ r:funcargs _ ']'
 	{
 		$$ = system__create_ast_node_binary(auxil, AST_NODE_TYPE_FUNCCALL, range__new($0s, $0e), e, r);
 	}
 	# some of these functions will take fucking anything, like this:
 	# %PCase[%adjectives[%tavernname1%]% %nouns[%tavernname2%]%]%
-	# (note the absence of a comma there -- it's just two array-accesses with a space between them)
-	# this will need to be evaluated separately and joined back into a single string before getting
-	# passed to PCase. That isn't something that can be represented by this grammar, so we need to
-	# take another round-trip through the text-splitter in description.cpp
 	 / e:identifier '[' r:textcontent ']'
 	{
 		$$ = system__create_ast_node_binary(auxil, AST_NODE_TYPE_FUNCCALL, range__new($0s, $0e), e, r);
@@ -268,7 +260,7 @@ identifier
 	{
 		$$ = system__create_ast_node_terminal(auxil, AST_NODE_TYPE_VARIABLE, range__new($0s+1, $0e-1));
 	}
-	 / L(L/D)* !'"'  # (and identifier immediately followed by a quotation mark probably wanted to be a string but is missing its opening quotation mark)
+	 / L(L/D)* !'"'  # (an identifier immediately followed by a quotation mark probably wanted to be a string but is missing its opening quotation mark)
 	{
 		$$ = system__create_ast_node_terminal(auxil, AST_NODE_TYPE_IDENTIFIER, range__new($0s, $0e));
 	}

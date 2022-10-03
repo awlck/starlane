@@ -240,9 +240,9 @@ void ast_node__dump(system_t *ctx, ast_node_t *node, int level) {
     case AST_NODE_TYPE_OPERATOR_GT:         type = "OPERATOR_GT";         break;
     case AST_NODE_TYPE_OPERATOR_GE:         type = "OPERATOR_GE";         break;
     case AST_NODE_TYPE_OPERATOR_COND:       type = "OPERATOR_COND";       break;
-    case AST_NODE_TYPE_OPERATOR_COMMA:      type = "OPERATOR_COMMA";      break;
-    case AST_NODE_TYPE_OPERATOR_ASSIGN:     type = "OPERATOR_ASSIGN";     break;
     case AST_NODE_TYPE_FUNCCALL:            type = "FUNCCALL";            break;
+    case AST_NODE_TYPE_ITEMFUNC:            type = "ITEMFUNC";            break;
+    case AST_NODE_TYPE_FUNCARGS:            type = "FUNCARGS";            break;
     case AST_NODE_TYPE_ERROR_SKIP:          type = "ERROR_SKIP";          break;
     case AST_NODE_TYPE_UNEXPECTED_TOKEN:    type = "UNEXPECTED_TOKEN";    break;
     default: break;
