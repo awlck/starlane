@@ -134,10 +134,9 @@ Task::Action Task::Action::CreateFromXML(const pugi::xml_node &xmlNode) {
 		result.type = ActionType::SetPropTo;
 		result.lhs = tokens[0];
 		result.prop = tokens[1];
-		result.rhs = tokens[2];
 		std::string temp;
-		for (size_t idx = 3; idx < tokens.size(); idx++) {
-			if (idx != 3)
+		for (size_t idx = 2; idx < tokens.size(); idx++) {
+			if (idx != 2)
 				temp += ' ';
 			temp += tokens[idx];
 		}
