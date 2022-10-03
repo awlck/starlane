@@ -10,7 +10,7 @@
 #include "../valueparsers.h"
 #include "restriction.h"
 
-// magical bit fuckery
+// bit fuckery to tell plain text from expressions
 #define TOPBIT (((size_t) 1) << (std::numeric_limits<size_t>::digits - 1))
 
 // "no position": basically just size_t_max
@@ -178,7 +178,7 @@ static size_t SkipSingleOOExpression(std::string_view theText) {
 			if (openParens) openParens = false;
 			else break;
 		}
-		// because certail people hate spaces, a fix for 'foo...bar'
+		// because certain people hate spaces, a fix for 'foo...bar'
 		if (x == '.' && pos > 0 && theText[pos - 1] == '.') break;
 	}
 	// but make sure not to include any periods that are simply part of the text
@@ -346,7 +346,7 @@ ResolveOO_FakeTailcall:
 			continue;
 		}
 		if (havePeriod && theText[pos] == '.' && theText[pos - 1] == '.') {
-			// guard against 'someKey...nextsentence'
+			// guard against 'someKey...nextsentence', because some people apparently hate spaces
 			reallyInExpr = -1;
 			continue;
 		}
