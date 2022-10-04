@@ -9,6 +9,18 @@
 struct ast_node_tag;
 
 namespace Starlane {
+namespace Expr {
+enum class ValueType {
+	Invalid,
+	Integer,
+	String
+};
+struct Value {
+	ValueType ty;
+	int64_t Int;
+	std::string Str;
+};
+}  // namespace Expr
 
 struct Expression {
 	Expression(const std::string &expr);
@@ -19,7 +31,7 @@ struct Expression {
 	// TODO
 	bool EvaluateBool() const { return false; };
 	int64_t EvaluateInt() const { if (constexType == ConstexprType::Int) return constValInt; return 0; };
-	std::string EvaluateStr() const { return exprStr; };
+	std::string EvaluateStr() const;
 	
 	// parsing related stuff
 	inline int GetNextChar() {
@@ -47,12 +59,14 @@ struct Expression {
 
 	std::string_view GetNodeText(const ast_node_tag *node) const;
 	ast_node_tag *CreateNode();
+	const ast_node_tag *const GetRootNode() const { return rootNode; };
 
 private:
 	size_t position = 0;
 
 	ast_node_tag *firstNode = nullptr;
 	ast_node_tag *lastNode = nullptr;
+	ast_node_tag *rootNode = nullptr;
 
 	std::map<void *, size_t> parserMemBlocks;
 
@@ -63,6 +77,8 @@ private:
 	};
 	ConstexprType constexType;
 	int64_t constValInt;
+
+	Expr::Value EvalAnyNode(ast_node_tag *node) const;
 };
 
 }

@@ -1,5 +1,7 @@
-#include "../expression.h"
+#include "../expression.h"]
+#include "../game.h"
 #include "../valueparsers.h"
+#include "../gamecontent/variable.h"
 #include "exprp_utility.h"
 #include "exprparser.h"
 
@@ -18,8 +20,7 @@ Expression::Expression(const std::string &expr) : exprStr(expr) {
 		return;
 	}
 	exprp_context_t *ctx = exprp_create(this);
-	ast_node_t *root;
-	int remaining = exprp_parse(ctx, &root);
+	int remaining = exprp_parse(ctx, &rootNode);
 	exprp_destroy(ctx);
 }
 
@@ -49,6 +50,32 @@ ast_node_tag *Expression::CreateNode() {
 		lastNode = node;
 	}
 	return node;
+}
+
+std::string Expression::EvaluateStr() const {
+	auto result = EvalAnyNode(rootNode);
+	if (result.ty == Expr::ValueType::String) return result.Str;
+	else if (result.ty == Expr::ValueType::Integer) return std::to_string(result.Int);
+	throw std::runtime_error("Invalid expression result");
+}
+
+Expr::Value Expression::EvalAnyNode(ast_node_tag *node) const {
+	// Expr::Value myResult {Expr::ValueType::Invalid, 0, 0};
+	switch (node->type) {
+	case AST_NODE_TYPE_IDENTIFIER:
+	case AST_NODE_TYPE_STRING:
+		return { Expr::ValueType::String, 0, std::string(GetNodeText(node)) };
+	case AST_NODE_TYPE_VARIABLE: {
+		auto theVar = Game::Get()->GetVariable(std::string(GetNodeText(node)));
+		auto theType = theVar->GetType();
+		if (theType == Variable::Type::String)
+			return { Expr::ValueType::String, 0, theVar->GetValue<std::string>() };
+		else if (theType == Variable::Type::Int)
+			return { Expr::ValueType::Integer, theVar->GetValue<int64_t>(), 0 };
+	}
+	}
+
+	return { Expr::ValueType::Invalid, 0, 0 };
 }
 
 }
