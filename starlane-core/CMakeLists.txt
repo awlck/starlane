@@ -19,7 +19,7 @@ add_custom_command(
 add_library(slc_exprparser STATIC
 	"${CMAKE_CURRENT_BINARY_DIR}/exprparser.c" "${CMAKE_CURRENT_BINARY_DIR}/exprparser.h"
 )
-target_include_directories(slc_exprparser PRIVATE "${CMAKE_CURRENT_SOURCE_DIR}/expressions")
+target_include_directories(slc_exprparser PUBLIC "${CMAKE_CURRENT_SOURCE_DIR}/expressions")
 
 add_library(starlane-core STATIC
 	# core files
