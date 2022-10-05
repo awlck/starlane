@@ -239,7 +239,6 @@ void ast_node__dump(system_t *ctx, ast_node_t *node, int level) {
     case AST_NODE_TYPE_OPERATOR_LE:         type = "OPERATOR_LE";         break;
     case AST_NODE_TYPE_OPERATOR_GT:         type = "OPERATOR_GT";         break;
     case AST_NODE_TYPE_OPERATOR_GE:         type = "OPERATOR_GE";         break;
-    case AST_NODE_TYPE_OPERATOR_COND:       type = "OPERATOR_COND";       break;
     case AST_NODE_TYPE_FUNCCALL:            type = "FUNCCALL";            break;
     case AST_NODE_TYPE_ITEMFUNC:            type = "ITEMFUNC";            break;
     case AST_NODE_TYPE_FUNCARGS:            type = "FUNCARGS";            break;

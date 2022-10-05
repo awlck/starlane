@@ -3,7 +3,10 @@
 #ifndef SLC_EXPRESSIONS_H
 #define SLC_EXPRESSIONS_H
 
+#include "slc_private.h"
+
 #include <map>
+#include <stdexcept>
 #include <string>
 
 struct ast_node_tag;
@@ -19,6 +22,32 @@ struct Value {
 	ValueType ty;
 	int64_t Int;
 	std::string Str;
+	explicit operator bool() const {
+		switch (ty) {
+		case ValueType::Integer:
+			return Int != 0;
+		case ValueType::String:
+			return !Str.empty();
+		default:
+			throw std::logic_error("Tried to convert an invalid value.");
+		}
+	}
+	bool operator ==(const Value &rhs) {
+		if (ty == ValueType::String && rhs.ty == ValueType::String)
+			return Str == rhs.Str;
+		if (ty == ValueType::Integer && rhs.ty == ValueType::Integer)
+			return Int == rhs.Int;
+		if (ty == ValueType::String && rhs.ty == ValueType::Integer)
+			return Str == std::to_string(rhs.Int);
+		if (ty == ValueType::Integer && rhs.ty == ValueType::String)
+			return std::to_string(Int) == Str;
+		throw std::runtime_error("Tried to equate an invalid value.");
+	}
+	bool operator <(const Value &rhs) {
+		if (ty == ValueType::Integer && rhs.ty == ValueType::Integer)
+			return Int < rhs.Int;
+		throw std::runtime_error("Tried to numerically compare non-integers.");
+	}
 };
 }  // namespace Expr
 
@@ -78,7 +107,9 @@ private:
 	ConstexprType constexType;
 	int64_t constValInt;
 
-	Expr::Value EvalAnyNode(ast_node_tag *node) const;
+	Expr::Value EvalAnyNode(const ast_node_tag *node) const;
+	Expr::Value EvalFunccall(Expr::Value toCall, const ast_node_tag *args) const;
+	Expr::Value EvalItemfunc(Expr::Value obj, const ast_node_tag *toCall) const;
 };
 
 }
