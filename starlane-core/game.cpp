@@ -2,6 +2,7 @@
 
 #include "starlane-core.h"
 #include "gamecontent/event.h"
+#include "expression.h"
 #include "gamecontent/gameobj.h"
 #include "gamecontent/group.h"
 #include "gamecontent/task.h"
