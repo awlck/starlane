@@ -5,10 +5,19 @@
 #include "exprp_utility.h"
 #include "exprparser.h"
 
+#include <cassert>
+#include <cmath>
 #include <string_view>
 #include <iostream>
 
 namespace Starlane {
+
+std::map<std::string, decltype(&Expression::LCaseImpl)> Expression::tableOfBuiltInFunctions
+= {
+	{ "LCase", &Expression::LCaseImpl },
+	{ "UCase", &Expression::UCaseImpl },
+	{ "PCase", &Expression::PCaseImpl }
+};
 
 Expression::Expression(const std::string &expr) : exprStr(expr) {
 	if (expr.empty()) return;
@@ -59,15 +68,7 @@ std::string Expression::EvaluateStr() const {
 	throw std::runtime_error("Invalid expression result");
 }
 
-inline bool ValueAsBool(Expr::Value v) {
-	switch (v.ty) {
-	case Expr::ValueType::Integer:
-		return !!v.Int;
-	}
-}
-
 Expr::Value Expression::EvalAnyNode(const ast_node_tag *node) const {
-	// Expr::Value myResult {Expr::ValueType::Invalid, 0, 0};
 	switch (node->type) {
 	case AST_NODE_TYPE_IDENTIFIER:
 	case AST_NODE_TYPE_STRING:
@@ -79,6 +80,7 @@ Expr::Value Expression::EvalAnyNode(const ast_node_tag *node) const {
 			return { Expr::ValueType::String, 0, theVar->GetValue<std::string>() };
 		else if (theType == Variable::Type::Int)
 			return { Expr::ValueType::Integer, theVar->GetValue<int64_t>(), 0 };
+		else throw std::logic_error("Wrong type of variable (presumed impossible).");
 	}
 	case AST_NODE_TYPE_INTEGER:
 		return { Expr::ValueType::Integer, node->intVal, 0 };
@@ -206,6 +208,8 @@ Expr::Value Expression::EvalAnyNode(const ast_node_tag *node) const {
 	}
 	case AST_NODE_TYPE_FUNCCALL: {
 		auto function = EvalAnyNode(node->child.first);
+		if (node->child.last->type != AST_NODE_TYPE_FUNCARGS)
+			throw std::runtime_error("Invalid node type on right-hand side of function call.");
 		return EvalFunccall(function, node->child.last);
 	}
 	case AST_NODE_TYPE_ITEMFUNC: {
@@ -229,6 +233,23 @@ Expr::Value Expression::EvalAnyNode(const ast_node_tag *node) const {
 		throw std::runtime_error("Can't deal with this node type at this time: " + std::to_string(node->type));
 	}
 
+	return { Expr::ValueType::Invalid, 0, 0 };
+}
+
+Expr::Value Expression::EvalFunccall(Expr::Value toCall, const ast_node_tag *args) const {
+	assert(toCall.ty == Expr::ValueType::String);
+	const std::string &func = toCall.Str;
+	// idk, this seems more efficient than a chain of 20-or-so instances of 'if (func == "LCase")'
+	if (tableOfBuiltInFunctions.count(func) > 0) {
+		auto leFunction = tableOfBuiltInFunctions.at(func);
+		return (this->*leFunction)(args);
+	}
+	// todo: user-defined functions, array access
+	return { Expr::ValueType::Invalid, 0, 0 };
+}
+
+Expr::Value Expression::EvalItemfunc(Expr::Value obj, const ast_node_tag *toCall) const {
+	// todo
 	return { Expr::ValueType::Invalid, 0, 0 };
 }
 
