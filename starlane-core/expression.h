@@ -65,7 +65,7 @@ struct Expression {
 	// parsing related stuff
 	inline int GetNextChar() {
 		if (position >= exprStr.length()) return EOF;
-		return exprStr[position++];
+		return (unsigned char) exprStr[position++];
 	}
 	inline void *ParserAllocate(size_t bytes) {
 		void *result = ::operator new(bytes);
