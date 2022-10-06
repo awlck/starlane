@@ -241,7 +241,7 @@ textcontent
 		ast_node__prepend_child($$, t);
 	}
 
-s <- !']' (!'%' .)*
+s <- (!']' !'%' .)*
 	# If anyone goes around doing %PCase[The 100% correct implementation]%, I will slap them with a 100% Slimy Eel.
 	{
 		$$ = system__create_ast_node_terminal(auxil, AST_NODE_TYPE_STRING, range__new($0s, $0e));

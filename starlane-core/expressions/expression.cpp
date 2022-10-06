@@ -208,7 +208,7 @@ Expr::Value Expression::EvalAnyNode(const ast_node_tag *node) const {
 	}
 	case AST_NODE_TYPE_FUNCCALL: {
 		auto function = EvalAnyNode(node->child.first);
-		if (node->child.last->type != AST_NODE_TYPE_FUNCARGS)
+		if (node->child.last->type != AST_NODE_TYPE_FUNCARGS && node->child.last->type != AST_NODE_TYPE_TEXTCONTENT)
 			throw std::runtime_error("Invalid node type on right-hand side of function call.");
 		return EvalFunccall(function, node->child.last);
 	}
