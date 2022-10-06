@@ -100,6 +100,7 @@ std::string Description::Build(bool commit) {
 	if (commit) HandleSegmentShown(beginning);
 	size_t nextSegment = beginning + 1;
 	if (continuation != NPOS) {
+		if (NeedSpace(result)) result += ' ';
 		result.append(segments.at(continuation).Build());
 		if (commit) HandleSegmentShown(continuation);
 		nextSegment = continuation + 1;
@@ -107,6 +108,7 @@ std::string Description::Build(bool commit) {
 	for (size_t i = nextSegment; i < segments.size(); i++) {
 		const auto &s = segments.at(i);
 		if (s.displayWhen == Display::Append && SEGMENT_ELIGIBLE(s)) {
+			if (NeedSpace(result)) result += ' ';
 			result.append(s.Build());
 			if (commit) HandleSegmentShown(i);
 		}
