@@ -1,7 +1,7 @@
 #include "description.h"
 
 #include <limits>
-#include <sstream>
+#include <regex>
 
 #include <pugixml.hpp>
 
@@ -151,7 +151,24 @@ std::string Description::Segment::Build() const {
 		if (ref & TOPBIT) {  // an expression
 			result.append(Game::Get()->GetExpression(ref)->EvaluateStr());
 		} else {  // a plain text snippet
-			result.append(Game::Get()->GetPlainTextSnippet(ref));
+			// We also need to deal with alternatives like '[am/are/is]' at this stage.
+			// Note that this is liable to break when the alternatives contain an expression,
+			// but it will work for now...
+			const char *str = Game::Get()->GetPlainTextSnippet(ref);
+			std::regex matchEx(R"(\[(.*?)\/(.*?)\/(.*?)\])");
+			const char *replacement;
+			switch (Game::Get()->GetCurrentReferralPerson()) {
+			case Game::ReferralPerson::FirstPerson:
+				replacement = "$1";
+				break;
+			case Game::ReferralPerson::SecondPerson:
+				replacement = "$2";
+				break;
+			case Game::ReferralPerson::ThirdPerson:
+				replacement = "$3";
+				break;
+			}
+			result.append(std::regex_replace(str, matchEx, replacement));
 		}
 	}
 	return result;

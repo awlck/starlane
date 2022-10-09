@@ -7,6 +7,7 @@
 #include <string.h>
 #include <sstream>
 
+#include "game.h"
 #include "gamecontent/description.h"
 #include "gamecontent/event.h"
 #include "gamecontent/gameobj.h"
@@ -248,6 +249,16 @@ const char *SkipText(const char *input, const char *toSkip) {
 	// Since the string `input` starts with `toSkip`, we know that `input` must be at least
 	// as long as `toSkip`. In other words, this is always safe:
 	return output + strlen(toSkip);
+}
+
+Game::ReferralPerson Game::ParseReferralPerson(const char *txt) {
+	if (STREQ(txt, "FirstPerson"))
+		return ReferralPerson::FirstPerson;
+	if (STREQ(txt, "SecondPerson"))
+		return ReferralPerson::SecondPerson;
+	if (STREQ(txt, "ThirdPerson"))
+		return ReferralPerson::ThirdPerson;
+	throw VALERR(Game::ReferralPerson, txt);
 }
 
 }

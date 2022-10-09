@@ -79,6 +79,17 @@ public:
 	// This function should be called once per second to advance real-time-based events.
 	void Tick();
 
+	enum class ReferralPerson {
+		FirstPerson,
+		SecondPerson,
+		ThirdPerson
+	};
+	ReferralPerson GetCurrentReferralPerson() const {
+		if (mostRecentlyMentioned.empty() || mostRecentlyMentioned == playerKey)
+			return pcReferralPerson;
+		return ReferralPerson::ThirdPerson;
+	}
+
 private:
 	Game() = default;
 	Game(const Game &);  // copy constructor -- for undo state saving
@@ -96,6 +107,8 @@ private:
 	std::unordered_map<std::string, bool> taskCompletedStorage;
 	// the current player character
 	std::string playerKey;
+	// most recently mentioned character
+	std::string mostRecentlyMentioned;
 
 	// immutable content (only exists once)
 	std::unordered_map<RestrRef, Restriction *> restrictions;
@@ -107,6 +120,8 @@ private:
 	// and can be output as-is. Maintained like this to reduce the amount of text
 	// that is unnecessarily duplicated when copying descriptions for undo/save.
 	std::unordered_map<PlainTextRef, const char *> plainTextSnippets;
+	// The grammatical person by which to refer to the player character
+	ReferralPerson pcReferralPerson;
 
 	// transient storage -- only relevant while evaluating commands.
 	// Never needs to be retained for UNDO/SAVE.
@@ -140,6 +155,8 @@ private:
 	// The initial state right as the game starts. Maintained for the benefit of the
 	// `restart` command.
 	Game *startupState = nullptr;
+
+	static ReferralPerson ParseReferralPerson(const char *p);
 };
 
 }

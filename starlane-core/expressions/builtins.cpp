@@ -12,7 +12,7 @@ Expr::Value Expression::LCaseImpl(const ast_node_tag *args) const {
 	auto theArg = EvalAnyNode(args->child.first);
 	if (theArg.ty == Expr::ValueType::Integer)
 		return { Expr::ValueType::String, 0, std::to_string(theArg.Int) };
-	else if (theArg.ty == Expr::ValueType::String) {  // ugh. I hate my life and all of this nonsense.
+	else if (theArg.ty == Expr::ValueType::String) {
 		return { Expr::ValueType::String, 0, SLFrontend::Services::StrToLowerCase(theArg.Str) };
 	} else throw std::runtime_error("Invalid value.");
 }

@@ -63,6 +63,13 @@ Game *Game::LoadFromXML(const std::string &gameTxt) {
 
     result->StartupSanityCheck();
 
+	// load the player character referral person, which for some reason is stored on the `Player` object...
+	auto perspectiveNode = doc.select_node(R"(//Character[Key="Player"]/Perspective)");
+	if (perspectiveNode.node().type() != pugi::node_null)
+		result->pcReferralPerson = ParseReferralPerson(perspectiveNode.node().child_value());
+	else  // default to second person
+		result->pcReferralPerson = ReferralPerson::SecondPerson;
+
 	// Finally, pre-split all descriptions into runs of plain text and expressions.
 	// (This needs to happen after objects are loaded since we need to determine whether
 	//  'A.B' is indeed accessing property 'B' of object with key 'A' (if 'A' is a valid object key)
