@@ -115,6 +115,7 @@ private:
 	Expr::Value LCaseImpl(const ast_node_tag *args) const;
 	Expr::Value UCaseImpl(const ast_node_tag *args) const;
 	Expr::Value PCaseImpl(const ast_node_tag *args) const;
+	Expr::Value NumberAsTextImpl(const ast_node_tag *args) const;
 
 	static std::map<std::string, decltype(&Expression::LCaseImpl)> tableOfBuiltInFunctions;
 };
