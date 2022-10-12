@@ -37,7 +37,9 @@ Expression::~Expression() {
 	for (auto &it : parserMemBlocks) {
 		::operator delete(it.first);
 	}
-	for (ast_node_tag *p = firstNode; p != nullptr; p = p->managed.next) {
+	ast_node_tag *next;
+	for (ast_node_tag *p = firstNode; p != nullptr; p = next) {
+		next = p->managed.next;
 		delete p;
 	}
 }
