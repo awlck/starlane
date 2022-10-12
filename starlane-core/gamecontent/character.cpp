@@ -31,6 +31,12 @@ Character *Character::CreateFromXML(const pugi::xml_node &xmlNode) {
 	return result;
 }
 
+std::string Character::GetDisplayName() const {
+	if (!Game::Get()->PropExists("Known") || GetPropValue<bool>("Known"))
+		return GetProperName();
+	return GameObj::GetDisplayName();
+}
+
 std::pair<bool, DescrRef> Character::HasRoute(const std::string &dir) const {
 	auto *loc = GetLocation();
 	if (!loc || !loc->HasExit(dir))

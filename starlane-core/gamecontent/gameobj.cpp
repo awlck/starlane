@@ -48,6 +48,20 @@ GameObj *GameObj::CreateFromXML(const pugi::xml_node &xmlNode) {
 	return result;
 }
 
+std::string GameObj::GetDisplayName() const {
+	std::string result;
+	if (!article.empty()) {
+		result = article;
+		result += ' ';
+	}
+	if (!prefix.empty()) {
+		result += prefix;
+		result += ' ';
+	}
+	result += nouns[0];
+	return result;
+}
+
 const std::string &GameObj::GetLocationKey() const {
 	if (parent.empty()) return parent;
 	const GameObj *o = this;

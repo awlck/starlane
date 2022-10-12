@@ -3,6 +3,7 @@
 #include <pugixml.hpp>
 
 #include "../game.h"
+#include "description.h"
 
 namespace Starlane {
 
@@ -24,6 +25,12 @@ Location *Location::CreateFromXML(const pugi::xml_node &xmlNode) {
 	}
 
 	return result;
+}
+
+std::string Location::GetDisplayName() const {
+	if (locationName == (DescrRef) 0)
+		return "(BUG: Location without a name.)";
+	return Game::Get()->GetDescription(locationName)->Build();
 }
 
 GameObj *Location::Clone() const {

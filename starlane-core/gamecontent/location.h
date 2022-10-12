@@ -14,6 +14,9 @@ public:
 	static Location *CreateFromXML(const pugi::xml_node &xmlNode);
 	[[nodiscard]] GameObj *Clone() const override;
 
+	// Gets the display name (i.e. short location description) of this location
+	std::string GetDisplayName() const override;
+
 	struct ExitSpec {
 		std::string destination;
 		RestrRef restr;

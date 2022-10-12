@@ -17,6 +17,15 @@ public:
 	static Character *CreateFromXML(const pugi::xml_node &xmlNode);
 	[[nodiscard]] GameObj *Clone() const override;
 
+	// Implements `character.Name`.
+	// Returns the proper name if the character is known, or the property known dowsn't exist.
+	// If the property known exists and isn't set, returns the descriptor
+	// (i.e., the usual article+prefix+noun combo inherited from GameObj)
+	std::string GetDisplayName() const override;
+	// Implements `character.ProperName`.
+	// Returns the proper name of this character, or 'Anonymous' if that is not set.
+	std::string GetProperName() const { return properName.empty() ? "Anonymous" : properName; }
+
 	std::pair<bool, DescrRef> HasRoute(const std::string &dir) const;
 	// Whether this character can currently see the object in question.
 	bool CanSee(const std::string &key) const;

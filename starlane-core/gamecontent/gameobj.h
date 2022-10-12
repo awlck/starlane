@@ -24,7 +24,7 @@ public:
     virtual ~GameObj() = default;
 
 	[[nodiscard]] const std::string &Key() const { return key; }
-	std::string GetDisplayName();
+	virtual std::string GetDisplayName() const;
 	const std::string &GetParentKey() const { return parent; }
 
 	// Note that this object is becoming a member of the given group.

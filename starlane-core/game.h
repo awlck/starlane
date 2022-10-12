@@ -43,6 +43,7 @@ public:
 
 	bool GroupExists(const std::string &key) const { return groups.count(key) > 0; }
 	bool ObjectExists(const std::string &key) const { return objects.count(key) > 0; }
+	bool PropExists(const std::string &key) const { return properties.count(key) > 0; }
 	bool VarOfNameExists(const std::string &name) const { return varNames.count(name) > 0; }
 	const std::unordered_map<std::string, GameObj *> &GetAllObjects() const { return objects; }
 
