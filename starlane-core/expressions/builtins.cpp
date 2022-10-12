@@ -2,7 +2,9 @@
 #include "../expression.h"
 #include "exprp_utility.h"
 #include "../starlane-core.h"
+#include "../game.h"
 #include "../valueparsers.h"
+#include "../gamecontent/character.h"
 
 
 namespace Starlane {
@@ -129,6 +131,21 @@ Expr::Value Expression::NumberAsTextImpl(const ast_node_tag *args) const {
 			return { Expr::ValueType::String, 0, Expr::LanguageNumber(ParseInt(theArg.Str.c_str() + pos)) };
 		} else throw std::runtime_error("NumberAsText called for a non-number.");
 	} else throw std::runtime_error("Invalid value.");
+}
+
+Expr::Value Expression::CharacterDescriptorImpl(const ast_node_tag *args) const {
+	CHECK_ARGCOUNT("CharacterDescriptor", 1);
+	auto theArg = EvalAnyNode(args->child.first);
+	if (theArg.ty == Expr::ValueType::Integer) {
+		theArg.ty = Expr::ValueType::String;
+		theArg.Str = std::to_string(theArg.Int);
+	}
+	if (theArg.ty == Expr::ValueType::Invalid)
+		throw std::runtime_error("Invalid value.");
+	auto *theChar = dynamic_cast<Character *>(Game::Get()->GetObject(theArg.Str));
+	if (theChar == nullptr)
+		return { Expr::ValueType::Invalid, 0, 0 };
+	return { Expr::ValueType::String, 0, theChar->GetDescriptor() };
 }
 
 }

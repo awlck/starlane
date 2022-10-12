@@ -25,6 +25,9 @@ public:
 	// Implements `character.ProperName`.
 	// Returns the proper name of this character, or 'Anonymous' if that is not set.
 	std::string GetProperName() const { return properName.empty() ? "Anonymous" : properName; }
+	// Implements `character.Descriptor`
+	// Always returns the descriptor, regardless of the status of the `Known` property.
+	std::string GetDescriptor() const { return GameObj::GetDisplayName(); }
 
 	std::pair<bool, DescrRef> HasRoute(const std::string &dir) const;
 	// Whether this character can currently see the object in question.

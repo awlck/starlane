@@ -17,7 +17,8 @@ std::map<std::string, decltype(&Expression::LCaseImpl)> Expression::tableOfBuilt
 	{ "LCase", &Expression::LCaseImpl },
 	{ "UCase", &Expression::UCaseImpl },
 	{ "PCase", &Expression::PCaseImpl },
-	{ "NumberAsText", &Expression::NumberAsTextImpl }
+	{ "NumberAsText", &Expression::NumberAsTextImpl },
+	{ "CharacterDescriptor", &Expression::CharacterDescriptorImpl }
 };
 
 Expression::Expression(const std::string &expr) : exprStr(expr) {
