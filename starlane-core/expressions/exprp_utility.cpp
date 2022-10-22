@@ -24,7 +24,7 @@ void FormatError(const std::string &fullText, range_t errRange, const char *errd
     if (fullText.length() < 78) {
         errtxt = fullText;
     } else if (errRange.max - errRange.min >= 78) {
-        int start = 0;
+        size_t start = 0;
         int stop = 0;
         start = errRange.min > 5 ? errRange.min - 3 : 0;
         stop = errRange.max < fullText.length() - 6 ? errRange.max + 3 : fullText.length();
@@ -58,9 +58,9 @@ void FormatError(const std::string &fullText, range_t errRange, const char *errd
     std::cerr << "\n  ";
     if (ellipsisStart)
         std::cerr << "   ";
-    for (int i = 0; i < errRange.min; i++)
+    for (size_t i = 0; i < errRange.min; i++)
         std::cerr << ' ';
-    for (int i = errRange.min; i < errRange.max; i++)
+    for (size_t i = errRange.min; i < errRange.max; i++)
         std::cerr << '^';
     std::cerr << std::endl;
 }
@@ -92,13 +92,9 @@ void system__handle_syntax_error(system_t *obj, syntax_error_t error, range_t ra
     switch (error) {
     case SYNTAX_ERROR_MISSING_QUOTEMARK:
         FormatError(expr->exprStr, range, "missing quotation mark");
-        //std::cerr << "Syntax error in expression: missing quotation mark: '" << std::string_view(expr->exprStr).substr(range.min, range.max - range.min)
-        //    << "', continuing anyways.\n";
         return;
     case SYNTAX_ERROR_SPURIOUS_COMMA:
         FormatError(expr->exprStr, range, "spurious comma");
-        //std::cerr << "Syntax error in expression: spurious comma: '" << std::string_view(expr->exprStr).substr(range.min, range.max - range.min)
-        //    << "', continuing anyways.\n";
         return;
     default:
         std::cerr << "General syntax error parsing expression:\n  " << expr->exprStr << std::endl;
@@ -253,7 +249,7 @@ void ast_node__dump(system_t *ctx, ast_node_t *node, int level) {
         }
     } else {
         auto expr = (Starlane::Expression *) ctx;
-        for (size_t i = 0; i < level; i++)
+        for (int i = 0; i < level; i++)
             std::cout << "  " ;
         std::cout << type << ": value = '" << expr->GetNodeText(node) << "'\n";
 
