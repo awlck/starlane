@@ -76,22 +76,22 @@ Expr::Value Expression::EvalAnyNode(const ast_node_tag *node) const {
 	switch (node->type) {
 	case AST_NODE_TYPE_IDENTIFIER:
 	case AST_NODE_TYPE_STRING:
-		return { Expr::ValueType::String, 0, std::string(GetNodeText(node)) };
+		return std::string(GetNodeText(node));
 	case AST_NODE_TYPE_VARIABLE: {
 		auto theVar = Game::Get()->GetVariable(std::string(GetNodeText(node)));
 		auto theType = theVar->GetType();
 		if (theType == Variable::Type::String)
-			return { Expr::ValueType::String, 0, theVar->GetValue<std::string>() };
+			return theVar->GetValue<std::string>();
 		else if (theType == Variable::Type::Int)
-			return { Expr::ValueType::Integer, theVar->GetValue<int64_t>(), 0 };
+			return theVar->GetValue<int64_t>();
 		else throw std::logic_error("Wrong type of variable (presumed impossible).");
 	}
 	case AST_NODE_TYPE_INTEGER:
-		return { Expr::ValueType::Integer, node->intVal, 0 };
+		return node->intVal;
 	case AST_NODE_TYPE_OPERATOR_PLUS: {
 		auto theVal = EvalAnyNode(node->child.first);
 		if (theVal.ty == Expr::ValueType::String && IsDigits(theVal.Str.c_str())) {
-			return { Expr::ValueType::Integer, ParseInt(theVal.Str.c_str()), 0};
+			return ParseInt(theVal.Str.c_str());
 		}
 		if (theVal.ty == Expr::ValueType::Integer) return theVal;
 		throw std::runtime_error("Trying to determine the integer value of a non-integer.");
@@ -99,50 +99,50 @@ Expr::Value Expression::EvalAnyNode(const ast_node_tag *node) const {
 	case AST_NODE_TYPE_OPERATOR_MINUS: {
 		auto theVal = EvalAnyNode(node->child.first);
 		if (theVal.ty == Expr::ValueType::String && IsDigits(theVal.Str.c_str())) {
-			return { Expr::ValueType::Integer, -ParseInt(theVal.Str.c_str()), 0 };
+			return -ParseInt(theVal.Str.c_str());
 		}
 		if (theVal.ty == Expr::ValueType::Integer)
-			return { Expr::ValueType::Integer, -theVal.Int, 0 };
+			return -theVal.Int;
 		throw std::runtime_error("Trying to determine the negative value of a non-integer.");
 	}
 	case AST_NODE_TYPE_OPERATOR_NOT: {
 		auto theVal = EvalAnyNode(node->child.first);
-		return { Expr::ValueType::Integer, !bool(theVal), 0 };
+		return !bool(theVal);
 	}
 	case AST_NODE_TYPE_OPERATOR_ADD: {
 		auto lhs = EvalAnyNode(node->child.first);
 		auto rhs = EvalAnyNode(node->child.last);
 		if (lhs.ty == Expr::ValueType::String && rhs.ty == Expr::ValueType::String)
-			return { Expr::ValueType::String, 0, lhs.Str + rhs.Str };
+			return lhs.Str + rhs.Str;
 		if (lhs.ty == Expr::ValueType::Integer && rhs.ty == Expr::ValueType::Integer)
-			return { Expr::ValueType::Integer, lhs.Int + rhs.Int, 0 };
+			return lhs.Int + rhs.Int;
 		throw std::runtime_error("Tried to add disjointed types.");
 	}
 	case AST_NODE_TYPE_OPERATOR_SUB: {
 		auto lhs = EvalAnyNode(node->child.first);
 		auto rhs = EvalAnyNode(node->child.last);
 		if (lhs.ty == Expr::ValueType::Integer && rhs.ty == Expr::ValueType::Integer)
-			return { Expr::ValueType::Integer, lhs.Int - rhs.Int, 0 };
+			return lhs.Int - rhs.Int;
 		throw std::runtime_error("Tried to subtract non-integers.");
 	}
 	case AST_NODE_TYPE_OPERATOR_CONCAT: {
 		auto lhs = EvalAnyNode(node->child.first);
 		auto rhs = EvalAnyNode(node->child.last);
 		if (lhs.ty == Expr::ValueType::String && rhs.ty == Expr::ValueType::String)
-			return { Expr::ValueType::String, 0, lhs.Str + rhs.Str };
+			return lhs.Str + rhs.Str;
 		if (lhs.ty == Expr::ValueType::String && rhs.ty == Expr::ValueType::Integer)
-			return { Expr::ValueType::String, 0, lhs.Str + std::to_string(rhs.Int) };
+			return lhs.Str + std::to_string(rhs.Int);
 		if (lhs.ty == Expr::ValueType::Integer && rhs.ty == Expr::ValueType::String)
-			return { Expr::ValueType::String, 0, std::to_string(lhs.Int) + rhs.Str };
+			return std::to_string(lhs.Int) + rhs.Str;
 		if (lhs.ty == Expr::ValueType::Integer && rhs.ty == Expr::ValueType::Integer)
-			return { Expr::ValueType::String, 0, std::to_string(lhs.Int) + std::to_string(rhs.Int) };
+			return std::to_string(lhs.Int) + std::to_string(rhs.Int);
 		throw std::runtime_error("Tried to concatenate non-values.");
 	}
 	case AST_NODE_TYPE_OPERATOR_MUL: {
 		auto lhs = EvalAnyNode(node->child.first);
 		auto rhs = EvalAnyNode(node->child.last);
 		if (lhs.ty == Expr::ValueType::Integer && rhs.ty == Expr::ValueType::Integer)
-			return { Expr::ValueType::Integer, lhs.Int * rhs.Int, 0 };
+			return lhs.Int * rhs.Int;
 		throw std::runtime_error("Tried to muliply non-integers.");
 	}
 	case AST_NODE_TYPE_OPERATOR_DIV: {
@@ -150,7 +150,7 @@ Expr::Value Expression::EvalAnyNode(const ast_node_tag *node) const {
 		auto rhs = EvalAnyNode(node->child.last);
 		if (lhs.ty == Expr::ValueType::Integer && rhs.ty == Expr::ValueType::Integer) {
 			if (rhs.Int == 0) throw std::runtime_error("Tried to divide by zero.");
-			return { Expr::ValueType::Integer, lhs.Int / rhs.Int, 0 };
+			return lhs.Int / rhs.Int;
 		}
 		throw std::runtime_error("Tried to divide non-integers.");
 	}
@@ -159,7 +159,7 @@ Expr::Value Expression::EvalAnyNode(const ast_node_tag *node) const {
 		auto rhs = EvalAnyNode(node->child.last);
 		if (lhs.ty == Expr::ValueType::Integer && rhs.ty == Expr::ValueType::Integer) {
 			if (rhs.Int == 0) throw std::runtime_error("Tried to divide by zero.");
-			return { Expr::ValueType::Integer, lhs.Int / rhs.Int, 0 };
+			return lhs.Int / rhs.Int;
 		}
 		throw std::runtime_error("Tried to modulo non-integers.");
 	}
@@ -173,42 +173,42 @@ Expr::Value Expression::EvalAnyNode(const ast_node_tag *node) const {
 	case AST_NODE_TYPE_OPERATOR_AND: {
 		auto lhs = EvalAnyNode(node->child.first);
 		auto rhs = EvalAnyNode(node->child.last);
-		return { Expr::ValueType::Integer, lhs && rhs, 0 };
+		return lhs && rhs;
 	}
 	case AST_NODE_TYPE_OPERATOR_OR: {
 		auto lhs = EvalAnyNode(node->child.first);
 		auto rhs = EvalAnyNode(node->child.last);
-		return { Expr::ValueType::Integer, lhs || rhs, 0 };
+		return lhs || rhs;
 	}
 	case AST_NODE_TYPE_OPERATOR_EQ: {
 		auto lhs = EvalAnyNode(node->child.first);
 		auto rhs = EvalAnyNode(node->child.last);
-		return { Expr::ValueType::Integer, lhs == rhs, 0 };
+		return lhs == rhs;
 	}
 	case AST_NODE_TYPE_OPERATOR_NE: {
 		auto lhs = EvalAnyNode(node->child.first);
 		auto rhs = EvalAnyNode(node->child.last);
-		return { Expr::ValueType::Integer, !(lhs == rhs), 0 };
+		return !(lhs == rhs);
 	}
 	case AST_NODE_TYPE_OPERATOR_LT: {
 		auto lhs = EvalAnyNode(node->child.first);
 		auto rhs = EvalAnyNode(node->child.last);
-		return { Expr::ValueType::Integer, lhs < rhs, 0 };
+		return lhs < rhs;
 	}
 	case AST_NODE_TYPE_OPERATOR_LE: {
 		auto lhs = EvalAnyNode(node->child.first);
 		auto rhs = EvalAnyNode(node->child.last);
-		return { Expr::ValueType::Integer, lhs < rhs || lhs == rhs, 0 };
+		return lhs < rhs || lhs == rhs;
 	}
 	case AST_NODE_TYPE_OPERATOR_GT: {
 		auto lhs = EvalAnyNode(node->child.first);
 		auto rhs = EvalAnyNode(node->child.last);
-		return { Expr::ValueType::Integer, !(lhs < rhs) && !(lhs == rhs), 0};
+		return !(lhs < rhs) && !(lhs == rhs);
 	}
 	case AST_NODE_TYPE_OPERATOR_GE: {
 		auto lhs = EvalAnyNode(node->child.first);
 		auto rhs = EvalAnyNode(node->child.last);
-		return { Expr::ValueType::Integer, !(lhs < rhs), 0 };
+		return !(lhs < rhs);
 	}
 	case AST_NODE_TYPE_FUNCCALL: {
 		auto function = EvalAnyNode(node->child.first);
@@ -231,13 +231,13 @@ Expr::Value Expression::EvalAnyNode(const ast_node_tag *node) const {
 				else throw std::runtime_error("Invalid result type.");
 			}
 		}
-		return { Expr::ValueType::String, 0, result };
+		return result;
 	}
 	default:
 		throw std::runtime_error("Can't deal with this node type at this time: " + std::to_string(node->type));
 	}
 
-	return { Expr::ValueType::Invalid, 0, 0 };
+	return Expr::Value();
 }
 
 Expr::Value Expression::EvalFunccall(Expr::Value toCall, const ast_node_tag *args) const {
@@ -249,12 +249,12 @@ Expr::Value Expression::EvalFunccall(Expr::Value toCall, const ast_node_tag *arg
 		return (this->*leFunction)(args);
 	}
 	// todo: user-defined functions, array access
-	return { Expr::ValueType::Invalid, 0, 0 };
+	return Expr::Value();
 }
 
 Expr::Value Expression::EvalItemfunc(Expr::Value obj, const ast_node_tag *toCall) const {
 	// todo
-	return { Expr::ValueType::Invalid, 0, 0 };
+	return Expr::Value();
 }
 
 }

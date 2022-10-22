@@ -92,9 +92,9 @@ Expr::Value Expression::LCaseImpl(const ast_node_tag *args) const {
 	CHECK_ARGCOUNT("LCase", 1);
 	auto theArg = EvalAnyNode(args->child.first);
 	if (theArg.ty == Expr::ValueType::Integer)
-		return { Expr::ValueType::String, 0, std::to_string(theArg.Int) };
+		return std::to_string(theArg.Int);
 	else if (theArg.ty == Expr::ValueType::String) {
-		return { Expr::ValueType::String, 0, SLFrontend::Services::StrToLowerCase(theArg.Str) };
+		return SLFrontend::Services::StrToLowerCase(theArg.Str);
 	} else throw std::runtime_error("Invalid value.");
 }
 
@@ -102,9 +102,9 @@ Expr::Value Expression::UCaseImpl(const ast_node_tag *args) const {
 	CHECK_ARGCOUNT("UCase", 1);
 	auto theArg = EvalAnyNode(args->child.first);
 	if (theArg.ty == Expr::ValueType::Integer)
-		return { Expr::ValueType::String, 0, std::to_string(theArg.Int) };
+		return std::to_string(theArg.Int);
 	else if (theArg.ty == Expr::ValueType::String) {
-		return { Expr::ValueType::String, 0, SLFrontend::Services::StrToUpperCase(theArg.Str) };
+		return SLFrontend::Services::StrToUpperCase(theArg.Str);
 	} else throw std::runtime_error("Invalid value.");
 }
 
@@ -112,9 +112,9 @@ Expr::Value Expression::PCaseImpl(const ast_node_tag *args) const {
 	CHECK_ARGCOUNT("PCase", 1);
 	auto theArg = EvalAnyNode(args->child.first);
 	if (theArg.ty == Expr::ValueType::Integer)
-		return { Expr::ValueType::String, 0, std::to_string(theArg.Int) };
+		return std::to_string(theArg.Int);
 	else if (theArg.ty == Expr::ValueType::String) {
-		return { Expr::ValueType::String, 0, SLFrontend::Services::StrToSentenceCase(theArg.Str) };
+		return SLFrontend::Services::StrToSentenceCase(theArg.Str);
 	} else throw std::runtime_error("Invalid value.");
 }
 
@@ -122,13 +122,13 @@ Expr::Value Expression::NumberAsTextImpl(const ast_node_tag *args) const {
 	CHECK_ARGCOUNT("NumberAsText", 1);
 	auto theArg = EvalAnyNode(args->child.first);
 	if (theArg.ty == Expr::ValueType::Integer) {
-		return { Expr::ValueType::String, 0, Expr::LanguageNumber(theArg.Int) };
+		return Expr::LanguageNumber(theArg.Int);
 	} else if (theArg.ty == Expr::ValueType::String) {
 		// attempt to convert to integer
 		size_t pos = 0;
 		while (isspace(theArg.Str[pos])) ++pos;
 		if (IsDigits(theArg.Str.c_str() + pos)) {
-			return { Expr::ValueType::String, 0, Expr::LanguageNumber(ParseInt(theArg.Str.c_str() + pos)) };
+			return Expr::LanguageNumber(ParseInt(theArg.Str.c_str() + pos));
 		} else throw std::runtime_error("NumberAsText called for a non-number.");
 	} else throw std::runtime_error("Invalid value.");
 }
@@ -144,8 +144,8 @@ Expr::Value Expression::CharacterDescriptorImpl(const ast_node_tag *args) const 
 		throw std::runtime_error("Invalid value.");
 	auto *theChar = dynamic_cast<Character *>(Game::Get()->GetObject(theArg.Str));
 	if (theChar == nullptr)
-		return { Expr::ValueType::Invalid, 0, 0 };
-	return { Expr::ValueType::String, 0, theChar->GetDescriptor() };
+		return Expr::Value();
+	return theChar->GetDescriptor();
 }
 
 }

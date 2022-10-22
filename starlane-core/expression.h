@@ -22,6 +22,11 @@ struct Value {
 	ValueType ty;
 	int64_t Int;
 	std::string Str;
+	Value() : ty(ValueType::Invalid), Int(0), Str("") {};
+	/* implicit */ Value(int64_t i) : ty(ValueType::Integer), Int(i), Str("") {};
+	/* implicit */ Value(const std::string &s) : ty(ValueType::String), Int(0), Str(s) {};
+	/* implicit */ Value(std::string &&s) : ty(ValueType::String), Int(0), Str(s) {};
+	Value(ValueType t, int64_t i, const std::string &s) : ty(t), Int(i), Str(s) {};
 	explicit operator bool() const {
 		switch (ty) {
 		case ValueType::Integer:
