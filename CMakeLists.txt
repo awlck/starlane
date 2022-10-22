@@ -1,7 +1,7 @@
 ﻿# CMakeList.txt: CMake-Projekt für "starlane". Schließen Sie die Quelle ein, und definieren Sie
 # projektspezifische Logik hier.
 #
-cmake_minimum_required (VERSION 3.8)
+cmake_minimum_required (VERSION 3.16)
 
 project("starlane")
 set(CMAKE_CXX_STANDARD 17)
@@ -54,7 +54,16 @@ if(SL_BUILD_QT)
 	add_subdirectory("starlane-qt")
 endif()
 
-add_executable(sltest "testing.cpp")
-target_link_libraries(sltest starlane-core)
-target_compile_definitions(sltest PRIVATE SLC_BUILDING_SELF)
-target_include_directories(sltest PRIVATE starlane-core)
+if(MSVC)
+	add_executable(sltest "testing.cpp")
+	target_link_libraries(sltest starlane-core)
+	target_include_directories(sltest PRIVATE starlane-core)
+elseif(APPLE)
+	enable_language(OBJCXX)
+	add_executable(sltestMac "testingMac.mm")
+	set_target_properties(sltestMac PROPERTIES LINKER_LANGUAGE OBJCXX)
+	target_link_libraries(sltestMac starlane-core objc)
+	target_link_libraries(sltestMac "-framework Foundation")
+	target_compile_options(sltestMac PRIVATE "-fobjc-arc")
+	target_include_directories(sltestMac PRIVATE starlane-core)
+endif()
