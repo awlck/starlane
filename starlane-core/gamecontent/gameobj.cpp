@@ -7,6 +7,7 @@
 
 #include "../game.h"
 #include "character.h"
+#include "description.h"
 #include "location.h"
 #include "group.h"
 
@@ -112,6 +113,10 @@ void GameObj::MakeCommonValues(const pugi::xml_node &xmlNode) {
 
 GameObj *GameObj::Clone() const {
 	return new GameObj(*this);
+}
+
+std::string GameObj::GetDescription(bool forDisplay) const {
+	return Game::Get()->GetDescription(description)->Build(forDisplay);
 }
 
 }

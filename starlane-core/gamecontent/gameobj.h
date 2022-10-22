@@ -24,8 +24,10 @@ public:
     virtual ~GameObj() = default;
 
 	[[nodiscard]] const std::string &Key() const { return key; }
-	virtual std::string GetDisplayName() const;
 	const std::string &GetParentKey() const { return parent; }
+
+	virtual std::string GetDisplayName() const;
+	std::string GetDescription(bool forDisplay = true) const;
 
 	// Note that this object is becoming a member of the given group.
 	void BecomeGroupMember(const std::string &grpKey) {
