@@ -22,7 +22,7 @@ add_library(slc_exprparser STATIC
 target_include_directories(slc_exprparser PUBLIC "${CMAKE_CURRENT_SOURCE_DIR}/expressions")
 if (NOT MSVC)
 	# ensure we can safely throw exeptions over the parser's C code
-	target_compile_options(slc_exprparser PRIVATE "-fexceptions")
+	target_compile_options(slc_exprparser PRIVATE "-fexceptions" "-Wno-unused-parameter")
 endif()
 
 add_library(starlane-core STATIC
