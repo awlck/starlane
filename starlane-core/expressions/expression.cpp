@@ -257,4 +257,18 @@ Expr::Value Expression::EvalItemfunc(Expr::Value obj, const ast_node_tag *toCall
 	return Expr::Value();
 }
 
+int64_t Expression::EvalAsIntImpl() const {
+	auto result = EvalAnyNode(rootNode);
+	if (result.ty == Expr::ValueType::Invalid) throw std::runtime_error("Invalid expression result.");
+	if (result.ty == Expr::ValueType::Integer) return result.Int;
+	// we're dealing with a string, try to convert it to an integer.
+	if (result.Str.empty()) return 0;  // hmm... not sure about this.
+	int ws = 0;
+	while (isspace(result.Str[ws])) ++ws;
+	if (IsDigits(result.Str.c_str()+ws)) {
+		return ParseInt(result.Str.c_str()+ws);
+	}
+	throw std::runtime_error("Got a string where an integer was expected.");
+}
+
 }

@@ -22,10 +22,10 @@ struct Value {
 	ValueType ty;
 	int64_t Int;
 	std::string Str;
-	Value() : ty(ValueType::Invalid), Int(0), Str("") {};
-	/* implicit */ Value(int64_t i) : ty(ValueType::Integer), Int(i), Str("") {};
-	/* implicit */ Value(const std::string &s) : ty(ValueType::String), Int(0), Str(s) {};
-	/* implicit */ Value(std::string &&s) : ty(ValueType::String), Int(0), Str(s) {};
+	Value() : ty(ValueType::Invalid), Int(0) {};
+	/* implicit */ Value(int64_t i) : ty(ValueType::Integer), Int(i) {};  // NOLINT
+	/* implicit */ Value(const std::string &s) : ty(ValueType::String), Int(0), Str(s) {};  // NOLINT
+	/* implicit */ Value(std::string &&s) : ty(ValueType::String), Int(0), Str(s) {};  // NOLINT
 	Value(ValueType t, int64_t i, const std::string &s) : ty(t), Int(i), Str(s) {};
 	explicit operator bool() const {
 		switch (ty) {
@@ -37,7 +37,7 @@ struct Value {
 			throw std::logic_error("Tried to convert an invalid value.");
 		}
 	}
-	bool operator ==(const Value &rhs) {
+	bool operator ==(const Value &rhs) const {
 		if (ty == ValueType::String && rhs.ty == ValueType::String)
 			return Str == rhs.Str;
 		if (ty == ValueType::Integer && rhs.ty == ValueType::Integer)
@@ -48,7 +48,7 @@ struct Value {
 			return std::to_string(Int) == Str;
 		throw std::runtime_error("Tried to equate an invalid value.");
 	}
-	bool operator <(const Value &rhs) {
+	bool operator <(const Value &rhs) const {
 		if (ty == ValueType::Integer && rhs.ty == ValueType::Integer)
 			return Int < rhs.Int;
 		throw std::runtime_error("Tried to numerically compare non-integers.");
@@ -62,9 +62,8 @@ struct Expression {
 
 	std::string exprStr;
 
-	// TODO
-	bool EvaluateBool() const { return false; };
-	int64_t EvaluateInt() const { if (constexType == ConstexprType::Int) return constValInt; return 0; };
+	bool EvaluateBool() const { return EvaluateInt(); };
+	int64_t EvaluateInt() const { if (constexType == ConstexprType::Int) return constValInt; return EvalAsIntImpl(); };
 	std::string EvaluateStr() const;
 	
 	// parsing related stuff
@@ -93,7 +92,7 @@ struct Expression {
 
 	std::string_view GetNodeText(const ast_node_tag *node) const;
 	ast_node_tag *CreateNode();
-	const ast_node_tag *const GetRootNode() const { return rootNode; };
+	const ast_node_tag *GetRootNode() const { return rootNode; };
 
 private:
 	size_t position = 0;
@@ -109,8 +108,9 @@ private:
 		Int,
 		String
 	};
-	ConstexprType constexType;
+	ConstexprType constexType = ConstexprType::None;
 	int64_t constValInt;
+	int64_t EvalAsIntImpl() const;
 
 	Expr::Value EvalAnyNode(const ast_node_tag *node) const;
 	Expr::Value EvalFunccall(Expr::Value toCall, const ast_node_tag *args) const;
