@@ -148,4 +148,19 @@ Expr::Value Expression::CharacterDescriptorImpl(const ast_node_tag *args) const 
 	return theChar->GetDescriptor();
 }
 
+Expr::Value Expression::CharacterProperImpl(const ast_node_tag *args) const {
+	CHECK_ARGCOUNT("CharacterProper", 1);
+	auto theArg = EvalAnyNode(args);
+	if (theArg.ty == Expr::ValueType::Integer) {
+		theArg.ty = Expr::ValueType::String;
+		theArg.Str = std::to_string(theArg.Int);
+	}
+	if (theArg.ty == Expr::ValueType::Invalid)
+		throw std::runtime_error("Invalid value.");
+	auto *theChar = dynamic_cast<Character *>(Game::Get()->GetObject(theArg.Str));
+	if (theChar == nullptr)
+		return Expr::Value();
+	return theChar->GetProperName();
+}
+
 }
