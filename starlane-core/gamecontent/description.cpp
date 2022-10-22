@@ -66,7 +66,7 @@ std::string Description::Build(bool commit) {
 	// ADRIFT Developer doesn't actually allow you to enter restriction failure text
 	// for restrictions on description segments.
 
-	// do nothing íf there is no text
+	// do nothing ï¿½f there is no text
 	if (segments.size() == 0) return "";
 
 	// First, find the rightmost segment with "BeginHere" mode that passes restrictions
@@ -366,6 +366,11 @@ ResolveOO_FakeTailcall:
 		}
 		if (havePeriod && theText[pos] == '.' && theText[pos - 1] == '.') {
 			// guard against 'someKey...nextsentence', because some people apparently hate spaces
+			reallyInExpr = -1;
+			continue;
+		}
+		if (havePeriod && theText[pos] == '"') {
+			// similarly, guard against 'I said, "Foo."'
 			reallyInExpr = -1;
 			continue;
 		}

@@ -163,6 +163,7 @@ Task::Action Task::Action::CreateFromXML(const pugi::xml_node &xmlNode) {
 		switch (Game::Get()->GetPropMeta(result.prop)->Type()) {
 		case Property::ValueType::Object:
 		case Property::ValueType::Enum:
+		case Property::ValueType::Bool:
 			result.rhs = temp;
 			break;
 		default:
