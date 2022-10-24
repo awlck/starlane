@@ -9,6 +9,7 @@
 #include "../valueparsers.h"
 #include "character.h"
 #include "event.h"
+#include "group.h"
 #include "location.h"
 #include "property.h"
 #include "restriction.h"
@@ -376,6 +377,7 @@ void Task::Action::Perform() {
 	} else return PerformImpl();
 }
 
+// discount lookup tables
 static inline constexpr GameObj::HoldingType ActionTypeToHoldingType(Task::ActionType t) {
 	switch (t) {
 	case Task::ActionType::MoveToLocation:
@@ -523,10 +525,59 @@ void Task::Action::PerformImpl() {
 		break;
 	case Starlane::Task::ActionType::MoveInDirection:
 		break;
-	case Starlane::Task::ActionType::AddToGroup:
+	case ActionType::AddToGroup:
+	case ActionType::RemoveFromGroup:
+	{
+		// The only difference between these two types of actions is which function we call on the group,
+		// so shorten this by storing the appropriate pointer now and then using it later:
+		auto addOrRemove = type == ActionType::AddToGroup ? static_cast<void (Group:: *)(GameObj *)>(&Group::AddObj) : static_cast<void (Group:: *)(GameObj *)>(&Group::RemoveObj);
+		auto grp = g->GetGroup(rhs);
+		switch (refType) {
+		case ActionRefType::SingleObj:
+			g->GetObject(lhs)->MoveTo(rhs, ActionTypeToHoldingType(type));
+			break;
+		case ActionRefType::ObjsHeldBy:
+		case ActionRefType::ObjsInside:
+		case ActionRefType::ObjsWornBy:
+		case ActionRefType::ObjsOn:
+		case ActionRefType::ObjsAtLocation:
+		case ActionRefType::CharsInside:
+		case ActionRefType::CharsOn:
+		case ActionRefType::CharsAtLocation: {
+			auto &allObjs = g->GetAllObjects();
+			auto ht = ActionRefToHoldingType(refType);
+			for (auto &o : allObjs) {
+				if (ObjIsAppropriate(refType, o.second) && o.second->GetParentKey() == lhs && o.second->GetParentRelation() == ht)
+					(grp->*addOrRemove)(o.second);
+			}
+		}
+			break;
+		case ActionRefType::ObjsWithProp:
+		case ActionRefType::CharsWithProp:
+			// TODO: this is actually objects having a property set to a specific value!
+			//       Need to load and store that first.
+			break;
+		case ActionRefType::ObjsInGroup:
+		case ActionRefType::CharsInGroup:
+		case ActionRefType::LocationOf:
+		case ActionRefType::LocationsInGroup:
+		case ActionRefType::LocationsWithProp: {
+			auto &allObjs = g->GetAllObjects();
+			for (auto &o : allObjs) {
+				if (ObjIsAppropriate(refType, o.second) && o.second->IsMemberOfGroup(lhs))
+					(grp->*addOrRemove)(o.second);
+			}
+		}
+			break;
+		case ActionRefType::Task:
+			throw std::runtime_error("Task tried to move a task.");
+		case ActionRefType::None:
+			throw std::runtime_error("Task tried to move nothing.");
+		default:
+			break;
+		}
 		break;
-	case Starlane::Task::ActionType::RemoveFromGroup:
-		break;
+	}
 	case ActionType::MakeStandingOn:
 	case ActionType::MakeSittingOn:
 	case ActionType::MakeLyingOn:
@@ -552,7 +603,7 @@ void Task::Action::PerformImpl() {
 		}
 			break;
 		case Starlane::Task::ActionRefType::CharsWithProp:
-			// TODO
+			// TODO, see above
 			break;
 		case ActionRefType::CharsInGroup: {
 			auto &allObjs = g->GetAllObjects();
