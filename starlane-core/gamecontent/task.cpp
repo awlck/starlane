@@ -6,6 +6,7 @@
 #include <pugixml.hpp>
 
 #include "../game.h"
+#include "../expression.h"
 #include "../valueparsers.h"
 #include "character.h"
 #include "event.h"
@@ -20,12 +21,6 @@ namespace Starlane {
 namespace {
 bool MaybeIsExpr(const std::string &s) {
 	size_t pos = 0;
-	/*int percents = 0;
-	int brackets = 0;
-	bool haveSeenBrackets = false;
-	int parens = 0;
-	bool haveSeenParens = false;
-	int timeSincePeriod = -1; */
 	for (; pos < s.length(); ++pos) {
 		auto x = s[pos];
 		if (x == '%' || x == '"' || x == '.') return true;
@@ -80,6 +75,7 @@ Task::Action Task::Action::CreateFromXML(const pugi::xml_node &xmlNode) {
 	while (std::getline(strm, t, ' '))
 		tokens.push_back(t);
 
+	// Deal with, e.g., "move every object with property x set to y to location z"
 	if (tokens[0] == "EverythingWithProperty" || tokens[0] == "EveryoneWithProperty") {
 		// special cases. love it.
 		result.prop = tokens[1];
@@ -93,6 +89,7 @@ Task::Action Task::Action::CreateFromXML(const pugi::xml_node &xmlNode) {
 		switch (Game::Get()->GetPropMeta(result.prop)->Type()) {
 		case Property::ValueType::Object:
 		case Property::ValueType::Enum:
+		case Property::ValueType::Map:
 			result.lhs = temp;
 			break;
 		case Property::ValueType::Bool:
@@ -496,10 +493,43 @@ void Task::Action::PerformImpl() {
 		}
 			break;
 		case ActionRefType::ObjsWithProp:
-		case ActionRefType::CharsWithProp:
-			// TODO: this is actually objects having a property set to a specific value!
-			//       Need to load and store that first.
+		case ActionRefType::CharsWithProp: {
+			auto &allObjs = g->GetAllObjects();
+			auto propType = g->GetPropMeta(prop)->Type();
+			switch (propType) {
+			case Property::ValueType::Bool:
+				for (auto &o : allObjs) {
+					if (ObjIsAppropriate(refType, o.second) && o.second->GetPropValue<bool>(prop))
+						o.second->MoveTo(rhs, ActionTypeToHoldingType(type));
+				}
+				break;
+			case Property::ValueType::Object:
+			case Property::ValueType::Enum:
+				for (auto &o : allObjs) {
+					if (ObjIsAppropriate(refType, o.second) && o.second->GetPropValue<std::string>(prop) == rhs)
+						o.second->MoveTo(rhs, ActionTypeToHoldingType(type));
+				}
+				break;
+			case Property::ValueType::Map:
+			case Property::ValueType::Int: {
+				auto tmpInt = propType == Property::ValueType::Map ? ParseInt(rhs.c_str()) : g->GetExpression(expr)->EvaluateInt();
+				for (auto &o : allObjs) {
+					if (ObjIsAppropriate(refType, o.second) && o.second->GetPropValue<int32_t>(prop) == tmpInt)
+						o.second->MoveTo(rhs, ActionTypeToHoldingType(type));
+				}
+				break;
+			}
+			case Property::ValueType::Text: {
+				std::string tmpTxt(g->GetExpression(expr)->EvaluateStr());
+				for (auto &o : allObjs) {
+					if (ObjIsAppropriate(refType, o.second) && o.second->GetPropValue<std::string>(prop) == tmpTxt)
+						o.second->MoveTo(rhs, ActionTypeToHoldingType(type));
+				}
+				break;
+			}
+			}
 			break;
+		}
 		case ActionRefType::ObjsInGroup:
 		case ActionRefType::CharsInGroup: {
 			auto &allObjs = g->GetAllObjects();
@@ -553,10 +583,43 @@ void Task::Action::PerformImpl() {
 		}
 			break;
 		case ActionRefType::ObjsWithProp:
-		case ActionRefType::CharsWithProp:
-			// TODO: this is actually objects having a property set to a specific value!
-			//       Need to load and store that first.
+		case ActionRefType::CharsWithProp: {
+			auto &allObjs = g->GetAllObjects();
+			auto propType = g->GetPropMeta(prop)->Type();
+			switch (propType) {
+			case Property::ValueType::Bool:
+				for (auto &o : allObjs) {
+					if (ObjIsAppropriate(refType, o.second) && o.second->GetPropValue<bool>(prop))
+						(grp->*addOrRemove)(o.second);
+				}
+				break;
+			case Property::ValueType::Object:
+			case Property::ValueType::Enum:
+				for (auto &o : allObjs) {
+					if (ObjIsAppropriate(refType, o.second) && o.second->GetPropValue<std::string>(prop) == rhs)
+						(grp->*addOrRemove)(o.second);
+				}
+				break;
+			case Property::ValueType::Map:
+			case Property::ValueType::Int: {
+				auto tmpInt = propType == Property::ValueType::Map ? ParseInt(rhs.c_str()) : g->GetExpression(expr)->EvaluateInt();
+				for (auto &o : allObjs) {
+					if (ObjIsAppropriate(refType, o.second) && o.second->GetPropValue<int32_t>(prop) == tmpInt)
+						(grp->*addOrRemove)(o.second);
+				}
+				break;
+			}
+			case Property::ValueType::Text: {
+				std::string tmpTxt(g->GetExpression(expr)->EvaluateStr());
+				for (auto &o : allObjs) {
+					if (ObjIsAppropriate(refType, o.second) && o.second->GetPropValue<std::string>(prop) == tmpTxt)
+						(grp->*addOrRemove)(o.second);
+				}
+				break;
+			}
+			}
 			break;
+		}
 		case ActionRefType::ObjsInGroup:
 		case ActionRefType::CharsInGroup:
 		case ActionRefType::LocationOf:
@@ -602,9 +665,44 @@ void Task::Action::PerformImpl() {
 			}
 		}
 			break;
-		case Starlane::Task::ActionRefType::CharsWithProp:
-			// TODO, see above
+		case Starlane::Task::ActionRefType::CharsWithProp: {
+			auto &allObjs = g->GetAllObjects();
+			auto propType = g->GetPropMeta(prop)->Type();
+			Character *c;
+			switch (propType) {
+			case Property::ValueType::Bool:
+				for (auto &o : allObjs) {
+					if ((c = dynamic_cast<Character *>(o.second)) && o.second->GetPropValue<bool>(prop))
+						c->MakePosture(rhs, ActionTypeToPosture(type));
+				}
+				break;
+			case Property::ValueType::Object:
+			case Property::ValueType::Enum:
+				for (auto &o : allObjs) {
+					if ((c = dynamic_cast<Character *>(o.second)) && o.second->GetPropValue<std::string>(prop) == rhs)
+						c->MakePosture(rhs, ActionTypeToPosture(type));
+				}
+				break;
+			case Property::ValueType::Map:
+			case Property::ValueType::Int: {
+				auto tmpInt = propType == Property::ValueType::Map ? ParseInt(rhs.c_str()) : g->GetExpression(expr)->EvaluateInt();
+				for (auto &o : allObjs) {
+					if ((c = dynamic_cast<Character *>(o.second)) && o.second->GetPropValue<int32_t>(prop) == tmpInt)
+						c->MakePosture(rhs, ActionTypeToPosture(type));
+				}
+				break;
+			}
+			case Property::ValueType::Text: {
+				std::string tmpTxt(g->GetExpression(expr)->EvaluateStr());
+				for (auto &o : allObjs) {
+					if ((c = dynamic_cast<Character *>(o.second)) && o.second->GetPropValue<std::string>(prop) == tmpTxt)
+						c->MakePosture(rhs, ActionTypeToPosture(type));
+				}
+				break;
+			}
+			}
 			break;
+		}
 		case ActionRefType::CharsInGroup: {
 			auto &allObjs = g->GetAllObjects();
 			for (auto &o : allObjs) {

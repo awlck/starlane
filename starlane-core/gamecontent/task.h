@@ -112,6 +112,8 @@ private:
 	class Action {
 	public:
 		static Action CreateFromXML(const pugi::xml_node &xmlNode);
+		// Perform this action. Potentially creates and executes several sub-actions
+		// if lhs or rhs hold references to multiple objects.
 		void Perform();
 	private:
 		ActionRefType refType;
@@ -124,6 +126,7 @@ private:
 		// on the left and the right side, so we can get away with just one reference here.
 		ExprRef expr = 0;
 
+		// Actually perform the action for concrete objects/values.
 		void PerformImpl();
 	};
 
