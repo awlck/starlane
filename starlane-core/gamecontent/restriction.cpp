@@ -257,13 +257,14 @@ bool Restriction::Single::PassImpl(DescrRef *out, bool ignoreUnsetRefs) const {
 		}
 	}
 	case TargetType::Direction:
-		throw std::runtime_error("Sorry, cannot handle 'Direction' restrictions yet.");
+		throw std::runtime_error("Sorry, cannot handle 'Direction' restrictions yet.");  // TODO
 	case TargetType::ErrorType:
 		throw std::runtime_error("Unknown restriction type while evaluating restriction.");
 	}
 
 	Game *g = Game::Get();
 	// And now for all the various restrictions on objects...
+	// TODO: handle all the various 'any' cases.
 	switch (cond) {
 	case ConditionType::EqualTo:
 		return lhs == rhs;
@@ -346,7 +347,7 @@ bool Restriction::Single::PassImpl(DescrRef *out, bool ignoreUnsetRefs) const {
 		});
 	}
 	case Starlane::Restriction::ConditionType::InConversationWith:
-		break;
+		break;  // TODO (once the conversations system is in place)
 	case ConditionType::HaveRoute:
 	{
 		auto ch = dynamic_cast<Character *>(g->GetObject(lhs));

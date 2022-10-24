@@ -1,4 +1,3 @@
-#define _SILENCE_CXX17_CODECVT_HEADER_DEPRECATION_WARNING
 #include "../expression.h"
 #include "exprp_utility.h"
 #include "../starlane-core.h"
