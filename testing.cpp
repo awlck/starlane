@@ -78,6 +78,7 @@ std::string StrToSentenceCase(const std::string &str) {
 	int charsProcessed = 0;
 	auto charsOutput = LCMapStringEx(LOCALE_NAME_USER_DEFAULT, LCMAP_LINGUISTIC_CASING | LCMAP_UPPERCASE, txtIn, charsThisRound, buf + charsProcessed, tentativeResultSize - charsProcessed, NULL, NULL, NULL);
 	charsProcessed += charsOutput;
+	size_t charsHandled = charsThisRound;
 	charsThisRound = 0;
 	bool beginningOfSentence = false;
 	for (size_t pos = 1; pos < numChars - 1; ++pos) {
@@ -88,20 +89,28 @@ std::string StrToSentenceCase(const std::string &str) {
 		}
 		if (beginningOfSentence) { // lowercase everything up to here, then uppercase next letter
 			charsThisRound = pos - charsProcessed;
-			charsOutput = LCMapStringEx(LOCALE_NAME_USER_DEFAULT, LCMAP_LINGUISTIC_CASING | LCMAP_LOWERCASE, txtIn, charsThisRound, buf + charsProcessed, tentativeResultSize - charsProcessed, NULL, NULL, NULL);
+			charsOutput = LCMapStringEx(LOCALE_NAME_USER_DEFAULT, LCMAP_LINGUISTIC_CASING | LCMAP_LOWERCASE, txtIn+charsHandled, charsThisRound, buf + charsProcessed, tentativeResultSize - charsProcessed, NULL, NULL, NULL);
 			if (charsOutput == 0) {
 				throw std::runtime_error("Can't handle sentence-casing. Go increase the buffer size or smth.");
 			}
 			charsProcessed += charsOutput;
+			charsHandled += charsThisRound;
 			charsThisRound = 1;
 			if (txtIn[0] > (wchar_t) 0b1101110000000000) {  // surrogate pair
 				charsThisRound = 2;
 				pos += 1;
 			}
-			charsOutput = LCMapStringEx(LOCALE_NAME_USER_DEFAULT, LCMAP_LINGUISTIC_CASING | LCMAP_UPPERCASE, txtIn, charsThisRound, buf + charsProcessed, tentativeResultSize - charsProcessed, NULL, NULL, NULL);
+			charsOutput = LCMapStringEx(LOCALE_NAME_USER_DEFAULT, LCMAP_LINGUISTIC_CASING | LCMAP_UPPERCASE, txtIn+charsHandled, charsThisRound, buf + charsProcessed, tentativeResultSize - charsProcessed, NULL, NULL, NULL);
 			charsProcessed += charsOutput;
+			charsHandled += charsThisRound;
 			charsThisRound = 0;
+			beginningOfSentence = false;
 		}
+	}
+	charsThisRound = (numChars-1) - charsProcessed;
+	charsOutput = LCMapStringEx(LOCALE_NAME_USER_DEFAULT, LCMAP_LINGUISTIC_CASING | LCMAP_LOWERCASE, txtIn + charsHandled, charsThisRound, buf + charsProcessed, tentativeResultSize - charsProcessed, NULL, NULL, NULL);
+	if (charsOutput == 0) {
+		throw std::runtime_error("Can't handle sentence-casing. Go increase the buffer size or smth.");
 	}
 	return TextUntransmute(buf);
 }
@@ -112,7 +121,7 @@ std::string StrToSentenceCase(const std::string &str) {
 int main(int argc, char **argv) {
 	::setlocale(LC_ALL, ".utf-8");
 	std::locale::global(std::locale(".utf-8"));
-	auto f = fopen(R"(C:\Users\Adrian\OneDrive\Temp\ADRIFT5\lost-coastlines\lost-coastlines-v1.2.taf)", "rb");
+	auto f = fopen(R"(C:\Users\awelc\OneDrive\Temp\ADRIFT5\lost-coastlines\lost-coastlines-v1.2.taf)", "rb");
 	fseek(f, 0, SEEK_END);
 	size_t fsize = ftell(f);
 	rewind(f);
