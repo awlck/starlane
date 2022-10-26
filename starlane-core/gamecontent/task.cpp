@@ -716,11 +716,38 @@ void Task::Action::PerformImpl() {
 			throw std::runtime_error("Tried to change the posture of a non-character.");
 		}
 		break;
-	case Starlane::Task::ActionType::SetVarTo:
-		break;
-	case Starlane::Task::ActionType::IncVar:
-		break;
-	case Starlane::Task::ActionType::DecVar:
+	case ActionType::SetVarTo:
+	case ActionType::IncVar:
+	case ActionType::DecVar: {
+		Variable *var;
+		int idx = 1;
+		if (size_t bracket = lhs.find_first_of('[')) {
+			var = g->GetVariable(lhs.substr(0, bracket));
+			auto idxStr = lhs.substr(bracket+1, lhs.length() - (bracket+2));
+			idx = ParseInt(idxStr.c_str());
+		} else var = g->GetVariable(lhs);
+		
+		if (type == ActionType::SetVarTo) {
+			switch (var->GetType()) {
+			case Variable::Type::Int:
+			case Variable::Type::IntArray:
+				var->SetValue(g->GetExpression(expr)->EvaluateInt(), idx);
+				break;
+			case Variable::Type::String:
+			case Variable::Type::StringArray:
+				var->SetValue(g->GetExpression(expr)->EvaluateStr(), idx);
+				break;
+			}
+			break;
+		}
+
+		if (var->GetType() != Variable::Type::Int && var->GetType() != Variable::Type::IntArray)
+			throw std::runtime_error("Trying to increment/decrement a text variable.");
+		if (type == ActionType::IncVar)
+			var->SetValue(var->GetValue<int64_t>() + g->GetExpression(expr)->EvaluateInt(), idx);
+		else if (type == ActionType::DecVar)
+			var->SetValue(var->GetValue<int64_t>() - g->GetExpression(expr)->EvaluateInt(), idx);
+	}
 		break;
 	case Starlane::Task::ActionType::SetPropTo:
 		break;
