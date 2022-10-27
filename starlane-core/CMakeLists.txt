@@ -20,8 +20,10 @@ add_library(slc_exprparser STATIC
 	"${CMAKE_CURRENT_BINARY_DIR}/exprparser.c" "${CMAKE_CURRENT_BINARY_DIR}/exprparser.h"
 )
 target_include_directories(slc_exprparser PUBLIC "${CMAKE_CURRENT_SOURCE_DIR}/expressions")
-if (NOT MSVC)
-	# ensure we can safely throw exeptions over the parser's C code
+# ensure we can safely throw exeptions over the parser's C code
+if (MSVC)
+	target_compile_options(slc_exprparser PRIVATE "/EHc-")
+else()
 	target_compile_options(slc_exprparser PRIVATE "-fexceptions" "-Wno-unused-parameter")
 endif()
 
