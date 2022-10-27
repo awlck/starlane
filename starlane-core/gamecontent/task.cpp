@@ -117,7 +117,7 @@ Task::Action Task::Action::CreateFromXML(const pugi::xml_node &xmlNode) {
 			result.type = ActionType::MoveToGroup;
 		} else if (tokens[2] == "InsideObject") {
 			result.type = ActionType::MoveInsideObj;
-		} else if (tokens[2] == "OntoObject") {
+		} else if (tokens[2] == "OntoObject" || tokens[2] == "OntoCharacter") {
 			result.type = ActionType::MoveOntoObj;
 		} else if (tokens[2] == "ToCarriedBy") {
 			result.type = ActionType::MakeCarriedBy;
