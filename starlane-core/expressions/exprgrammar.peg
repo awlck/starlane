@@ -75,7 +75,7 @@ expr_relation
 	{
 		$$ = system__create_ast_node_binary(auxil, AST_NODE_TYPE_OPERATOR_GE, range__new($0s, $0e), l, e);
 	}
-	 / l:expr_relation _ ('LT'/'<') _ e:expr_addition
+	 / l:expr_relation _ ('LT'/'<' !'>') _ e:expr_addition
 	{
 		$$ = system__create_ast_node_binary(auxil, AST_NODE_TYPE_OPERATOR_LT, range__new($0s, $0e), l, e);
 	}
