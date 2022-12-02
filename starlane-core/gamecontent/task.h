@@ -114,7 +114,7 @@ private:
 		static Action CreateFromXML(const pugi::xml_node &xmlNode);
 		// Perform this action. Potentially creates and executes several sub-actions
 		// if lhs or rhs hold references to multiple objects.
-		void Perform();
+		void Perform() const;
 	private:
 		ActionRefType refType;
 		ActionType type;
@@ -127,7 +127,7 @@ private:
 		ExprRef expr = 0;
 
 		// Actually perform the action for concrete objects/values.
-		void PerformImpl();
+		void PerformImpl() const;
 	};
 
 	std::string key;

@@ -167,7 +167,7 @@ Task::Action Task::Action::CreateFromXML(const pugi::xml_node &xmlNode) {
 		default:
 			result.expr = Game::Get()->CreateExpression(temp);
 		}
-		result.refType = ActionRefType::None;
+		result.refType = ActionRefType::SingleObj;
 		return result;
 	} else if (name == "SetTasks") {
 		if (tokens[0] == "Execute")
@@ -305,7 +305,8 @@ std::pair<bool, DescrRef> Task::Eligible() const {
 std::pair<bool, DescrRef> Task::Execute() {
 	auto elig = Game::Get()->GetRestriction(restrictions)->PassRestrictionBlock();
 	if (!elig.first) return elig;
-	// TODO
+	for (const auto &act : actions)
+		act.Perform();
 	return { true, completionMsg };
 }
 
@@ -339,12 +340,12 @@ void Task::SendUncompleteNotifications() const {
 	}
 }
 
-void Task::Action::Perform() {
+void Task::Action::Perform() const {
 	std::string lhs_ = Util::IsReference(lhs) ? Game::Get()->GetReference(lhs) : lhs;
 	std::string rhs_ = Util::IsReference(rhs) ? Game::Get()->GetReference(rhs) : rhs;
 
 	// ugly hack is ugly, but I'm not certain what else to do here
-	// still beats modifying this and hoping that we don't forget to undo the modification
+	// still beats modifying `this' and hoping that we don't forget to undo the modification
 	// before returning.
 	if (Util::IsList(lhs_)) {
 		Task::Action act(*this);
@@ -448,7 +449,7 @@ static inline constexpr bool ObjIsAppropriate(Task::ActionRefType t, GameObj *o)
 	}
 }
 
-void Task::Action::PerformImpl() {
+void Task::Action::PerformImpl() const {
 	// at this stage, all references and lists are resolved.
 	Game *g = Game::Get();
 	std::string moveTarget;
@@ -749,7 +750,27 @@ void Task::Action::PerformImpl() {
 			var->SetValue(var->GetValue<int64_t>() - g->GetExpression(expr)->EvaluateInt(), idx);
 	}
 		break;
-	case Starlane::Task::ActionType::SetPropTo:
+	case ActionType::SetPropTo: {
+		auto *target = g->GetObject(lhs);
+		switch (Game::Get()->GetPropMeta(prop)->Type()) {
+		case Property::ValueType::Object:
+		case Property::ValueType::Enum:
+			target->SetPropValue(prop, rhs);
+			break;
+		case Property::ValueType::Bool:
+			target->SetPropValue(prop, ParseBool(rhs.c_str()));
+			break;
+		case Property::ValueType::Int:
+			target->SetPropValue(prop, g->GetExpression(expr)->EvaluateInt());
+			break;
+		case Property::ValueType::Text:
+			target->SetPropValue(prop, g->GetExpression(expr)->EvaluateStr());
+			break;
+		default:
+			target->SetPropValue(prop, rhs);  // meh
+			break;
+		}
+	}
 		break;
 	case Starlane::Task::ActionType::ExecTask:
 		break;
