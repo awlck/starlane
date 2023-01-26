@@ -6,12 +6,12 @@
 #include <vector>
 
 #include "deps/miniz/miniz.h"
+#include "slc_private.h"
 
-// Use 10MB chunk size for zlib/miniz.
+// Use 1MB chunk size for zlib/miniz.
 // This should be sufficient to decompress most all ADRIFT games currently in
-// existence in a single inflate() call. (The largest, to my knowledge at the
-// time of writing, is Skybreak v1.3 at just over 9.5MB.)
-constexpr auto CHUNKSIZE = 10485760;
+// existence in a reasonable number of inflate() calls. (That is, less than 15, I think.)
+constexpr auto CHUNKSIZE = 1024*1024;
 
 namespace Starlane {
 
@@ -235,7 +235,7 @@ std::string ExtractTaf(const uint8_t *input, size_t size) {
 		do {
 			zstm.next_out = z_out;
 			zstm.avail_out = CHUNKSIZE;
-			ret = mz_inflate(&zstm, MZ_FINISH);
+			ret = mz_inflate(&zstm, MZ_SYNC_FLUSH);
 			switch (ret) {
 			case MZ_NEED_DICT:
 			case MZ_DATA_ERROR:
