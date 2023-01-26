@@ -134,7 +134,7 @@ void Game::Begin() {
 	}
 	gameHasBegun = true;
 	if (gameIntro != 0)
-		SLFrontend::OutputText(GetDescription(gameIntro)->Build().c_str());
+		frontend->OutputText(GetDescription(gameIntro)->Build().c_str());
 }
 
 void Game::Tick() {

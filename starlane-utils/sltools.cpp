@@ -1,15 +1,13 @@
 #include <iostream>
 #include <string.h>
 
-#include <taffile.h>
+#include <starlane-core.h>
 
 void mapper_run(const std::string &gametxt);
 void textdump_run(const std::string &gametxt);
 
-namespace SLFrontend {
 void FatalError(const char *msg) {
 	fprintf(stderr, "%s\n", msg);
-}
 }
 
 int main(int argc, char **argv) {
@@ -17,6 +15,11 @@ int main(int argc, char **argv) {
 		std::cerr << "USAGE:  sltools [tool] [file]" << std::endl;
 		return 1;
 	}
+
+	Starlane::Frontend fe;
+	memset(&fe, 0, sizeof(fe));
+	fe.FatalError = &FatalError;
+	Starlane::InitBackend(&fe);
 
 	auto f = fopen(argv[2], "rb");
 	fseek(f, 0, SEEK_END);

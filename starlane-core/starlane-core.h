@@ -6,42 +6,54 @@
 #include <stdint.h>
 #include <string>
 
-// Interface the frontend needs to implement
-namespace SLFrontend {
-// Show a fatal error message. The frontend should refuse any further input
-// after a fatal error has been issued.
-void FatalError(const char *msg);
-// Send text to the output.
-void OutputText(const char *txt);
+#ifdef starlane_core_EXPORTS
+#  if _WIN32
+#    define SLC_API __declspec(dllexport)
+#  else
+#    define SLC_API __attribute__((visibility("default")))
+#  endif
+#else
+#  if _WIN32
+#    define SLC_API __declspec(dllimport)
+#  else
+#    define SLC_API
+#  endif
+#endif
 
-// Utility functions that are easy to implement using Qt or Glk library features,
-// but are very hard to do in plain C++, so we ask the frontend to do these things for us.
-namespace Services {
-// make an uppercase version of the string `s`
-std::string StrToUpperCase(const std::string &s);
-// make a lowercase version of the string `s`
-std::string StrToLowerCase(const std::string &s);
-// make a sentence-cased version of the string `s`
-std::string StrToSentenceCase(const std::string &s);
-}  // namespace Services
-
-}  // namespace SLFrontend
-
-
-// Interface provided by starlane-core
 namespace Starlane {
+
+using StringChanger = std::string (*)(const std::string &);
+using TextOutputter = void (*)(const char *);
+
 // Frontend capabilities and settings
-struct FECapabilities {
+struct SLC_API Frontend {
 	// Seed for the random number generator, or zero for a random seed.
 	uint32_t randomSeed = 0;
+
+	// Interface the frontend needs to implement
+	TextOutputter FatalError;
+	TextOutputter OutputText;
+	StringChanger StrToUpperCase;
+	StringChanger StrToLowerCase;
+	StringChanger StrToSentenceCase;
 };
 
 // Initialize the backend with the given settings.
-void InitBackend(const FECapabilities &settings);
+SLC_API void InitBackend(const Frontend *settings);
+// Load the given 'taf' file content and set up a new game.
+// The current game, if any, is discarded. It is your job to ask the user if they are okay with this.
+// You may free `tafBytes` immediately once this function returns.
+// (Do not pass 'blorb' file data here. If the user requests that a 'blorb' file
+//  be loaded, you must first extract the executable chunk.)
+SLC_API void CreateGame(const uint8_t *tafBytes, size_t tafLength);
 // Perform last-minute data fixups and output the initial batch of text.
-void BeginGame();
+SLC_API void BeginGame();
 // Call this once per second to advance real-time events.
-void TimeTick();
+SLC_API void TimeTick();
+
+// If you just need the unobfuscated XML representation of an ADRIFT game file,
+// this function produces it.
+SLC_API std::string ExtractTaf(const uint8_t *input, size_t size);
 }
 
 

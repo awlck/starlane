@@ -31,7 +31,7 @@ std::string MakeNameSafe(const std::string &s, bool forCode = true) {
 			continue;
 		}
 	}
-	if (Starlane::SkipText(result.c_str(), "Chapter ") || Starlane::SkipText(result.c_str(), "Section ")) {
+	if (result.rfind("Chapter ", 0) == 0 || result.rfind("Section ", 0) == 0) {
 		result.insert(0, 1, '_');
 	}
 	return result;

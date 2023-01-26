@@ -173,15 +173,15 @@ int32_t ParseHex(const uint8_t *input, int len) {
 std::string ExtractTaf(const uint8_t *input, size_t size) {
 	if (memcmp(input, V5ident, sizeof(V5ident)) != 0) {
 		if (memcmp(input, V4ident, sizeof(V4ident)) == 0) {
-			SLFrontend::FatalError("Starlane cannot play the selected file, which is an ADRIFT v4 game.");
+			frontend->FatalError("Starlane cannot play the selected file, which is an ADRIFT v4 game.");
 		} else if (memcmp(input, V39ident, sizeof(V39ident)) == 0) {
-			SLFrontend::FatalError("Starlane cannot play the selected file, which is an ADRIFT v3.9 game.");
+			frontend->FatalError("Starlane cannot play the selected file, which is an ADRIFT v3.9 game.");
 		} else if (memcmp(input, "FORM", 4) == 0 && memcmp(input + 8, "IFRS", 4) == 0) {
-			SLFrontend::FatalError("Starlane internal error: Blorb file passed to starlane-core.");
+			frontend->FatalError("Starlane internal error: Blorb file passed to starlane-core.");
 		} else if (memcmp(input, "Glul", 4) == 0) {
-			SLFrontend::FatalError("Starlane cannot play the selected file, which is a Glulx game.");
+			frontend->FatalError("Starlane cannot play the selected file, which is a Glulx game.");
 		} else {
-			SLFrontend::FatalError("Starlane does not recognize the selected file.");
+			frontend->FatalError("Starlane does not recognize the selected file.");
 		}
 		return "";
 	}
@@ -228,7 +228,7 @@ std::string ExtractTaf(const uint8_t *input, size_t size) {
 		zstm.next_in = z_in;
 		ret = mz_inflateInit(&zstm);
 		if (ret != MZ_OK) {
-			SLFrontend::FatalError("Unable to initialize decompressor.");
+			frontend->FatalError("Unable to initialize decompressor.");
 			if (needToFreeDeobf) delete[] deobf;
 			return "";
 		}
@@ -241,7 +241,8 @@ std::string ExtractTaf(const uint8_t *input, size_t size) {
 			case MZ_DATA_ERROR:
 			case MZ_MEM_ERROR:
 				mz_inflateEnd(&zstm);
-				SLFrontend::FatalError("Unable to decompress.");
+				frontend->FatalError("Unable to decompress:");
+				frontend->FatalError(mz_error(ret));
 				if (needToFreeDeobf) delete[] deobf;
 				return "";
 			}
@@ -252,7 +253,7 @@ std::string ExtractTaf(const uint8_t *input, size_t size) {
 			// has been tampered with or is otherwise corrupted.
 			writtenInTotal += written;
 			if (writtenInTotal > 100 * 1024 * 1024) {
-				SLFrontend::FatalError("Selected file doesn't seem to end; presumed corrupted.");
+				frontend->FatalError("Selected file doesn't seem to end; presumed corrupted.");
 				if (needToFreeDeobf) delete[] deobf;
 				return "";
 			}

@@ -12,6 +12,8 @@
 #include <string.h>
 #define STREQ(a, b) (strcmp((a), (b)) == 0)
 
+#include "starlane-core.h"
+
 namespace pugi {
 class xml_node;
 }
@@ -37,6 +39,8 @@ using PlainTextRef = size_t;
 using RestrRef = size_t;
 // ID number of an expression/function call
 using ExprRef = size_t;
+
+extern const Frontend *frontend;
 }
 
 #endif  // !SLC_PRIVATE_H

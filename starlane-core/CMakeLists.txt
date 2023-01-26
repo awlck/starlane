@@ -31,7 +31,7 @@ add_library(starlane-core STATIC
 	# core files
 	"starlane-core.cpp" "starlane-core.h"
 	"slc_private.h"
-	"taffile.cpp" "taffile.h"
+	"taffile.cpp"
 	"game.cpp" "game.h"
 	"gameloader.cpp"
 	"valueparsers.cpp" "valueparsers.h"

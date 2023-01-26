@@ -20,10 +20,15 @@
 namespace Starlane {
 
 Game *Game::LoadFromXML(const std::string &gameTxt) {
+	// If a game is already ongoing, delete it.
+	// Assume that, if we get here, the user has already consented to this.
+	if (Game::theGame)
+		delete Game::theGame;
+
 	pugi::xml_document doc;
 	auto parseResult = doc.load_string(gameTxt.c_str());
 	if (parseResult.status != pugi::status_ok) {
-		SLFrontend::FatalError((std::string("Unable to load game: ") + parseResult.description()).c_str());
+		frontend->FatalError((std::string("Unable to load game: ") + parseResult.description()).c_str());
 		return nullptr;
 	}
 	auto gameNode = doc.child("Adventure");
@@ -130,7 +135,7 @@ static void CheckSnippetsInRange(size_t snips) {
 		s << "My brain just exploded: On your system, I can only handle "
 			<< (((size_t) 1) << (std::numeric_limits<size_t>::digits - 1))
 			<< " individual runs of plain text, but this game requires more than that.";
-		SLFrontend::FatalError(s.str().c_str());
+		frontend->FatalError(s.str().c_str());
 		throw std::out_of_range(s.str());
 	}
 }
@@ -165,10 +170,10 @@ ExprRef Game::CreateExpression(const std::string &expr) {
 void Game::StartupSanityCheck() const {
     size_t sanityCheck = std::distance(descriptions.begin(), descriptions.end());
     if (sanityCheck != descriptionsSoFar || sanityCheck != descriptions.size() || descriptionsSoFar != descriptions.size())
-        SLFrontend::FatalError("Startup sanity check failed: description count mismatch.");
+        frontend->FatalError("Startup sanity check failed: description count mismatch.");
     sanityCheck = std::distance(restrictions.begin(), restrictions.end());
     if (sanityCheck != restrictionsSoFar || sanityCheck != restrictions.size() || restrictionsSoFar != restrictions.size())
-        SLFrontend::FatalError("Startup sanity check failed: restriction count mismatch.");
+        frontend->FatalError("Startup sanity check failed: restriction count mismatch.");
 }
 
 }  // namespace Starlane

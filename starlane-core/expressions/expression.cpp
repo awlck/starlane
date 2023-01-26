@@ -274,4 +274,9 @@ int64_t Expression::EvalAsIntImpl() const {
 	throw std::runtime_error("Got a string where an integer was expected.");
 }
 
+#ifndef _MSC_VER
+// help out GNU ld et al. in resolving this circular reference clusterfuck
+__attribute__((used)) auto foo = &system__allocate_memory;
+#endif
+
 }

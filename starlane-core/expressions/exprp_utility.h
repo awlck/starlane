@@ -9,6 +9,8 @@
 #include <stdbool.h>
 #include <stdint.h>
 
+#pragma GCC visibility push(internal)
+
 #ifdef __cplusplus
 extern "C" {
 #endif
@@ -128,5 +130,7 @@ inline static range_t range__new(size_t min, size_t max) {
 #ifdef __cplusplus
 }
 #endif
+
+#pragma GCC visibility pop
 
 #endif  // !SLC_EXPRESSIONS_EXPRP_UTILITY_H

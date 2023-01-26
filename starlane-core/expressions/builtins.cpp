@@ -93,7 +93,7 @@ Expr::Value Expression::LCaseImpl(const ast_node_tag *args) const {
 	if (theArg.ty == Expr::ValueType::Integer)
 		return std::to_string(theArg.Int);
 	else if (theArg.ty == Expr::ValueType::String) {
-		return SLFrontend::Services::StrToLowerCase(theArg.Str);
+		return frontend->StrToLowerCase(theArg.Str);
 	} else throw std::runtime_error("Invalid value.");
 }
 
@@ -103,7 +103,7 @@ Expr::Value Expression::UCaseImpl(const ast_node_tag *args) const {
 	if (theArg.ty == Expr::ValueType::Integer)
 		return std::to_string(theArg.Int);
 	else if (theArg.ty == Expr::ValueType::String) {
-		return SLFrontend::Services::StrToUpperCase(theArg.Str);
+		return frontend->StrToUpperCase(theArg.Str);
 	} else throw std::runtime_error("Invalid value.");
 }
 
@@ -113,7 +113,7 @@ Expr::Value Expression::PCaseImpl(const ast_node_tag *args) const {
 	if (theArg.ty == Expr::ValueType::Integer)
 		return std::to_string(theArg.Int);
 	else if (theArg.ty == Expr::ValueType::String) {
-		return SLFrontend::Services::StrToSentenceCase(theArg.Str);
+		return frontend->StrToSentenceCase(theArg.Str);
 	} else throw std::runtime_error("Invalid value.");
 }
 

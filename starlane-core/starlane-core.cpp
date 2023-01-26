@@ -5,8 +5,16 @@
 
 namespace Starlane {
 
-void InitBackend(const FECapabilities &settings) {
-	SeedRNG(settings.randomSeed);
+const Frontend *frontend;
+
+void InitBackend(const Frontend *fe) {
+	frontend = fe;
+	SeedRNG(frontend->randomSeed);
+}
+
+void CreateGame(const uint8_t *tafBytes, size_t tafLength) {
+	auto content = ExtractTaf(tafBytes, tafLength);
+	
 }
 
 void BeginGame() {
