@@ -7,13 +7,13 @@
 #include <string>
 
 #ifdef starlane_core_EXPORTS
-#  if _WIN32
+#  ifdef _WIN32
 #    define SLC_API __declspec(dllexport)
 #  else
 #    define SLC_API __attribute__((visibility("default")))
 #  endif
 #else
-#  if _WIN32
+#  if defined(_WIN32) && defined(SL_SHARED_CORE)
 #    define SLC_API __declspec(dllimport)
 #  else
 #    define SLC_API
