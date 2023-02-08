@@ -21,7 +21,8 @@ std::map<std::string, decltype(&Expression::LCaseImpl)> Expression::tableOfBuilt
 	{ "CharacterDescriptor", &Expression::CharacterDescriptorImpl },
 	{ "CharacterProper", &Expression::CharacterProperImpl },
 	{ "DisplayCharacter", &Expression::DisplayObjectImpl },
-	{ "DisplayObject", &Expression::DisplayObjectImpl }
+	{ "DisplayObject", &Expression::DisplayObjectImpl },
+	{ "AloneWithChar", &Expression::AloneWithCharImpl }
 };
 
 Expression::Expression(const std::string &expr) : exprStr(expr) {
@@ -36,6 +37,7 @@ Expression::Expression(const std::string &expr) : exprStr(expr) {
 	exprp_context_t *ctx = exprp_create(this);
 	int remaining = exprp_parse(ctx, &rootNode);
 	exprp_destroy(ctx);
+	PostProcessTree();
 }
 
 Expression::~Expression() {
@@ -46,6 +48,17 @@ Expression::~Expression() {
 	for (ast_node_tag *p = firstNode; p != nullptr; p = next) {
 		next = p->managed.next;
 		delete p;
+	}
+}
+
+void Expression::PostProcessTree() {
+	// General functions without arguments are parsed like variables, we catch them here.
+	for (ast_node_tag *node = firstNode; node != nullptr; node = node->managed.next) {
+		if (node->type == AST_NODE_TYPE_VARIABLE && tableOfBuiltInFunctions.count(std::string(GetNodeText(node)))) {
+			node->type = AST_NODE_TYPE_FUNCCALL;
+			ast_node__append_child(node, system__create_ast_node_terminal(this, AST_NODE_TYPE_IDENTIFIER, node->range));
+			ast_node__append_child(node, system__create_ast_node_terminal(this, AST_NODE_TYPE_FUNCARGS, range__void()));
+		}
 	}
 }
 

@@ -175,4 +175,17 @@ Expr::Value Expression::DisplayObjectImpl(const ast_node_tag *args) const {
 	return theObj->GetDescription();
 }
 
+Expr::Value Expression::AloneWithCharImpl(const ast_node_tag *args) const {
+	CHECK_ARGCOUNT("AloneWithChar", 0);
+	auto g = Game::Get();
+	auto player = g->GetPlayerChar();
+	for (const auto &objref : g->GetAllObjects()) {
+		if (Character *c = dynamic_cast<Character *>(objref.second)) {
+			if (objref.second != player && c->GetLocationKey() == player->GetLocationKey())
+				return c->Key();
+		}
+	}
+	return Expr::Value();  // invalid
+}
+
 }

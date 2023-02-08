@@ -46,6 +46,7 @@ public:
 	bool PropExists(const std::string &key) const { return properties.count(key) > 0; }
 	bool VarOfNameExists(const std::string &name) const { return varNames.count(name) > 0; }
 	const std::unordered_map<std::string, GameObj *> &GetAllObjects() const { return objects; }
+	GameObj *GetPlayerChar() const { return objects.at(playerKey); }
 
 	bool GetIsTaskCompleted(const std::string &key) { return taskCompletedStorage.at(key); }
 	void SetTaskCompleted(const std::string &key, bool val) { taskCompletedStorage[key] = val; }

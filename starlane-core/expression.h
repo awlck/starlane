@@ -124,6 +124,9 @@ private:
 	Expr::Value CharacterDescriptorImpl(const ast_node_tag *args) const;
 	Expr::Value CharacterProperImpl(const ast_node_tag *args) const;
 	Expr::Value DisplayObjectImpl(const ast_node_tag *args) const;
+	Expr::Value AloneWithCharImpl(const ast_node_tag *args) const;
+
+	void PostProcessTree();
 
 	static std::map<std::string, decltype(&Expression::LCaseImpl)> tableOfBuiltInFunctions;
 };
