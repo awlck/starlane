@@ -170,7 +170,7 @@ private:
 	inline static std::deque<Game *> undoStates;
 	// The initial state right as the game starts. Maintained for the benefit of the
 	// `restart` command.
-	Game *startupState = nullptr;
+	inline static Game *startupState = nullptr;
 
 	static ReferralPerson ParseReferralPerson(const char *p);
 };

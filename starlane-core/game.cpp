@@ -41,10 +41,15 @@ Game::Game(const Game &rhs) {
 	tasks = rhs.tasks;
 	varNames = rhs.varNames;
 	expressions = rhs.expressions;
+	plainTextSnippets = rhs.plainTextSnippets;
 	// just bools, so a vector copy is sufficient.
 	taskCompletedStorage = rhs.taskCompletedStorage;
 
 	// Finally, the simple data copies.
+	playerKey = rhs.playerKey;
+	mostRecentlyMentioned = rhs.mostRecentlyMentioned;
+	pcReferralPerson = rhs.pcReferralPerson;
+	gameHasBegun = rhs.gameHasBegun;
 	gameTitle = rhs.gameTitle;
 	gameAuthor = rhs.gameAuthor;
 	gameAdriftVersion = rhs.gameAdriftVersion;
@@ -55,6 +60,7 @@ Game::Game(const Game &rhs) {
 	descriptionsSoFar = rhs.descriptionsSoFar;
 	restrictionsSoFar = rhs.restrictionsSoFar;
 	textSnippetsSoFar = rhs.textSnippetsSoFar;
+	expressionsSoFar = rhs.expressionsSoFar;
 }
 
 /* Destruct Game instance. This requires a bit of extra attention,
@@ -66,21 +72,23 @@ Game::~Game() {
 	// destroy mutable game state
 	for (const auto &it : objects)
 		delete it.second;
-	for (const auto &it : properties)
-		delete it.second;
 	for (const auto &it : events)
 		delete it.second;
 	for (const auto &it : variables)
 		delete it.second;
 	for (const auto &it : groups)
 		delete it.second;
+	for (const auto &it : descriptions)
+		delete it.second;
 
 	if (theGame == this) {
 		// We are the current (presumably last) game instance -- destroy everything.
 		// (Should really only happen when shutting down the interpreter / loading a new game.)
+		if (startupState != this)
+			delete startupState;
 		for (const auto &it : restrictions)
 			delete it.second;
-		for (const auto &it : descriptions)
+		for (const auto &it : properties)
 			delete it.second;
 		for (const auto &it : tasks)
 			delete it.second;
