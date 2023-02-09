@@ -9,6 +9,7 @@
 #include <limits>
 #include <string>
 #include <unordered_map>
+#include <utility>
 
 namespace Starlane {
 
@@ -87,10 +88,13 @@ public:
 		ThirdPerson
 	};
 	ReferralPerson GetCurrentReferralPerson() const {
-		if (mostRecentlyMentioned.empty() || mostRecentlyMentioned == playerKey)
+		if (mostRecentlyMentioned.first.empty() || mostRecentlyMentioned.first == playerKey)
 			return pcReferralPerson;
 		return ReferralPerson::ThirdPerson;
 	}
+	ReferralPerson GetPCReferralPerson() const { return pcReferralPerson; }
+	const std::pair<std::string, Pronoun> &GetMostRecentlyMentioned() const { return mostRecentlyMentioned; }
+	void MentionCharacter(const std::string &key, Pronoun p) { mostRecentlyMentioned = {key, p}; }
 
 private:
 	Game() = default;
@@ -109,8 +113,8 @@ private:
 	std::unordered_map<std::string, bool> taskCompletedStorage;
 	// the current player character
 	std::string playerKey;
-	// most recently mentioned character
-	std::string mostRecentlyMentioned;
+	// most recently mentioned character and pronoun
+	std::pair<std::string, Pronoun> mostRecentlyMentioned;
 
 	// immutable content (only exists once)
 	std::unordered_map<RestrRef, Restriction *> restrictions;

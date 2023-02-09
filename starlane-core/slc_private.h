@@ -41,6 +41,13 @@ using RestrRef = size_t;
 using ExprRef = size_t;
 
 extern const Frontend *frontend;
+
+enum class Pronoun {
+	Subject,
+	Object,
+	Possessive,
+	Reflective
+};
 }
 
 #endif  // !SLC_PRIVATE_H

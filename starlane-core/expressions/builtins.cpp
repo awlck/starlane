@@ -137,6 +137,69 @@ std::string WriteListFrom(const std::string &lst, ListTransformType transform = 
 	return result;
 }
 
+std::string ShowPronounForChar(const std::string &key, Pronoun pronoun) {
+	auto *g = Game::Get();
+	if (key == g->GetReference("%Player%") && g->GetPCReferralPerson() == Game::ReferralPerson::FirstPerson) {
+		switch (pronoun) {
+		case Pronoun::Subject:
+			return "I";
+		case Pronoun::Object:
+			return "me";
+		case Pronoun::Possessive:
+			return "my";
+		case Pronoun::Reflective:
+			return "myself";
+		}
+	} else if (key == g->GetReference("%Player%") && g->GetPCReferralPerson() == Game::ReferralPerson::SecondPerson) {
+		switch (pronoun) {
+		case Pronoun::Subject:
+		case Pronoun::Object:
+			return "you";
+		case Pronoun::Possessive:
+			return "your";
+		case Pronoun::Reflective:
+			return "yourself";
+		}
+	} else {
+		auto *c = g->GetObject(key);
+		if (c->HasProp("Gender")) {
+			if (c->GetPropValue<std::string>("Gender") == "Male") {
+				switch (pronoun) {
+				case Pronoun::Subject:
+					return "he";
+				case Pronoun::Object:
+					return "him";
+				case Pronoun::Possessive:
+					return "his";
+				case Pronoun::Reflective:
+					return "himself";
+				}
+			} else if (c->GetPropValue<std::string>("Gender") == "Female") {
+				switch (pronoun) {
+				case Pronoun::Subject:
+					return "she";
+				case Pronoun::Object:
+				case Pronoun::Possessive:
+					return "her";
+				case Pronoun::Reflective:
+					return "herself";
+				}
+			}
+		}
+		// no gender property or unknown value
+		switch (pronoun) {
+		case Pronoun::Subject:
+		case Pronoun::Object:
+			return "it";
+		case Pronoun::Possessive:
+			return "its";
+		case Pronoun::Reflective:
+			return "itself";
+		}
+	}
+	return "<invalid>";
+}
+
 }  // namespace Expr
 
 Expr::Value Expression::LCaseImpl(const ast_node_tag *args) const {
@@ -236,6 +299,40 @@ Expr::Value Expression::TheObjectImpl(const ast_node_tag *args) const {
 	CHECK_ARGCOUNT("TheObject(s)", 1);
 	EXTRACT_STRING_ARG(args, theArg);
 	return Expr::WriteListFrom(theArg.Str, Expr::ListTransformType::Name);
+}
+
+Expr::Value Expression::CharacterNameImpl(const ast_node_tag *args) const {
+	CHECK_ARGCOUNT_V("CharacterName", 0, 2);
+	auto g = Game::Get();
+	std::string toDisplay;
+	Pronoun pronoun = Pronoun::Subject;
+	const auto &mostRecent = g->GetMostRecentlyMentioned();
+	if (args->arity == 0) {  // default to the player character
+		// todo: determine whether we are displaying text from a character definition and display that character's name instead.
+		toDisplay = g->GetReference("%Player%");
+	} else if (args->arity == 1) {
+		EXTRACT_STRING_ARG(args, theArg);
+		toDisplay = theArg.Str;
+	} else if (args->arity == 2) {
+		EXTRACT_STRING_ARG(args, theChar);
+		toDisplay = theChar.Str;
+		auto thePronoun = EvalAnyNode(args->child.last);
+		if (thePronoun.ty == Expr::ValueType::Integer) {
+			thePronoun.ty = Expr::ValueType::String;
+			thePronoun.Str = std::to_string(thePronoun.Int);
+		} else if (thePronoun.ty == Expr::ValueType::Invalid)
+			throw std::runtime_error("Invalid value.");
+		if (thePronoun.Str == "object" || thePronoun.Str == "objective" || thePronoun.Str == "target") {
+			if (mostRecent.first == toDisplay && mostRecent.second == Pronoun::Subject)
+				pronoun = Pronoun::Reflective;
+			else pronoun = Pronoun::Object;
+		} else if (thePronoun.Str == "possessive")
+			pronoun = Pronoun::Possessive;
+	}
+	if (toDisplay == mostRecent.first || toDisplay == g->GetReference("%Player%"))
+		return Expr::ShowPronounForChar(toDisplay, pronoun);
+	else
+		return g->GetObject(toDisplay)->GetDisplayName();
 }
 
 }
