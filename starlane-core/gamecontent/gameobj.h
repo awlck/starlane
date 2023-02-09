@@ -27,7 +27,7 @@ public:
 	const std::string &GetParentKey() const { return parent; }
 
 	virtual std::string GetDisplayName() const;
-	std::string GetDescription(bool forDisplay = true) const;
+	virtual std::string GetDescription(bool forDisplay = true) const;
 
 	// Note that this object is becoming a member of the given group.
 	void BecomeGroupMember(const std::string &grpKey) {

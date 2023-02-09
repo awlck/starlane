@@ -307,9 +307,12 @@ Expr::Value Expression::CharacterNameImpl(const ast_node_tag *args) const {
 	std::string toDisplay;
 	Pronoun pronoun = Pronoun::Subject;
 	const auto &mostRecent = g->GetMostRecentlyMentioned();
-	if (args->arity == 0) {  // default to the player character
-		// todo: determine whether we are displaying text from a character definition and display that character's name instead.
-		toDisplay = g->GetReference("%Player%");
+	if (args->arity == 0) {
+		// if we are displaying a character's description, this reference will be set and we should
+		// use that character.
+		toDisplay = g->GetReference("<referral-character>");
+		if (toDisplay.empty())  // default to the player character
+			toDisplay = g->GetReference("%Player%");
 	} else if (args->arity == 1) {
 		EXTRACT_STRING_ARG(args, theArg);
 		toDisplay = theArg.Str;

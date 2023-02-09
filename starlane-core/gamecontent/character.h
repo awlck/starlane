@@ -28,6 +28,7 @@ public:
 	// Implements `character.Descriptor`
 	// Always returns the descriptor, regardless of the status of the `Known` property.
 	std::string GetDescriptor() const { return GameObj::GetDisplayName(); }
+	std::string GetDescription(bool forDisplay = true) const override;
 
 	std::pair<bool, DescrRef> HasRoute(const std::string &dir) const;
 	// Whether this character can currently see the object in question.

@@ -37,6 +37,12 @@ std::string Character::GetDisplayName() const {
 	return GameObj::GetDisplayName();
 }
 
+std::string Character::GetDescription(bool forDisplay) const {
+	Game::Get()->SetInternalReference("referral-character", key);
+	return GameObj::GetDescription(forDisplay);
+	Game::Get()->ClearInternalReference("referral-character");
+}
+
 std::pair<bool, DescrRef> Character::HasRoute(const std::string &dir) const {
 	auto *loc = GetLocation();
 	if (!loc || !loc->HasExit(dir))

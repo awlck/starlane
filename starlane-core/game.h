@@ -64,6 +64,16 @@ public:
 		return currentRefs.count(rk) > 0;
 	}
 
+	// Some references are not part of the game, but are used internally to pass some extra
+	// context from one part of the engine to another.
+	void SetInternalReference(const std::string &ref, const std::string &val) {
+		currentRefs["<" + ref + ">"] = val;
+	}
+	// ...and those will need to be frequently cleared as well
+	void ClearInternalReference(const std::string &ref) {
+		currentRefs["<" + ref + ">"] = "";
+	}
+
 	// Save the current game state to the undo list.
 	void SaveUndo();
 	// If any undo states are available, discard the current state and go back one step.
