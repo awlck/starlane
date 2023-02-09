@@ -9,7 +9,16 @@
 
 namespace Starlane {
 #define CHECK_ARGCOUNT(funcname, cnt) do { if (args->arity != (cnt)) throw std::runtime_error("Wrong number of arguments to built-in function " funcname ": expected " #cnt ", got " + std::to_string(args->arity)); } while (0)
-#define CHECK_ARGCOUNT_V(fname, min_, max_) do { if (args->arity < (min_) || args->arity > (max_)) throw std::runtime_error("Wrong number of arguments to built-in function " funcname ": expected " #min_ " to " #max_ ", got " + std::to_string(args->arity)); } while (0)
+#define CHECK_ARGCOUNT_V(funcname, min_, max_) do { if (args->arity < (min_) || args->arity > (max_)) throw std::runtime_error("Wrong number of arguments to built-in function " funcname ": expected " #min_ " to " #max_ ", got " + std::to_string(args->arity)); } while (0)
+
+#define EXTRACT_STRING_ARG(from, to) \
+	auto (to) = EvalAnyNode((from->child.first)); \
+	if ((to).ty == Expr::ValueType::Integer) { \
+		(to).ty = Expr::ValueType::String; \
+		(to).Str = std::to_string((to).Int); \
+	} else if ((to).ty == Expr::ValueType::Invalid) { \
+		throw std::runtime_error("Invalid value."); \
+	}
 
 namespace Expr {
 
@@ -177,13 +186,7 @@ Expr::Value Expression::NumberAsTextImpl(const ast_node_tag *args) const {
 
 Expr::Value Expression::CharacterDescriptorImpl(const ast_node_tag *args) const {
 	CHECK_ARGCOUNT("CharacterDescriptor", 1);
-	auto theArg = EvalAnyNode(args->child.first);
-	if (theArg.ty == Expr::ValueType::Integer) {
-		theArg.ty = Expr::ValueType::String;
-		theArg.Str = std::to_string(theArg.Int);
-	}
-	if (theArg.ty == Expr::ValueType::Invalid)
-		throw std::runtime_error("Invalid value.");
+	EXTRACT_STRING_ARG(args, theArg);
 	auto *theChar = dynamic_cast<Character *>(Game::Get()->GetObject(theArg.Str));
 	if (theChar == nullptr)
 		return Expr::Value();
@@ -192,13 +195,7 @@ Expr::Value Expression::CharacterDescriptorImpl(const ast_node_tag *args) const 
 
 Expr::Value Expression::CharacterProperImpl(const ast_node_tag *args) const {
 	CHECK_ARGCOUNT("CharacterProper", 1);
-	auto theArg = EvalAnyNode(args->child.first);
-	if (theArg.ty == Expr::ValueType::Integer) {
-		theArg.ty = Expr::ValueType::String;
-		theArg.Str = std::to_string(theArg.Int);
-	}
-	if (theArg.ty == Expr::ValueType::Invalid)
-		throw std::runtime_error("Invalid value.");
+	EXTRACT_STRING_ARG(args, theArg);
 	auto *theChar = dynamic_cast<Character *>(Game::Get()->GetObject(theArg.Str));
 	if (theChar == nullptr)
 		return Expr::Value();
@@ -207,13 +204,7 @@ Expr::Value Expression::CharacterProperImpl(const ast_node_tag *args) const {
 
 Expr::Value Expression::DisplayObjectImpl(const ast_node_tag *args) const {
 	CHECK_ARGCOUNT("DisplayObject/DisplayCharacter", 1);
-	auto theArg = EvalAnyNode(args->child.first);
-	if (theArg.ty == Expr::ValueType::Integer) {
-		theArg.ty = Expr::ValueType::String;
-		theArg.Str = std::to_string(theArg.Int);
-	}
-	if (theArg.ty == Expr::ValueType::Invalid)
-		throw std::runtime_error("Invalid value.");
+	EXTRACT_STRING_ARG(args, theArg);
 	auto *theObj = Game::Get()->GetObject((theArg.Str));
 	return theObj->GetDescription();
 }
@@ -234,13 +225,7 @@ Expr::Value Expression::AloneWithCharImpl(const ast_node_tag *args) const {
 Expr::Value Expression::LocationNameImpl(const ast_node_tag *args) const {
 	CHECK_ARGCOUNT("LocationName", 1);
 	auto g = Game::Get();
-	auto theArg = EvalAnyNode(args->child.first);
-	if (theArg.ty == Expr::ValueType::Integer) {
-		theArg.ty = Expr::ValueType::String;
-		theArg.Str = std::to_string(theArg.Int);
-	} else if (theArg.ty == Expr::ValueType::Invalid) {
-		throw std::runtime_error("Invalid value.");
-	}
+	EXTRACT_STRING_ARG(args, theArg);
 	auto *loc = dynamic_cast<Location *>(Game::Get()->GetObject(theArg.Str));
 	if (!loc)
 		return std::string("<invalid location>");
@@ -249,13 +234,7 @@ Expr::Value Expression::LocationNameImpl(const ast_node_tag *args) const {
 
 Expr::Value Expression::TheObjectImpl(const ast_node_tag *args) const {
 	CHECK_ARGCOUNT("TheObject(s)", 1);
-	auto theArg = EvalAnyNode(args->child.first);
-	if (theArg.ty == Expr::ValueType::Integer) {
-		theArg.ty = Expr::ValueType::String;
-		theArg.Str = std::to_string(theArg.Int);
-	} else if (theArg.ty == Expr::ValueType::Invalid) {
-		throw std::runtime_error("Invalid value.");
-	}
+	EXTRACT_STRING_ARG(args, theArg);
 	return Expr::WriteListFrom(theArg.Str, Expr::ListTransformType::Name);
 }
 
