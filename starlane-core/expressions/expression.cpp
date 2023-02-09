@@ -15,8 +15,14 @@ namespace Starlane {
 std::map<std::string, decltype(&Expression::LCaseImpl)> Expression::tableOfBuiltInFunctions
 = {
 	{ "LCase", &Expression::LCaseImpl },
+	{ "LCASE", &Expression::LCaseImpl },
+	{ "lcase", &Expression::LCaseImpl },
 	{ "UCase", &Expression::UCaseImpl },
+	{ "UCASE", &Expression::UCaseImpl },
+	{ "ucase", &Expression::UCaseImpl },
 	{ "PCase", &Expression::PCaseImpl },
+	{ "PCASE", &Expression::PCaseImpl },
+	{ "pcase", &Expression::PCaseImpl },
 	{ "NumberAsText", &Expression::NumberAsTextImpl },
 	{ "CharacterDescriptor", &Expression::CharacterDescriptorImpl },
 	{ "CharacterProper", &Expression::CharacterProperImpl },
@@ -26,7 +32,19 @@ std::map<std::string, decltype(&Expression::LCaseImpl)> Expression::tableOfBuilt
 	{ "LocationName", &Expression::LocationNameImpl },
 	{ "TheObject", &Expression::TheObjectImpl },
 	{ "TheObjects", &Expression::TheObjectImpl },
-	{ "CharacterName", &Expression::CharacterNameImpl }
+	{ "CharacterName", &Expression::CharacterNameImpl },
+	{ "Abs", &Expression::AbsImpl },
+	{ "ABS", &Expression::AbsImpl },
+	{ "abs", &Expression::AbsImpl },
+	{ "Instr", &Expression::InstrImpl },
+	{ "INSTR", &Expression::InstrImpl },
+	{ "instr", &Expression::InstrImpl },
+	{ "If", &Expression::IfImpl },
+	{ "IF", &Expression::IfImpl },
+	{ "if", &Expression::IfImpl },
+	{ "Len", &Expression::LenImpl },
+	{ "LEN", &Expression::LenImpl },
+	{ "len", &Expression::LenImpl },
 };
 
 Expression::Expression(const std::string &expr) : exprStr(expr) {

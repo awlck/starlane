@@ -338,4 +338,75 @@ Expr::Value Expression::CharacterNameImpl(const ast_node_tag *args) const {
 		return g->GetObject(toDisplay)->GetDisplayName();
 }
 
+Expr::Value Expression::AbsImpl(const ast_node_tag *args) const {
+	CHECK_ARGCOUNT("Abs", 1);
+	auto theArg = EvalAnyNode(args->child.first);
+	if (theArg.ty == Expr::ValueType::Integer) {
+		return abs(theArg.Int);
+	} else if (theArg.ty == Expr::ValueType::String) {
+		size_t pos = 0;
+		while (isspace(theArg.Str[pos])) ++pos;
+		if (theArg.Str[pos] == '-') ++pos;  // ignore the minus because we want the absolute value anyways
+		if (IsDigits(theArg.Str.c_str() + pos)) {
+			return ParseInt(theArg.Str.c_str() + pos);
+		} else throw std::runtime_error("Tried to take the absolute value of a non-integer.");
+	} else throw std::runtime_error("Invalid value.");
+}
+
+Expr::Value Expression::InstrImpl(const ast_node_tag *args) const {
+	CHECK_ARGCOUNT("Instr", 1);
+	auto haystack = EvalAnyNode(args->child.first);
+	if (haystack.ty == Expr::ValueType::Integer) {
+		haystack.ty = Expr::ValueType::String;
+		haystack.Str = std::to_string(haystack.Int);
+	} else if (haystack.ty == Expr::ValueType::Invalid)
+		throw std::runtime_error("Invalid value.");
+	auto needle = EvalAnyNode(args->child.last);
+	if (needle.ty == Expr::ValueType::Integer) {
+		needle.ty = Expr::ValueType::String;
+		needle.Str = std::to_string(needle.Int);
+	} else if (needle.ty == Expr::ValueType::Invalid)
+		throw std::runtime_error("Invalid value.");
+	// this is a case-insensitive substring search, so...
+	std::string theHaystack(frontend->StrToLowerCase(haystack.Str));
+	std::string theNeedle(frontend->StrToLowerCase(needle.Str));
+	const char *hs = theHaystack.c_str();
+	const char *result = strstr(hs, theNeedle.c_str());
+	if (result == nullptr) return 0;
+	return (result - hs) + 1;
+}
+
+Expr::Value Expression::IfImpl(const ast_node_tag *args) const {
+	CHECK_ARGCOUNT("If", 3);
+	auto condition = bool(EvalAnyNode(args->child.first));
+	if (condition) {
+		return EvalAnyNode(args->child.first->sibling.next);  // second child
+	} else {
+		return EvalAnyNode(args->child.last);  // third child
+	}
+}
+
+Expr::Value Expression::LeftImpl(const ast_node_tag *args) const {
+	CHECK_ARGCOUNT("Left", 2);
+	EXTRACT_STRING_ARG(args, theString);
+	auto theLength = EvalAnyNode(args->child.last);
+	if (theLength.ty == Expr::ValueType::String) {
+		// attempt to convert to integer
+		size_t pos = 0;
+		while (isspace(theLength.Str[pos])) ++pos;
+		if (IsDigits(theLength.Str.c_str() + pos)) {
+			theLength.ty = Expr::ValueType::Integer;
+			theLength.Int = ParseInt(theLength.Str.c_str() + pos);
+		} else throw std::runtime_error("NumberAsText called for a non-number.");
+	} else if (theLength.ty == Expr::ValueType::Invalid)
+		throw std::runtime_error("Invalid value.");
+	return theString.Str.substr(0, theLength.Int);
+}
+
+Expr::Value Expression::LenImpl(const ast_node_tag *args) const {
+	CHECK_ARGCOUNT("Len", 1);
+	EXTRACT_STRING_ARG(args, theString);
+	return theString.Str.size();
+}
+
 }

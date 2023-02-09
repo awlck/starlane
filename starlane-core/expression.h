@@ -117,6 +117,7 @@ private:
 	Expr::Value EvalItemfunc(Expr::Value obj, const ast_node_tag *toCall) const;
 
 	// built-in functions
+	// general functions
 	Expr::Value LCaseImpl(const ast_node_tag *args) const;
 	Expr::Value UCaseImpl(const ast_node_tag *args) const;
 	Expr::Value PCaseImpl(const ast_node_tag *args) const;
@@ -128,6 +129,22 @@ private:
 	Expr::Value LocationNameImpl(const ast_node_tag *args) const;
 	Expr::Value TheObjectImpl(const ast_node_tag *args) const;
 	Expr::Value CharacterNameImpl(const ast_node_tag *args) const;
+	// expression functions
+	Expr::Value AbsImpl(const ast_node_tag *args) const;
+	//Expr::Value EitherImpl(const ast_node_tag *args) const;
+	Expr::Value InstrImpl(const ast_node_tag *args) const;
+	Expr::Value IfImpl(const ast_node_tag *args) const;
+	Expr::Value LeftImpl(const ast_node_tag *args) const;
+	Expr::Value LenImpl(const ast_node_tag *args) const;
+	Expr::Value MaxImpl(const ast_node_tag *args) const;
+	Expr::Value MidImpl(const ast_node_tag *args) const;
+	Expr::Value MinImpl(const ast_node_tag *args) const;
+	Expr::Value OneOfImpl(const ast_node_tag *args) const;
+	Expr::Value RandImpl(const ast_node_tag *args) const;
+	Expr::Value ReplaceImpl(const ast_node_tag *args) const;
+	Expr::Value RightImpl(const ast_node_tag *args) const;
+	Expr::Value StrImpl(const ast_node_tag *args) const;
+	Expr::Value ValImpl(const ast_node_tag *args) const;
 
 	void PostProcessTree();
 
