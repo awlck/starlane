@@ -4,6 +4,7 @@
 #include "../game.h"
 #include "../valueparsers.h"
 #include "../gamecontent/character.h"
+#include "../gamecontent/location.h"
 
 
 namespace Starlane {
@@ -11,6 +12,7 @@ namespace Starlane {
 #define CHECK_ARGCOUNT_V(fname, min_, max_) do { if (args->arity < (min_) || args->arity > (max_)) throw std::runtime_error("Wrong number of arguments to built-in function " funcname ": expected " #min_ " to " #max_ ", got " + std::to_string(args->arity)); } while (0)
 
 namespace Expr {
+
 const char *LanguageTens[] = { 0, 0, "twenty", "thirty", "fourty", "fifty", "sixty", "seventy", "eighty", "ninety" };
 const char *LanguageOnes[] = { 0, "one", "two", "three", "four", "five", "six", "seven", "eight", "nine", "ten", "eleven", "twelve", "thirteen", "fourteen", "fifteen", "sixteen", "seventeen", "eighteen", "nineteen" };
 
@@ -85,7 +87,48 @@ std::string LanguageNumber(int64_t num, bool f = false) {
 	}
 	return result;
 }
+
+enum class ListTransformType {
+	None,  // take list entries at face value and don't perform any transformation
+	Name   // take list entries as object keys and apply the `object.Name' function to each before formatting
+};
+
+// Takes a list in ADRIFT Expression list format (e.g., "foo|bar|baz") and returns
+// a textual description, e.g., "foo, bar and baz"
+std::string WriteListFrom(const std::string &lst, ListTransformType transform = ListTransformType::None) {
+	std::string result;
+	std::vector<std::string> entries;
+	std::string current;
+	current.reserve(64);
+	for (auto c : lst) {
+		if (c == '|' && !current.empty()) {
+			entries.push_back(current);
+			current.clear();
+			continue;
+		}
+		current.append(1, c);
+	}
+	if (!current.empty())
+		entries.push_back(current);
+	size_t cnt = entries.size();
+	for (size_t i = 0; i < cnt; i++) {
+		if (i > 0 && i <= cnt - 3)
+			result += ", ";
+		else if (i == cnt - 2)
+			result += " and ";
+		switch (transform) {
+		case ListTransformType::Name:
+			result += Game::Get()->GetObject(entries[i])->GetDisplayName();
+			break;
+		case ListTransformType::None:
+			result += entries[i];
+			break;
+		}
+	}
+	return result;
 }
+
+}  // namespace Expr
 
 Expr::Value Expression::LCaseImpl(const ast_node_tag *args) const {
 	CHECK_ARGCOUNT("LCase", 1);
@@ -149,7 +192,7 @@ Expr::Value Expression::CharacterDescriptorImpl(const ast_node_tag *args) const 
 
 Expr::Value Expression::CharacterProperImpl(const ast_node_tag *args) const {
 	CHECK_ARGCOUNT("CharacterProper", 1);
-	auto theArg = EvalAnyNode(args);
+	auto theArg = EvalAnyNode(args->child.first);
 	if (theArg.ty == Expr::ValueType::Integer) {
 		theArg.ty = Expr::ValueType::String;
 		theArg.Str = std::to_string(theArg.Int);
@@ -164,7 +207,7 @@ Expr::Value Expression::CharacterProperImpl(const ast_node_tag *args) const {
 
 Expr::Value Expression::DisplayObjectImpl(const ast_node_tag *args) const {
 	CHECK_ARGCOUNT("DisplayObject/DisplayCharacter", 1);
-	auto theArg = EvalAnyNode(args);
+	auto theArg = EvalAnyNode(args->child.first);
 	if (theArg.ty == Expr::ValueType::Integer) {
 		theArg.ty = Expr::ValueType::String;
 		theArg.Str = std::to_string(theArg.Int);
@@ -186,6 +229,34 @@ Expr::Value Expression::AloneWithCharImpl(const ast_node_tag *args) const {
 		}
 	}
 	return Expr::Value();  // invalid
+}
+
+Expr::Value Expression::LocationNameImpl(const ast_node_tag *args) const {
+	CHECK_ARGCOUNT("LocationName", 1);
+	auto g = Game::Get();
+	auto theArg = EvalAnyNode(args->child.first);
+	if (theArg.ty == Expr::ValueType::Integer) {
+		theArg.ty = Expr::ValueType::String;
+		theArg.Str = std::to_string(theArg.Int);
+	} else if (theArg.ty == Expr::ValueType::Invalid) {
+		throw std::runtime_error("Invalid value.");
+	}
+	auto *loc = dynamic_cast<Location *>(Game::Get()->GetObject(theArg.Str));
+	if (!loc)
+		return std::string("<invalid location>");
+	return loc->GetDisplayName();
+}
+
+Expr::Value Expression::TheObjectImpl(const ast_node_tag *args) const {
+	CHECK_ARGCOUNT("TheObject(s)", 1);
+	auto theArg = EvalAnyNode(args->child.first);
+	if (theArg.ty == Expr::ValueType::Integer) {
+		theArg.ty = Expr::ValueType::String;
+		theArg.Str = std::to_string(theArg.Int);
+	} else if (theArg.ty == Expr::ValueType::Invalid) {
+		throw std::runtime_error("Invalid value.");
+	}
+	return Expr::WriteListFrom(theArg.Str, Expr::ListTransformType::Name);
 }
 
 }

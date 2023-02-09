@@ -125,6 +125,8 @@ private:
 	Expr::Value CharacterProperImpl(const ast_node_tag *args) const;
 	Expr::Value DisplayObjectImpl(const ast_node_tag *args) const;
 	Expr::Value AloneWithCharImpl(const ast_node_tag *args) const;
+	Expr::Value LocationNameImpl(const ast_node_tag *args) const;
+	Expr::Value TheObjectImpl(const ast_node_tag *args) const;
 
 	void PostProcessTree();
 
