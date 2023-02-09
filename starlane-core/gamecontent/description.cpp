@@ -340,8 +340,10 @@ ResolveOO_FakeTailcall:
 	// Whether we have also read some more letters since reading the last period
 	// (To catch occasions where the last word in the sentence happens to be an object key.)
 	int reallyInExpr = 0;
+	// the current level of parentheses (only relevant within a potential expression)
+	int parensLevel = 0;
 	for (pos = 0; pos < theText.length(); pos++) {
-		if (theText[pos] == ' ' || theText[pos] == '\n') {
+		if (theText[pos] == ' ' || theText[pos] == '\n' || (theText[pos] == ',' && parensLevel == 0) || theText[pos] == ';') {
 			inWord = false;
 			if (reallyInExpr == 1) {
 				auto theKey = GetPotentialObjKey(theText.substr(wordBegan, pos - wordBegan));
@@ -380,6 +382,14 @@ ResolveOO_FakeTailcall:
 		}
 		if (havePeriod && theText[pos] != '.' && reallyInExpr == 0) {
 			reallyInExpr = 1;
+			continue;
+		}
+		if (reallyInExpr && theText[pos] == '(') {
+			parensLevel++;
+			continue;
+		}
+		if (reallyInExpr && theText[pos] == ')') {
+			parensLevel--;
 			continue;
 		}
 		if (!inWord && (isalnum(theText[pos]) || theText[pos] == '_')) {
