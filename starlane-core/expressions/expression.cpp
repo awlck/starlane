@@ -10,7 +10,34 @@
 #include <string_view>
 #include <iostream>
 
+#ifdef _MSC_VER
+#include <Windows.h>
+#endif
+
 namespace Starlane {
+
+#ifdef _MSC_VER
+// armour against stack overflows due to small Windows stack
+class ScopedSETranslator {
+private:
+	const _se_translator_function old_SE_translator;
+public:
+	ScopedSETranslator(_se_translator_function newTranslator) noexcept
+		: old_SE_translator(_set_se_translator(newTranslator)) {}
+	~ScopedSETranslator() noexcept { _set_se_translator(old_SE_translator); }
+};
+
+class StackOverflowError : public std::runtime_error {
+public:
+	StackOverflowError() : std::runtime_error("Stack overflow.") {}
+};
+
+void StackOverflowTranslator(unsigned int code, _EXCEPTION_POINTERS *) {
+	if (code == EXCEPTION_STACK_OVERFLOW)
+		throw StackOverflowError();
+	throw std::runtime_error("SEH exception: " + std::to_string(code));
+}
+#endif
 
 std::map<std::string, decltype(&Expression::LCaseImpl)> Expression::tableOfBuiltInFunctions
 = {
@@ -162,7 +189,34 @@ ast_node_tag *Expression::CreateNode() {
 }
 
 std::string Expression::EvaluateStr() const {
+#ifdef _MSC_VER
+	// Windows apps can catch and recover from stack overflows using SEH.
+	Expr::Value result;
+	int resetSuccess = 0;
+	bool stackDidOverflow = false;
+	{
+		ScopedSETranslator translator(&StackOverflowTranslator);
+		try {
+			result = EvalAnyNode(rootNode);
+		} catch (const StackOverflowError &e) {
+			// stack isn't actually unwound yet
+			stackDidOverflow = true;
+		}
+		if (stackDidOverflow) {
+			// *actual* catch logic
+			resetSuccess = _resetstkoflw();
+			if (resetSuccess) {  // reset succeeded, bail out of evaluating this
+				frontend->OutputText("<i>(Internal error: expression too complex. Report this to whoever compiled this build of Starlane.)</i>");
+				return "(expression too complex)";
+			} else {
+				// restore failed, crash after all
+				RaiseFailFastException(NULL, NULL, FAIL_FAST_GENERATE_EXCEPTION_ADDRESS);
+			}
+		}
+	}
+#else
 	auto result = EvalAnyNode(rootNode);
+#endif
 	if (result.ty == Expr::ValueType::String) return result.Str;
 	else if (result.ty == Expr::ValueType::Integer) return std::to_string(result.Int);
 	throw std::runtime_error("Invalid expression result");
@@ -357,7 +411,34 @@ Expr::Value Expression::EvalItemfunc(Expr::Value obj, const ast_node_tag *toCall
 }
 
 int64_t Expression::EvalAsIntImpl() const {
+#ifdef _MSC_VER
+	// Windows apps can catch and recover from stack overflows using SEH.
+	Expr::Value result;
+	int resetSuccess = 0;
+	bool stackDidOverflow = false;
+	{
+		ScopedSETranslator translator(&StackOverflowTranslator);
+		try {
+			result = EvalAnyNode(rootNode);
+		} catch (const StackOverflowError &e) {
+			// stack isn't actually unwound yet
+			stackDidOverflow = true;
+		}
+		if (stackDidOverflow) {
+			// *actual* catch logic
+			resetSuccess = _resetstkoflw();
+			if (resetSuccess) {  // reset succeeded, bail out of evaluating this
+				frontend->OutputText("<i>(Internal error: expression too complex. Report this to whoever compiled this build of Starlane.)</i>");
+				return INT64_MIN;
+			} else {
+				// restore failed, crash after all
+				RaiseFailFastException(NULL, NULL, FAIL_FAST_GENERATE_EXCEPTION_ADDRESS);
+			}
+		}
+	}
+#else
 	auto result = EvalAnyNode(rootNode);
+#endif
 	if (result.ty == Expr::ValueType::Invalid) throw std::runtime_error("Invalid expression result.");
 	if (result.ty == Expr::ValueType::Integer) return result.Int;
 	// we're dealing with a string, try to convert it to an integer.
