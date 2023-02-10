@@ -255,15 +255,18 @@ Expr::Value Expression::EvalAnyNode(const ast_node_tag *node) const {
 		auto rhs = EvalAnyNode(node->child.last);
 		if (lhs.ty == Expr::ValueType::Integer && rhs.ty == Expr::ValueType::Integer) {
 			if (rhs.Int == 0) throw std::runtime_error("Tried to divide by zero.");
-			return lhs.Int / rhs.Int;
+			return lhs.Int % rhs.Int;
 		}
 		throw std::runtime_error("Tried to modulo non-integers.");
 	}
 	case AST_NODE_TYPE_OPERATOR_POW: {
 		auto lhs = EvalAnyNode(node->child.first);
 		auto rhs = EvalAnyNode(node->child.last);
-		if (lhs.ty == Expr::ValueType::Integer && rhs.ty == Expr::ValueType::Integer)
-			return { Expr::ValueType::Integer, (int64_t)pow(lhs.Int, rhs.Int), 0};
+		if (lhs.ty == Expr::ValueType::Integer && rhs.ty == Expr::ValueType::Integer) {
+			if (rhs.Int == 0) return 1;
+			if (lhs.Int == 0) return 0;
+			return Expr::Value((int64_t) pow(lhs.Int, rhs.Int));
+		}
 		throw std::runtime_error("Tried to exponentiate non-integers.");
 	}
 	case AST_NODE_TYPE_OPERATOR_AND: {
