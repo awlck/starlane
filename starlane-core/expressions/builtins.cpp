@@ -2,6 +2,7 @@
 #include "exprp_utility.h"
 #include "../starlane-core.h"
 #include "../game.h"
+#include "../random.h"
 #include "../valueparsers.h"
 #include "../gamecontent/character.h"
 #include "../gamecontent/location.h"
@@ -11,14 +12,9 @@ namespace Starlane {
 #define CHECK_ARGCOUNT(funcname, cnt) do { if (args->arity != (cnt)) throw std::runtime_error("Wrong number of arguments to built-in function " funcname ": expected " #cnt ", got " + std::to_string(args->arity)); } while (0)
 #define CHECK_ARGCOUNT_V(funcname, min_, max_) do { if (args->arity < (min_) || args->arity > (max_)) throw std::runtime_error("Wrong number of arguments to built-in function " funcname ": expected " #min_ " to " #max_ ", got " + std::to_string(args->arity)); } while (0)
 
-#define EXTRACT_STRING_ARG(from, to) \
+#define EXTRACT_FIRST_ARG_STR(from, to) \
 	auto (to) = EvalAnyNode((from->child.first)); \
-	if ((to).ty == Expr::ValueType::Integer) { \
-		(to).ty = Expr::ValueType::String; \
-		(to).Str = std::to_string((to).Int); \
-	} else if ((to).ty == Expr::ValueType::Invalid) { \
-		throw std::runtime_error("Invalid value."); \
-	}
+	Expr::EnsureString((to));
 
 namespace Expr {
 
@@ -200,6 +196,35 @@ std::string ShowPronounForChar(const std::string &key, Pronoun pronoun) {
 	return "<invalid>";
 }
 
+void EnsureString(Value &v) {
+	if (v.ty == ValueType::Integer) {
+		v.ty = ValueType::String;
+		v.Str = std::to_string(v.Int);
+	} else if (v.ty == ValueType::Invalid)
+		throw std::runtime_error("Invalid value.");
+}
+
+void EnsureInt(Value &v, bool allowSigned = true) {
+	if (v.ty == Expr::ValueType::String) {
+		size_t pos = 0;
+		bool neg = false;
+		while (isspace(v.Str[pos])) ++pos;
+		if (v.Str[pos] == '-') {
+			++pos;
+			neg = true;
+		}
+		if (IsDigits(v.Str.c_str() + pos)) {
+			v.ty = Expr::ValueType::Integer;
+			v.Int = ParseInt(v.Str.c_str() + pos);
+			if (neg) v.Int *= -1;
+		} else {
+			throw std::runtime_error("Got a string where a number was expected.");
+		}
+	} else if (v.ty == ValueType::Integer) {
+		throw std::runtime_error("Invalid value.");
+	}
+}
+
 }  // namespace Expr
 
 Expr::Value Expression::LCaseImpl(const ast_node_tag *args) const {
@@ -249,7 +274,7 @@ Expr::Value Expression::NumberAsTextImpl(const ast_node_tag *args) const {
 
 Expr::Value Expression::CharacterDescriptorImpl(const ast_node_tag *args) const {
 	CHECK_ARGCOUNT("CharacterDescriptor", 1);
-	EXTRACT_STRING_ARG(args, theArg);
+	EXTRACT_FIRST_ARG_STR(args, theArg);
 	auto *theChar = dynamic_cast<Character *>(Game::Get()->GetObject(theArg.Str));
 	if (theChar == nullptr)
 		return Expr::Value();
@@ -258,7 +283,7 @@ Expr::Value Expression::CharacterDescriptorImpl(const ast_node_tag *args) const 
 
 Expr::Value Expression::CharacterProperImpl(const ast_node_tag *args) const {
 	CHECK_ARGCOUNT("CharacterProper", 1);
-	EXTRACT_STRING_ARG(args, theArg);
+	EXTRACT_FIRST_ARG_STR(args, theArg);
 	auto *theChar = dynamic_cast<Character *>(Game::Get()->GetObject(theArg.Str));
 	if (theChar == nullptr)
 		return Expr::Value();
@@ -267,7 +292,7 @@ Expr::Value Expression::CharacterProperImpl(const ast_node_tag *args) const {
 
 Expr::Value Expression::DisplayObjectImpl(const ast_node_tag *args) const {
 	CHECK_ARGCOUNT("DisplayObject/DisplayCharacter", 1);
-	EXTRACT_STRING_ARG(args, theArg);
+	EXTRACT_FIRST_ARG_STR(args, theArg);
 	auto *theObj = Game::Get()->GetObject((theArg.Str));
 	return theObj->GetDescription();
 }
@@ -288,7 +313,7 @@ Expr::Value Expression::AloneWithCharImpl(const ast_node_tag *args) const {
 Expr::Value Expression::LocationNameImpl(const ast_node_tag *args) const {
 	CHECK_ARGCOUNT("LocationName", 1);
 	auto g = Game::Get();
-	EXTRACT_STRING_ARG(args, theArg);
+	EXTRACT_FIRST_ARG_STR(args, theArg);
 	auto *loc = dynamic_cast<Location *>(Game::Get()->GetObject(theArg.Str));
 	if (!loc)
 		return std::string("<invalid location>");
@@ -297,7 +322,7 @@ Expr::Value Expression::LocationNameImpl(const ast_node_tag *args) const {
 
 Expr::Value Expression::TheObjectImpl(const ast_node_tag *args) const {
 	CHECK_ARGCOUNT("TheObject(s)", 1);
-	EXTRACT_STRING_ARG(args, theArg);
+	EXTRACT_FIRST_ARG_STR(args, theArg);
 	return Expr::WriteListFrom(theArg.Str, Expr::ListTransformType::Name);
 }
 
@@ -314,10 +339,10 @@ Expr::Value Expression::CharacterNameImpl(const ast_node_tag *args) const {
 		if (toDisplay.empty())  // default to the player character
 			toDisplay = g->GetReference("%Player%");
 	} else if (args->arity == 1) {
-		EXTRACT_STRING_ARG(args, theArg);
+		EXTRACT_FIRST_ARG_STR(args, theArg);
 		toDisplay = theArg.Str;
 	} else if (args->arity == 2) {
-		EXTRACT_STRING_ARG(args, theChar);
+		EXTRACT_FIRST_ARG_STR(args, theChar);
 		toDisplay = theChar.Str;
 		auto thePronoun = EvalAnyNode(args->child.last);
 		if (thePronoun.ty == Expr::ValueType::Integer) {
@@ -388,7 +413,7 @@ Expr::Value Expression::IfImpl(const ast_node_tag *args) const {
 
 Expr::Value Expression::LeftImpl(const ast_node_tag *args) const {
 	CHECK_ARGCOUNT("Left", 2);
-	EXTRACT_STRING_ARG(args, theString);
+	EXTRACT_FIRST_ARG_STR(args, theString);
 	auto theLength = EvalAnyNode(args->child.last);
 	if (theLength.ty == Expr::ValueType::String) {
 		// attempt to convert to integer
@@ -397,7 +422,7 @@ Expr::Value Expression::LeftImpl(const ast_node_tag *args) const {
 		if (IsDigits(theLength.Str.c_str() + pos)) {
 			theLength.ty = Expr::ValueType::Integer;
 			theLength.Int = ParseInt(theLength.Str.c_str() + pos);
-		} else throw std::runtime_error("NumberAsText called for a non-number.");
+		} else throw std::runtime_error("Got a string where a number was expected.");
 	} else if (theLength.ty == Expr::ValueType::Invalid)
 		throw std::runtime_error("Invalid value.");
 	return theString.Str.substr(0, theLength.Int);
@@ -405,8 +430,116 @@ Expr::Value Expression::LeftImpl(const ast_node_tag *args) const {
 
 Expr::Value Expression::LenImpl(const ast_node_tag *args) const {
 	CHECK_ARGCOUNT("Len", 1);
-	EXTRACT_STRING_ARG(args, theString);
+	EXTRACT_FIRST_ARG_STR(args, theString);
 	return theString.Str.size();
+}
+
+Expr::Value Expression::MaxImpl(const ast_node_tag *args) const {
+	CHECK_ARGCOUNT("Max", 2);
+	auto theFirst = EvalAnyNode(args->child.first);
+	Expr::EnsureInt(theFirst);
+	auto theSecond = EvalAnyNode(args->child.last);
+	Expr::EnsureInt(theSecond);
+	return theFirst < theSecond ? theSecond : theFirst;
+}
+
+Expr::Value Expression::MidImpl(const ast_node_tag *args) const {
+	CHECK_ARGCOUNT("Mid", 3);
+	EXTRACT_FIRST_ARG_STR(args, theString);
+	auto theStart = EvalAnyNode(args->child.first->sibling.next);
+	Expr::EnsureInt(theStart, false);
+	auto theLength = EvalAnyNode(args->child.last);
+	Expr::EnsureInt(theLength, false);
+	if (theStart.Int >= theString.Str.size())
+		return std::string();
+	return theString.Str.substr(theStart.Int, theLength.Int);
+}
+
+Expr::Value Expression::MinImpl(const ast_node_tag *args) const {
+	CHECK_ARGCOUNT("Min", 2);
+	auto theFirst = EvalAnyNode(args->child.first);
+	Expr::EnsureInt(theFirst);
+	auto theSecond = EvalAnyNode(args->child.last);
+	Expr::EnsureInt(theSecond);
+	return theFirst < theSecond ? theFirst : theSecond;
+}
+
+Expr::Value Expression::OneOfImpl(const ast_node_tag *args) const {
+	// The OneOf function technically accepts 'any number of parameters', but this is
+	// probably a good sanity-check nonetheless.  Should anyone complain, it's easy
+	// enough to raise this limit further.
+	// (The hard limit is UINT32_MAX, which is the largest number the random-number
+	//  generator can produce.)
+	CHECK_ARGCOUNT_V("OneOf", 1, 9999);
+	uint32_t rand = RandomInt(args->arity-1);
+	uint32_t pos = 1;
+	auto *resultNode = args->child.first;
+	while (pos++ < rand && resultNode != nullptr)
+		resultNode = resultNode->sibling.next;
+	if (resultNode == nullptr)
+		return Expr::Value();  // invalid
+	// look at me, lazily evaluating alternatives!
+	return EvalAnyNode(resultNode);
+}
+
+Expr::Value Expression::RandImpl(const ast_node_tag *args) const {
+	CHECK_ARGCOUNT("Rand", 2);
+	auto lower = EvalAnyNode(args->child.first);
+	Expr::EnsureInt(lower);
+	auto upper = EvalAnyNode(args->child.last);
+	return ((int64_t) RandomInt(upper.Int - lower.Int)) + lower.Int;
+}
+
+// https://stackoverflow.com/a/3418285
+static void ReplaceAll(std::string &str, const std::string &from, const std::string &to) {
+	if (from.empty())
+		return;
+	size_t start_pos = 0;
+	while ((start_pos = str.find(from, start_pos)) != std::string::npos) {
+		str.replace(start_pos, from.length(), to);
+		start_pos += to.length(); // In case 'to' contains 'from', like replacing 'x' with 'yx'
+	}
+}
+
+Expr::Value Expression::ReplaceImpl(const ast_node_tag *args) const {
+	CHECK_ARGCOUNT("Replace", 3);
+	EXTRACT_FIRST_ARG_STR(args, theString);
+	auto theFind = EvalAnyNode(args->child.first->sibling.next);
+	Expr::EnsureString(theFind);
+	auto theReplace = EvalAnyNode(args->child.last);
+	Expr::EnsureString(theReplace);
+	ReplaceAll(theString.Str, theFind.Str, theReplace.Str);
+	return theString;
+}
+
+Expr::Value Expression::RightImpl(const ast_node_tag *args) const {
+	CHECK_ARGCOUNT("Right", 2);
+	EXTRACT_FIRST_ARG_STR(args, theString);
+	auto theLength = EvalAnyNode(args->child.last);
+	Expr::EnsureInt(theLength);
+	auto pos = theString.Str.size() - theLength.Int;
+	if (pos <= 0)
+		return theString;
+	return theString.Str.substr(pos);
+}
+
+Expr::Value Expression::StrImpl(const ast_node_tag *args) const {
+	// this function is kinda pointless since Starlane already coerces values left and right
+	CHECK_ARGCOUNT("Str", 1);
+	EXTRACT_FIRST_ARG_STR(args, theResult);
+	return theResult;
+}
+
+Expr::Value Expression::ValImpl(const ast_node_tag *args) const {
+	CHECK_ARGCOUNT("Val", 1);
+	auto theResult = EvalAnyNode(args->child.first);
+	// special case: if `Val` fails a conversion, return 0 rather than throwing an error
+	try {
+		Expr::EnsureInt(theResult);
+		return theResult;
+	} catch (std::runtime_error &) {
+		return 0;
+	}
 }
 
 }
