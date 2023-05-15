@@ -4,6 +4,7 @@
 #include "../gamecontent/variable.h"
 #include "exprp_utility.h"
 #include "exprparser.h"
+#include "builtins.h"
 
 #include <cassert>
 #include <cmath>
@@ -135,6 +136,42 @@ std::map<std::string, decltype(&Expression::LCaseImpl)> Expression::tableOfBuilt
 	{ "Val", &Expression::ValImpl },
 	{ "VAL", &Expression::ValImpl },
 	{ "val", &Expression::ValImpl }
+};
+
+// List of built-in item functions that require an object of any kind.
+static const char *listOfObjectFunctions[] = {
+		"Children",
+		"Contents",
+		"Location",
+		"Name",
+		"Parent"
+};
+
+// List of built-in item functions that require a location
+static const char *listOfLocationFunctions[] = {
+		"Exits",
+		"Objects"
+};
+
+// List of built-in item functions that require a character
+static const char *listOfCharacterFunctions[] = {
+		"Descriptor",
+		"Held",
+		"ProperName",
+		"Worn",
+		"WornAndHeld"
+};
+
+// List of built-in item functions that require an event
+static const char *listOfEventFunctions[] = {
+		"Length",
+		"Position"
+};
+
+// List of built-in item functions that require a list
+static const char *listOfListFunctions[] = {
+		"Count",
+		"List"
 };
 
 Expression::Expression(const std::string &expr) : exprStr(expr) {
@@ -411,7 +448,8 @@ Expr::Value Expression::EvalFunccall(Expr::Value toCall, const ast_node_tag *arg
 }
 
 Expr::Value Expression::EvalItemfunc(Expr::Value obj, const ast_node_tag *toCall) const {
-	// todo
+	Expr::EnsureString(obj);
+
 	return Expr::Value();
 }
 

@@ -119,4 +119,34 @@ std::string GameObj::GetDescription(bool forDisplay) const {
 	return Game::Get()->GetDescription(description)->Build(forDisplay);
 }
 
+std::string GameObj::GetListOfChildren(GameObj::ChildFilter f1, GameObj::ChildRelFilter f2) const {
+	std::string result;
+	size_t count = 0;
+	auto *g = Game::Get();
+	for (const auto &obj: g->GetAllObjects()) {
+		if (f1 == ChildFilter::Objects && dynamic_cast<Character *>(obj.second))
+			continue;
+		if (f1 == ChildFilter::Characters && !dynamic_cast<Character *>(obj.second))
+			continue;
+		switch (f2) {
+			case ChildRelFilter::On:
+				if (obj.second->relation != HoldingType::OnObject)
+					continue;
+				break;
+			case ChildRelFilter::In:
+				if (obj.second->relation != HoldingType::InObject)
+					continue;
+				break;
+			case ChildRelFilter::OnAndIn:
+				if (obj.second->relation != HoldingType::InObject && obj.second->relation != HoldingType::OnObject)
+					continue;
+				break;
+		}
+		if (count++ > 0)
+			result += '|';
+		result += obj.first;
+	}
+	return result;
+}
+
 }

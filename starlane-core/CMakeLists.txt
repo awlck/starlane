@@ -48,7 +48,7 @@ add_library(starlane-core STATIC
 	# expression handling
 	"expressions/expression.cpp" "expression.h"
 	"expressions/exprp_utility.cpp" "expressions/exprp_utility.h"
-	"expressions/builtins.cpp"
+	"expressions/builtins.cpp" "expressions/builtins.h"
 	# game content (objects, tasks et al.)
 	"gamecontent/gameobj.h" "gamecontent/gameobj.cpp"
 	"gamecontent/character.cpp" "gamecontent/character.h"

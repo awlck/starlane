@@ -52,6 +52,19 @@ public:
 	// this would be that container).
 	const std::string &GetVisbilityCeiling() const;
 
+	enum class ChildFilter {
+		All,
+		Objects,
+		Characters
+	};
+	enum class ChildRelFilter {
+		On,
+		In,
+		OnAndIn
+	};
+	// Gets the (textual) list of children, potentially filtered by object type and relation
+	std::string GetListOfChildren(ChildFilter f1 = ChildFilter::All, ChildRelFilter f2 = ChildRelFilter::OnAndIn) const;
+
 	enum class HoldingType {
 		Hidden,
 		AtLocation,

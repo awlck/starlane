@@ -6,6 +6,7 @@
 #include "../valueparsers.h"
 #include "../gamecontent/character.h"
 #include "../gamecontent/location.h"
+#include "builtins.h"
 
 
 namespace Starlane {
@@ -93,14 +94,9 @@ std::string LanguageNumber(int64_t num, bool f = false) {
 	return result;
 }
 
-enum class ListTransformType {
-	None,  // take list entries at face value and don't perform any transformation
-	Name   // take list entries as object keys and apply the `object.Name' function to each before formatting
-};
-
 // Takes a list in ADRIFT Expression list format (e.g., "foo|bar|baz") and returns
 // a textual description, e.g., "foo, bar and baz"
-std::string WriteListFrom(const std::string &lst, ListTransformType transform = ListTransformType::None) {
+std::string WriteListFrom(const std::string &lst, ListTransformType transform) {
 	std::string result;
 	std::vector<std::string> entries;
 	std::string current;
@@ -204,7 +200,7 @@ void EnsureString(Value &v) {
 		throw std::runtime_error("Invalid value.");
 }
 
-void EnsureInt(Value &v, bool allowSigned = true) {
+void EnsureInt(Value &v, bool allowSigned) {
 	if (v.ty == Expr::ValueType::String) {
 		size_t pos = 0;
 		bool neg = false;
