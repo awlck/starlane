@@ -95,8 +95,10 @@ std::string LanguageNumber(int64_t num, bool f = false) {
 }
 
 // Takes a list in ADRIFT Expression list format (e.g., "foo|bar|baz") and returns
-// a textual description, e.g., "foo, bar and baz"
-std::string WriteListFrom(const std::string &lst, ListTransformType transform) {
+// a textual description, e.g., "foo, bar and baz".
+// (The ADRIFT implementation of recursive list-writing is woefully broken, turning sibling items into child items.
+//  We make an attempt to improve the presentation.)
+std::string WriteListFrom(const std::string &lst, ListTransformType transform, ListJoinType join, bool recurse) {  // NOLINT(misc-no-recursion)
 	std::string result;
 	std::vector<std::string> entries;
 	std::string current;
@@ -113,17 +115,61 @@ std::string WriteListFrom(const std::string &lst, ListTransformType transform) {
 		entries.push_back(current);
 	size_t cnt = entries.size();
 	for (size_t i = 0; i < cnt; i++) {
-		if (i > 0 && i <= cnt - 3)
-			result += ", ";
-		else if (i == cnt - 2)
-			result += " and ";
+		if (i > 0) {
+			if (i != cnt-1) {
+				switch (join) {
+				case ListJoinType::And:
+				case ListJoinType::Or:
+					result += ", ";
+					break;
+				case ListJoinType::Rows:
+					result += '\n';
+					break;
+				}
+ 			} else if (i == cnt-1) {
+				switch (join) {
+				case ListJoinType::And:
+					result += " and ";
+					break;
+				case ListJoinType::Or:
+					result += " or ";
+					break;
+				case ListJoinType::Rows:
+					result += '\n';
+					break;
+				}
+			}
+		}
+
 		switch (transform) {
-		case ListTransformType::Name:
+		case ListTransformType::IndefName:
 			result += Game::Get()->GetObject(entries[i])->GetDisplayName();
+			break;
+		case ListTransformType::DefName:
+			result += Game::Get()->GetObject(entries[i])->GetDisplayName(true);
 			break;
 		case ListTransformType::None:
 			result += entries[i];
 			break;
+		}
+
+		if (recurse) {
+			const auto *obj = Game::Get()->GetObject(entries[i]);
+			auto on = obj->GetListOfChildren(GameObj::ChildFilter::All, GameObj::ChildRelFilter::On, false);
+			auto in = obj->GetListOfChildren(GameObj::ChildFilter::All, GameObj::ChildRelFilter::In, false);
+
+			if (!on.empty()) {
+				result += " (on which ";
+				result += std::count(on.begin(), on.end(), '|') == 0 ? "is " : "are ";
+				WriteListFrom(on, transform, join, true);
+				result += ')';
+			}
+			if (!in.empty()) {
+				result += " (in which ";
+				result += std::count(in.begin(), in.end(), '|') ? "is " : "are ";
+				WriteListFrom(in, transform, join, true);
+				result += ')';
+			}
 		}
 	}
 	return result;

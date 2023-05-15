@@ -15,11 +15,17 @@ void EnsureInt(Value &v, bool allowSigned = true);
 
 enum class ListTransformType {
 	None,  // take list entries at face value and don't perform any transformation
-	Name   // take list entries as object keys and apply the `object.Name' function to each before formatting
+	IndefName,
+	DefName
+};
+enum class ListJoinType {
+	And,
+	Or,
+	Rows
 };
 // Takes a list in ADRIFT Expression list format (e.g., "foo|bar|baz") and returns
 // a textual description, e.g., "foo, bar and baz"
-std::string WriteListFrom(const std::string &lst, ListTransformType transform = ListTransformType::None);
+std::string WriteListFrom(const std::string &lst, ListTransformType transform = ListTransformType::None, ListJoinType join = ListJoinType::And, bool recurse = true);
 
 }
 
