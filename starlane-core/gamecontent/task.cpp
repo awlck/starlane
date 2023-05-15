@@ -140,12 +140,12 @@ Task::Action Task::Action::CreateFromXML(const pugi::xml_node &xmlNode) {
 	} else if (name == "AddObjectToGroup" || name == "AddCharacterToGroup" || name == "AddLocationToGroup") {
 		result.type = ActionType::AddToGroup;
 		result.lhs = tokens[1];
-		result.lhs = tokens[3];
+		result.rhs = tokens[3];
 		// reference type determined below.
 	} else if (name == "RemoveObjectFromGroup" || name == "RemoveCharacterFromGroup" || name == "RemoveLocationFromGroup") {
 		result.type = ActionType::RemoveFromGroup;
 		result.lhs = tokens[1];
-		result.lhs = tokens[3];
+		result.rhs = tokens[3];
 		// reference type determined below.
 	} else if (name == "SetProperty") {
 		result.type = ActionType::SetPropTo;

@@ -8,7 +8,6 @@
 #include <cassert>
 #include <cmath>
 #include <string_view>
-#include <iostream>
 
 #ifdef _MSC_VER
 #include <Windows.h>
@@ -99,6 +98,9 @@ std::map<std::string, decltype(&Expression::LCaseImpl)> Expression::tableOfBuilt
 	{ "If", &Expression::IfImpl },
 	{ "IF", &Expression::IfImpl },
 	{ "if", &Expression::IfImpl },
+	{ "Left", &Expression::LeftImpl },
+	{ "LEFT", &Expression::LeftImpl },
+	{ "left", &Expression::LeftImpl },
 	{ "Len", &Expression::LenImpl },
 	{ "LEN", &Expression::LenImpl },
 	{ "len", &Expression::LenImpl },
@@ -118,6 +120,9 @@ std::map<std::string, decltype(&Expression::LCaseImpl)> Expression::tableOfBuilt
 	{ "Either", &Expression::OneOfImpl },  // 'Either' is just 'OneOf' with two alternatives, so...
 	{ "EITHER", &Expression::OneOfImpl },
 	{ "either", &Expression::OneOfImpl },
+	{ "Rand", &Expression::RandImpl },
+	{ "RAND", &Expression::RandImpl },
+	{ "rand", &Expression::RandImpl },
 	{ "Replace", &Expression::ReplaceImpl },
 	{ "REPLACE", &Expression::ReplaceImpl },
 	{ "replace", &Expression::ReplaceImpl },

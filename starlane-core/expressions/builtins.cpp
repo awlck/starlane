@@ -209,7 +209,7 @@ void EnsureInt(Value &v, bool allowSigned = true) {
 		size_t pos = 0;
 		bool neg = false;
 		while (isspace(v.Str[pos])) ++pos;
-		if (v.Str[pos] == '-') {
+		if (allowSigned && v.Str[pos] == '-') {
 			++pos;
 			neg = true;
 		}
@@ -220,7 +220,7 @@ void EnsureInt(Value &v, bool allowSigned = true) {
 		} else {
 			throw std::runtime_error("Got a string where a number was expected.");
 		}
-	} else if (v.ty == ValueType::Integer) {
+	} else if (v.ty == ValueType::Invalid) {
 		throw std::runtime_error("Invalid value.");
 	}
 }
