@@ -8,7 +8,16 @@ set(CMAKE_CXX_EXTIONSION OFF)
 add_subdirectory(deps/pugixml)
 add_subdirectory(deps/miniz)
 
-add_executable(packcc "deps/packcc/src/packcc.c")
+# When cross-compiling, import the executable targets from a file
+IF(CMAKE_CROSSCOMPILING)
+	SET(IMPORT_EXECUTABLES "IMPORTFILE-NOTFOUND" CACHE FILEPATH "Point it to the export file from a native build")
+	INCLUDE(${IMPORT_EXECUTABLES})
+ENDIF()
+
+# Only build the generator if not crosscompiling
+IF(NOT CMAKE_CROSSCOMPILING)
+	add_executable(packcc "deps/packcc/src/packcc.c")
+ENDIF()
 
 add_custom_command(
 	OUTPUT "${CMAKE_CURRENT_BINARY_DIR}/exprparser.c" "${CMAKE_CURRENT_BINARY_DIR}/exprparser.h"
@@ -58,4 +67,9 @@ target_link_libraries(starlane-core miniz pugixml-static slc_exprparser)
 target_include_directories(starlane-core PRIVATE deps/miniz deps/pugixml/src ${CMAKE_CURRENT_BINARY_DIR})
 if (MSVC)  # make sure SEH exceptions work
 	string(REGEX REPLACE "/EHsc" "/EHa /EHc-" CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS}")
+endif()
+
+# Export the parser generator binary for use by cross-compilation targets.
+if(NOT CMAKE_CROSSCOMPILING)
+	EXPORT(TARGETS packcc FILE "${CMAKE_BINARY_DIR}/ImportExecutables.cmake")
 endif()

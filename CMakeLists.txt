@@ -38,7 +38,7 @@ else()
 		"-Wextra"
 		"-Wimplicit-fallthrough"  # warn on implicit switch statement fallthrough
 		"-Werror=return-type"  # treat return-related issues as errors
-		"-fstack-protector"  # enable stack protection
+		"$<$<NOT:$<BOOL:${EMSCRIPTEN}>>:-fstack-protector>"  # enable stack protection
 		"-fvisibility=hidden"
 		$<$<NOT:$<CONFIG:Debug>>:-flto>  # release only: link-time whole-program optimization
 	)
