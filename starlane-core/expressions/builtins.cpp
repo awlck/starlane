@@ -594,34 +594,34 @@ Expr::Value Expression::ObjChildrenImpl(const GameObj *obj, const ast_node_tag *
 		auto tmp = EvalAnyNode(args->child.first);
 		Expr::EnsureString(tmp);
 		const auto &txt = tmp.Str;
-		if (txt == "Characters")
+		if (txt == "Characters" || txt == "characters")
 			typeFilter = GameObj::ChildFilter::Characters;
-		else if (txt == "Objects")
+		else if (txt == "Objects" || txt == "objects")
 			typeFilter = GameObj::ChildFilter::Objects;
-		else if (txt == "In")
+		else if (txt == "In" || txt == "in")
 			relationFilter = GameObj::ChildRelFilter::In;
-		else if (txt == "On")
+		else if (txt == "On" || txt == "on")
 			relationFilter = GameObj::ChildRelFilter::On;
-		else if (txt != "All" && txt != "OnAndIn")
+		else if (txt != "All" && txt != "all" && txt != "OnAndIn" && txt != "onandin")
 			throw std::runtime_error("Invalid filter in call to obj.Children: " + txt);
 	} else if (args->arity == 2) {
 		auto tmp1 = EvalAnyNode(args->child.first);
 		Expr::EnsureString(tmp1);
 		const auto &txt = tmp1.Str;
-		if (txt == "Characters")
+		if (txt == "Characters" || txt == "characters")
 			typeFilter = GameObj::ChildFilter::Characters;
-		else if (txt == "Objects")
+		else if (txt == "Objects" || txt == "objects")
 			typeFilter = GameObj::ChildFilter::Objects;
-		else if (txt != "All")
+		else if (txt != "All" || txt == "all")
 			throw std::runtime_error("Invalid filter in call to obj.Children: " + txt);
 		auto tmp2 = EvalAnyNode(args->child.first);
 		Expr::EnsureString(tmp2);
 		const auto &txt2 = tmp1.Str;
-		if (txt2 == "In")
+		if (txt2 == "In" || txt2 == "in")
 			relationFilter = GameObj::ChildRelFilter::In;
-		else if (txt2 == "On")
+		else if (txt2 == "On" || txt2 == "on")
 			relationFilter = GameObj::ChildRelFilter::On;
-		else if (txt2 != "OnAndIn")
+		else if (txt2 != "OnAndIn" || txt2 == "onandin")
 			throw std::runtime_error("Invalid filter in call to obj.Children: " + txt2);
 	}
 	return obj->GetListOfChildren(typeFilter, relationFilter);
@@ -635,13 +635,51 @@ Expr::Value Expression::ObjContentsImpl(const Starlane::GameObj *obj, const ast_
 	Expr::EnsureString(tmp);
 	const auto &txt = tmp.Str;
 	auto typeFilter = GameObj::ChildFilter::All;
-	if (txt == "Characters")
+	if (txt == "Characters" || txt == "characters")
 		typeFilter = GameObj::ChildFilter::Characters;
-	else if (txt == "Objects")
+	else if (txt == "Objects" || txt == "objects")
 		typeFilter = GameObj::ChildFilter::Objects;
-	else if (txt != "All")
+	else if (txt != "All" || txt == "all")
 		throw std::runtime_error("Invalid filter in call to obj.Contents: " + txt);
 	return obj->GetListOfChildren(typeFilter, GameObj::ChildRelFilter::In);
+}
+
+static bool ValueAsBool(const Expr::Value &val) {
+	if (val.ty == Expr::ValueType::String) {
+		return ParseBool(val.Str.c_str());
+	} else if (val.ty == Expr::ValueType::Integer) {
+		return val.Int;
+	} else throw std::runtime_error("Invalid value encountered.");
+}
+
+Expr::Value Expression::CharHeldImpl(const Starlane::Character *obj, const ast_node_tag *args) const {
+	bool recurse = true;
+	if (args != nullptr) {
+		CHECK_ARGCOUNT_V("char.Held", 0, 1);
+		auto tmp = EvalAnyNode(args->child.first);
+		recurse = ValueAsBool(tmp);
+	}
+	return obj->GetPossessionsList(Character::PossessionFilter::Held, recurse);
+}
+
+Expr::Value Expression::CharWornImpl(const Starlane::Character *obj, const ast_node_tag *args) const {
+	bool recurse = true;
+	if (args != nullptr) {
+		CHECK_ARGCOUNT_V("char.Worn", 0, 1);
+		auto tmp = EvalAnyNode(args->child.first);
+		recurse = ValueAsBool(tmp);
+	}
+	return obj->GetPossessionsList(Character::PossessionFilter::Worn, recurse);
+}
+
+Expr::Value Expression::CharWornAndHeldImpl(const Starlane::Character *obj, const ast_node_tag *args) const {
+	bool recurse = true;
+	if (args != nullptr) {
+		CHECK_ARGCOUNT_V("char.WornAndHeld", 0, 1);
+		auto tmp = EvalAnyNode(args->child.first);
+		recurse = ValueAsBool(tmp);
+	}
+	return obj->GetPossessionsList(Character::PossessionFilter::WornAndHeld, recurse);
 }
 
 }

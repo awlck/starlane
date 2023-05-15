@@ -49,10 +49,10 @@ GameObj *GameObj::CreateFromXML(const pugi::xml_node &xmlNode) {
 	return result;
 }
 
-std::string GameObj::GetDisplayName() const {
+std::string GameObj::GetDisplayName(bool defArt) const {
 	std::string result;
 	if (!article.empty()) {
-		result = article;
+		result = defArt ? "the" : article;
 		result += ' ';
 	}
 	if (!prefix.empty()) {
@@ -119,11 +119,12 @@ std::string GameObj::GetDescription(bool forDisplay) const {
 	return Game::Get()->GetDescription(description)->Build(forDisplay);
 }
 
-std::string GameObj::GetListOfChildren(GameObj::ChildFilter f1, GameObj::ChildRelFilter f2) const {
+std::string GameObj::GetListOfChildren(GameObj::ChildFilter f1, GameObj::ChildRelFilter f2, bool recurse) const {
 	std::string result;
 	size_t count = 0;
 	auto *g = Game::Get();
 	for (const auto &obj: g->GetAllObjects()) {
+		if (obj.second->GetParentKey() != key) continue;
 		if (f1 == ChildFilter::Objects && dynamic_cast<Character *>(obj.second))
 			continue;
 		if (f1 == ChildFilter::Characters && !dynamic_cast<Character *>(obj.second))
@@ -145,6 +146,14 @@ std::string GameObj::GetListOfChildren(GameObj::ChildFilter f1, GameObj::ChildRe
 		if (count++ > 0)
 			result += '|';
 		result += obj.first;
+
+		if (recurse) {
+			std::string tmp = obj.second->GetListOfChildren(f1, f2, true);
+			if (!tmp.empty()) {
+				result += '|';
+				result += tmp;
+			}
+		}
 	}
 	return result;
 }

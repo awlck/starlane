@@ -46,6 +46,13 @@ public:
 	};
 	inline Posture GetPosture() { return posture; }
 	void MakePosture(const std::string &newParent, Posture p);
+
+	enum class PossessionFilter {
+		Worn,
+		Held,
+		WornAndHeld
+	};
+	std::string GetPossessionsList(PossessionFilter pf = PossessionFilter::WornAndHeld, bool recurse = true) const;
 private:
 	Character() = default;
 

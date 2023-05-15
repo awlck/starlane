@@ -12,6 +12,8 @@
 struct ast_node_tag;
 
 namespace Starlane {
+class Character;
+
 namespace Expr {
 enum class ValueType {
 	Invalid,
@@ -149,6 +151,9 @@ private:
 	// item function wrappers
 	Expr::Value ObjChildrenImpl(const GameObj *obj, const ast_node_tag *args) const;
 	Expr::Value ObjContentsImpl(const GameObj *obj, const ast_node_tag *args) const;
+	Expr::Value CharHeldImpl(const Character *obj, const ast_node_tag *args) const;
+	Expr::Value CharWornImpl(const Character *obj, const ast_node_tag *args) const;
+	Expr::Value CharWornAndHeldImpl(const Character *obj, const ast_node_tag *args) const;
 
 	void PostProcessTree();
 

@@ -26,7 +26,7 @@ public:
 	[[nodiscard]] const std::string &Key() const { return key; }
 	const std::string &GetParentKey() const { return parent; }
 
-	virtual std::string GetDisplayName() const;
+	virtual std::string GetDisplayName(bool defArt = false) const;
 	virtual std::string GetDescription(bool forDisplay = true) const;
 
 	// Note that this object is becoming a member of the given group.
@@ -63,7 +63,7 @@ public:
 		OnAndIn
 	};
 	// Gets the (textual) list of children, potentially filtered by object type and relation
-	std::string GetListOfChildren(ChildFilter f1 = ChildFilter::All, ChildRelFilter f2 = ChildRelFilter::OnAndIn) const;
+	std::string GetListOfChildren(ChildFilter f1 = ChildFilter::All, ChildRelFilter f2 = ChildRelFilter::OnAndIn, bool recurse = false) const;
 
 	enum class HoldingType {
 		Hidden,

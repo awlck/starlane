@@ -89,4 +89,29 @@ void Character::MakePosture(const std::string &newParent, Posture p) {
 	posture = p;
 }
 
+std::string Character::GetPossessionsList(Starlane::Character::PossessionFilter pf, bool recurse) const {
+	std::string result;
+	size_t count = 0;
+	auto *g = Game::Get();
+	for (const auto &obj: g->GetAllObjects()) {
+		if (obj.second->GetParentKey() != key) continue;
+		if (pf == PossessionFilter::Worn && obj.second->GetParentRelation() != GameObj::HoldingType::Worn)
+			continue;
+		if (pf == PossessionFilter::Held && obj.second->GetParentRelation() != GameObj::HoldingType::InObject)
+			continue;
+		if (count++ > 0)
+			result += '|';
+		result += obj.first;
+
+		if (recurse) {
+			auto tmp = obj.second->GetListOfChildren(GameObj::ChildFilter::All, GameObj::ChildRelFilter::OnAndIn, true);
+			if (!tmp.empty()) {
+				result += '|';
+				result += tmp;
+			}
+		}
+	}
+	return result;
+}
+
 }

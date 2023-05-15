@@ -8,6 +8,8 @@
 #include "../gamecontent/utility.h"
 #include "../gamecontent/gameobj.h"
 #include "../gamecontent/location.h"
+#include "../gamecontent/character.h"
+#include "../gamecontent/event.h"
 
 #include <cassert>
 #include <cmath>
@@ -268,6 +270,7 @@ std::string Expression::EvaluateStr() const {
 	throw std::runtime_error("Invalid expression result");
 }
 
+//NOLINTBEGIN(misc-no-recursion)
 Expr::Value Expression::EvalAnyNode(const ast_node_tag *node) const {
 	switch (node->type) {
 	case AST_NODE_TYPE_IDENTIFIER:
@@ -440,7 +443,7 @@ Expr::Value Expression::EvalAnyNode(const ast_node_tag *node) const {
 }
 
 Expr::Value Expression::EvalFunccall(Expr::Value toCall, const ast_node_tag *args) const {
-	assert(toCall.ty == Expr::ValueType::String);
+	Expr::EnsureString(toCall);
 	const std::string &func = toCall.Str;
 	// idk, this seems more efficient than a chain of 20-or-so instances of 'if (func == "LCase")'
 	if (tableOfBuiltInFunctions.count(func) > 0) {
@@ -494,8 +497,37 @@ Expr::Value Expression::EvalItemfunc(Expr::Value obj, const ast_node_tag *toCall
 		if (toCall_.Str == "Exits")
 			return theObj->GetListOfExits();
 	}
+	if (IsListedIn(listOfCharacterFunctions, toCall_.Str.c_str())) {
+		const auto *theObj = dynamic_cast<Character *>(Game::Get()->GetObject(obj.Str));
+		if (!theObj) throw std::runtime_error("Item function on characters applied to non-character: " + obj.Str);
+		if (toCall_.Str == "Descriptor")
+			return theObj->GetDescriptor();
+		if (toCall_.Str == "Held")
+			return CharHeldImpl(theObj, args);
+		if (toCall_.Str == "Worn")
+			return CharWornImpl(theObj, args);
+		if (toCall_.Str == "WornAndHeld")
+			return CharWornAndHeldImpl(theObj, args);
+	}
+	if (IsListedIn(listOfEventFunctions, toCall_.Str.c_str())) {
+		auto *theEvt = Game::Get()->GetEvent(obj.Str);
+		if (!theEvt) throw std::runtime_error("Item function on events applied to non-event: " + obj.Str);
+		if (toCall_.Str == "Length")
+			return theEvt->GetDuration().Value();
+		if (toCall_.Str == "Position")
+			return theEvt->GetTimeSinceStart();
+	}
+	if (toCall_.Str == "Count") {
+		if (obj.Str.empty()) return 0;
+		return std::count(obj.Str.begin(), obj.Str.end(), '|') + 1;
+	}
+	if (toCall_.Str == "List") {
+		if (obj.Str.empty()) return std::string();
+		return Expr::WriteListFrom(obj.Str)
+	}
 	return Expr::Value();
 }
+//NOLINTEND(misc-no-recursion)
 
 int64_t Expression::EvalAsIntImpl() const {
 #ifdef _MSC_VER
@@ -530,12 +562,8 @@ int64_t Expression::EvalAsIntImpl() const {
 	if (result.ty == Expr::ValueType::Integer) return result.Int;
 	// we're dealing with a string, try to convert it to an integer.
 	if (result.Str.empty()) return 0;  // hmm... not sure about this.
-	int ws = 0;
-	while (isspace(result.Str[ws])) ++ws;
-	if (IsDigits(result.Str.c_str()+ws)) {
-		return ParseInt(result.Str.c_str()+ws);
-	}
-	throw std::runtime_error("Got a string where an integer was expected.");
+	Expr::EnsureInt(result);
+	return result.Int;
 }
 
 }

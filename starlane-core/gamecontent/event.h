@@ -62,6 +62,9 @@ public:
 	void ReceiveTaskNotification(Util::Control::Condition ctrl, const std::string &taskKey);
 	void Start();
 
+	Util::Range &GetDuration() { return duration; }
+	int32_t GetTimeSinceStart() const { return timeSinceStart; }
+
 private:
 	Event() = default;
 	void Stop();
@@ -81,6 +84,7 @@ private:
 	bool repeating;
 	bool repeatCountdown;
 	State state = State::NotOngoing;
+	int32_t timeSinceStart = 0;
 };
 
 }
