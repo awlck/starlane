@@ -5,6 +5,9 @@
 #include "exprp_utility.h"
 #include "exprparser.h"
 #include "builtins.h"
+#include "../gamecontent/utility.h"
+#include "../gamecontent/gameobj.h"
+#include "../gamecontent/location.h"
 
 #include <cassert>
 #include <cmath>
@@ -142,6 +145,7 @@ std::map<std::string, decltype(&Expression::LCaseImpl)> Expression::tableOfBuilt
 static const char *listOfObjectFunctions[] = {
 		"Children",
 		"Contents",
+		"Description",
 		"Location",
 		"Name",
 		"Parent"
@@ -447,9 +451,49 @@ Expr::Value Expression::EvalFunccall(Expr::Value toCall, const ast_node_tag *arg
 	return Expr::Value();
 }
 
+template<size_t N> inline bool IsListedIn(const char *(&arr)[N], const char *val) {
+	for (size_t i = 0; i < N; i++)
+		if (STREQ(val, arr[i])) return true;
+	return false;
+}
+
 Expr::Value Expression::EvalItemfunc(Expr::Value obj, const ast_node_tag *toCall) const {
 	Expr::EnsureString(obj);
-
+	// Extract function name and argument list, or note that there are no arguments.
+	Expr::Value toCall_;
+	const ast_node_tag *args;
+	if (toCall->type == AST_NODE_TYPE_FUNCCALL) {
+		toCall_ = EvalAnyNode(toCall->child.first);
+		args = toCall->child.last;
+	} else {
+		toCall_ = EvalAnyNode(toCall);
+		args = nullptr;
+	}
+	EnsureString(toCall_);
+	// Figure out what sort of function we're dealing with, and call it.
+	if (IsListedIn(listOfObjectFunctions, toCall_.Str.c_str())) {
+		const auto *theObj = Game::Get()->GetObject(obj.Str);
+		if (toCall_.Str == "Children")
+			return ObjChildrenImpl(theObj, args);
+		if (toCall_.Str == "Contents")
+			return ObjContentsImpl(theObj, args);
+		if (toCall_.Str == "Name")
+			return theObj->GetDisplayName();
+		if (toCall_.Str == "Description")
+			return theObj->GetDescription();
+		if (toCall_.Str == "Location")
+			return theObj->GetLocationKey();
+		if (toCall_.Str == "Parent")
+			return theObj->GetParentKey();
+	}
+	if (IsListedIn(listOfLocationFunctions, toCall_.Str.c_str())) {
+		const auto *theObj = dynamic_cast<Location *>(Game::Get()->GetObject(obj.Str));
+		if (!theObj) throw std::runtime_error("Item function on locations applied to non-location: " + obj.Str);
+		if (toCall_.Str == "Objects")
+			return theObj->GetListOfChildren(GameObj::ChildFilter::Objects, GameObj::ChildRelFilter::In);
+		if (toCall_.Str == "Exits")
+			return theObj->GetListOfExits();
+	}
 	return Expr::Value();
 }
 

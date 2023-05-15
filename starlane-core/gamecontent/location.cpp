@@ -4,6 +4,7 @@
 
 #include "../game.h"
 #include "description.h"
+#include "restriction.h"
 
 namespace Starlane {
 
@@ -35,6 +36,28 @@ std::string Location::GetDisplayName() const {
 
 GameObj *Location::Clone() const {
 	return new Location(*this);
+}
+
+std::string Location::GetListOfExits() const {
+	std::string result;
+	size_t count = 0;
+	for (auto &e: exits) {
+		// add to result if unrestricted
+		if (e.second.restr == 0) {
+			if (count++ > 0)
+				result += '|';
+			result += e.first;
+			continue;
+		}
+		// otherwise check if restriction passes
+		const auto *restr = Game::Get()->GetRestriction(e.second.restr);
+		if (restr->PassRestrictionBlock().first) {
+			if (count++ > 0)
+				result += '|';
+			result += e.first;
+		}
+	}
+	return result;
 }
 
 }

@@ -538,4 +538,64 @@ Expr::Value Expression::ValImpl(const ast_node_tag *args) const {
 	}
 }
 
+Expr::Value Expression::ObjChildrenImpl(const GameObj *obj, const ast_node_tag *args) const {
+	if (args == nullptr || args->arity == 0)
+		return obj->GetListOfChildren();
+	CHECK_ARGCOUNT_V("object.Children", 0, 2);
+	auto typeFilter = GameObj::ChildFilter::All;
+	auto relationFilter = GameObj::ChildRelFilter::OnAndIn;
+	if (args->arity == 1) {
+		auto tmp = EvalAnyNode(args->child.first);
+		Expr::EnsureString(tmp);
+		const auto &txt = tmp.Str;
+		if (txt == "Characters")
+			typeFilter = GameObj::ChildFilter::Characters;
+		else if (txt == "Objects")
+			typeFilter = GameObj::ChildFilter::Objects;
+		else if (txt == "In")
+			relationFilter = GameObj::ChildRelFilter::In;
+		else if (txt == "On")
+			relationFilter = GameObj::ChildRelFilter::On;
+		else if (txt != "All" && txt != "OnAndIn")
+			throw std::runtime_error("Invalid filter in call to obj.Children: " + txt);
+	} else if (args->arity == 2) {
+		auto tmp1 = EvalAnyNode(args->child.first);
+		Expr::EnsureString(tmp1);
+		const auto &txt = tmp1.Str;
+		if (txt == "Characters")
+			typeFilter = GameObj::ChildFilter::Characters;
+		else if (txt == "Objects")
+			typeFilter = GameObj::ChildFilter::Objects;
+		else if (txt != "All")
+			throw std::runtime_error("Invalid filter in call to obj.Children: " + txt);
+		auto tmp2 = EvalAnyNode(args->child.first);
+		Expr::EnsureString(tmp2);
+		const auto &txt2 = tmp1.Str;
+		if (txt2 == "In")
+			relationFilter = GameObj::ChildRelFilter::In;
+		else if (txt2 == "On")
+			relationFilter = GameObj::ChildRelFilter::On;
+		else if (txt2 != "OnAndIn")
+			throw std::runtime_error("Invalid filter in call to obj.Children: " + txt2);
+	}
+	return obj->GetListOfChildren(typeFilter, relationFilter);
+}
+
+Expr::Value Expression::ObjContentsImpl(const Starlane::GameObj *obj, const ast_node_tag *args) const {
+	if (args == nullptr || args->arity == 0)
+		return obj->GetListOfChildren(GameObj::ChildFilter::All, GameObj::ChildRelFilter::In);
+	CHECK_ARGCOUNT_V("object.Contents", 0, 1);
+	auto tmp = EvalAnyNode(args->child.first);
+	Expr::EnsureString(tmp);
+	const auto &txt = tmp.Str;
+	auto typeFilter = GameObj::ChildFilter::All;
+	if (txt == "Characters")
+		typeFilter = GameObj::ChildFilter::Characters;
+	else if (txt == "Objects")
+		typeFilter = GameObj::ChildFilter::Objects;
+	else if (txt != "All")
+		throw std::runtime_error("Invalid filter in call to obj.Contents: " + txt);
+	return obj->GetListOfChildren(typeFilter, GameObj::ChildRelFilter::In);
+}
+
 }
