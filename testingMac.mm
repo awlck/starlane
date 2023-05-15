@@ -1,7 +1,6 @@
 #include <string>
 
 #include <starlane-core.h>
-#include <taffile.h>
 #include <game.h>
 #include <gamecontent/restriction.h>
 #include <expression.h>
