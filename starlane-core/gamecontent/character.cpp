@@ -31,10 +31,10 @@ Character *Character::CreateFromXML(const pugi::xml_node &xmlNode) {
 	return result;
 }
 
-std::string Character::GetDisplayName() const {
+std::string Character::GetDisplayName(bool defArt) const {
 	if (!Game::Get()->PropExists("Known") || GetPropValue<bool>("Known"))
 		return GetProperName();
-	return GameObj::GetDisplayName();
+	return GameObj::GetDisplayName(defArt);
 }
 
 std::string Character::GetDescription(bool forDisplay) const {

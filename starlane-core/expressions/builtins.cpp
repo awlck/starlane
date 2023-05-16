@@ -1,6 +1,5 @@
 #include "../expression.h"
 #include "exprp_utility.h"
-#include "../starlane-core.h"
 #include "../game.h"
 #include "../random.h"
 #include "../valueparsers.h"
@@ -19,8 +18,8 @@ namespace Starlane {
 
 namespace Expr {
 
-const char *LanguageTens[] = { 0, 0, "twenty", "thirty", "fourty", "fifty", "sixty", "seventy", "eighty", "ninety" };
-const char *LanguageOnes[] = { 0, "one", "two", "three", "four", "five", "six", "seven", "eight", "nine", "ten", "eleven", "twelve", "thirteen", "fourteen", "fifteen", "sixteen", "seventeen", "eighteen", "nineteen" };
+static const char *LanguageTens[] = { 0, 0, "twenty", "thirty", "fourty", "fifty", "sixty", "seventy", "eighty", "ninety" };
+static const char *LanguageOnes[] = { 0, "one", "two", "three", "four", "five", "six", "seven", "eight", "nine", "ten", "eleven", "twelve", "thirteen", "fourteen", "fifteen", "sixteen", "seventeen", "eighteen", "nineteen" };
 
 std::string LanguageNumber(int64_t num, bool f = false) {
 	// adapted from Inform's implementation but extended for 64-bit integers
@@ -302,16 +301,8 @@ Expr::Value Expression::PCaseImpl(const ast_node_tag *args) const {
 Expr::Value Expression::NumberAsTextImpl(const ast_node_tag *args) const {
 	CHECK_ARGCOUNT("NumberAsText", 1);
 	auto theArg = EvalAnyNode(args->child.first);
-	if (theArg.ty == Expr::ValueType::Integer) {
-		return Expr::LanguageNumber(theArg.Int);
-	} else if (theArg.ty == Expr::ValueType::String) {
-		// attempt to convert to integer
-		size_t pos = 0;
-		while (isspace(theArg.Str[pos])) ++pos;
-		if (IsDigits(theArg.Str.c_str() + pos)) {
-			return Expr::LanguageNumber(ParseInt(theArg.Str.c_str() + pos));
-		} else throw std::runtime_error("NumberAsText called for a non-number.");
-	} else throw std::runtime_error("Invalid value.");
+	Expr::EnsureInt(theArg);
+	return Expr::LanguageNumber(theArg.Int);
 }
 
 Expr::Value Expression::CharacterDescriptorImpl(const ast_node_tag *args) const {
@@ -354,7 +345,6 @@ Expr::Value Expression::AloneWithCharImpl(const ast_node_tag *args) const {
 
 Expr::Value Expression::LocationNameImpl(const ast_node_tag *args) const {
 	CHECK_ARGCOUNT("LocationName", 1);
-	auto g = Game::Get();
 	EXTRACT_FIRST_ARG_STR(args, theArg);
 	auto *loc = dynamic_cast<Location *>(Game::Get()->GetObject(theArg.Str));
 	if (!loc)
@@ -365,7 +355,7 @@ Expr::Value Expression::LocationNameImpl(const ast_node_tag *args) const {
 Expr::Value Expression::TheObjectImpl(const ast_node_tag *args) const {
 	CHECK_ARGCOUNT("TheObject(s)", 1);
 	EXTRACT_FIRST_ARG_STR(args, theArg);
-	return Expr::WriteListFrom(theArg.Str, Expr::ListTransformType::Name);
+	return Expr::WriteListFrom(theArg.Str, Expr::ListTransformType::DefName);
 }
 
 Expr::Value Expression::CharacterNameImpl(const ast_node_tag *args) const {
@@ -387,11 +377,7 @@ Expr::Value Expression::CharacterNameImpl(const ast_node_tag *args) const {
 		EXTRACT_FIRST_ARG_STR(args, theChar);
 		toDisplay = theChar.Str;
 		auto thePronoun = EvalAnyNode(args->child.last);
-		if (thePronoun.ty == Expr::ValueType::Integer) {
-			thePronoun.ty = Expr::ValueType::String;
-			thePronoun.Str = std::to_string(thePronoun.Int);
-		} else if (thePronoun.ty == Expr::ValueType::Invalid)
-			throw std::runtime_error("Invalid value.");
+		Expr::EnsureString(thePronoun);
 		if (thePronoun.Str == "object" || thePronoun.Str == "objective" || thePronoun.Str == "target") {
 			if (mostRecent.first == toDisplay && mostRecent.second == Pronoun::Subject)
 				pronoun = Pronoun::Reflective;
@@ -399,41 +385,27 @@ Expr::Value Expression::CharacterNameImpl(const ast_node_tag *args) const {
 		} else if (thePronoun.Str == "possessive")
 			pronoun = Pronoun::Possessive;
 	}
-	if (toDisplay == mostRecent.first || toDisplay == g->GetReference("%Player%"))
+	g->MentionCharacter(toDisplay, pronoun);
+	if (toDisplay == mostRecent.first || toDisplay == g->GetReference("%Player%")) {
 		return Expr::ShowPronounForChar(toDisplay, pronoun);
-	else
+	} else {
 		return g->GetObject(toDisplay)->GetDisplayName();
+	}
 }
 
 Expr::Value Expression::AbsImpl(const ast_node_tag *args) const {
 	CHECK_ARGCOUNT("Abs", 1);
 	auto theArg = EvalAnyNode(args->child.first);
-	if (theArg.ty == Expr::ValueType::Integer) {
-		return abs(theArg.Int);
-	} else if (theArg.ty == Expr::ValueType::String) {
-		size_t pos = 0;
-		while (isspace(theArg.Str[pos])) ++pos;
-		if (theArg.Str[pos] == '-') ++pos;  // ignore the minus because we want the absolute value anyways
-		if (IsDigits(theArg.Str.c_str() + pos)) {
-			return ParseInt(theArg.Str.c_str() + pos);
-		} else throw std::runtime_error("Tried to take the absolute value of a non-integer.");
-	} else throw std::runtime_error("Invalid value.");
+	Expr::EnsureInt(theArg);
+	return theArg.Int < 0 ? (-theArg.Int) : theArg;
 }
 
 Expr::Value Expression::InstrImpl(const ast_node_tag *args) const {
 	CHECK_ARGCOUNT("Instr", 1);
 	auto haystack = EvalAnyNode(args->child.first);
-	if (haystack.ty == Expr::ValueType::Integer) {
-		haystack.ty = Expr::ValueType::String;
-		haystack.Str = std::to_string(haystack.Int);
-	} else if (haystack.ty == Expr::ValueType::Invalid)
-		throw std::runtime_error("Invalid value.");
+	Expr::EnsureString(haystack);
 	auto needle = EvalAnyNode(args->child.last);
-	if (needle.ty == Expr::ValueType::Integer) {
-		needle.ty = Expr::ValueType::String;
-		needle.Str = std::to_string(needle.Int);
-	} else if (needle.ty == Expr::ValueType::Invalid)
-		throw std::runtime_error("Invalid value.");
+	Expr::EnsureString(needle);
 	// this is a case-insensitive substring search, so...
 	std::string theHaystack(frontend->StrToLowerCase(haystack.Str));
 	std::string theNeedle(frontend->StrToLowerCase(needle.Str));
@@ -457,23 +429,14 @@ Expr::Value Expression::LeftImpl(const ast_node_tag *args) const {
 	CHECK_ARGCOUNT("Left", 2);
 	EXTRACT_FIRST_ARG_STR(args, theString);
 	auto theLength = EvalAnyNode(args->child.last);
-	if (theLength.ty == Expr::ValueType::String) {
-		// attempt to convert to integer
-		size_t pos = 0;
-		while (isspace(theLength.Str[pos])) ++pos;
-		if (IsDigits(theLength.Str.c_str() + pos)) {
-			theLength.ty = Expr::ValueType::Integer;
-			theLength.Int = ParseInt(theLength.Str.c_str() + pos);
-		} else throw std::runtime_error("Got a string where a number was expected.");
-	} else if (theLength.ty == Expr::ValueType::Invalid)
-		throw std::runtime_error("Invalid value.");
+	Expr::EnsureInt(theLength);
 	return theString.Str.substr(0, theLength.Int);
 }
 
 Expr::Value Expression::LenImpl(const ast_node_tag *args) const {
 	CHECK_ARGCOUNT("Len", 1);
 	EXTRACT_FIRST_ARG_STR(args, theString);
-	return theString.Str.size();
+	return (int64_t) theString.Str.size();
 }
 
 Expr::Value Expression::MaxImpl(const ast_node_tag *args) const {
@@ -492,7 +455,7 @@ Expr::Value Expression::MidImpl(const ast_node_tag *args) const {
 	Expr::EnsureInt(theStart, false);
 	auto theLength = EvalAnyNode(args->child.last);
 	Expr::EnsureInt(theLength, false);
-	if (theStart.Int >= theString.Str.size())
+	if (theStart.Int >= (int64_t)theString.Str.size())
 		return std::string();
 	return theString.Str.substr(theStart.Int, theLength.Int);
 }

@@ -28,7 +28,7 @@ Location *Location::CreateFromXML(const pugi::xml_node &xmlNode) {
 	return result;
 }
 
-std::string Location::GetDisplayName() const {
+std::string Location::GetDisplayName([[maybe_unused]] bool defArt) const {
 	if (locationName == (DescrRef) 0)
 		return "(BUG: Location without a name.)";
 	return Game::Get()->GetDescription(locationName)->Build();

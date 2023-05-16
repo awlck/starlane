@@ -15,7 +15,7 @@ public:
 	[[nodiscard]] GameObj *Clone() const override;
 
 	// Gets the display name (i.e. short location description) of this location
-	std::string GetDisplayName() const override;
+	std::string GetDisplayName([[maybe_unused]] bool = false) const override;
 
 	struct ExitSpec {
 		std::string destination;

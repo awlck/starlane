@@ -21,7 +21,7 @@ public:
 	// Returns the proper name if the character is known, or the property known dowsn't exist.
 	// If the property known exists and isn't set, returns the descriptor
 	// (i.e., the usual article+prefix+noun combo inherited from GameObj)
-	std::string GetDisplayName() const override;
+	std::string GetDisplayName(bool defArt) const override;
 	// Implements `character.ProperName`.
 	// Returns the proper name of this character, or 'Anonymous' if that is not set.
 	std::string GetProperName() const { return properName.empty() ? "Anonymous" : properName; }

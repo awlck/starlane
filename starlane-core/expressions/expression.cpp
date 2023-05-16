@@ -523,7 +523,7 @@ Expr::Value Expression::EvalItemfunc(Expr::Value obj, const ast_node_tag *toCall
 	}
 	if (toCall_.Str == "List") {
 		if (obj.Str.empty()) return std::string();
-		return Expr::WriteListFrom(obj.Str)
+		return Expr::WriteListFrom(obj.Str);
 	}
 	return Expr::Value();
 }
