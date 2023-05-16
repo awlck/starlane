@@ -453,7 +453,22 @@ Expr::Value Expression::EvalFunccall(Expr::Value toCall, const ast_node_tag *arg
 		auto leFunction = tableOfBuiltInFunctions.at(func);
 		return (this->*leFunction)(args);
 	}
-	// todo: user-defined functions, array access
+
+	auto *g = Game::Get();
+	auto *v = g->GetVarByName(func);
+	if (v) {
+		auto varTy = v->GetType();
+		if (varTy == Variable::Type::IntArray || varTy == Variable::Type::StringArray) {
+			auto idxVal = EvalAnyNode(args->child.last);
+			Expr::EnsureInt(idxVal, false);
+			if (varTy == Variable::Type::IntArray)
+				return v->GetValue<int64_t>((uint32_t) idxVal.Int);
+			else
+				return v->GetValue<std::string>((uint32_t) idxVal.Int);
+		}
+	}
+
+	// todo: user-defined functions
 	return Expr::Value();
 }
 
