@@ -10,6 +10,8 @@
 #include "../gamecontent/location.h"
 #include "../gamecontent/character.h"
 #include "../gamecontent/event.h"
+#include "../gamecontent/property.h"
+#include "../gamecontent/description.h"
 
 #include <cassert>
 #include <cmath>
@@ -17,6 +19,7 @@
 
 #ifdef _MSC_VER
 #include <Windows.h>
+#undef GetObject
 #endif
 
 namespace Starlane {
@@ -473,9 +476,10 @@ Expr::Value Expression::EvalItemfunc(Expr::Value obj, const ast_node_tag *toCall
 		args = nullptr;
 	}
 	EnsureString(toCall_);
+	auto *g = Game::Get();
 	// Figure out what sort of function we're dealing with, and call it.
 	if (IsListedIn(listOfObjectFunctions, toCall_.Str.c_str())) {
-		const auto *theObj = Game::Get()->GetObject(obj.Str);
+		const auto *theObj = g->GetObject(obj.Str);
 		if (toCall_.Str == "Children")
 			return ObjChildrenImpl(theObj, args);
 		if (toCall_.Str == "Contents")
@@ -490,7 +494,7 @@ Expr::Value Expression::EvalItemfunc(Expr::Value obj, const ast_node_tag *toCall
 			return theObj->GetParentKey();
 	}
 	if (IsListedIn(listOfLocationFunctions, toCall_.Str.c_str())) {
-		const auto *theObj = dynamic_cast<Location *>(Game::Get()->GetObject(obj.Str));
+		const auto *theObj = dynamic_cast<Location *>(g->GetObject(obj.Str));
 		if (!theObj) throw std::runtime_error("Item function on locations applied to non-location: " + obj.Str);
 		if (toCall_.Str == "Objects")
 			return theObj->GetListOfChildren(GameObj::ChildFilter::Objects, GameObj::ChildRelFilter::In);
@@ -498,7 +502,7 @@ Expr::Value Expression::EvalItemfunc(Expr::Value obj, const ast_node_tag *toCall
 			return theObj->GetListOfExits();
 	}
 	if (IsListedIn(listOfCharacterFunctions, toCall_.Str.c_str())) {
-		const auto *theObj = dynamic_cast<Character *>(Game::Get()->GetObject(obj.Str));
+		const auto *theObj = dynamic_cast<Character *>(g->GetObject(obj.Str));
 		if (!theObj) throw std::runtime_error("Item function on characters applied to non-character: " + obj.Str);
 		if (toCall_.Str == "Descriptor")
 			return theObj->GetDescriptor();
@@ -510,7 +514,7 @@ Expr::Value Expression::EvalItemfunc(Expr::Value obj, const ast_node_tag *toCall
 			return CharWornAndHeldImpl(theObj, args);
 	}
 	if (IsListedIn(listOfEventFunctions, toCall_.Str.c_str())) {
-		auto *theEvt = Game::Get()->GetEvent(obj.Str);
+		auto *theEvt = g->GetEvent(obj.Str);
 		if (!theEvt) throw std::runtime_error("Item function on events applied to non-event: " + obj.Str);
 		if (toCall_.Str == "Length")
 			return theEvt->GetDuration().Value();
@@ -525,6 +529,53 @@ Expr::Value Expression::EvalItemfunc(Expr::Value obj, const ast_node_tag *toCall
 		if (obj.Str.empty()) return std::string();
 		return Expr::WriteListFrom(obj.Str);
 	}
+	if (toCall_.Str == "Sum") {
+		if (obj.Str.empty()) return 0;
+		int64_t result = 0;
+		std::vector<std::string> nums = Util::SplitList(obj.Str);
+		for (const auto &n : nums) {
+			if (IsDigits(n.c_str()) || n.size() >= 2 && n[0] == '-' && IsDigits(n.c_str()+1)) {
+				result += ParseInt(n.c_str());
+			} else throw std::runtime_error("Attempted to calculate the Sum of a list that isn't all numbers.");
+		}
+		return result;
+	}
+
+	// now for properties and stuff
+	auto meta = g->GetPropMeta(toCall_.Str);
+	if (!meta) {
+		throw std::runtime_error("Not a property or built-in item function: " + toCall_.Str);
+	}
+	std::vector objsToConsider = Util::SplitList(obj.Str);
+	std::string result;
+	size_t cnt = 0;
+	for (const auto &o: objsToConsider) {
+		if (cnt > 0) result += '|';
+		switch (meta->Type()) {
+		case Property::ValueType::Map:
+		case Property::ValueType::Int:
+			result += std::to_string(g->GetObject(o)->GetPropValue<int32_t>(toCall_.Str));
+			break;
+		case Property::ValueType::Enum:
+		case Property::ValueType::Object:
+			result += g->GetObject(o)->GetPropValue<std::string>(toCall_.Str);
+			break;
+		case Property::ValueType::Text:
+			result += g->GetDescription(g->GetObject(o)->GetPropValue<DescrRef>(toCall_.Str))->Build();
+			break;
+		case Property::ValueType::Bool:  // bool properties act as filters rather than transforms, but only when operating on lists
+			if (objsToConsider.size() == 1) {
+				result = std::to_string(g->GetObject(o)->GetPropValue<bool>(toCall_.Str));
+				break;
+			}
+			if (g->GetObject(o)->GetPropValue<bool>(toCall_.Str)) result += o;
+			else continue;
+			break;
+		}
+		++cnt;
+	}
+	return result;
+
 	return Expr::Value();
 }
 //NOLINTEND(misc-no-recursion)

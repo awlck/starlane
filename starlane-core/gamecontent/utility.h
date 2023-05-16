@@ -5,6 +5,7 @@
 
 #include <string>
 #include "../random.h"
+#include <vector>
 
 namespace Starlane::Util {
 
@@ -90,6 +91,9 @@ static inline bool IsList(const std::string &o) {
 		if (o[i] == '|') return true;
 	return false;
 }
+
+// Take an ADRIFT-style textual list (e.g., "foo|bar|baz") and turn it into a vector of strings.
+std::vector<std::string> SplitList(const std::string &lst);
 
 }
 

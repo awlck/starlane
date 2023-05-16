@@ -13,6 +13,11 @@
 
 namespace Starlane {
 
+template<typename K, typename V> V *SafeMapGet(std::unordered_map<K, V *> map, const K &key) {
+	auto f = map.find(key);
+	return f == map.end() ? nullptr : f->second;
+}
+
 class Game {
 public:
 	// Gets the current game instance
@@ -32,20 +37,21 @@ public:
 	ExprRef CreateExpression(const std::string &expr);
 
 	Description *GetDescription(DescrRef d) { return descriptions.at(d); }
-	Event *GetEvent(const std::string &key) { return events.at(key); }
-	Group *GetGroup(const std::string &key) { return groups.at(key); }
-	GameObj *GetObject(const std::string &key) { return objects.at(key); }
-	const Property *GetPropMeta(const std::string &key) const { return properties.at(key); }
+	//Event *GetEvent(const std::string &key) { auto f = events.find(key); return f == events.end() ? nullptr : f->second; }
+	Event *GetEvent(const std::string &key) { return SafeMapGet(events, key); }
+	Group *GetGroup(const std::string &key) { return SafeMapGet(groups, key); }
+	GameObj *GetObject(const std::string &key) { return SafeMapGet(objects, key); }
+	const Property *GetPropMeta(const std::string &key) const { return SafeMapGet(properties, key); }
 	const Restriction *GetRestriction(RestrRef key) const { return restrictions.at(key); }
-	Variable *GetVariable(const std::string &key) { return variables.at(key); }
-	Variable *GetVarByName(const std::string &name) { return variables.at(varNames.at(name)); }
+	Variable *GetVariable(const std::string &key) { return SafeMapGet(variables, key); }
+	Variable *GetVarByName(const std::string &name) { auto f = varNames.find(name); return f == varNames.end() ? nullptr : variables.at(f->second); }
 	Expression *GetExpression(ExprRef ref) { return expressions.at(ref); }
 	const char *GetPlainTextSnippet(PlainTextRef ref) { return plainTextSnippets.at(ref); }
 
-	bool GroupExists(const std::string &key) const { return groups.count(key) > 0; }
-	bool ObjectExists(const std::string &key) const { return objects.count(key) > 0; }
-	bool PropExists(const std::string &key) const { return properties.count(key) > 0; }
-	bool VarOfNameExists(const std::string &name) const { return varNames.count(name) > 0; }
+	bool GroupExists(const std::string &key) const { return groups.find(key) != groups.end(); }
+	bool ObjectExists(const std::string &key) const { return objects.find(key) != objects.end(); }
+	bool PropExists(const std::string &key) const { return properties.find(key) != properties.end(); }
+	bool VarOfNameExists(const std::string &name) const { return varNames.find(name) != varNames.end(); }
 	const std::unordered_map<std::string, GameObj *> &GetAllObjects() const { return objects; }
 	GameObj *GetPlayerChar() const { return objects.at(playerKey); }
 
