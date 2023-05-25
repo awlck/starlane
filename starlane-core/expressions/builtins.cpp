@@ -5,6 +5,7 @@
 #include "../valueparsers.h"
 #include "../gamecontent/character.h"
 #include "../gamecontent/location.h"
+#include "../gamecontent/utility.h"
 #include "builtins.h"
 
 
@@ -97,21 +98,12 @@ std::string LanguageNumber(int64_t num, bool f = false) {
 // a textual description, e.g., "foo, bar and baz".
 // (The ADRIFT implementation of recursive list-writing is woefully broken, turning sibling items into child items.
 //  We make an attempt to improve the presentation.)
-std::string WriteListFrom(const std::string &lst, ListTransformType transform, ListJoinType join, bool recurse) {  // NOLINT(misc-no-recursion)
+// NOLINTNEXTLINE(misc-no-recursion)
+[[nodiscard]] std::string WriteListFrom(const std::string &lst, ListTransformType transform,
+										ListJoinType join, bool recurse) {
 	std::string result;
-	std::vector<std::string> entries;
-	std::string current;
-	current.reserve(64);
-	for (auto c : lst) {
-		if (c == '|' && !current.empty()) {
-			entries.push_back(current);
-			current.clear();
-			continue;
-		}
-		current.append(1, c);
-	}
-	if (!current.empty())
-		entries.push_back(current);
+	std::vector<std::string> entries(Util::SplitList(lst));
+
 	size_t cnt = entries.size();
 	for (size_t i = 0; i < cnt; i++) {
 		if (i > 0) {
@@ -159,14 +151,14 @@ std::string WriteListFrom(const std::string &lst, ListTransformType transform, L
 
 			if (!on.empty()) {
 				result += " (on which ";
-				result += std::count(on.begin(), on.end(), '|') == 0 ? "is " : "are ";
-				WriteListFrom(on, transform, join, true);
+				result += Util::IsList(on) ? "are " : "is ";
+				result += WriteListFrom(on, transform, join, true);
 				result += ')';
 			}
 			if (!in.empty()) {
 				result += " (in which ";
-				result += std::count(in.begin(), in.end(), '|') ? "is " : "are ";
-				WriteListFrom(in, transform, join, true);
+				result += Util::IsList(in) ? "are " : "is ";
+				result += WriteListFrom(in, transform, join, true);
 				result += ')';
 			}
 		}
