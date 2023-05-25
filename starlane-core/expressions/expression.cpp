@@ -536,14 +536,14 @@ Expr::Value Expression::EvalItemfunc(Expr::Value obj, const ast_node_tag *toCall
 	}
 	if (toCall_.Str == "List") {
 		if (obj.Str.empty()) return std::string();
-		return Expr::WriteListFrom(obj.Str);
+		return WriteListImpl(obj.Str, args);
 	}
 	if (toCall_.Str == "Sum") {
 		if (obj.Str.empty()) return 0;
 		int64_t result = 0;
 		std::vector<std::string> nums = Util::SplitList(obj.Str);
 		for (const auto &n : nums) {
-			if (IsDigits(n.c_str()) || n.size() >= 2 && n[0] == '-' && IsDigits(n.c_str()+1)) {
+			if (IsDigits(n.c_str()) || (n.size() >= 2 && n[0] == '-' && IsDigits(n.c_str()+1))) {
 				result += ParseInt(n.c_str());
 			} else throw std::runtime_error("Attempted to calculate the Sum of a list that isn't all numbers.");
 		}
@@ -561,6 +561,8 @@ Expr::Value Expression::EvalItemfunc(Expr::Value obj, const ast_node_tag *toCall
 	for (const auto &o: objsToConsider) {
 		if (cnt > 0) result += '|';
 		switch (meta->Type()) {
+		case Property::ValueType::ErrorType:
+			return Expr::Value();
 		case Property::ValueType::Map:
 		case Property::ValueType::Int:
 			result += std::to_string(g->GetObject(o)->GetPropValue<int32_t>(toCall_.Str));
