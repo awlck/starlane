@@ -61,6 +61,7 @@ add_library(starlane-core STATIC
 	"gamecontent/propholder.cpp" "gamecontent/propholder.h"
 	"gamecontent/variable.cpp" "gamecontent/variable.h"
 	"gamecontent/event.cpp" "gamecontent/event.h"
+	"gamecontent/userfunc.cpp" "gamecontent/userfunc.h"
 	"gamecontent/utility.h" "gamecontent/utility.cpp")
 target_compile_definitions(starlane-core PRIVATE SLC_BUILDING_SELF)
 target_link_libraries(starlane-core miniz pugixml-static slc_exprparser)

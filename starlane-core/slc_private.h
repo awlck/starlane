@@ -27,6 +27,7 @@ class Restriction;
 class GameObj;
 class Property;
 class Task;
+class UserFunction;
 class Variable;
 struct Expression;
 

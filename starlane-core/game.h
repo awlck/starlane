@@ -25,19 +25,12 @@ public:
 
 	static Game *LoadFromXML(const std::string &gameTxt);
 	DescrRef CreateDescFromXML(const pugi::xml_node &descNode);
-	void CreateObjFromXML(const pugi::xml_node &objNode);
-	void CreatePropertyFromXML(const pugi::xml_node &propNode);
 	RestrRef CreateRestrictionsFromXML(const pugi::xml_node &restrNode);
-	void CreateTaskFromXML(const pugi::xml_node &taskNode);
-	void CreateEventFromXML(const pugi::xml_node &evtNode);
-	void CreateVariableFromXML(const pugi::xml_node &varNode);
-	void CreateGroupFromXML(const pugi::xml_node &grpNode);
 	PlainTextRef StorePlainTextSnippet(const std::string &snip);
 	PlainTextRef StorePlainTextSnippet(std::string_view snip);
 	ExprRef CreateExpression(const std::string &expr);
 
 	Description *GetDescription(DescrRef d) { return descriptions.at(d); }
-	//Event *GetEvent(const std::string &key) { auto f = events.find(key); return f == events.end() ? nullptr : f->second; }
 	Event *GetEvent(const std::string &key) { return SafeMapGet(events, key); }
 	Group *GetGroup(const std::string &key) { return SafeMapGet(groups, key); }
 	GameObj *GetObject(const std::string &key) { return SafeMapGet(objects, key); }
@@ -45,6 +38,8 @@ public:
 	const Restriction *GetRestriction(RestrRef key) const { return restrictions.at(key); }
 	Variable *GetVariable(const std::string &key) { return SafeMapGet(variables, key); }
 	Variable *GetVarByName(const std::string &name) { auto f = varNames.find(name); return f == varNames.end() ? nullptr : variables.at(f->second); }
+	const UserFunction *GetUserFunction(const std::string &key) { return SafeMapGet(userFunctions, key); }
+	const UserFunction *GetUserFuncByName(const std::string &name) {auto f = userFuncNames.find(name); return f == userFuncNames.end() ? nullptr : userFunctions.at(f->second); }
 	Expression *GetExpression(ExprRef ref) { return expressions.at(ref); }
 	const char *GetPlainTextSnippet(PlainTextRef ref) { return plainTextSnippets.at(ref); }
 
@@ -117,6 +112,14 @@ private:
 	Game(const Game &);  // copy constructor -- for undo state saving
 	~Game();
 
+	void CreateObjFromXML(const pugi::xml_node &objNode);
+	void CreatePropertyFromXML(const pugi::xml_node &propNode);
+	void CreateTaskFromXML(const pugi::xml_node &taskNode);
+	void CreateEventFromXML(const pugi::xml_node &evtNode);
+	void CreateVariableFromXML(const pugi::xml_node &varNode);
+	void CreateGroupFromXML(const pugi::xml_node &grpNode);
+	void CreateFunctionFromXML(const pugi::xml_node &funcNode);
+
     void StartupSanityCheck() const;
 
 	// mutable game state (objects copied for undo state)
@@ -138,12 +141,14 @@ private:
 	std::unordered_map<std::string, Task *> tasks;
 	std::unordered_map<std::string, std::string> varNames;
 	std::unordered_map<ExprRef, Expression *> expressions;
+	std::unordered_map<std::string, UserFunction *> userFunctions;
+	std::unordered_map<std::string, std::string> userFuncNames;
 	// Snippets of "Plain text", simple strings that do not contain any expressions
 	// and can be output as-is. Maintained like this to reduce the amount of text
 	// that is unnecessarily duplicated when copying descriptions for undo/save.
 	std::unordered_map<PlainTextRef, const char *> plainTextSnippets;
 	// The grammatical person by which to refer to the player character
-	ReferralPerson pcReferralPerson;
+	ReferralPerson pcReferralPerson = ReferralPerson::SecondPerson;
 
 	// transient storage -- only relevant while evaluating commands.
 	// Never needs to be retained for UNDO/SAVE.

@@ -40,6 +40,8 @@ Game::Game(const Game &rhs) {
 	properties = rhs.properties;
 	tasks = rhs.tasks;
 	varNames = rhs.varNames;
+	userFunctions = rhs.userFunctions;
+	userFuncNames = rhs.userFuncNames;
 	expressions = rhs.expressions;
 	plainTextSnippets = rhs.plainTextSnippets;
 	// just bools, so a vector copy is sufficient.

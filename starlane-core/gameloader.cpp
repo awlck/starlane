@@ -14,6 +14,7 @@
 #include "gamecontent/group.h"
 #include "gamecontent/property.h"
 #include "gamecontent/restriction.h"
+#include "gamecontent/userfunc.h"
 #include "gamecontent/variable.h"
 #include "gamecontent/task.h"
 
@@ -66,14 +67,16 @@ Game *Game::LoadFromXML(const std::string &gameTxt) {
 	for (const auto &it : gameNode.children("Group"))
 		result->CreateGroupFromXML(it);
 
+	for (const auto &it: gameNode.children("Function"))
+		result->CreateFunctionFromXML(it);
+
     result->StartupSanityCheck();
 
 	// load the player character referral person, which for some reason is stored on the `Player` object...
+	// (defaults to second person)
 	auto perspectiveNode = doc.select_node(R"(//Character[Key="Player"]/Perspective)");
 	if (perspectiveNode.node().type() != pugi::node_null)
 		result->pcReferralPerson = ParseReferralPerson(perspectiveNode.node().child_value());
-	else  // default to second person
-		result->pcReferralPerson = ReferralPerson::SecondPerson;
 
 	// Finally, pre-split all descriptions into runs of plain text and expressions.
 	// (This needs to happen after objects are loaded since we need to determine whether
@@ -126,10 +129,17 @@ void Game::CreateGroupFromXML(const pugi::xml_node &grpNode) {
     groups[result->Key()] = result;
 }
 
+void Game::CreateFunctionFromXML(const pugi::xml_node &funcNode) {
+	auto result = UserFunction::CreateFromXML(funcNode);
+	userFunctions[result->Key()] = result;
+	userFuncNames[result->Name()] = result->Key();
+}
+
 // Parts of the program use the top bit to differentiate between plain text snippet references
 // and expression references, so we must make sure that we never allocate a plain text
 // reference so large that it uses the top bit.
 static void CheckSnippetsInRange(size_t snips) {
+	// TODO: figure out why clang seems to think that this expression is always false.
 	if (snips > (((size_t) 1) << (std::numeric_limits<size_t>::digits - 1))) {
 		std::stringstream s;
 		s << "My brain just exploded: On your system, I can only handle "
