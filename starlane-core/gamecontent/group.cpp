@@ -9,7 +9,7 @@ namespace Starlane {
 
 Group *Group::CreateFromXML(const pugi::xml_node &xmlNode) {
 	auto result = new Group;
-	result->key = xmlNode.child_value("Key");
+	result->key_ = xmlNode.child_value("Key");
 	result->name = xmlNode.child_value("Name");
 	// Objects and locations have already been created when this function is called,
 	// so doing this is OK:
@@ -21,20 +21,20 @@ Group *Group::CreateFromXML(const pugi::xml_node &xmlNode) {
 }
 
 void Group::AddObj(const std::string &key) {
-	Game::Get()->GetObject(key)->BecomeGroupMember(this->key);
+	Game::Get()->GetObject(key)->BecomeGroupMember(this->key_);
 	ReceiveObj(key);
 }
 void Group::AddObj(GameObj *obj) {
-	obj->BecomeGroupMember(this->key);
+	obj->BecomeGroupMember(this->key_);
 	ReceiveObj(obj->Key());
 }
 
 void Group::RemoveObj(const std::string &key) {
-	Game::Get()->GetObject(key)->CeaseBeingGroupMember(this->key);
+	Game::Get()->GetObject(key)->CeaseBeingGroupMember(this->key_);
 	LetGoOfObj(key);
 }
 void Group::RemoveObj(GameObj *obj) {
-	obj->CeaseBeingGroupMember(this->key);
+	obj->CeaseBeingGroupMember(this->key_);
 	LetGoOfObj(obj->Key());
 }
 

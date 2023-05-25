@@ -17,7 +17,7 @@ class Group: public PropHolder {
 public:
 	static Group *CreateFromXML(const pugi::xml_node &xmlNode);
 
-	const std::string &Key() const { return key; }
+	const std::string &Key() const { return key_; }
 
 	// Make the given object a member of this group.
 	void AddObj(const std::string &key);
@@ -43,7 +43,7 @@ public:
 private:
 	Group() = default;
 
-	std::string key;
+	std::string key_;
 	std::string name;
 	std::set<std::string> members;
 };
