@@ -637,4 +637,48 @@ Expr::Value Expression::CharWornAndHeldImpl(const Starlane::Character *obj, cons
 	return obj->GetPossessionsList(Character::PossessionFilter::WornAndHeld, recurse);
 }
 
+static const char *true_terms[] = { "True", "true", "TRUE", "Yes", "yes", "YES", "1" };
+static const char *false_terms[] = { "False", "false", "FALSE", "No", "no", "NO", "0"};
+static const char *and_terms[] = { "And", "and", "AND" };
+static const char *or_terms[] = { "Or", "or", "OR" };
+static const char *rows_terms[] = { "Rows", "rows", "ROWS" };
+static const char *def_terms[] = { "Definite", "definite", "DEFINITE" };
+static const char *indef_terms[] = { "Indefinite", "indefinite", "INDEFINITE" };
+// starlane extension
+static const char *notransform_terms[] = { "NoTransform", "notransform", "NOTRANSFORM" };
+
+Expr::Value Expression::WriteListImpl(const std::string &lst, const ast_node_tag *args) const {
+	bool recurse = true;
+	auto transformType = Expr::ListTransformType::IndefName;
+	auto joinType = Expr::ListJoinType::And;
+
+	if (args != nullptr) {
+		CHECK_ARGCOUNT_V("lst.List", 0, 3);
+		// Parse arguments and set the above values. For extra fun, the arguments can be passed in any order.
+		for (const ast_node_tag *arg = args->child.first; arg; arg = arg->sibling.next) {
+			auto tmp = EvalAnyNode(arg);
+			Expr::EnsureString(tmp);
+			if (Expr::IsListedIn(true_terms, tmp.Str.c_str())) {
+				recurse = true;
+			} else if (Expr::IsListedIn(false_terms, tmp.Str.c_str())) {
+				recurse = false;
+			} else if (Expr::IsListedIn(and_terms, tmp.Str.c_str())) {
+				joinType = Expr::ListJoinType::And;
+			} else if (Expr::IsListedIn(or_terms, tmp.Str.c_str())) {
+				joinType = Expr::ListJoinType::Or;
+			} else if (Expr::IsListedIn(rows_terms, tmp.Str.c_str())) {
+				joinType = Expr::ListJoinType::Rows;
+			} else if (Expr::IsListedIn(indef_terms, tmp.Str.c_str())) {
+				transformType = Expr::ListTransformType::IndefName;
+			} else if (Expr::IsListedIn(def_terms, tmp.Str.c_str())) {
+				transformType = Expr::ListTransformType::DefName;
+			} else if (Expr::IsListedIn(notransform_terms, tmp.Str.c_str())) {
+				transformType = Expr::ListTransformType::None;
+			} else throw std::runtime_error("Unexpected argument to lst.List: " + tmp.Str);
+		}
+	}
+
+	return Expr::WriteListFrom(lst, transformType, joinType, recurse);
+}
+
 }

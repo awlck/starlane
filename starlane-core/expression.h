@@ -154,6 +154,7 @@ private:
 	Expr::Value CharHeldImpl(const Character *obj, const ast_node_tag *args) const;
 	Expr::Value CharWornImpl(const Character *obj, const ast_node_tag *args) const;
 	Expr::Value CharWornAndHeldImpl(const Character *obj, const ast_node_tag *args) const;
+	Expr::Value WriteListImpl(const std::string &lst, const ast_node_tag *args) const;
 
 	void PostProcessTree();
 

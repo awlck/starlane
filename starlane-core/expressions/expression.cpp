@@ -472,12 +472,6 @@ Expr::Value Expression::EvalFunccall(Expr::Value toCall, const ast_node_tag *arg
 	return Expr::Value();
 }
 
-template<size_t N> inline bool IsListedIn(const char *(&arr)[N], const char *val) {
-	for (size_t i = 0; i < N; i++)
-		if (STREQ(val, arr[i])) return true;
-	return false;
-}
-
 Expr::Value Expression::EvalItemfunc(Expr::Value obj, const ast_node_tag *toCall) const {
 	Expr::EnsureString(obj);
 	// Extract function name and argument list, or note that there are no arguments.
@@ -493,7 +487,7 @@ Expr::Value Expression::EvalItemfunc(Expr::Value obj, const ast_node_tag *toCall
 	EnsureString(toCall_);
 	auto *g = Game::Get();
 	// Figure out what sort of function we're dealing with, and call it.
-	if (IsListedIn(listOfObjectFunctions, toCall_.Str.c_str())) {
+	if (Expr::IsListedIn(listOfObjectFunctions, toCall_.Str.c_str())) {
 		const auto *theObj = g->GetObject(obj.Str);
 		if (toCall_.Str == "Children")
 			return ObjChildrenImpl(theObj, args);
@@ -508,7 +502,7 @@ Expr::Value Expression::EvalItemfunc(Expr::Value obj, const ast_node_tag *toCall
 		if (toCall_.Str == "Parent")
 			return theObj->GetParentKey();
 	}
-	if (IsListedIn(listOfLocationFunctions, toCall_.Str.c_str())) {
+	if (Expr::IsListedIn(listOfLocationFunctions, toCall_.Str.c_str())) {
 		const auto *theObj = dynamic_cast<Location *>(g->GetObject(obj.Str));
 		if (!theObj) throw std::runtime_error("Item function on locations applied to non-location: " + obj.Str);
 		if (toCall_.Str == "Objects")
@@ -516,7 +510,7 @@ Expr::Value Expression::EvalItemfunc(Expr::Value obj, const ast_node_tag *toCall
 		if (toCall_.Str == "Exits")
 			return theObj->GetListOfExits();
 	}
-	if (IsListedIn(listOfCharacterFunctions, toCall_.Str.c_str())) {
+	if (Expr::IsListedIn(listOfCharacterFunctions, toCall_.Str.c_str())) {
 		const auto *theObj = dynamic_cast<Character *>(g->GetObject(obj.Str));
 		if (!theObj) throw std::runtime_error("Item function on characters applied to non-character: " + obj.Str);
 		if (toCall_.Str == "Descriptor")
@@ -528,7 +522,7 @@ Expr::Value Expression::EvalItemfunc(Expr::Value obj, const ast_node_tag *toCall
 		if (toCall_.Str == "WornAndHeld")
 			return CharWornAndHeldImpl(theObj, args);
 	}
-	if (IsListedIn(listOfEventFunctions, toCall_.Str.c_str())) {
+	if (Expr::IsListedIn(listOfEventFunctions, toCall_.Str.c_str())) {
 		auto *theEvt = g->GetEvent(obj.Str);
 		if (!theEvt) throw std::runtime_error("Item function on events applied to non-event: " + obj.Str);
 		if (toCall_.Str == "Length")
@@ -590,8 +584,6 @@ Expr::Value Expression::EvalItemfunc(Expr::Value obj, const ast_node_tag *toCall
 		++cnt;
 	}
 	return result;
-
-	return Expr::Value();
 }
 //NOLINTEND(misc-no-recursion)
 

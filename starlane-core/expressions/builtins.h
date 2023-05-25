@@ -27,6 +27,12 @@ enum class ListJoinType {
 // a textual description, e.g., "foo, bar and baz"
 std::string WriteListFrom(const std::string &lst, ListTransformType transform = ListTransformType::None, ListJoinType join = ListJoinType::And, bool recurse = true);
 
+template<size_t N> inline bool IsListedIn(const char *(&arr)[N], const char *val) {
+	for (size_t i = 0; i < N; i++)
+		if (STREQ(val, arr[i])) return true;
+	return false;
+}
+
 }
 
 #endif  // !SLC_EXPRESSIONS_BUILTINS_H
