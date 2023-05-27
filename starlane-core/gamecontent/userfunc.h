@@ -8,6 +8,8 @@
 
 #include "../slc_private.h"
 
+#include <vector>
+
 namespace Starlane {
 
 class UserFunction {
@@ -17,16 +19,25 @@ public:
 	const std::string &Key() const { return key; }
 	const std::string &Name() const { return name; }
 
+	enum class ArgType {
+		Object,
+		Character,
+		Location,
+		Number,
+		Text
+	};
 	struct ArgSpec {
 		std::string name;
-
+		ArgType ty;
 	};
 
 private:
 	std::string key;
 	std::string name;
-	std::string definition;
+	DescrRef output;
 	std::vector<ArgSpec> signature;
+
+	static ArgType ParseArgType(const char *txt);
 };
 
 }  // namespace Starlane

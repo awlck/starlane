@@ -15,6 +15,7 @@
 #include "gamecontent/property.h"
 #include "gamecontent/restriction.h"
 #include "gamecontent/task.h"
+#include "gamecontent/userfunc.h"
 #include "gamecontent/utility.h"
 
 // Convenience macro to insert the stringified name of the type in question,
@@ -214,6 +215,20 @@ Restriction::TargetType Restriction::ParseTargetType(const char *txt) {
 	if (STREQ(txt, "Expression"))
 		return TargetType::Expression;
 	throw VALERR(Restriction::TargetType, txt);
+}
+
+UserFunction::ArgType UserFunction::ParseArgType(const char *txt) {
+	if (STREQ(txt, "Object"))
+		return ArgType::Object;
+	if (STREQ(txt, "Character"))
+		return ArgType::Character;
+	if (STREQ(txt, "Location"))
+		return ArgType::Location;
+	if (STREQ(txt, "Number"))
+		return ArgType::Number;
+	if (STREQ(txt, "Text"))
+		return ArgType::Text;
+	throw VALERR(UserFunction::ArgType, txt);
 }
 
 Util::Range::Range(const char *txt) {
