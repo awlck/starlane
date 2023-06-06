@@ -5,6 +5,19 @@
 #ifndef SLC_PRIVATE_H
 #define SLC_PRIVATE_H
 
+#if !defined(NDEBUG)
+#define UNREACHABLE() assert(false && "reached presumed-unreachable code")
+#elif defined(__cpp_lib_unreachable) && __cpp_lib_unreachable >= 202202L
+#include <utility>
+#define UNREACHABLE() std::unreachable()
+#elif defined(_MSC_VER)
+#define UNREACHABLE() __assume(false)
+#elif (defined(__GNUC__) || defined(__clang__)) && __has_builtin(__builtin_unreachable)
+#define UNREACHABLE() __builtin_unreachable()
+#else
+#define UNREACHABLE() break
+#endif
+
 // gcc doesn't define `size_t' by default, so:
 #include <stddef.h>
 

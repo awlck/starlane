@@ -528,6 +528,8 @@ void Task::Action::PerformImpl() const {
 				}
 				break;
 			}
+			case Property::ValueType::ErrorType:
+				UNREACHABLE();
 			}
 			break;
 		}
@@ -618,6 +620,8 @@ void Task::Action::PerformImpl() const {
 				}
 				break;
 			}
+			case Property::ValueType::ErrorType:
+				UNREACHABLE();
 			}
 			break;
 		}
@@ -701,6 +705,8 @@ void Task::Action::PerformImpl() const {
 				}
 				break;
 			}
+			case Property::ValueType::ErrorType:
+				UNREACHABLE();
 			}
 			break;
 		}
@@ -766,6 +772,8 @@ void Task::Action::PerformImpl() const {
 		case Property::ValueType::Text:
 			target->SetPropValue(prop, g->GetExpression(expr)->EvaluateStr());
 			break;
+		case Property::ValueType::ErrorType:
+			UNREACHABLE();
 		default:
 			target->SetPropValue(prop, rhs);  // meh
 			break;
