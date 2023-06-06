@@ -160,7 +160,7 @@ private:
 
 	static std::map<std::string, decltype(&Expression::LCaseImpl)> tableOfBuiltInFunctions;
 
-	std::map<std::string, std::string> *currentContext;
+	const std::map<std::string, std::string> *currentContext;
 	friend class ContextMgr;
 };
 

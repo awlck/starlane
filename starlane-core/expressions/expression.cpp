@@ -13,7 +13,6 @@
 #include "../gamecontent/property.h"
 #include "../gamecontent/description.h"
 
-#include <cassert>
 #include <cmath>
 #include <string_view>
 
@@ -241,7 +240,7 @@ ast_node_tag *Expression::CreateNode() {
 
 class ContextMgr {
 public:
-	ContextMgr(Expression *e, std::map<std::string, std::string> *newContext)
+	ContextMgr(Expression *e, const std::map<std::string, std::string> *newContext)
 		: theExpr(e), savedContext(e->currentContext)
 	{
 		e->currentContext = newContext;
@@ -251,7 +250,7 @@ public:
 	}
 private:
 	Expression *theExpr;
-	std::map<std::string, std::string> *savedContext;
+	const std::map<std::string, std::string> *savedContext;
 };
 
 std::string Expression::EvaluateStr(const std::map<std::string, std::string> *context) {
