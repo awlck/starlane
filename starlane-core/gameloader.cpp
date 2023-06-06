@@ -70,6 +70,14 @@ Game *Game::LoadFromXML(const std::string &gameTxt) {
 	for (const auto &it: gameNode.children("Function"))
 		result->CreateFunctionFromXML(it);
 
+	// Load file path --> blorb resource id mappings, if any.
+	const auto &mappingsNode = gameNode.child("FileMappings");
+	if (mappingsNode.type() != pugi::node_null) {
+		for (const auto &it: mappingsNode.children()) {
+			result->blorbResMap[it.child_value("File")] = ParseInt(it.child_value("Resource"));
+		}
+	}
+
     result->StartupSanityCheck();
 
 	// load the player character referral person, which for some reason is stored on the `Player` object...

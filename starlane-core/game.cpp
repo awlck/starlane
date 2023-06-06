@@ -63,6 +63,7 @@ Game::Game(const Game &rhs) {
 	restrictionsSoFar = rhs.restrictionsSoFar;
 	textSnippetsSoFar = rhs.textSnippetsSoFar;
 	expressionsSoFar = rhs.expressionsSoFar;
+	blorbResMap = rhs.blorbResMap;
 }
 
 /* Destruct Game instance. This requires a bit of extra attention,

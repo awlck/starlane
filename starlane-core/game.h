@@ -172,6 +172,8 @@ private:
 	size_t textSnippetsSoFar = 0;
 	size_t expressionsSoFar = ((size_t) 1) << (std::numeric_limits<size_t>::digits-1);
 
+	std::unordered_map<std::string, size_t> blorbResMap;
+
 	// The Game instance holding the current state of the game, for the benefit of any
 	// functions that might need it (restrictions, descriptions, action processing)
 	// [fun fact: static data members need to be declared `inline`, otherwise they function
