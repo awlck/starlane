@@ -5,13 +5,10 @@
 
 #include "../slc_private.h"
 
+#include <map>
 #include <string>
 #include <string_view>
 #include <vector>
-
-namespace pugi {
-class xml_node;
-}
 
 namespace Starlane {
 
@@ -21,7 +18,9 @@ public:
 	static Description *CreateFromXML(const pugi::xml_node &xmlNode);
 	// Build a string from this description
 	// `commit` should be true when displaying, false when building the text for comparison purposes.
-	[[nodiscard]] std::string Build(bool commit = true);
+	// `context` is only ever set to anything when this description is the output of a user-defined function,
+	// in which case it will hold the function's arguments.
+	[[nodiscard]] std::string Build(bool commit = true, const std::map<std::string, std::string> *context = nullptr);
 
 	void ResolveText();
 
@@ -54,7 +53,7 @@ private:
 		bool returnToDefault;
 		bool shown;
 
-		std::string Build() const;
+		std::string Build(const std::map<std::string, std::string> *context = nullptr) const;
 
 		void ResolveText();
 	private:

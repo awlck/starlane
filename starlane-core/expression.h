@@ -66,7 +66,7 @@ struct Expression {
 
 	bool EvaluateBool() const { return EvaluateInt(); };
 	int64_t EvaluateInt() const { if (constexType == ConstexprType::Int) return constValInt; return EvalAsIntImpl(); };
-	std::string EvaluateStr() const;
+	std::string EvaluateStr(const std::map<std::string, std::string> *context = nullptr);
 	
 	// parsing related stuff
 	inline int GetNextChar() {
@@ -159,6 +159,9 @@ private:
 	void PostProcessTree();
 
 	static std::map<std::string, decltype(&Expression::LCaseImpl)> tableOfBuiltInFunctions;
+
+	std::map<std::string, std::string> *currentContext;
+	friend class ContextMgr;
 };
 
 }

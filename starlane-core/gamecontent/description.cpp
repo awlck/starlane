@@ -54,7 +54,7 @@ void Description::HandleSegmentShown(size_t idx) {
 	}
 }
 
-std::string Description::Build(bool commit) {
+std::string Description::Build(bool commit, const std::map<std::string, std::string> *context) {
 	// The ADRIFT Runner's way of handling descriptions goes something like this:
 	// "Build the text. If some segment wants to be first and passes restrictions,
 	//  throw the already-built text away and start over."
@@ -96,12 +96,12 @@ std::string Description::Build(bool commit) {
 		}
 	}
 
-	std::string result(segments.at(beginning).Build());
+	std::string result(segments.at(beginning).Build(context));
 	if (commit) HandleSegmentShown(beginning);
 	size_t nextSegment = beginning + 1;
 	if (continuation != NPOS) {
 		if (NeedSpace(result)) result += ' ';
-		result.append(segments.at(continuation).Build());
+		result.append(segments.at(continuation).Build(context));
 		if (commit) HandleSegmentShown(continuation);
 		nextSegment = continuation + 1;
 	}
@@ -109,7 +109,7 @@ std::string Description::Build(bool commit) {
 		const auto &s = segments.at(i);
 		if (s.displayWhen == Display::Append && SEGMENT_ELIGIBLE(s)) {
 			if (NeedSpace(result)) result += ' ';
-			result.append(s.Build());
+			result.append(s.Build(context));
 			if (commit) HandleSegmentShown(i);
 		}
 	}
@@ -138,7 +138,7 @@ Description::Segment Description::Segment::CreateFromXML(const pugi::xml_node &x
 	return result;
 }
 
-std::string Description::Segment::Build() const {
+std::string Description::Segment::Build(const std::map<std::string, std::string> *context) const {
 	// make a single string out of our contents again, consisting of the plain text snippets
 	// and expression evaluation results.
 
@@ -149,7 +149,7 @@ std::string Description::Segment::Build() const {
 	result.reserve(initialTextLength);
 	for (auto ref : content) {
 		if (ref & TOPBIT) {  // an expression
-			result.append(Game::Get()->GetExpression(ref)->EvaluateStr());
+			result.append(Game::Get()->GetExpression(ref)->EvaluateStr(context));
 		} else {  // a plain text snippet
 			// We also need to deal with alternatives like '[am/are/is]' at this stage.
 			// Note that this is liable to break when the alternatives contain an expression,

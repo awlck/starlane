@@ -239,7 +239,23 @@ ast_node_tag *Expression::CreateNode() {
 	return node;
 }
 
-std::string Expression::EvaluateStr() const {
+class ContextMgr {
+public:
+	ContextMgr(Expression *e, std::map<std::string, std::string> *newContext)
+		: theExpr(e), savedContext(e->currentContext)
+	{
+		e->currentContext = newContext;
+	}
+	~ContextMgr() {
+		theExpr->currentContext = savedContext;
+	}
+private:
+	Expression *theExpr;
+	std::map<std::string, std::string> *savedContext;
+};
+
+std::string Expression::EvaluateStr(const std::map<std::string, std::string> *context) {
+	ContextMgr mgr(this, context);
 #ifdef _MSC_VER
 	// Windows apps can catch and recover from stack overflows using SEH.
 	Expr::Value result;
@@ -248,7 +264,7 @@ std::string Expression::EvaluateStr() const {
 	{
 		ScopedSETranslator translator(&StackOverflowTranslator);
 		try {
-			result = EvalAnyNode(rootNode);
+			result = EvalAnyNode(rootNode, context);
 		} catch (const StackOverflowError &e) {
 			// stack isn't actually unwound yet
 			stackDidOverflow = true;
@@ -280,6 +296,11 @@ Expr::Value Expression::EvalAnyNode(const ast_node_tag *node) const {
 	case AST_NODE_TYPE_STRING:
 		return std::string(GetNodeText(node));
 	case AST_NODE_TYPE_VARIABLE: {
+		if (currentContext) {
+			auto f = currentContext->find(std::string(GetNodeText(node)));
+			if (f != currentContext->end())
+				return f->second;
+		}
 		auto theVar = Game::Get()->GetVariable(std::string(GetNodeText(node)));
 		auto theType = theVar->GetType();
 		if (theType == Variable::Type::String)
@@ -468,7 +489,7 @@ Expr::Value Expression::EvalFunccall(Expr::Value toCall, const ast_node_tag *arg
 		}
 	}
 
-	// todo: user-defined functions
+	
 	return Expr::Value();
 }
 
