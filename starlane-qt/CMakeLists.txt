@@ -7,7 +7,8 @@ set(CMAKE_CXX_EXTENSIONS OFF)
 
 find_package(Qt6 COMPONENTS Core Gui Widgets CONFIG REQUIRED)
 set(CMAKE_AUTOMOC ON)
+set(CMAKE_AUTORCC ON)
 
-add_executable(starlane "starlane.cpp" )
+add_executable(starlane "starlane.cpp" mainwindow.cpp mainwindow.h)
 target_link_libraries(starlane Qt6::Core Qt6::Gui Qt6::Widgets starlane-core)
 target_include_directories(starlane PRIVATE "../starlane-core")

@@ -1,0 +1,32 @@
+//
+// Created by Adrian Welcker on 22.10.22.
+//
+
+#include "mainwindow.h"
+
+#include <starlane-core.h>
+
+MainWindow::MainWindow() : QMainWindow(nullptr) {
+	auto *dummy = new QWidget(this);
+	auto *box = new QVBoxLayout;
+
+	output = new QTextBrowser;
+
+	input = new QLineEdit;
+	input->setPlaceholderText(">");
+	connect(input, &QLineEdit::returnPressed, this, &MainWindow::InputReturnPressed);
+
+	box->addWidget(output, 50);
+	box->addWidget(input);
+	dummy->setLayout(box);
+	setCentralWidget(dummy);
+}
+
+void MainWindow::OutputText(const char *txt) {
+	output->insertHtml(txt);
+}
+
+void MainWindow::InputReturnPressed() {
+	output->insertHtml(QStringLiteral("<font color=red>> ") + input->text() + QStringLiteral("</font>\n"));
+	// todo: submit command
+}
