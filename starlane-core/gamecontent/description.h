@@ -4,6 +4,7 @@
 #define SLC_DESCRIPTION_H
 
 #include "../slc_private.h"
+#include "../expression.h"
 
 #include <map>
 #include <string>
@@ -20,7 +21,7 @@ public:
 	// `commit` should be true when displaying, false when building the text for comparison purposes.
 	// `context` is only ever set to anything when this description is the output of a user-defined function,
 	// in which case it will hold the function's arguments.
-	[[nodiscard]] std::string Build(bool commit = true, const std::map<std::string, std::string> *context = nullptr);
+	[[nodiscard]] std::string Build(bool commit = true, const UserFuncContext *context = nullptr);
 
 	void ResolveText();
 
@@ -53,7 +54,7 @@ private:
 		bool returnToDefault;
 		bool shown;
 
-		std::string Build(const std::map<std::string, std::string> *context = nullptr) const;
+		std::string Build(const UserFuncContext *context = nullptr) const;
 
 		void ResolveText();
 	private:

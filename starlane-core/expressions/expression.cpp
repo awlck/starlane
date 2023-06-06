@@ -1,20 +1,23 @@
 #include "../expression.h"
-#include "../game.h"
-#include "../valueparsers.h"
-#include "../gamecontent/variable.h"
-#include "exprp_utility.h"
-#include "exprparser.h"
-#include "builtins.h"
-#include "../gamecontent/utility.h"
-#include "../gamecontent/gameobj.h"
-#include "../gamecontent/location.h"
-#include "../gamecontent/character.h"
-#include "../gamecontent/event.h"
-#include "../gamecontent/property.h"
-#include "../gamecontent/description.h"
 
 #include <cmath>
 #include <string_view>
+
+#include "exprp_utility.h"
+#include "exprparser.h"
+#include "builtins.h"
+#include "../game.h"
+#include "../valueparsers.h"
+#include "../gamecontent/character.h"
+#include "../gamecontent/description.h"
+#include "../gamecontent/event.h"
+#include "../gamecontent/gameobj.h"
+#include "../gamecontent/location.h"
+#include "../gamecontent/property.h"
+#include "../gamecontent/userfunc.h"
+#include "../gamecontent/utility.h"
+#include "../gamecontent/variable.h"
+
 
 #ifdef _MSC_VER
 #include <Windows.h>
@@ -182,7 +185,7 @@ static const char *listOfListFunctions[] = {
 		"List"
 };
 
-Expression::Expression(const std::string &expr) : exprStr(expr) {
+Expression::Expression(const std::string &expr) : exprStr(expr), currentContext(nullptr) {
 	if (expr.empty()) return;
 	int ws = 0;
 	while (isspace(expr[ws])) ++ws;
@@ -240,7 +243,7 @@ ast_node_tag *Expression::CreateNode() {
 
 class ContextMgr {
 public:
-	ContextMgr(Expression *e, const std::map<std::string, std::string> *newContext)
+	ContextMgr(Expression *e, const UserFuncContext *newContext)
 		: theExpr(e), savedContext(e->currentContext)
 	{
 		e->currentContext = newContext;
@@ -250,10 +253,10 @@ public:
 	}
 private:
 	Expression *theExpr;
-	const std::map<std::string, std::string> *savedContext;
+	const UserFuncContext *savedContext;
 };
 
-std::string Expression::EvaluateStr(const std::map<std::string, std::string> *context) {
+std::string Expression::EvaluateStr(const UserFuncContext *context) {
 	ContextMgr mgr(this, context);
 #ifdef _MSC_VER
 	// Windows apps can catch and recover from stack overflows using SEH.
@@ -461,8 +464,6 @@ Expr::Value Expression::EvalAnyNode(const ast_node_tag *node) const {
 	default:
 		throw std::runtime_error("Can't deal with this node type at this time: " + std::to_string(node->type));
 	}
-
-	return Expr::Value();
 }
 
 Expr::Value Expression::EvalFunccall(Expr::Value toCall, const ast_node_tag *args) const {
@@ -488,6 +489,27 @@ Expr::Value Expression::EvalFunccall(Expr::Value toCall, const ast_node_tag *arg
 		}
 	}
 
+	auto *udf = g->GetUserFuncByName(func);
+	if (udf) {
+		const auto &funcsig = udf->Signature();
+		UserFuncContext udfArguments;
+		if (args->arity > funcsig.size())
+			return std::string("<invalid UDF call: too many arguments>");
+		if (args->arity < funcsig.size())
+			return std::string("<invalid UDF call: not enough arguments>");
+		size_t i = 0;
+		for (auto *a = args->child.first; a; a = a->sibling.next) {
+			auto theArg = EvalAnyNode(a);
+			if (funcsig[i].ty == UserFunction::ArgType::Number) {
+				Expr::EnsureInt(theArg);
+			} else {
+				Expr::EnsureString(theArg);
+			}
+			udfArguments[funcsig[i].name] = theArg;
+			i++;
+		}
+		return udf->Evaluate(udfArguments);
+	}
 	
 	return Expr::Value();
 }

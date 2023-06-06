@@ -54,7 +54,7 @@ void Description::HandleSegmentShown(size_t idx) {
 	}
 }
 
-std::string Description::Build(bool commit, const std::map<std::string, std::string> *context) {
+std::string Description::Build(bool commit, const UserFuncContext *context) {
 	// The ADRIFT Runner's way of handling descriptions goes something like this:
 	// "Build the text. If some segment wants to be first and passes restrictions,
 	//  throw the already-built text away and start over."
@@ -138,7 +138,7 @@ Description::Segment Description::Segment::CreateFromXML(const pugi::xml_node &x
 	return result;
 }
 
-std::string Description::Segment::Build(const std::map<std::string, std::string> *context) const {
+std::string Description::Segment::Build(const UserFuncContext *context) const {
 	// make a single string out of our contents again, consisting of the plain text snippets
 	// and expression evaluation results.
 

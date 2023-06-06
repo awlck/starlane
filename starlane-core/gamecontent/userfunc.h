@@ -7,8 +7,10 @@
 #define SLC_USERFUNC_H
 
 #include "../slc_private.h"
+#include "../expression.h"
 
 #include <vector>
+#include <map>
 
 namespace Starlane {
 
@@ -30,6 +32,9 @@ public:
 		std::string name;
 		ArgType ty;
 	};
+	const std::vector<ArgSpec> &Signature() const { return signature; }
+
+	std::string Evaluate(const UserFuncContext &args) const;
 
 private:
 	std::string key;

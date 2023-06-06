@@ -7,6 +7,7 @@
 #include <pugixml.hpp>
 
 #include "../game.h"
+#include "description.h"
 
 namespace Starlane {
 
@@ -19,6 +20,10 @@ UserFunction *UserFunction::CreateFromXML(const pugi::xml_node &xmlNode) {
 		result->signature.push_back({ arg.child_value("Name"), ParseArgType(arg.child_value("Type")) });
 	}
 	return result;
+}
+
+std::string UserFunction::Evaluate(const UserFuncContext &args) const {
+	return Game::Get()->GetDescription(output)->Build(true, &args);
 }
 
 }  // namespace Starlane

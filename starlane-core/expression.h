@@ -58,6 +58,8 @@ struct Value {
 };
 }  // namespace Expr
 
+using UserFuncContext = std::map<std::string, Expr::Value>;
+
 struct Expression {
 	Expression(const std::string &expr);
 	~Expression();
@@ -66,7 +68,7 @@ struct Expression {
 
 	bool EvaluateBool() const { return EvaluateInt(); };
 	int64_t EvaluateInt() const { if (constexType == ConstexprType::Int) return constValInt; return EvalAsIntImpl(); };
-	std::string EvaluateStr(const std::map<std::string, std::string> *context = nullptr);
+	std::string EvaluateStr(const UserFuncContext *context = nullptr);
 	
 	// parsing related stuff
 	inline int GetNextChar() {
@@ -160,7 +162,7 @@ private:
 
 	static std::map<std::string, decltype(&Expression::LCaseImpl)> tableOfBuiltInFunctions;
 
-	const std::map<std::string, std::string> *currentContext;
+	const UserFuncContext *currentContext;
 	friend class ContextMgr;
 };
 
