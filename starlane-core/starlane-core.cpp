@@ -14,7 +14,7 @@ void InitBackend(const Frontend *fe) {
 
 void CreateGame(const uint8_t *tafBytes, size_t tafLength) {
 	auto content = ExtractTaf(tafBytes, tafLength);
-	
+	Game::LoadFromXML(content);
 }
 
 void BeginGame() {
