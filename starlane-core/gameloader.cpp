@@ -37,6 +37,7 @@ Game *Game::LoadFromXML(const std::string &gameTxt) {
 	auto result = new Game;
 	result->gameTitle = gameNode.child_value("Title");
 	result->gameAuthor = gameNode.child_value("Author");
+	result->gameLastUpdated = gameNode.child_value("LastUpdated");
 	result->gameAdriftVersion = gameNode.child_value("Version");
 	result->gameStatusLine = gameNode.child_value("UserStatus");
 	result->showFirstLocation = ParseBool(gameNode.child("ShowFirstLocation").child_value());

@@ -3,7 +3,7 @@ cmake_minimum_required(VERSION 3.8)
 project(starlane_core C CXX)
 set(CMAKE_CXX_STANDARD 17)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
-set(CMAKE_CXX_EXTIONSION OFF)
+set(CMAKE_CXX_EXTENSIONS OFF)
 
 add_subdirectory(deps/pugixml)
 add_subdirectory(deps/miniz)
@@ -62,7 +62,9 @@ add_library(starlane-core STATIC
 	"gamecontent/variable.cpp" "gamecontent/variable.h"
 	"gamecontent/event.cpp" "gamecontent/event.h"
 	"gamecontent/userfunc.cpp" "gamecontent/userfunc.h"
-	"gamecontent/utility.h" "gamecontent/utility.cpp")
+	"gamecontent/utility.h" "gamecontent/utility.cpp"
+	# save files
+	savefiles/savefile.cpp savefiles/savefile.h)
 target_compile_definitions(starlane-core PRIVATE SLC_BUILDING_SELF)
 target_link_libraries(starlane-core miniz pugixml-static slc_exprparser)
 target_include_directories(starlane-core PRIVATE deps/miniz deps/pugixml/src ${CMAKE_CURRENT_BINARY_DIR})

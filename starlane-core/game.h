@@ -107,6 +107,10 @@ public:
 	const std::pair<std::string, Pronoun> &GetMostRecentlyMentioned() const { return mostRecentlyMentioned; }
 	void MentionCharacter(const std::string &key, Pronoun p) { mostRecentlyMentioned = {key, p}; }
 
+	const std::string &GetTitle() const { return gameTitle; }
+	const std::string &GetAuthor() const { return gameAuthor; }
+	const std::string &GetLastUpdated() const { return gameLastUpdated; }
+
 private:
 	Game() = default;
 	Game(const Game &);  // copy constructor -- for undo state saving
@@ -162,6 +166,7 @@ private:
 	std::string gameTitle;
 	std::string gameAuthor;
 	std::string gameAdriftVersion;
+	std::string gameLastUpdated;
 	std::string gameStatusLine;
 	bool showFirstLocation = true;
 	bool showExits = true;

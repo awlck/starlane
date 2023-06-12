@@ -1,0 +1,101 @@
+//
+// Created by Adrian Welcker on 06.06.23.
+//
+#pragma once
+
+#ifndef SLC_SAVEFILE_H
+#define SLC_SAVEFILE_H
+
+#include <type_traits>
+
+#include "../slc_private.h"
+
+struct mz_stream_s;
+
+namespace Starlane::Save {
+
+namespace {
+// Helper to determine whether there's a const_iterator for T.
+// https://stackoverflow.com/a/7728728
+template<typename T>
+struct has_const_iterator
+{
+private:
+	template<typename C> static char test(typename C::const_iterator*);
+	template<typename C> static int  test(...);
+public:
+	enum { value = sizeof(test<T>(0)) == sizeof(char) };
+};
+}  // anonymous namespace
+
+class Writer {
+public:
+	Writer(void *target, const Game *game);
+	~Writer();
+	void Indent() { indentLevel += 1; }
+	void Dedent() { if (indentLevel > 0) indentLevel -= 1; }
+
+	template<typename T> void WriteKV(const char *key, const T &val) {
+		WriteKey(key);
+		WriteValue(val);
+	}
+	void WriteValue(const std::string &str) { WriteLiteralString(str.c_str()); }
+	void WriteValue(const char *str) { WriteLiteralString(str); }
+	void WriteValue(bool b) { WriteUnqouted(b ? "yes" : "no"); }
+	template<typename T> typename std::enable_if_t<std::is_integral_v<T>> WriteValue(T val) {
+		std::string tmp(std::to_string(val));
+		WriteUnqouted(tmp.c_str());
+	}
+	template <typename Container>  // https://stackoverflow.com/a/7728728
+	typename std::enable_if<has_const_iterator<Container>::value,
+			void>::type WriteValue(const Container &lst) {
+		WriteUnqouted("{ ");
+		for (auto it = lst.cbegin(); it != lst.cend(); it++) {
+			WriteValue(*it);
+			AcceptChar(' ');
+		}
+		AcceptChar('}');
+	}
+	void BeginNamedCompound(const char *name, bool oneline = false) {
+		WriteKey(name);
+		AcceptChar('{');
+		if (oneline) AcceptChar(' ');
+		else Indent();
+	}
+	void EndCompound(bool oneline = false) {
+		if (oneline) {
+			WriteUnqouted(" }");
+		} else{
+			Dedent();
+			WriteUnqouted("\n}");
+		}
+	}
+
+	// Write out a string value, adding quotation marks and escaping special characters as needed.
+	void WriteLiteralString(const char *str);
+	// Write in normal mode, adding indents as needed.
+	void WriteUnqouted(const char *str);
+
+private:
+	void *hFile;
+	size_t indentLevel = 0;
+
+	void WriteKey(const char *key) {
+		WriteUnqouted("\n");
+		WriteUnqouted(key);
+		WriteUnqouted(" = ");
+	}
+
+	// Actual writing function: accept a single character into the buffer, calling the compressor and
+	// writing to the file as needed.
+	void AcceptChar(char c);
+	void RunCompressor(bool finish);
+
+	uint8_t *textbuf, *zbuf;
+	size_t position = 0;
+	mz_stream_s *stream;
+};
+
+}
+
+#endif  // !SLC_SAVEFILE_H

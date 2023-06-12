@@ -28,14 +28,27 @@ using TextOutputter = void (*)(const char *);
 // Frontend capabilities and settings
 struct SLC_API Frontend {
 	// Seed for the random number generator, or zero for a random seed.
-	uint32_t randomSeed = 0;
+	uint32_t randomSeed;
+	// whether the frontend can support real-time events
+	bool timersAvailable;
 
 	// Interface the frontend needs to implement
-	TextOutputter FatalError;
-	TextOutputter OutputText;
-	StringChanger StrToUpperCase;
-	StringChanger StrToLowerCase;
-	StringChanger StrToSentenceCase;
+	TextOutputter FatalError;  // issue a fatal error message
+	TextOutputter OutputText;  // send text to the output
+	StringChanger StrToUpperCase;  // translate the given string to upper case
+	StringChanger StrToLowerCase;  // translate the given string to lower case
+	StringChanger StrToSentenceCase;  // translate the given string to sentence case
+
+	// prompt the user to create (or replace) a save file, open it for writing, and return a handle to it
+	void *(*CreateSaveFile)();
+	// prompt the user to choose an existing save file to restore from, open it for reading, and return a handle to it
+	void *(*OpenSaveFile)();
+	// read up to `bufsize` bytes from `handle` into `buffer`, returning the number of bytes actually read
+	size_t (*ReadFile)(void *handle, uint8_t *buffer, size_t bufsize);
+	// write `count` bytes from `buffer` to `handle`
+	// (A write of length zero is valid and must result in a no-op.)
+	void (*WriteFile)(void *handle, uint8_t *buffer, size_t count);
+	void (*CloseFile)(void *handle);  // close the file associated with the given handle
 };
 
 // Initialize the backend with the given settings.
