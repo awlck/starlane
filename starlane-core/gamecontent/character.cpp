@@ -85,9 +85,9 @@ GameObj *Character::Clone() const {
 	return new Character(*this);
 }
 
-void Character::MakePosture(const std::string &newParent, Posture p) {
+void Character::MakePosture(const std::string &newParent, const char *p) {
 	MoveTo(newParent, GameObj::HoldingType::OnObject);
-	posture = p;
+	SetPropValue("CharacterPosition", p);
 }
 
 std::string Character::GetPossessionsList(Starlane::Character::PossessionFilter pf, bool recurse) const {
@@ -118,7 +118,6 @@ std::string Character::GetPossessionsList(Starlane::Character::PossessionFilter 
 void Character::WriteState(Save::Writer &writer) {
 	GameObj::WriteState(writer);
 	writer.WriteKV("seen", seenStorage);
-	writer.WriteKV("posture", (int) posture);
 }
 
 }

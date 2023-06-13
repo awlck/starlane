@@ -39,13 +39,7 @@ public:
 	// Characters have their own set of properties storing their location. Brilliant!
 	static std::pair<HoldingType, std::string> ParseHoldingType(const char *txt);
 
-	enum class Posture {
-		Standing,
-		Sitting,
-		Lying
-	};
-	inline Posture GetPosture() { return posture; }
-	void MakePosture(const std::string &newParent, Posture p);
+	void MakePosture(const std::string &newParent, const char *p);
 
 	enum class PossessionFilter {
 		Worn,
@@ -60,7 +54,6 @@ private:
 
 	std::string properName;
 	std::unordered_set<std::string> seenStorage;
-	Posture posture;
 };
 
 }

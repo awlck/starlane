@@ -394,14 +394,14 @@ static inline constexpr GameObj::HoldingType ActionTypeToHoldingType(Task::Actio
 	}
 }
 
-static inline constexpr Character::Posture ActionTypeToPosture(Task::ActionType t) {
+static inline constexpr const char *ActionTypeToPosture(Task::ActionType t) {
 	switch (t) {
 	case Task::ActionType::MakeLyingOn:
-		return Character::Posture::Lying;
+		return "Lying";
 	case Task::ActionType::MakeSittingOn:
-		return Character::Posture::Sitting;
+		return "Sitting";
 	case Task::ActionType::MakeStandingOn:
-		return Character::Posture::Standing;
+		return "Standing";
 	default:
 		throw std::logic_error("Invalid posture in posture action handling.");
 	}
