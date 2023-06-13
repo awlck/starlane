@@ -266,7 +266,7 @@ std::string Expression::EvaluateStr(const UserFuncContext *context) {
 	{
 		ScopedSETranslator translator(&StackOverflowTranslator);
 		try {
-			result = EvalAnyNode(rootNode, context);
+			result = EvalAnyNode(rootNode);
 		} catch (const StackOverflowError &e) {
 			// stack isn't actually unwound yet
 			stackDidOverflow = true;

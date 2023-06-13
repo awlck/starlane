@@ -87,17 +87,18 @@ int main(int argc, char **argv) {
 
 	QApplication app(argc, argv);
 	Starlane::Frontend fe {
-		.randomSeed = 0,
-		.FatalError = &FatalError,
-		.OutputText = &OutputText,
-		.StrToUpperCase = &StrToUpperCase,
-		.StrToLowerCase = &StrToLowerCase,
-		.StrToSentenceCase = &StrToSentenceCase,
-		.CreateSaveFile = &CreateSaveFile,
-		.OpenSaveFile = &OpenSaveFile,
-		.ReadFile = &ReadFile,
-		.WriteFile = &WriteFile,
-		.CloseFile = &CloseFile
+		/* .randomSeed = */ 0,
+		/* .timersAvailable = */ false,
+		/* .FatalError = */ &FatalError,
+		/* .OutputText = */ &OutputText,
+		/* .StrToUpperCase = */ &StrToUpperCase,
+		/* .StrToLowerCase = */ &StrToLowerCase,
+		/* .StrToSentenceCase = */ &StrToSentenceCase,
+		/* .CreateSaveFile = */ &CreateSaveFile,
+		/* .OpenSaveFile = */ &OpenSaveFile,
+		/* .ReadFile = */ &ReadFile,
+		/* .WriteFile = */ &WriteFile,
+		/* .CloseFile = */ &CloseFile
 	};
 	Starlane::InitBackend(&fe);
 	theWin = new MainWindow;

@@ -2,7 +2,6 @@
 #include <stdio.h>
 
 #include <starlane-core.h>
-#include <taffile.h>
 #include <game.h>
 #include <gamecontent/restriction.h>
 #include <expression.h>
@@ -121,13 +120,22 @@ std::string StrToSentenceCase(const std::string &str) {
 int main(int argc, char **argv) {
 	::setlocale(LC_ALL, ".utf-8");
 	std::locale::global(std::locale(".utf-8"));
-	auto f = fopen(R"(C:\Users\awelc\OneDrive\Temp\ADRIFT5\lost-coastlines\lost-coastlines-v1.2.taf)", "rb");
+	auto f = fopen(R"(C:\Users\Adrian\OneDrive\Temp\ADRIFT5\axe-of-kolt\Executable.taf)", "rb");
 	fseek(f, 0, SEEK_END);
 	size_t fsize = ftell(f);
 	rewind(f);
 	uint8_t *input = new uint8_t[fsize];
 	fread(input, fsize, 1, f);
 	fclose(f);
+
+	Starlane::Frontend fe;
+	fe.FatalError = &SLFrontend::FatalError;
+	fe.OutputText = &SLFrontend::OutputText;
+	fe.StrToLowerCase = &SLFrontend::Services::StrToLowerCase;
+	fe.StrToUpperCase = &SLFrontend::Services::StrToUpperCase;
+	fe.StrToSentenceCase = &SLFrontend::Services::StrToSentenceCase;
+	Starlane::InitBackend(&fe);
+
 	auto result = Starlane::ExtractTaf(input, fsize);
 	auto game = Starlane::Game::LoadFromXML(result);
 	game->Begin();
