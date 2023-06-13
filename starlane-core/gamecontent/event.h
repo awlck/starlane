@@ -65,6 +65,8 @@ public:
 	Util::Range &GetDuration() { return duration; }
 	int32_t GetTimeSinceStart() const { return timeSinceStart; }
 
+	void WriteState(Save::Writer &writer);
+
 private:
 	Event() = default;
 	void Stop();

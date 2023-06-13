@@ -54,6 +54,9 @@ struct Range {
 			value = (uint32_t) -1;
 	}
 
+	// Non-desctructively get the current value, for the purpose of save-games.
+	uint32_t CurrentState() const { return value; }
+
 private:
 	uint32_t min;
 	uint32_t max;

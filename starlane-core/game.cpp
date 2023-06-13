@@ -168,7 +168,13 @@ void Game::Save() {
 	}
 	writer.EndCompound();
 
-	// TODO: Events
+	writer.BeginNamedCompound("events");
+	for (const auto &evt: events) {
+		writer.BeginNamedCompound(evt.first.c_str());
+		evt.second->WriteState(writer);
+		writer.EndCompound();
+	}
+	writer.EndCompound();
 
 	writer.BeginNamedCompound("variables");
 	for (const auto &var: variables) {

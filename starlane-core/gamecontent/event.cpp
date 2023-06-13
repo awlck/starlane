@@ -7,6 +7,7 @@
 
 #include "../game.h"
 #include "../valueparsers.h"
+#include "../savefiles/savefile.h"
 
 namespace Starlane {
 
@@ -109,6 +110,12 @@ void Event::ReceiveTaskNotification(Util::Control::Condition cond, const std::st
 				state = State::Running;
 			return;
 	}
+}
+
+void Event::WriteState(Save::Writer &writer) {
+	writer.WriteKV("determined_duration", duration.CurrentState());
+	writer.WriteKV("state", (int) state);
+	writer.WriteKV("time_since_start", timeSinceStart);
 }
 
 }
