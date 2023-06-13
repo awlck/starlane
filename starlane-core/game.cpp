@@ -193,6 +193,12 @@ void Game::Save() {
 		writer.WriteKV(name.c_str(), desc.second->GetState());
 	}
 	writer.EndCompound();
+
+	writer.BeginNamedCompound("tasks_completed");
+	for (const auto &state: taskCompletedStorage) {
+		writer.WriteKV(state.first.c_str(), state.second);
+	}
+	writer.EndCompound();
 }
 
 }
