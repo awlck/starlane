@@ -233,7 +233,8 @@ UserFunction::ArgType UserFunction::ParseArgType(const char *txt) {
 
 Util::Range::Range(const char *txt) {
 	if (IsDigits(txt)) {
-		Util::Range(ParseInt(txt));
+		// ugly hack to delegate constructors outside of initialization lists...
+		*this = Util::Range(ParseInt(txt));
 	} else {
 		std::istringstream strm((std::string(txt)));
 		std::string t;
