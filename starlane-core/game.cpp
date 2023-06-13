@@ -206,12 +206,12 @@ void Game::Save() {
 	}
 	writer.EndCompound();
 
-	writer.BeginNamedCompound("tasks_completed");
-	// todo: save only completed tasks?
+	std::vector<std::string> completedTasks;
 	for (const auto &state: taskCompletedStorage) {
-		writer.WriteKV(state.first.c_str(), state.second);
+		if (state.second)
+			completedTasks.push_back(state.first);
 	}
-	writer.EndCompound();
+	writer.WriteKV("tasks_completed", completedTasks);
 }
 
 }
