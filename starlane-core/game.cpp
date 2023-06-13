@@ -171,6 +171,7 @@ void Game::Save() {
 	// TODO: Events
 
 	writer.BeginNamedCompound("variables");
+	// TODO: track whether variables have ever changed and only save the ones that have?
 	for (const auto &var: variables) {
 		switch (var.second->GetType()) {
 		case Variable::Type::Int:
@@ -186,6 +187,7 @@ void Game::Save() {
 	writer.EndCompound();
 
 	writer.BeginNamedCompound("groups");
+	// TODO: only save groups with at least one property of their own?
 	for (const auto &grp: groups) {
 		writer.BeginNamedCompound(grp.first.c_str());
 		grp.second->WriteState(writer);
@@ -194,13 +196,18 @@ void Game::Save() {
 	writer.EndCompound();
 
 	writer.BeginNamedCompound("descriptions_shown");
+	// TODO: save only those where at least one segment even cares?
 	for (const auto &desc: descriptions) {
 		auto name = std::to_string(desc.first);
-		writer.WriteKV(name.c_str(), desc.second->GetState());
+		auto state = desc.second->GetState();
+		// "not shown" is the initial state, so only save anything for those descriptions where at least one segment has been shown.
+		if (std::find(state.cbegin(), state.cend(), true) != state.cend())  // at least one true
+			writer.WriteKV(name.c_str(), state);
 	}
 	writer.EndCompound();
 
 	writer.BeginNamedCompound("tasks_completed");
+	// todo: save only completed tasks?
 	for (const auto &state: taskCompletedStorage) {
 		writer.WriteKV(state.first.c_str(), state.second);
 	}
