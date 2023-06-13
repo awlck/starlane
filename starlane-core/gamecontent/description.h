@@ -54,7 +54,7 @@ private:
 		size_t initialTextLength = 0;
 		bool onceOnly;
 		bool returnToDefault;
-		bool shown;
+		bool shown = false;
 
 		std::string Build(const UserFuncContext *context = nullptr) const;
 
