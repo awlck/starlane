@@ -206,12 +206,14 @@ void Game::Save() {
 	}
 	writer.EndCompound();
 
-	std::vector<std::string> completedTasks;
+	writer.BeginNamedCompound("tasks_completed", true);
 	for (const auto &state: taskCompletedStorage) {
-		if (state.second)
-			completedTasks.push_back(state.first);
+		if (state.second) {
+			writer.WriteLiteralString(state.first.c_str());
+			writer.WriteUnqouted(" ");
+		}
 	}
-	writer.WriteKV("tasks_completed", completedTasks);
+	writer.WriteUnqouted("}");  // sneaky! (Avoiding the trailing space added by `EndCompound`)
 }
 
 }
