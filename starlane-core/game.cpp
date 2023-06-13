@@ -158,11 +158,30 @@ void Game::Save() {
 	if (!hFile)  // no file -- assume user cancelled
 		return;
 	Save::Writer writer(hFile, this);
+	writer.WriteKV("player", playerKey);
+
 	writer.BeginNamedCompound("objects");
 	for (const auto &obj: objects) {
 		writer.BeginNamedCompound(obj.first.c_str());
 		obj.second->WriteState(writer);
 		writer.EndCompound();
+	}
+	writer.EndCompound();
+
+	// TODO: Events
+
+	writer.BeginNamedCompound("variables");
+	for (const auto &var: variables) {
+		switch (var.second->GetType()) {
+		case Variable::Type::Int:
+		case Variable::Type::IntArray:
+			writer.WriteKV(var.first.c_str(), var.second->GetIntArray());
+			break;
+		case Variable::Type::String:
+		case Variable::Type::StringArray:
+			writer.WriteKV(var.first.c_str(), var.second->GetStrArray());
+			break;
+		}
 	}
 	writer.EndCompound();
 }

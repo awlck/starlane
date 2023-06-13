@@ -55,6 +55,10 @@ public:
 		strVals[idx] = val;
 	}
 
+	// For saving the game:
+	const std::vector<int64_t> &GetIntArray() const { return intVals; }
+	const std::vector<std::string> &GetStrArray() const { return strVals; }
+
 private:
 	Variable() = default;
 
