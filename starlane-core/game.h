@@ -92,6 +92,8 @@ public:
 	void Begin();
 	// This function should be called once per second to advance real-time-based events.
 	void Tick();
+	// Save the game. Called by the action-processing machinery when the player types SAVE.
+	void Save();
 
 	enum class ReferralPerson {
 		FirstPerson,

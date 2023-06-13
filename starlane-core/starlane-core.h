@@ -45,9 +45,9 @@ struct SLC_API Frontend {
 	void *(*OpenSaveFile)();
 	// read up to `bufsize` bytes from `handle` into `buffer`, returning the number of bytes actually read
 	size_t (*ReadFile)(void *handle, uint8_t *buffer, size_t bufsize);
-	// write `count` bytes from `buffer` to `handle`
+	// write `count` bytes from `buffer` to the file represented by `handle`
 	// (A write of length zero is valid and must result in a no-op.)
-	void (*WriteFile)(void *handle, uint8_t *buffer, size_t count);
+	void (*WriteFile)(void *handle, const uint8_t *buffer, size_t count);
 	void (*CloseFile)(void *handle);  // close the file associated with the given handle
 };
 

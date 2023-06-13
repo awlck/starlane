@@ -10,6 +10,7 @@
 #include "gamecontent/description.h"
 #include "gamecontent/restriction.h"
 #include "gamecontent/variable.h"
+#include "savefiles/savefile.h"
 
 namespace Starlane {
 
@@ -149,6 +150,14 @@ void Game::Begin() {
 }
 
 void Game::Tick() {
+	// TODO
+}
+
+void Game::Save() {
+	auto hFile = frontend->CreateSaveFile();
+	if (!hFile)  // no file -- assume user cancelled
+		return;
+	Save::Writer writer(hFile, this);
 	// TODO
 }
 

@@ -40,7 +40,7 @@ Writer::~Writer() {
 }
 
 void Writer::AcceptChar(char c) {
-	textbuf[++position] = c;
+	textbuf[position++] = c;
 	if (position < WRITER_BUFSIZE) return;
 
 	// Buffer is full, run compressor and write out as needed
@@ -49,11 +49,11 @@ void Writer::AcceptChar(char c) {
 
 void Writer::WriteUnqouted(const char *str) {
 	for (const char *p = str; *p; ++p) {
+		AcceptChar(*p);
 		if (*p == '\n') {
 			for (size_t i = 0; i < indentLevel; i++)
 				AcceptChar('\t');
 		}
-		AcceptChar('\n');
 	}
 }
 
