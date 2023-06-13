@@ -29,4 +29,8 @@ void TimeTick() {
 		theGame->Tick();
 }
 
+bool GameIsOngoing() {
+	return (Game::Get() && Game::Get()->IsGameOngoing());
+}
+
 }

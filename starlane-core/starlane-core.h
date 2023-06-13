@@ -67,6 +67,8 @@ SLC_API void TimeTick();
 // If you just need the unobfuscated XML representation of an ADRIFT game file,
 // this function produces it.
 SLC_API std::string ExtractTaf(const uint8_t *input, size_t size);
+// Whether a game has been loaded and begun
+SLC_API bool GameIsOngoing();
 }
 
 

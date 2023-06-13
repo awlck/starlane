@@ -113,6 +113,8 @@ public:
 	const std::string &GetAuthor() const { return gameAuthor; }
 	const std::string &GetLastUpdated() const { return gameLastUpdated; }
 
+	bool IsGameOngoing() const { return gameHasBegun; }
+
 private:
 	Game() = default;
 	Game(const Game &);  // copy constructor -- for undo state saving
