@@ -44,6 +44,7 @@ public:
 			errmsg << "Index " << idx << " out of range for variabe " << key;
 			throw std::runtime_error(errmsg.str());
 		}
+		everChanged = true;
 		intVals[idx] = val;
 	}
 	void SetValue(const std::string &val, uint32_t idx = 1) {
@@ -52,12 +53,14 @@ public:
 			errmsg << "Index " << idx << " out of range for variabe " << key;
 			throw std::runtime_error(errmsg.str());
 		}
+		everChanged = true;
 		strVals[idx] = val;
 	}
 
 	// For saving the game:
 	const std::vector<int64_t> &GetIntArray() const { return intVals; }
 	const std::vector<std::string> &GetStrArray() const { return strVals; }
+	bool GetEverChanged() const { return everChanged; }
 
 private:
 	Variable() = default;
@@ -68,6 +71,7 @@ private:
 	std::vector<int64_t> intVals;
 	std::vector<std::string> strVals;
 	uint32_t capacity = 1;
+	bool everChanged = false;
 };
 
 }

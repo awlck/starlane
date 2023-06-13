@@ -171,8 +171,8 @@ void Game::Save() {
 	// TODO: Events
 
 	writer.BeginNamedCompound("variables");
-	// TODO: track whether variables have ever changed and only save the ones that have?
 	for (const auto &var: variables) {
+		if (!var.second->GetEverChanged()) continue;
 		switch (var.second->GetType()) {
 		case Variable::Type::Int:
 		case Variable::Type::IntArray:
