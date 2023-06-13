@@ -67,6 +67,7 @@ void Writer::WriteLiteralString(const char *str) {
 			break;
 		}
 	}
+	if (cnt == 0) needQuotes = true;
 	// Now write out the string, adding quotes and escape sequences if necessary
 	if (needQuotes) {
 		AcceptChar('"');
@@ -78,7 +79,7 @@ void Writer::WriteLiteralString(const char *str) {
 				break;
 			case '\t':
 				AcceptChar('\\');
-				AcceptChar('n');
+				AcceptChar('t');
 				break;
 			case '"':
 			case '\\':
@@ -96,14 +97,16 @@ void Writer::WriteLiteralString(const char *str) {
 }
 
 void Writer::RunCompressor(bool finish) {
+	stream->next_in = textbuf;
 	stream->avail_in = position;
 	do {
+		stream->avail_out = WRITER_BUFSIZE;
+		stream->next_out = zbuf;
 		[[maybe_unused]] int status = mz_deflate(stream, finish ? Z_FINISH : Z_NO_FLUSH);
 		// TODO: error handling
 		mz_ulong toWrite = WRITER_BUFSIZE - stream->avail_out;
 		frontend->WriteFile(hFile, zbuf, toWrite);
-		stream->avail_out = WRITER_BUFSIZE;
-	} while (stream->avail_in > 0);
+	} while (stream->avail_in > 0 || stream->avail_out < WRITER_BUFSIZE);
 	position = 0;
 }
 
