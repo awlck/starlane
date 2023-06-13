@@ -184,6 +184,15 @@ void Game::Save() {
 		}
 	}
 	writer.EndCompound();
+
+	// TODO: Groups
+
+	writer.BeginNamedCompound("descriptions_shown");
+	for (const auto &desc: descriptions) {
+		auto name = std::to_string(desc.first);
+		writer.WriteKV(name.c_str(), desc.second->GetState());
+	}
+	writer.EndCompound();
 }
 
 }

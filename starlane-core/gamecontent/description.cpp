@@ -401,4 +401,13 @@ ResolveOO_FakeTailcall:
 	content.push_back(Game::Get()->StorePlainTextSnippet(theText));
 }
 
+std::vector<bool> Description::GetState() const {
+	// Really, the only thing we're interested in is whether each of our segments has been shown.
+	std::vector<bool> results;
+	results.reserve(segments.size());
+	for (const auto &s: segments)
+		results.push_back(s.shown);
+	return results;
+}
+
 }

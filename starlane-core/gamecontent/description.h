@@ -25,6 +25,8 @@ public:
 
 	void ResolveText();
 
+	std::vector<bool> GetState() const;
+
 private:
 	enum class Display {
 		BeginHere,
