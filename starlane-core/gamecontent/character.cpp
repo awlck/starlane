@@ -7,6 +7,7 @@
 #include "group.h"
 #include "location.h"
 #include "restriction.h"
+#include "../savefiles/savefile.h"
 
 namespace Starlane {
 
@@ -112,6 +113,12 @@ std::string Character::GetPossessionsList(Starlane::Character::PossessionFilter 
 		}
 	}
 	return result;
+}
+
+void Character::WriteState(Save::Writer &writer) {
+	GameObj::WriteState(writer);
+	writer.WriteKV("seen", seenStorage);
+	writer.WriteKV("posture", (int) posture);
 }
 
 }

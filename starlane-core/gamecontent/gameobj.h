@@ -86,6 +86,9 @@ public:
 	// Move this object so that it has this parent and relation
 	void MoveTo(const std::string &newParent, HoldingType newRelation);
 
+	// Write out mutable object state to a save file
+	virtual void WriteState(Save::Writer &writer);
+
 protected:
 	void MakeCommonValues(const pugi::xml_node &xmlNode);
 

@@ -20,12 +20,13 @@ public:
 	}
 
 	const std::unordered_map<std::string, std::string> &GetAllStrProps() const {
-		// This is unfortunately necessary for the "object is in state" test,
-		// which can refer to any enum property without naming it explicitly.
+		// This is necessary for the "object is in state" test, which can refer
+		// to any enum property without naming it explicitly, as well as for
+		// saving the game state.
 		return strValuedProps;
 	}
 	const std::unordered_map<std::string, int64_t> &GetAllIntProps() const {
-		// Needed for the implementation of the "has property" check.
+		// Needed for the implementation of the "has property" check and saving.
 		return intValuedProps;
 	}
 

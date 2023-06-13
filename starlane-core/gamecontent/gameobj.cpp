@@ -10,6 +10,7 @@
 #include "description.h"
 #include "location.h"
 #include "group.h"
+#include "../savefiles/savefile.h"
 
 namespace Starlane {
 
@@ -156,6 +157,21 @@ std::string GameObj::GetListOfChildren(GameObj::ChildFilter f1, GameObj::ChildRe
 		}
 	}
 	return result;
+}
+
+void GameObj::WriteState(Save::Writer &writer) {
+	writer.WriteKV("parent", parent);
+	writer.WriteKV("dynamic", dynamic);
+	writer.WriteKV("holding_type", (int) relation);
+	writer.WriteKV("groups", groupMembership);
+	writer.BeginNamedCompound("properties");
+	const auto &intProps = GetAllIntProps();
+	for (const auto &p: intProps)
+		writer.WriteKV(p.first.c_str(), p.second);
+	const auto &strProps = GetAllStrProps();
+	for (const auto &p: strProps)
+		writer.WriteKV(p.first.c_str(), p.second);
+	writer.EndCompound();
 }
 
 }

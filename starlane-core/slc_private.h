@@ -62,6 +62,11 @@ enum class Pronoun {
 	Possessive,
 	Reflective
 };
+
+namespace Save {
+class Writer;
+}
+
 }
 
 #endif  // !SLC_PRIVATE_H

@@ -158,7 +158,13 @@ void Game::Save() {
 	if (!hFile)  // no file -- assume user cancelled
 		return;
 	Save::Writer writer(hFile, this);
-	// TODO
+	writer.BeginNamedCompound("objects");
+	for (const auto &obj: objects) {
+		writer.BeginNamedCompound(obj.first.c_str());
+		obj.second->WriteState(writer);
+		writer.EndCompound();
+	}
+	writer.EndCompound();
 }
 
 }

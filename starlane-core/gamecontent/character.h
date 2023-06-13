@@ -53,6 +53,8 @@ public:
 		WornAndHeld
 	};
 	std::string GetPossessionsList(PossessionFilter pf = PossessionFilter::WornAndHeld, bool recurse = true) const;
+
+	void WriteState(Save::Writer &writer) override;
 private:
 	Character() = default;
 
