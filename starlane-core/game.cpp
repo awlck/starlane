@@ -185,7 +185,13 @@ void Game::Save() {
 	}
 	writer.EndCompound();
 
-	// TODO: Groups
+	writer.BeginNamedCompound("groups");
+	for (const auto &grp: groups) {
+		writer.BeginNamedCompound(grp.first.c_str());
+		grp.second->WriteState(writer);
+		writer.EndCompound();
+	}
+	writer.EndCompound();
 
 	writer.BeginNamedCompound("descriptions_shown");
 	for (const auto &desc: descriptions) {

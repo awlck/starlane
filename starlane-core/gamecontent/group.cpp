@@ -4,6 +4,7 @@
 
 #include "../game.h"
 #include "gameobj.h"
+#include "../savefiles/savefile.h"
 
 namespace Starlane {
 
@@ -36,6 +37,16 @@ void Group::RemoveObj(const std::string &key) {
 void Group::RemoveObj(GameObj *obj) {
 	obj->CeaseBeingGroupMember(this->key_);
 	LetGoOfObj(obj->Key());
+}
+
+void Group::WriteState(Save::Writer &writer) const {
+	// hmm... do we even need groups to know their members post-load? I don't think so.
+	for (const auto &prop: GetAllIntProps()) {
+		writer.WriteKV(prop.first.c_str(), prop.second);
+	}
+	for (const auto &prop: GetAllStrProps()) {
+		writer.WriteKV(prop.first.c_str(), prop.second.c_str());
+	}
 }
 
 }
