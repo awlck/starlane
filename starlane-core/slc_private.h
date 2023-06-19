@@ -6,6 +6,7 @@
 #define SLC_PRIVATE_H
 
 #if !defined(NDEBUG)
+#include <assert.h>
 #define UNREACHABLE() assert(false && "reached presumed-unreachable code")
 #elif defined(__cpp_lib_unreachable) && __cpp_lib_unreachable >= 202202L
 #include <utility>
