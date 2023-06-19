@@ -12,6 +12,8 @@
 
 #ifdef __clang__
 #define TAILCALL [[clang::musttail]]
+#else
+#define TAILCALL
 #endif
 
 static const slc__frontend *cfe = nullptr;
