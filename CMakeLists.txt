@@ -8,8 +8,10 @@ set(CMAKE_CXX_STANDARD 17)
 set(CMAKE_CXX_EXTENSIONS OFF)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
 
+option(BUILD_SHARED_LIBS "Build the interpreter core as a shared library" OFF)
 option(SL_BUILD_QT "Build the Starlane Qt frontent" ON)
 option(SL_BUILD_TOOLS "Build command-line utilities" ON)
+option(SL_BUILD_C_WRAPPER "Build c-style API wrapper" ON)
 
 # Global compiler options: warnings, security, optimizations
 if(MSVC)
@@ -53,6 +55,10 @@ add_subdirectory("starlane-utils")
 
 if(SL_BUILD_QT)
 	add_subdirectory("starlane-qt")
+endif()
+
+if(SL_BUILD_C_WRAPPER)
+	add_subdirectory("slc-capi")
 endif()
 
 if(MSVC)

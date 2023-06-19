@@ -36,7 +36,7 @@ else()
 	target_compile_options(slc_exprparser PRIVATE "-fexceptions" "-Wno-unused-parameter")
 endif()
 
-add_library(starlane-core STATIC
+add_library(starlane-core
 	# core files
 	"starlane-core.cpp" "starlane-core.h"
 	"slc_private.h"
@@ -65,9 +65,11 @@ add_library(starlane-core STATIC
 	"gamecontent/utility.h" "gamecontent/utility.cpp"
 	# save files
 	savefiles/savefile.cpp savefiles/savefile.h)
-target_compile_definitions(starlane-core PRIVATE SLC_BUILDING_SELF)
-target_link_libraries(starlane-core miniz pugixml-static slc_exprparser)
+target_link_libraries(starlane-core miniz pugixml slc_exprparser)
 target_include_directories(starlane-core PRIVATE deps/miniz deps/pugixml/src ${CMAKE_CURRENT_BINARY_DIR})
+if (BUILD_SHARED_LIBS)
+	target_compile_definitions(starlane-core PUBLIC SL_SHARED_CORE)
+endif()
 if (MSVC)  # make sure SEH exceptions work
 	string(REGEX REPLACE "/EHsc" "/EHa /EHc-" CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS}")
 endif()
