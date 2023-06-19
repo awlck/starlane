@@ -33,4 +33,10 @@ bool GameIsOngoing() {
 	return (Game::Get() && Game::Get()->IsGameOngoing());
 }
 
+uint32_t GetBlorbResourceForPath(const std::string &path) {
+	auto *g = Game::Get();
+	if (!g) return -1;
+	return g->GetBlorbResource(path);
+}
+
 }

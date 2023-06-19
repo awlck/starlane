@@ -52,6 +52,7 @@ struct SLC_API Frontend {
 };
 
 // Initialize the backend with the given settings.
+// (The argument pointer itself is stowed away, don't delete it.)
 SLC_API void InitBackend(const Frontend *settings);
 // Load the given 'taf' file content and set up a new game.
 // The current game, if any, is discarded. It is your job to ask the user if they are okay with this.
@@ -69,6 +70,8 @@ SLC_API void TimeTick();
 SLC_API std::string ExtractTaf(const uint8_t *input, size_t size);
 // Whether a game has been loaded and begun
 SLC_API bool GameIsOngoing();
+// Get blorb resource ID for a given file path, or (uint32_t) -1 if not found.
+SLC_API uint32_t GetBlorbResourceForPath(const std::string &path);
 }
 
 

@@ -54,8 +54,9 @@ int main(int argc, char **argv) {
 	uint8_t *input = new uint8_t[fsize];
 	fread(input, fsize, 1, f);
 	fclose(f);
-	auto result = Starlane::ExtractTaf(input, fsize);
-	auto game = Starlane::Game::LoadFromXML(result);
-	game->Begin();
+	Starlane::Frontend fe {.FatalError = &SLFrontend::FatalError, .OutputText = &SLFrontend::OutputText};
+	Starlane::InitBackend(&fe);
+	Starlane::CreateGame(input, fsize);
+	Starlane::BeginGame();
 	return 0;
 }

@@ -114,6 +114,11 @@ public:
 	const std::string &GetLastUpdated() const { return gameLastUpdated; }
 
 	bool IsGameOngoing() const { return gameHasBegun; }
+	uint32_t GetBlorbResource(const std::string &path) const {
+		auto f = blorbResMap.find(path);
+		if (f == blorbResMap.cend()) return -1;
+		return f->second;
+	}
 
 private:
 	Game() = default;
@@ -181,7 +186,7 @@ private:
 	size_t textSnippetsSoFar = 0;
 	size_t expressionsSoFar = ((size_t) 1) << (std::numeric_limits<size_t>::digits-1);
 
-	std::unordered_map<std::string, size_t> blorbResMap;
+	std::unordered_map<std::string, uint32_t> blorbResMap;
 
 	// The Game instance holding the current state of the game, for the benefit of any
 	// functions that might need it (restrictions, descriptions, action processing)
