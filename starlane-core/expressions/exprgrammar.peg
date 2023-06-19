@@ -290,5 +290,5 @@ D <- [0-9]
 strcontent <- ('\\"' / (!'"' .))*
 
 _ <- space*
-space <- [ \t\v\f]
+space <- [ \t\v\f\n]
 end_of_input <- !.
