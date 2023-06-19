@@ -281,7 +281,7 @@ ResolveText_FakeTailcall:
 			}
 			// handle all the text prior to the first '%'
 			ResolveExpressions(theText.substr(0, beginningOfFunc));
-			// check wheter we also need to resolve an OO-style property for the resulting value
+			// check whether we also need to resolve an OO-style property for the resulting value
 			if (pos + 2 < theText.length() && theText[pos + 1] == '.' && theText[pos + 2]) {
 				pos += SkipSingleOOExpression(theText.substr(pos));
 			} else {
