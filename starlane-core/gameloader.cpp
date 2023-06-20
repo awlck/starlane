@@ -87,6 +87,14 @@ Game *Game::LoadFromXML(const std::string &gameTxt) {
 	if (perspectiveNode.node().type() != pugi::node_null)
 		result->pcReferralPerson = ParseReferralPerson(perspectiveNode.node().child_value());
 
+	// determine who is the initial player character (can this even be changed?).
+	// set by the special element 'Type' on a Character entity.
+	auto playerNode = doc.select_node(R"(//Character[Type="Player"]/Key)");
+	if (playerNode.node().type() != pugi::node_null)
+		result->playerKey = playerNode.node().child_value();
+	else  // fallback
+		result->playerKey = "Player";
+
 	// Finally, pre-split all descriptions into runs of plain text and expressions.
 	// (This needs to happen after objects are loaded since we need to determine whether
 	//  'A.B' is indeed accessing property 'B' of object with key 'A' (if 'A' is a valid object key)
