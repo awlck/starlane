@@ -13,26 +13,26 @@ namespace Starlane {
 
 class PropHolder {
 public:
-	std::string GetStrProp(const std::string &key) const {
+	virtual std::string GetStrProp(const std::string &key) const {
 		return strValuedProps.at(key);
 	}
 
-	int64_t GetIntProp(const std::string &key) const {
+	virtual int64_t GetIntProp(const std::string &key) const {
 		return intValuedProps.at(key);
 	}
 
-	bool GetBoolProp(const std::string &key) const {
+	virtual bool GetBoolProp(const std::string &key) const {
 		if (intValuedProps.count(key) == 0) return false;
 		return (bool) intValuedProps.at(key);
 	}
 
-	const std::unordered_map<std::string, std::string> &GetAllStrProps() const {
+	virtual const std::unordered_map<std::string, std::string> &GetAllStrProps() const {
 		// This is necessary for the "object is in state" test, which can refer
 		// to any enum property without naming it explicitly, as well as for
 		// saving the game state.
 		return strValuedProps;
 	}
-	const std::unordered_map<std::string, int64_t> &GetAllIntProps() const {
+	virtual const std::unordered_map<std::string, int64_t> &GetAllIntProps() const {
 		// Needed for the implementation of the "has property" check and saving.
 		return intValuedProps;
 	}

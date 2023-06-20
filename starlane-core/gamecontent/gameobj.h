@@ -19,6 +19,11 @@ class Location;
 // (physical or otherwise).
 class GameObj: public PropHolder {
 public:
+	std::string GetStrProp(const std::string &key) const override;
+	int64_t GetIntProp(const std::string &key) const override;
+	bool GetBoolProp(const std::string &key) const override;
+	const std::unordered_map<std::string, std::string> &GetAllStrProps() const override;
+	const std::unordered_map<std::string, int64_t> &GetAllIntProps() const override;
 	static GameObj *CreateFromXML(const pugi::xml_node &xmlNode);
 	virtual GameObj *Clone() const;  // sort of a copy constructor that respects subclassing.
     virtual ~GameObj() = default;
@@ -103,6 +108,8 @@ protected:
 	DescrRef description;
 	// The keys of all the groups this object is a member of.
 	std::unordered_set<std::string> groupMembership;
+
+	const Group *GetGroupWithProp(const std::string &k) const;
 
 	// Whether or not this object is considered 'dynamic' (i.e., takeable). Characters and
 	// locations are never dynamic. Objects have this set from the `StaticOrDynamic` property.

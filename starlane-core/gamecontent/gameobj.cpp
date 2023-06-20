@@ -174,4 +174,42 @@ void GameObj::WriteState(Save::Writer &writer) {
 	writer.EndCompound();
 }
 
+const Group *GameObj::GetGroupWithProp(const std::string &k) const {
+	auto *g = Game::Get();
+	for (const auto &grpKey: groupMembership) {
+		auto *grp = g->GetGroup(grpKey);
+		if (grp->HasProp(k)) return grp;
+	}
+	return nullptr;
+}
+
+std::string GameObj::GetStrProp(const std::string &k) const {
+	const Group *grp = GetGroupWithProp(k);
+	if (grp != nullptr)
+		return grp->GetStrProp(k);
+	return PropHolder::GetStrProp(k);
+}
+
+int64_t GameObj::GetIntProp(const std::string &k) const {
+	const Group *grp = GetGroupWithProp(k);
+	if (grp != nullptr)
+		return grp->GetIntProp(k);
+	return PropHolder::GetIntProp(k);
+}
+
+bool GameObj::GetBoolProp(const std::string &k) const {
+	const Group *grp = GetGroupWithProp(k);
+	if (grp != nullptr)
+		return grp->GetBoolProp(k);
+	return PropHolder::GetBoolProp(k);
+}
+
+const std::unordered_map<std::string, std::string> &GameObj::GetAllStrProps() const {
+	return PropHolder::GetAllStrProps();
+}
+
+const std::unordered_map<std::string, int64_t> &GameObj::GetAllIntProps() const {
+	return PropHolder::GetAllIntProps();
+}
+
 }
