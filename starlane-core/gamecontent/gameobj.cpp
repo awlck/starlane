@@ -10,7 +10,7 @@
 #include "description.h"
 #include "location.h"
 #include "group.h"
-#include "../savefiles/savefile.h"
+#include "../savefiles/writer.h"
 
 namespace Starlane {
 

@@ -7,7 +7,7 @@
 #include "group.h"
 #include "location.h"
 #include "restriction.h"
-#include "../savefiles/savefile.h"
+#include "../savefiles/writer.h"
 
 namespace Starlane {
 

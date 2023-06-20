@@ -64,7 +64,7 @@ add_library(starlane-core
 	"gamecontent/userfunc.cpp" "gamecontent/userfunc.h"
 	"gamecontent/utility.h" "gamecontent/utility.cpp"
 	# save files
-	savefiles/savefile.cpp savefiles/savefile.h)
+        savefiles/writer.cpp savefiles/writer.h)
 target_link_libraries(starlane-core miniz pugixml slc_exprparser)
 target_include_directories(starlane-core PRIVATE deps/miniz deps/pugixml/src ${CMAKE_CURRENT_BINARY_DIR})
 if (BUILD_SHARED_LIBS)

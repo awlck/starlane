@@ -3,8 +3,8 @@
 //
 #pragma once
 
-#ifndef SLC_SAVEFILE_H
-#define SLC_SAVEFILE_H
+#ifndef SLC_SAVEFILES_WRITER_H
+#define SLC_SAVEFILES_WRITER_H
 
 #include <type_traits>
 
@@ -39,13 +39,17 @@ public:
 		WriteKey(key);
 		WriteValue(val);
 	}
+	// Write out a string value
 	void WriteValue(const std::string &str) { WriteLiteralString(str.c_str()); }
 	void WriteValue(const char *str) { WriteLiteralString(str); }
+	// Write out a boolean
 	void WriteValue(bool b) { WriteUnqouted(b ? "yes" : "no"); }
+	// Write out an integer
 	template<typename T> typename std::enable_if_t<std::is_integral_v<T>> WriteValue(T val) {
 		std::string tmp(std::to_string(val));
 		WriteUnqouted(tmp.c_str());
 	}
+	// Write out a container (e.g. vector<T>) where T is any of the above types
 	template <typename Container>  // https://stackoverflow.com/a/7728728
 	typename std::enable_if<has_const_iterator<Container>::value,
 			void>::type WriteValue(const Container &lst) {
@@ -98,4 +102,4 @@ private:
 
 }
 
-#endif  // !SLC_SAVEFILE_H
+#endif  // !SLC_SAVEFILES_WRITER_H

@@ -7,7 +7,7 @@
 
 #include "../game.h"
 #include "../valueparsers.h"
-#include "../savefiles/savefile.h"
+#include "../savefiles/writer.h"
 
 namespace Starlane {
 

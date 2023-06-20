@@ -4,7 +4,7 @@
 
 #include "../game.h"
 #include "gameobj.h"
-#include "../savefiles/savefile.h"
+#include "../savefiles/writer.h"
 
 namespace Starlane {
 

@@ -10,7 +10,7 @@
 #include "gamecontent/description.h"
 #include "gamecontent/restriction.h"
 #include "gamecontent/variable.h"
-#include "savefiles/savefile.h"
+#include "savefiles/writer.h"
 
 namespace Starlane {
 

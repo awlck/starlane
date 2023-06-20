@@ -1,9 +1,6 @@
 #include <string>
 
 #include <starlane-core.h>
-#include <game.h>
-#include <gamecontent/restriction.h>
-#include <expression.h>
 
 #include <iostream>
 
@@ -17,7 +14,6 @@ void OutputText(const char *msg) {
 	std::cout << msg << std::endl;
 }
 
-namespace Services {
 std::string StrToLowerCase(const std::string &s) {
 	auto macstr = [[NSString stringWithUTF8String: s.c_str()] localizedLowercaseString];
 	auto tmp = [macstr UTF8String];
@@ -40,7 +36,6 @@ std::string StrToSentenceCase(const std::string &s) {
 	//[macstr dealloc];
 	return result;
 }
-}
 
 }
 
@@ -54,7 +49,13 @@ int main(int argc, char **argv) {
 	uint8_t *input = new uint8_t[fsize];
 	fread(input, fsize, 1, f);
 	fclose(f);
-	Starlane::Frontend fe {.FatalError = &SLFrontend::FatalError, .OutputText = &SLFrontend::OutputText};
+	Starlane::Frontend fe {
+		.FatalError = &SLFrontend::FatalError,
+		.OutputText = &SLFrontend::OutputText,
+		.StrToUpperCase = &SLFrontend::StrToUpperCase,
+		.StrToLowerCase = &SLFrontend::StrToLowerCase,
+		.StrToSentenceCase = &SLFrontend::StrToSentenceCase
+	};
 	Starlane::InitBackend(&fe);
 	Starlane::CreateGame(input, fsize);
 	Starlane::BeginGame();
