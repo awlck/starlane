@@ -68,6 +68,8 @@ namespace Save {
 class Writer;
 }
 
+std::string DoDecompression(uint8_t *data, size_t dataLen);
+
 }
 
 #endif  // !SLC_PRIVATE_H

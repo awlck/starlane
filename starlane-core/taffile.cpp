@@ -89,21 +89,70 @@ constexpr uint8_t adriftKey[] = { 41, 236, 221, 117, 23, 189, 44, 187, 161, 96, 
 // length: total length of the input array
 // offset: how many bytes from the start of the array should be skipped
 // count: how many bytes (starting at `offset') to process
-uint8_t *DeobfuscateByteArray(const uint8_t *input, size_t length, size_t offset, size_t count) {
-	assert(offset + count <= length);
-	auto output = new uint8_t[length];
-	 for (size_t i = 0; i < offset; i++)
-	 	output[i] = input[i];
-	for (size_t i = offset; i < offset + count; i++)
-		output[i - offset] = (uint8_t) (input[i] ^ adriftKey[(i - offset) % sizeof(adriftKey)]);
-	for (size_t i = offset + count; i < length; i++)
+uint8_t *DeobfuscateByteArray(const uint8_t *input, size_t length, size_t count) {
+	assert(count <= length);
+	auto output = (uint8_t *) ::operator new(length);
+	for (size_t i = 0; i < 0 + count; i++)
+		output[i - 0] = (uint8_t) (input[i] ^ adriftKey[(i - 0) % sizeof(adriftKey)]);
+	for (size_t i = 0 + count; i < length; i++)
 		output[i] = input[i];
 	return output;
 }
 
+std::string DoDecompression(const uint8_t *data, size_t dataLen) {
+	std::stringstream decompressed;
+	mz_ulong writtenInTotal = 0;
+	mz_stream zstm;
+	int ret;
+	auto z_out = (unsigned char *) ::operator new(CHUNKSIZE);
+	memset(&zstm, 0, sizeof(mz_stream));
+	memset(z_out, 0, CHUNKSIZE);
+	zstm.avail_in = dataLen;
+	zstm.next_in = data;
+	ret = mz_inflateInit(&zstm);
+	if (ret != MZ_OK) {
+		frontend->FatalError("Unable to initialize decompressor.");
+		::operator delete(z_out);
+		return "";
+	}
+	do {
+		zstm.next_out = z_out;
+		zstm.avail_out = CHUNKSIZE;
+		ret = mz_inflate(&zstm, MZ_SYNC_FLUSH);
+		switch (ret) {
+			case MZ_NEED_DICT:
+			case MZ_DATA_ERROR:
+			case MZ_MEM_ERROR:
+				mz_inflateEnd(&zstm);
+				frontend->FatalError("Unable to decompress:");
+				frontend->FatalError(mz_error(ret));
+				goto fail;
+		}
+		mz_ulong written = CHUNKSIZE - zstm.avail_out;
+		// Sanity check: bail out if the decompressed data goes beyond 100MB. (Note
+		// that we are not processing blorb files containing images and sound here, only
+		// the game's declarative code and text.) This could happen if the input file
+		// has been tampered with or is otherwise corrupted.
+		writtenInTotal += written;
+		if (writtenInTotal > 100 * 1024 * 1024) {
+			frontend->FatalError("Selected file doesn't seem to end; presumed corrupted.");
+			goto fail;
+		}
+		decompressed.write((char *) z_out, written);
+	} while (zstm.avail_out == 0 || ret != MZ_STREAM_END);
+	mz_inflateEnd(&zstm);
+	::operator delete(z_out);
+	return decompressed.str();
+
+	fail:
+	mz_inflateEnd(&zstm);
+	::operator delete(z_out);
+	return "";
+}
+
 // for some reason, strtol doesn't seem to want to work, so instead we do this terribleness:
-int32_t ParseHex(const uint8_t *input, int len) {
-	long result = 0;
+uint32_t ParseHex(const uint8_t *input, int len) {
+	uint32_t result = 0;
 	for (int i = 0; i < len; i++) {
 		result *= 16;
 		switch (input[i]) {
@@ -198,16 +247,16 @@ std::string ExtractTaf(const uint8_t *input, size_t size) {
 			0x0c-0x0f:  Length of Babel info, as four ASCII characters making a hex number
 			0x10- ...:  Babel info
 			after that: game contents, zlib-compressed then obfuscated
-			12 bytes:   password, obfuscated
+			12 bytes:   password, obfuscated (but using a different algorithm not implemented here)
 			 2 bytes:   end marker.
 		*/
-		int babelLen = ParseHex(input + 0xc, 4);
+		uint32_t babelLen = ParseHex(input + 0xc, 4);
 		deobflen = size - 26 - babelLen - 4;
-		deobf = DeobfuscateByteArray(input + 16 + babelLen, deobflen, 0, deobflen);
+		deobf = DeobfuscateByteArray(input + 16 + babelLen, deobflen, deobflen);
 	} else if (memcmp("0000", input + 0xc, 4) == 0 && input[0x10] == (0x78 ^ adriftKey[0])) {
         // Current format but without Babel data (i.e., extracted from Blorb file)
         deobflen = size - 26;
-        deobf = DeobfuscateByteArray(input + 0x10, deobflen, 0, deobflen);
+        deobf = DeobfuscateByteArray(input + 0x10, deobflen, deobflen);
     } else {
 		// pre 5.0.20 format: simply strip the first 12 bytes and go
 		deobflen = size - 26;
@@ -215,56 +264,11 @@ std::string ExtractTaf(const uint8_t *input, size_t size) {
 		needToFreeDeobf = false;
 	}
 
-	std::stringstream decompressed;
-	{
-		mz_ulong writtenInTotal = 0;
-		mz_stream zstm;
-		int ret;
-		auto z_in = (unsigned char *) deobf;
-		std::vector<unsigned char> outputBuffer(CHUNKSIZE);
-		unsigned char *z_out = outputBuffer.data();
-		memset(&zstm, 0, sizeof(mz_stream));
-		zstm.avail_in = deobflen;
-		zstm.next_in = z_in;
-		ret = mz_inflateInit(&zstm);
-		if (ret != MZ_OK) {
-			frontend->FatalError("Unable to initialize decompressor.");
-			if (needToFreeDeobf) delete[] deobf;
-			return "";
-		}
-		do {
-			zstm.next_out = z_out;
-			zstm.avail_out = CHUNKSIZE;
-			ret = mz_inflate(&zstm, MZ_SYNC_FLUSH);
-			switch (ret) {
-			case MZ_NEED_DICT:
-			case MZ_DATA_ERROR:
-			case MZ_MEM_ERROR:
-				mz_inflateEnd(&zstm);
-				frontend->FatalError("Unable to decompress:");
-				frontend->FatalError(mz_error(ret));
-				if (needToFreeDeobf) delete[] deobf;
-				return "";
-			}
-			mz_ulong written = CHUNKSIZE - zstm.avail_out;
-			// Sanity check: bail out if the decompressed data goes beyond 100MB. (Note
-			// that we are not processing blorb files containing images and sound here, only
-			// the game's declarative code and text.) This could happen if the input file
-			// has been tampered with or is otherwise corrupted.
-			writtenInTotal += written;
-			if (writtenInTotal > 100 * 1024 * 1024) {
-				frontend->FatalError("Selected file doesn't seem to end; presumed corrupted.");
-				if (needToFreeDeobf) delete[] deobf;
-				return "";
-			}
-			decompressed.write((char *) z_out, written);
-		} while (zstm.avail_out == 0 || ret != MZ_STREAM_END);
-		mz_inflateEnd(&zstm);
-	}
+	std::string decompressed = DoDecompression(deobf, deobflen);
 	
 	// free intermediary buffer of deobfuscated zlib data as necessary.
-	if (needToFreeDeobf) delete[] deobf;
-	return decompressed.str();
+	if (needToFreeDeobf) ::operator delete((void *) deobf);
+	return decompressed;
 }
 
 }  // namespace Starlane
