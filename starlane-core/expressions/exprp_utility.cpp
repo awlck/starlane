@@ -24,10 +24,8 @@ void FormatError(const std::string &fullText, range_t errRange, const char *errd
     if (fullText.length() < 78) {
         errtxt = fullText;
     } else if (errRange.max - errRange.min >= 78) {
-        size_t start = 0;
-        int stop = 0;
-        start = errRange.min > 5 ? errRange.min - 3 : 0;
-        stop = errRange.max < fullText.length() - 6 ? errRange.max + 3 : fullText.length();
+        size_t start = errRange.min > 5 ? errRange.min - 3 : 0;
+        size_t stop = errRange.max < fullText.length() - 6 ? errRange.max + 3 : fullText.length();
         ellipsisStart = errRange.min != 0;
         ellipsisEnd = errRange.max != fullText.length();
         errtxt = std::string_view(fullText).substr(start, stop - start);
@@ -35,11 +33,9 @@ void FormatError(const std::string &fullText, range_t errRange, const char *errd
         errRange.max -= start;
     } else {
         // full text is more than 78 chars but the erroneous portion isn't
-        int start = 0;
-        int stop = 0;
         // add 10 characters of context on each side, if available (no matter the resulting length
-        start = errRange.min > 10 ? errRange.min - 10 : 0;
-        stop = errRange.max < fullText.length() - 10 ? errRange.max + 10 : errRange.max;
+        size_t start = errRange.min > 10 ? errRange.min - 10 : 0;
+        size_t stop = errRange.max < fullText.length() - 10 ? errRange.max + 10 : errRange.max;
         while (stop - start < 78) {
             if (start > 0) --start;
             if (stop < fullText.length()) ++stop;
