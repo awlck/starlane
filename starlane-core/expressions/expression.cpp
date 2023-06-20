@@ -607,21 +607,21 @@ Expr::Value Expression::EvalItemfunc(Expr::Value obj, const ast_node_tag *toCall
 			return Expr::Value();
 		case Property::ValueType::Map:
 		case Property::ValueType::Int:
-			result += std::to_string(g->GetObject(o)->GetPropValue<int32_t>(toCall_.Str));
+			result += std::to_string(g->GetObject(o)->GetIntProp(toCall_.Str));
 			break;
 		case Property::ValueType::Enum:
 		case Property::ValueType::Object:
-			result += g->GetObject(o)->GetPropValue<std::string>(toCall_.Str);
+			result += g->GetObject(o)->GetStrProp(toCall_.Str);
 			break;
 		case Property::ValueType::Text:
-			result += g->GetDescription(g->GetObject(o)->GetPropValue<DescrRef>(toCall_.Str))->Build();
+			result += g->GetDescription(g->GetObject(o)->GetIntProp(toCall_.Str))->Build();
 			break;
 		case Property::ValueType::Bool:  // bool properties act as filters rather than transforms, but only when operating on lists
 			if (objsToConsider.size() == 1) {
-				result = std::to_string(g->GetObject(o)->GetPropValue<bool>(toCall_.Str));
+				result = std::to_string(g->GetObject(o)->GetBoolProp(toCall_.Str));
 				break;
 			}
-			if (g->GetObject(o)->GetPropValue<bool>(toCall_.Str)) result += o;
+			if (g->GetObject(o)->GetBoolProp(toCall_.Str)) result += o;
 			else continue;
 			break;
 		}

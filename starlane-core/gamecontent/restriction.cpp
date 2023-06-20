@@ -215,15 +215,15 @@ bool Restriction::Single::PassImpl(DescrRef *out, bool ignoreUnsetRefs) const {
 			case Property::ValueType::Int:
 			case Property::ValueType::Map:
 			case Property::ValueType::Bool:  // Should never happen here, but just to be sure...
-				intVal = obj->GetPropValue<int64_t>(prop);
+				intVal = obj->GetIntProp(prop);
 				isInt = true;
 				break;
 			case Property::ValueType::Object:
 			case Property::ValueType::Enum:
-				strVal = obj->GetPropValue<std::string>(prop);
+				strVal = obj->GetStrProp(prop);
 				break;
 			case Property::ValueType::Text:
-				strVal = Game::Get()->GetDescription(obj->GetPropValue<DescrRef>(prop))->Build(false);
+				strVal = Game::Get()->GetDescription(obj->GetIntProp(prop))->Build(false);
 				break;
 			default:
 				throw std::runtime_error("Invalid property type while evaluating restriction.");
@@ -302,7 +302,7 @@ bool Restriction::Single::PassImpl(DescrRef *out, bool ignoreUnsetRefs) const {
 		case Property::ValueType::ErrorType:
 			throw std::runtime_error("Invalid type for property " + rhs + " while evaluating restriction.");
 		case Property::ValueType::Bool:
-			return l->GetPropValue<bool>(rhs);
+			return l->GetBoolProp(rhs);
 		case Property::ValueType::Int:
 		case Property::ValueType::Text:
 		case Property::ValueType::Map:
@@ -361,31 +361,31 @@ bool Restriction::Single::PassImpl(DescrRef *out, bool ignoreUnsetRefs) const {
 		// This is stored as a mandatory library property rather than as an attribute
 		// of the character object itself. We can't just turn these into a C++ enum in
 		// Starlane's code because someone could amend the list of possible values for their game.
-		return g->GetObject(lhs)->GetPropValue<std::string>("Gender") == rhs;
+		return g->GetObject(lhs)->GetStrProp("Gender") == rhs;
 	case ConditionType::LyingOn:
 	{
 		auto l = g->GetObject(lhs);
 		return l->GetParentKey() == rhs
 			&& l->GetParentRelation() == GameObj::HoldingType::OnObject
-			&& l->GetPropValue<std::string>("CharacterPosition") == "Lying";
+			&& l->GetStrProp("CharacterPosition") == "Lying";
 	}
 	case ConditionType::SittingOn:
 	{
 		auto l = g->GetObject(lhs);
 		return l->GetParentKey() == rhs
 			&& l->GetParentRelation() == GameObj::HoldingType::OnObject
-			&& l->GetPropValue<std::string>("CharacterPosition") == "Sitting";
+			&& l->GetStrProp("CharacterPosition") == "Sitting";
 	}
 	case ConditionType::StandingOn:
 	{
 		auto l = g->GetObject(lhs);
 		return l->GetParentKey() == rhs
 			&& l->GetParentRelation() == GameObj::HoldingType::OnObject
-			&& l->GetPropValue<std::string>("CharacterPosition") == "Standing";
+			&& l->GetStrProp("CharacterPosition") == "Standing";
 	}
 	case ConditionType::InPosition:
 		// Another mandatory property
-		return g->GetObject(lhs)->GetPropValue<std::string>("CharacterPosition") == rhs;
+		return g->GetObject(lhs)->GetStrProp("CharacterPosition") == rhs;
 	case ConditionType::BeHidden:
 		return g->GetObject(lhs)->GetLocationKey().empty();
 	case ConditionType::WornBy:

@@ -192,7 +192,7 @@ std::string ShowPronounForChar(const std::string &key, Pronoun pronoun) {
 	} else {
 		auto *c = g->GetObject(key);
 		if (c->HasProp("Gender")) {
-			if (c->GetPropValue<std::string>("Gender") == "Male") {
+			if (c->GetStrProp("Gender") == "Male") {
 				switch (pronoun) {
 				case Pronoun::Subject:
 					return "he";
@@ -203,7 +203,7 @@ std::string ShowPronounForChar(const std::string &key, Pronoun pronoun) {
 				case Pronoun::Reflective:
 					return "himself";
 				}
-			} else if (c->GetPropValue<std::string>("Gender") == "Female") {
+			} else if (c->GetStrProp("Gender") == "Female") {
 				switch (pronoun) {
 				case Pronoun::Subject:
 					return "she";

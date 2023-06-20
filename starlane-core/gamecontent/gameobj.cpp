@@ -31,19 +31,19 @@ GameObj *GameObj::CreateFromXML(const pugi::xml_node &xmlNode) {
     // Extract location data from properties (this is faster than directly navigating the XML tree),
     // taking care to clean up the no-longer-needed properties after ourselves to conserve memory.
     std::string nextProp;
-    if (result->GetPropValue<std::string>("StaticOrDynamic") == "Dynamic") {
+    if (result->GetStrProp("StaticOrDynamic") == "Dynamic") {
         nextProp = "DynamicLocation";
         result->dynamic = true;
     } else {
         nextProp = "StaticLocation";
     }
     result->ErasePropValue("StaticOrDynamic");
-    auto ht = ParseHoldingType(result->GetPropValue<std::string>(nextProp).c_str());
+    auto ht = ParseHoldingType(result->GetStrProp(nextProp).c_str());
     result->ErasePropValue(nextProp);
     result->relation = ht.first;
     nextProp = ht.second;
     if (!nextProp.empty()) {
-        result->parent = result->GetPropValue<std::string>(nextProp);
+        result->parent = result->GetStrProp(nextProp);
         result->ErasePropValue(nextProp);
     }
 
@@ -83,7 +83,7 @@ const std::string &GameObj::GetVisbilityCeiling() const {
 		case HoldingType::InObject:
 		{
 			auto o = Game::Get()->GetObject(parent);
-			if (!o->GetPropValue<bool>("Openable") || o->GetPropValue<std::string>("OpenStatus") == "Open")
+			if (!o->GetBoolProp("Openable") || o->GetStrProp("OpenStatus") == "Open")
 				return o->GetVisbilityCeiling();
 			else return o->Key();
 		}

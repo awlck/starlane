@@ -500,14 +500,14 @@ void Task::Action::PerformImpl() const {
 			switch (propType) {
 			case Property::ValueType::Bool:
 				for (auto &o : allObjs) {
-					if (ObjIsAppropriate(refType, o.second) && o.second->GetPropValue<bool>(prop))
+					if (ObjIsAppropriate(refType, o.second) && o.second->GetBoolProp(prop))
 						o.second->MoveTo(rhs, ActionTypeToHoldingType(type));
 				}
 				break;
 			case Property::ValueType::Object:
 			case Property::ValueType::Enum:
 				for (auto &o : allObjs) {
-					if (ObjIsAppropriate(refType, o.second) && o.second->GetPropValue<std::string>(prop) == rhs)
+					if (ObjIsAppropriate(refType, o.second) && o.second->GetStrProp(prop) == rhs)
 						o.second->MoveTo(rhs, ActionTypeToHoldingType(type));
 				}
 				break;
@@ -515,7 +515,7 @@ void Task::Action::PerformImpl() const {
 			case Property::ValueType::Int: {
 				auto tmpInt = propType == Property::ValueType::Map ? ParseInt(rhs.c_str()) : g->GetExpression(expr)->EvaluateInt();
 				for (auto &o : allObjs) {
-					if (ObjIsAppropriate(refType, o.second) && o.second->GetPropValue<int32_t>(prop) == tmpInt)
+					if (ObjIsAppropriate(refType, o.second) && o.second->GetIntProp(prop) == tmpInt)
 						o.second->MoveTo(rhs, ActionTypeToHoldingType(type));
 				}
 				break;
@@ -523,7 +523,7 @@ void Task::Action::PerformImpl() const {
 			case Property::ValueType::Text: {
 				std::string tmpTxt(g->GetExpression(expr)->EvaluateStr());
 				for (auto &o : allObjs) {
-					if (ObjIsAppropriate(refType, o.second) && o.second->GetPropValue<std::string>(prop) == tmpTxt)
+					if (ObjIsAppropriate(refType, o.second) && o.second->GetStrProp(prop) == tmpTxt)
 						o.second->MoveTo(rhs, ActionTypeToHoldingType(type));
 				}
 				break;
@@ -592,14 +592,14 @@ void Task::Action::PerformImpl() const {
 			switch (propType) {
 			case Property::ValueType::Bool:
 				for (auto &o : allObjs) {
-					if (ObjIsAppropriate(refType, o.second) && o.second->GetPropValue<bool>(prop))
+					if (ObjIsAppropriate(refType, o.second) && o.second->GetBoolProp(prop))
 						(grp->*addOrRemove)(o.second);
 				}
 				break;
 			case Property::ValueType::Object:
 			case Property::ValueType::Enum:
 				for (auto &o : allObjs) {
-					if (ObjIsAppropriate(refType, o.second) && o.second->GetPropValue<std::string>(prop) == rhs)
+					if (ObjIsAppropriate(refType, o.second) && o.second->GetStrProp(prop) == rhs)
 						(grp->*addOrRemove)(o.second);
 				}
 				break;
@@ -607,7 +607,7 @@ void Task::Action::PerformImpl() const {
 			case Property::ValueType::Int: {
 				auto tmpInt = propType == Property::ValueType::Map ? ParseInt(rhs.c_str()) : g->GetExpression(expr)->EvaluateInt();
 				for (auto &o : allObjs) {
-					if (ObjIsAppropriate(refType, o.second) && o.second->GetPropValue<int32_t>(prop) == tmpInt)
+					if (ObjIsAppropriate(refType, o.second) && o.second->GetIntProp(prop) == tmpInt)
 						(grp->*addOrRemove)(o.second);
 				}
 				break;
@@ -615,7 +615,7 @@ void Task::Action::PerformImpl() const {
 			case Property::ValueType::Text: {
 				std::string tmpTxt(g->GetExpression(expr)->EvaluateStr());
 				for (auto &o : allObjs) {
-					if (ObjIsAppropriate(refType, o.second) && o.second->GetPropValue<std::string>(prop) == tmpTxt)
+					if (ObjIsAppropriate(refType, o.second) && o.second->GetStrProp(prop) == tmpTxt)
 						(grp->*addOrRemove)(o.second);
 				}
 				break;
@@ -677,14 +677,14 @@ void Task::Action::PerformImpl() const {
 			switch (propType) {
 			case Property::ValueType::Bool:
 				for (auto &o : allObjs) {
-					if ((c = dynamic_cast<Character *>(o.second)) && o.second->GetPropValue<bool>(prop))
+					if ((c = dynamic_cast<Character *>(o.second)) && o.second->GetBoolProp(prop))
 						c->MakePosture(rhs, ActionTypeToPosture(type));
 				}
 				break;
 			case Property::ValueType::Object:
 			case Property::ValueType::Enum:
 				for (auto &o : allObjs) {
-					if ((c = dynamic_cast<Character *>(o.second)) && o.second->GetPropValue<std::string>(prop) == rhs)
+					if ((c = dynamic_cast<Character *>(o.second)) && o.second->GetStrProp(prop) == rhs)
 						c->MakePosture(rhs, ActionTypeToPosture(type));
 				}
 				break;
@@ -692,7 +692,7 @@ void Task::Action::PerformImpl() const {
 			case Property::ValueType::Int: {
 				auto tmpInt = propType == Property::ValueType::Map ? ParseInt(rhs.c_str()) : g->GetExpression(expr)->EvaluateInt();
 				for (auto &o : allObjs) {
-					if ((c = dynamic_cast<Character *>(o.second)) && o.second->GetPropValue<int32_t>(prop) == tmpInt)
+					if ((c = dynamic_cast<Character *>(o.second)) && o.second->GetIntProp(prop) == tmpInt)
 						c->MakePosture(rhs, ActionTypeToPosture(type));
 				}
 				break;
@@ -700,7 +700,7 @@ void Task::Action::PerformImpl() const {
 			case Property::ValueType::Text: {
 				std::string tmpTxt(g->GetExpression(expr)->EvaluateStr());
 				for (auto &o : allObjs) {
-					if ((c = dynamic_cast<Character *>(o.second)) && o.second->GetPropValue<std::string>(prop) == tmpTxt)
+					if ((c = dynamic_cast<Character *>(o.second)) && o.second->GetStrProp(prop) == tmpTxt)
 						c->MakePosture(rhs, ActionTypeToPosture(type));
 				}
 				break;

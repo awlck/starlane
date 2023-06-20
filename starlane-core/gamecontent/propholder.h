@@ -13,10 +13,17 @@ namespace Starlane {
 
 class PropHolder {
 public:
-	template <typename T> T GetPropValue(const std::string &key) const {
-		if constexpr (std::is_integral_v<T>) {
-			return (T) intValuedProps.at(key);
-		} else return strValuedProps.at(key);
+	std::string GetStrProp(const std::string &key) const {
+		return strValuedProps.at(key);
+	}
+
+	int64_t GetIntProp(const std::string &key) const {
+		return intValuedProps.at(key);
+	}
+
+	bool GetBoolProp(const std::string &key) const {
+		if (intValuedProps.count(key) == 0) return false;
+		return (bool) intValuedProps.at(key);
 	}
 
 	const std::unordered_map<std::string, std::string> &GetAllStrProps() const {
@@ -50,15 +57,6 @@ private:
 	std::unordered_map<std::string, int64_t> intValuedProps;
 	std::unordered_map<std::string, std::string> strValuedProps;
 };
-
-// Needing to move this template specialization outside of the class is probably one of the
-// weirdest rules surrounding C++ templates.
-// (But also need to mark it inline because otherwise we get duplicate symbols with every
-// source file that includes this file.)
-template<> inline bool PropHolder::GetPropValue(const std::string &key) const {
-	if (intValuedProps.count(key) == 0) return false;
-	return (bool) intValuedProps.at(key);
-}
 
 }
 

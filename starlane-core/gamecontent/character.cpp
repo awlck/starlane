@@ -17,12 +17,12 @@ Character *Character::CreateFromXML(const pugi::xml_node &xmlNode) {
 	result->properName = xmlNode.child_value("Name");
 	result->description = Game::Get()->CreateDescFromXML(xmlNode.child("Description"));
 
-	auto ht = ParseHoldingType(result->GetPropValue<std::string>("CharacterLocation").c_str());
+	auto ht = ParseHoldingType(result->GetStrProp("CharacterLocation").c_str());
     result->ErasePropValue("CharacterLocation");
 	result->relation = ht.first;
 	std::string nextProp(ht.second);
 	if (result->relation != GameObj::HoldingType::Hidden) {
-        result->parent = result->GetPropValue<std::string>(nextProp);
+        result->parent = result->GetStrProp(nextProp);
         result->ErasePropValue(nextProp);
     }
 
@@ -33,7 +33,7 @@ Character *Character::CreateFromXML(const pugi::xml_node &xmlNode) {
 }
 
 std::string Character::GetDisplayName(bool defArt) const {
-	if (!Game::Get()->PropExists("Known") || GetPropValue<bool>("Known"))
+	if (!Game::Get()->PropExists("Known") || GetBoolProp("Known"))
 		return GetProperName();
 	return GameObj::GetDisplayName(defArt);
 }
