@@ -1,7 +1,7 @@
 cmake_minimum_required(VERSION 3.8)
 
 project(starlane_core C CXX)
-set(CMAKE_CXX_STANDARD 17)
+set(CMAKE_CXX_STANDARD 20)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
 set(CMAKE_CXX_EXTENSIONS OFF)
 
@@ -64,7 +64,8 @@ add_library(starlane-core
 	"gamecontent/userfunc.cpp" "gamecontent/userfunc.h"
 	"gamecontent/utility.h" "gamecontent/utility.cpp"
 	# save files
-        savefiles/writer.cpp savefiles/writer.h)
+    savefiles/writer.cpp savefiles/writer.h
+	savefiles/parser.cpp savefiles/parser.h)
 target_link_libraries(starlane-core miniz pugixml slc_exprparser)
 target_include_directories(starlane-core PRIVATE deps/miniz deps/pugixml/src ${CMAKE_CURRENT_BINARY_DIR})
 if (BUILD_SHARED_LIBS)
