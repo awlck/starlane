@@ -9,15 +9,15 @@
 
 #ifdef slc_capi_EXPORTS
 #  ifdef _WIN32
-#    define SLC_API __declspec(dllexport)
+#    define SLC_CAPI __declspec(dllexport)
 #  else
-#    define SLC_API __attribute__((visibility("default")))
+#    define SLC_CAPI __attribute__((visibility("default")))
 #  endif
 #else
 #  if defined(_WIN32) && defined(SL_SHARED_CORE)
-#    define SLC_API __declspec(dllimport)
+#    define SLC_CAPI __declspec(dllimport)
 #  else
-#    define SLC_API
+#    define SLC_CAPI
 #  endif
 #endif
 
@@ -50,14 +50,14 @@ extern "C" {
 		void (*close_file)(void *handle);
 	} slc__frontend;
 
-	SLC_API void slc__init_backend(const slc__frontend *frontend);
-	SLC_API void slc__create_game(const uint8_t *taf_bytes, size_t taf_length);
-	SLC_API void slc__begin_game();
-	SLC_API void slc__time_tick();
+	SLC_CAPI void slc__init_backend(const slc__frontend *frontend);
+	SLC_CAPI void slc__create_game(const uint8_t *taf_bytes, size_t taf_length);
+	SLC_CAPI void slc__begin_game();
+	SLC_CAPI void slc__time_tick();
 
-	SLC_API char *slc__extract_taf(const uint8_t *input, size_t size);
-	SLC_API bool slc__game_is_ongoing();
-	SLC_API uint32_t slc__get_blorb_resource_for_path(const char *path);
+	SLC_CAPI char *slc__extract_taf(const uint8_t *input, size_t size);
+	SLC_CAPI bool slc__game_is_ongoing();
+	SLC_CAPI uint32_t slc__get_blorb_resource_for_path(const char *path);
 
 #ifdef __cplusplus
 }

@@ -120,36 +120,36 @@ ast_node_t *system__create_ast_node_terminal(system_t *ctx, ast_node_type_t type
 
 ast_node_t *system__create_ast_node_unary(system_t *ctx, ast_node_type_t type, range_t range, ast_node_t *child) {
 	assert(child != nullptr);
-	auto node = CreateNode(ctx, type, range);
-	ast_node__append_child(node, child);
-	return node;
+	auto new_node = CreateNode(ctx, type, range);
+	ast_node__append_child(new_node, child);
+	return new_node;
 }
 
 ast_node_t *system__create_ast_node_binary(system_t *ctx, ast_node_type_t type, range_t range, ast_node_t *child1, ast_node_t *child2) {
 	assert(child1 != nullptr);
 	assert(child2 != nullptr);
-	auto node = CreateNode(ctx, type, range);
-	ast_node__append_child(node, child1);
-	ast_node__append_child(node, child2);
-    return node;
+	auto new_node = CreateNode(ctx, type, range);
+	ast_node__append_child(new_node, child1);
+	ast_node__append_child(new_node, child2);
+    return new_node;
 }
 
 ast_node_t *system__create_ast_node_ternary(system_t *obj, ast_node_type_t type, range_t range, ast_node_t *node1, ast_node_t *node2, ast_node_t *node3) {
 	assert(node1 != nullptr);
 	assert(node2 != nullptr);
 	assert(node3 != nullptr);
-	ast_node_t *const node = CreateNode(obj, type, range);
-	ast_node__append_child(node, node1);
-	ast_node__append_child(node, node2);
-	ast_node__append_child(node, node3);
-	return node;
+	ast_node_t *const new_node = CreateNode(obj, type, range);
+	ast_node__append_child(new_node, node1);
+	ast_node__append_child(new_node, node2);
+	ast_node__append_child(new_node, node3);
+	return new_node;
 }
 
 ast_node_t *system__create_ast_node_variadic(system_t *ctx, ast_node_type_t type, range_t range) {
 	return CreateNode(ctx, type, range);
 }
 
-void ast_node__prepend_child(ast_node_t *obj, ast_node_t *node) {
+void ast_node__prepend_child(ast_node_t *parent, ast_node_t *node) {
     if (node == NULL) return; /* just ignored */
     if (node->parent != NULL) {
         if (node->sibling.prev != NULL) {
@@ -164,22 +164,22 @@ void ast_node__prepend_child(ast_node_t *obj, ast_node_t *node) {
         }
         node->parent->arity--;
     }
-    node->parent = obj;
-    if (obj->child.first != NULL) {
-        obj->child.first->sibling.prev = node;
-        node->sibling.next = obj->child.first;
+    node->parent = parent;
+    if (parent->child.first != NULL) {
+	    parent->child.first->sibling.prev = node;
+        node->sibling.next = parent->child.first;
         node->sibling.prev = NULL;
-        obj->child.first = node;
+	    parent->child.first = node;
     } else {
         node->sibling.next = NULL;
         node->sibling.prev = NULL;
-        obj->child.first = node;
-        obj->child.last = node;
+	    parent->child.first = node;
+	    parent->child.last = node;
     }
-    obj->arity++;
+    parent->arity++;
 }
 
-void ast_node__append_child(ast_node_t *obj, ast_node_t *node) {
+void ast_node__append_child(ast_node_t *parent, ast_node_t *node) {
     if (node == NULL) return; /* just ignored */
     if (node->parent != NULL) {
         if (node->sibling.prev != NULL) {
@@ -194,19 +194,19 @@ void ast_node__append_child(ast_node_t *obj, ast_node_t *node) {
         }
         node->parent->arity--;
     }
-    node->parent = obj;
-    if (obj->child.last != NULL) {
-        obj->child.last->sibling.next = node;
-        node->sibling.prev = obj->child.last;
+    node->parent = parent;
+    if (parent->child.last != NULL) {
+	    parent->child.last->sibling.next = node;
+        node->sibling.prev = parent->child.last;
         node->sibling.next = NULL;
-        obj->child.last = node;
+	    parent->child.last = node;
     } else {
         node->sibling.prev = NULL;
         node->sibling.next = NULL;
-        obj->child.last = node;
-        obj->child.first = node;
+	    parent->child.last = node;
+	    parent->child.first = node;
     }
-    obj->arity++;
+    parent->arity++;
 }
 
 #ifndef NDEBUG
@@ -242,7 +242,7 @@ void ast_node__dump(system_t *ctx, ast_node_t *node, int level) {
     case AST_NODE_TYPE_UNEXPECTED_TOKEN:    type = "UNEXPECTED_TOKEN";    break;
     default: break;
     }
-    if (node->arity > 0 ) {
+    if (node->arity > 0) {
         printf("%*s%s: arity = %zu\n", 2 * level, "", type, node->arity);
         for (ast_node_t *p = node->child.first; p != NULL; p = p->sibling.next) {
             ast_node__dump(ctx, p, level + 1);

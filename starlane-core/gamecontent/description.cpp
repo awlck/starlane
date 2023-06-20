@@ -6,7 +6,6 @@
 #include <pugixml.hpp>
 
 #include "../game.h"
-#include "../expression.h"
 #include "../valueparsers.h"
 #include "restriction.h"
 
@@ -66,8 +65,8 @@ std::string Description::Build(bool commit, const UserFuncContext *context) {
 	// ADRIFT Developer doesn't actually allow you to enter restriction failure text
 	// for restrictions on description segments.
 
-	// do nothing �f there is no text
-	if (segments.size() == 0) return "";
+	// do nothing if there is no text
+	if (segments.empty()) return "";
 
 	// First, find the rightmost segment with "BeginHere" mode that passes restrictions
 	size_t beginning = NPOS;
