@@ -70,7 +70,6 @@ enum class ParseErr {
 	PE_INVALID_IN_COMPOUND,
 	PE_INVALID_AFTER_NAME,
 	PE_INVALID_AFTER_EQUALS,
-	PE_INVALID_AFTER_RELATION,
 	PE_INVALID_AFTER_OPEN,
 	PE_INVALID_COMBO_AFTER_OPEN,
 	PE_INVALID_IN_INT_LIST,
@@ -78,8 +77,7 @@ enum class ParseErr {
 	PE_INVALID_IN_BOOL_LIST,
 	PE_UNEXPECTED_END,
 	PE_TOO_MANY_CLOSE_BRACES,
-	LE_INVALID_INT,
-	PE_CANCELLED
+	LE_INVALID_INT
 };
 
 struct ParserError {
@@ -90,6 +88,7 @@ struct ParserError {
 class Parser {
 public:
 	explicit Parser(void *source);
+	~Parser();
 	void Prepare();
 	AstNode *Parse();
 	ParserError GetLatestParserError() const { return latestParserError; }

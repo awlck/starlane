@@ -1,6 +1,3 @@
-#include "starlane-core.h"
-
-#include <stdint.h>
 #include <string.h>
 #include <sstream>
 #include <vector>
@@ -151,9 +148,9 @@ std::string DoDecompression(const uint8_t *data, size_t dataLen) {
 }
 
 // for some reason, strtol doesn't seem to want to work, so instead we do this terribleness:
-uint32_t ParseHex(const uint8_t *input, int len) {
+uint32_t ParseHex(const uint8_t *input) {
 	uint32_t result = 0;
-	for (int i = 0; i < len; i++) {
+	for (int i = 0; i < 4; i++) {
 		result *= 16;
 		switch (input[i]) {
 		case '0':
@@ -250,7 +247,7 @@ std::string ExtractTaf(const uint8_t *input, size_t size) {
 			12 bytes:   password, obfuscated (but using a different algorithm not implemented here)
 			 2 bytes:   end marker.
 		*/
-		uint32_t babelLen = ParseHex(input + 0xc, 4);
+		uint32_t babelLen = ParseHex(input + 0xc);
 		deobflen = size - 26 - babelLen - 4;
 		deobf = DeobfuscateByteArray(input + 16 + babelLen, deobflen, deobflen);
 	} else if (memcmp("0000", input + 0xc, 4) == 0 && input[0x10] == (0x78 ^ adriftKey[0])) {

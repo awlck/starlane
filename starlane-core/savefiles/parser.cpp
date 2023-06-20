@@ -17,8 +17,9 @@ template<typename T> static inline T QueuePop(std::queue<T> &q) {
 
 static constexpr size_t tokensAtOnce = 50;
 
-Parser::Parser(void *source) : hFile(source) {
-
+Parser::Parser(void *source) : hFile(source) {}
+Parser::~Parser() {
+	frontend->CloseFile(hFile);
 }
 
 inline AstNode* Parser::CreateNode() {
@@ -32,10 +33,9 @@ inline AstNode* Parser::CreateNode() {
 	return nextNodeToUse++;
 }
 
-static constexpr size_t readBufferSize = 1024*1024*10; // 10MB
+static constexpr size_t readBufferSize = 1024*1024*10;  // 10MB
 void Parser::Prepare() {  // TODO: this is terrible. not that i expect to ever have save files that large.
 	auto incoming = static_cast<uint8_t *>(::operator new(readBufferSize));
-	memset(incoming, 0, readBufferSize);
 	size_t read = frontend->ReadFile(hFile, incoming, readBufferSize);
 	size_t counter = 1;
 	while (read == counter * readBufferSize) {
@@ -64,7 +64,7 @@ Token Parser::GetNextToken() {
 }
 
 #define LexEOF() (position >= fileContent.size())
-#define LexGetc() (fileContent[position++]);
+#define LexGetc() (fileContent[position++])
 
 size_t Parser::Lex(size_t atLeast) {
 	using enum TokenType;
@@ -428,7 +428,7 @@ AstNode* Parser::Parse() {
 						PARSE_ERROR(PE_INVALID_AFTER_OPEN);
 				}
 				break;
-				// now follow the various list types, such as "stuff = { 1 2 3 }"
+			// now follow the various list types, such as "stuff = { 1 2 3 }"
 			case State::BegunIntList:
 				if (currentToken.type == TT_CBRACE) {
 					state = State::CompoundRoot;
