@@ -54,6 +54,7 @@ extern "C" {
 	SLC_CAPI void slc__create_game(const uint8_t *taf_bytes, size_t taf_length);
 	SLC_CAPI void slc__begin_game();
 	SLC_CAPI void slc__time_tick();
+	SLC_CAPI void slc__save_game();
 
 	SLC_CAPI char *slc__extract_taf(const uint8_t *input, size_t size);
 	SLC_CAPI bool slc__game_is_ongoing();

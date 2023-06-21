@@ -34,7 +34,7 @@ void OutputText(const char *msg) {
 #ifdef __GNUC__
 #define StringChangeImpl(str_, func) ((func) ? StringChangeImpl2((str_), (func)) : str_)
 #define StringChangeImpl2(str_, func) ({     \
-	auto result_cstr = func((str_).c_str());   \
+	auto result_cstr = func((str_).c_str()); \
 	std::string result(result_cstr);         \
 	SLCWRAP_DEALLOC((void *) result_cstr);   \
 	result;                                  \
@@ -118,10 +118,16 @@ void slc__time_tick() {
 	TAILCALL return Starlane::TimeTick();
 }
 
+void slc__save_game() {
+    TAILCALL return Starlane::SaveGame();
+}
+
 char *slc__extract_taf(const uint8_t *input, size_t size) {
 	auto content = Starlane::ExtractTaf(input, size);
-	auto result = (char *) SLCWRAP_ALLOC(content.size() + 1);
-	memcpy(result, content.c_str(), content.size() + 1);
+    auto resultsize = content.size();
+	auto result = (char *) SLCWRAP_ALLOC(resultsize + 1);
+	memcpy(result, content.c_str(), resultsize);
+    result[resultsize] = 0;
 	return result;
 }
 
