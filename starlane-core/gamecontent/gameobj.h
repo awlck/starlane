@@ -116,6 +116,9 @@ protected:
 	// (It more convenient to have this attribute directly accessible to the interpreter code
 	//  than having to go through a property lookup each time.)
 	bool dynamic = false;
+
+	mutable std::unordered_map<std::string, std::string> hackyStrPropCache;
+	mutable std::unordered_map<std::string, int64_t> hackyIntPropCache;
 };
 
 }

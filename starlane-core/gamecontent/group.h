@@ -42,6 +42,8 @@ public:
 
 	void WriteState(Save::Writer &writer) const;
 
+	virtual ~Group() {}
+
 private:
 	Group() = default;
 

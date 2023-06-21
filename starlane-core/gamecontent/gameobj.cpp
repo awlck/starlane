@@ -165,10 +165,11 @@ void GameObj::WriteState(Save::Writer &writer) {
 	writer.WriteKV("holding_type", (int) relation);
 	writer.WriteKV("groups", groupMembership);
 	writer.BeginNamedCompound("properties");
-	const auto &intProps = GetAllIntProps();
+	// make sure not to consult the groups here
+	const auto &intProps = PropHolder::GetAllIntProps();
 	for (const auto &p: intProps)
 		writer.WriteKV(p.first.c_str(), p.second);
-	const auto &strProps = GetAllStrProps();
+	const auto &strProps = PropHolder::GetAllStrProps();
 	for (const auto &p: strProps)
 		writer.WriteKV(p.first.c_str(), p.second);
 	writer.EndCompound();
@@ -205,11 +206,27 @@ bool GameObj::GetBoolProp(const std::string &k) const {
 }
 
 const std::unordered_map<std::string, std::string> &GameObj::GetAllStrProps() const {
-	return PropHolder::GetAllStrProps();
+	auto g = Game::Get();
+	hackyStrPropCache = PropHolder::GetAllStrProps();
+	// The priority of properties between groups defining the same property is undefined.
+	for (const auto &grpKey: groupMembership) {
+		auto *grp = g->GetGroup(grpKey);
+		for (const auto &kv: grp->GetAllStrProps())
+			hackyStrPropCache[kv.first] = kv.second;
+	}
+	return hackyStrPropCache;
 }
 
 const std::unordered_map<std::string, int64_t> &GameObj::GetAllIntProps() const {
-	return PropHolder::GetAllIntProps();
+	auto g = Game::Get();
+	hackyIntPropCache = PropHolder::GetAllIntProps();
+	// The priority of properties between groups defining the same property is undefined.
+	for (const auto &grpKey: groupMembership) {
+		auto *grp = g->GetGroup(grpKey);
+		for (const auto &kv: grp->GetAllIntProps())
+			hackyIntPropCache[kv.first] = kv.second;
+	}
+	return hackyIntPropCache;
 }
 
 }
