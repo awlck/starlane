@@ -68,7 +68,7 @@ namespace Save {
 class Writer;
 }
 
-std::string DoDecompression(uint8_t *data, size_t dataLen);
+std::string DoDecompression(const uint8_t *data, size_t dataLen);
 
 }
 

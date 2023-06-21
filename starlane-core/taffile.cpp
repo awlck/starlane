@@ -96,57 +96,6 @@ uint8_t *DeobfuscateByteArray(const uint8_t *input, size_t length, size_t count)
 	return output;
 }
 
-std::string DoDecompression(const uint8_t *data, size_t dataLen) {
-	std::stringstream decompressed;
-	mz_ulong writtenInTotal = 0;
-	mz_stream zstm;
-	int ret;
-	auto z_out = (unsigned char *) ::operator new(CHUNKSIZE);
-	memset(&zstm, 0, sizeof(mz_stream));
-	memset(z_out, 0, CHUNKSIZE);
-	zstm.avail_in = dataLen;
-	zstm.next_in = data;
-	ret = mz_inflateInit(&zstm);
-	if (ret != MZ_OK) {
-		frontend->FatalError("Unable to initialize decompressor.");
-		::operator delete(z_out);
-		return "";
-	}
-	do {
-		zstm.next_out = z_out;
-		zstm.avail_out = CHUNKSIZE;
-		ret = mz_inflate(&zstm, MZ_SYNC_FLUSH);
-		switch (ret) {
-			case MZ_NEED_DICT:
-			case MZ_DATA_ERROR:
-			case MZ_MEM_ERROR:
-				mz_inflateEnd(&zstm);
-				frontend->FatalError("Unable to decompress:");
-				frontend->FatalError(mz_error(ret));
-				goto fail;
-		}
-		mz_ulong written = CHUNKSIZE - zstm.avail_out;
-		// Sanity check: bail out if the decompressed data goes beyond 100MB. (Note
-		// that we are not processing blorb files containing images and sound here, only
-		// the game's declarative code and text.) This could happen if the input file
-		// has been tampered with or is otherwise corrupted.
-		writtenInTotal += written;
-		if (writtenInTotal > 100 * 1024 * 1024) {
-			frontend->FatalError("Selected file doesn't seem to end; presumed corrupted.");
-			goto fail;
-		}
-		decompressed.write((char *) z_out, written);
-	} while (zstm.avail_out == 0 || ret != MZ_STREAM_END);
-	mz_inflateEnd(&zstm);
-	::operator delete(z_out);
-	return decompressed.str();
-
-	fail:
-	mz_inflateEnd(&zstm);
-	::operator delete(z_out);
-	return "";
-}
-
 // for some reason, strtol doesn't seem to want to work, so instead we do this terribleness:
 uint32_t ParseHex(const uint8_t *input) {
 	uint32_t result = 0;
@@ -212,6 +161,57 @@ uint32_t ParseHex(const uint8_t *input) {
 	return result;
 }
 }  // anonymous namespace
+
+std::string DoDecompression(const uint8_t *data, size_t dataLen) {
+    std::stringstream decompressed;
+    mz_ulong writtenInTotal = 0;
+    mz_stream zstm;
+    int ret;
+    auto z_out = (unsigned char *) ::operator new(CHUNKSIZE);
+    memset(&zstm, 0, sizeof(mz_stream));
+    memset(z_out, 0, CHUNKSIZE);
+    zstm.avail_in = dataLen;
+    zstm.next_in = data;
+    ret = mz_inflateInit(&zstm);
+    if (ret != MZ_OK) {
+        frontend->FatalError("Unable to initialize decompressor.");
+        ::operator delete(z_out);
+        return "";
+    }
+    do {
+        zstm.next_out = z_out;
+        zstm.avail_out = CHUNKSIZE;
+        ret = mz_inflate(&zstm, MZ_SYNC_FLUSH);
+        switch (ret) {
+            case MZ_NEED_DICT:
+            case MZ_DATA_ERROR:
+            case MZ_MEM_ERROR:
+                mz_inflateEnd(&zstm);
+                frontend->FatalError("Unable to decompress:");
+                frontend->FatalError(mz_error(ret));
+                goto fail;
+        }
+        mz_ulong written = CHUNKSIZE - zstm.avail_out;
+        // Sanity check: bail out if the decompressed data goes beyond 100MB. (Note
+        // that we are not processing blorb files containing images and sound here, only
+        // the game's declarative code and text.) This could happen if the input file
+        // has been tampered with or is otherwise corrupted.
+        writtenInTotal += written;
+        if (writtenInTotal > 100 * 1024 * 1024) {
+            frontend->FatalError("Selected file doesn't seem to end; presumed corrupted.");
+            goto fail;
+        }
+        decompressed.write((char *) z_out, written);
+    } while (zstm.avail_out == 0 || ret != MZ_STREAM_END);
+    mz_inflateEnd(&zstm);
+    ::operator delete(z_out);
+    return decompressed.str();
+
+    fail:
+    mz_inflateEnd(&zstm);
+    ::operator delete(z_out);
+    return "";
+}
 
 /* Using the raw data in `input' (procured by the frontend in a platform-dependent
 * manner), extract the textual AMF/XML representation of an ADRIFT game.
