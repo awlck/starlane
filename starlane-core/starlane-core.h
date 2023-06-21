@@ -72,6 +72,9 @@ SLC_API std::string ExtractTaf(const uint8_t *input, size_t size);
 SLC_API bool GameIsOngoing();
 // Get blorb resource ID for a given file path, or (uint32_t) -1 if not found.
 SLC_API uint32_t GetBlorbResourceForPath(const std::string &path);
+
+// Initiate a save programmatically, e.g. via a menu option:
+SLC_API void SaveGame();
 }
 
 

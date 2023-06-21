@@ -39,4 +39,10 @@ uint32_t GetBlorbResourceForPath(const std::string &path) {
 	return g->GetBlorbResource(path);
 }
 
+void SaveGame() {
+	auto *g = Game::Get();
+	if (!g) return;
+	return g->Save();
+}
+
 }
