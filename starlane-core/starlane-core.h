@@ -74,7 +74,8 @@ SLC_API bool GameIsOngoing();
 SLC_API uint32_t GetBlorbResourceForPath(const std::string &path);
 
 // Initiate a save programmatically, e.g. via a menu option:
-SLC_API void SaveGame();
+SLC_API bool SaveGame();
+SLC_API bool RestoreGame();
 }
 
 

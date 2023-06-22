@@ -108,8 +108,12 @@ void slc__time_tick() {
 	TAILCALL return Starlane::TimeTick();
 }
 
-void slc__save_game() {
+bool slc__save_game() {
     TAILCALL return Starlane::SaveGame();
+}
+
+bool slc__restore_game() {
+	TAILCALL return Starlane::RestoreGame();
 }
 
 char *slc__extract_taf(const uint8_t *input, size_t size) {

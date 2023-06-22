@@ -14,6 +14,8 @@ struct mz_stream_s;
 
 namespace Starlane::Save {
 
+constexpr int currentSaveFileVer = 1;
+
 namespace {
 // Helper to determine whether there's a const_iterator for T.
 // https://stackoverflow.com/a/7728728

@@ -23,7 +23,7 @@ Writer::Writer(void *target, const Starlane::Game *game)
 	mz_deflateInit(stream, Z_DEFAULT_COMPRESSION);
 	BeginNamedCompound("meta");
 	WriteKV("type", "starlane_save");
-	WriteKV("version", 1);
+	WriteKV("version", currentSaveFileVer);
 	WriteKV("game_title", game->GetTitle());
 	WriteKV("game_author", game->GetAuthor());
 	WriteKV("game_revision", game->GetLastUpdated());

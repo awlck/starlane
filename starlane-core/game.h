@@ -82,7 +82,7 @@ public:
 	// Discard the oldest saved game state.
 	// Does nothing if there currently aren't any undo states.
 	void DiscardUndo();
-	// Is there at least one undo state avaiable?
+	// Is there at least one undo state available?
 	bool UndoAvailable() const { return !undoStates.empty(); }
 	// Restart the game.
 	void Restart();
@@ -93,7 +93,9 @@ public:
 	// This function should be called once per second to advance real-time-based events.
 	void Tick();
 	// Save the game. Called by the action-processing machinery when the player types SAVE.
-	void Save();
+	bool Save();
+	// Restore a saved game.
+	bool Restore();
 
 	enum class ReferralPerson {
 		FirstPerson,

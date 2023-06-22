@@ -10,6 +10,7 @@
 #include "gamecontent/description.h"
 #include "gamecontent/restriction.h"
 #include "gamecontent/variable.h"
+#include "savefiles/parser.h"
 #include "savefiles/writer.h"
 
 namespace Starlane {
@@ -153,10 +154,10 @@ void Game::Tick() {
 	// TODO
 }
 
-void Game::Save() {
+bool Game::Save() {
 	auto hFile = frontend->CreateSaveFile();
 	if (!hFile)  // no file -- assume user cancelled
-		return;
+		return false;
 	Save::Writer writer(hFile, this);
 	writer.WriteKV("player", playerKey);
 
@@ -220,6 +221,47 @@ void Game::Save() {
 		}
 	}
 	writer.WriteUnqouted("}");  // sneaky! (Avoiding the trailing space added by `EndCompound`)
+	return true;
+}
+
+bool Game::Restore() {
+	auto hFile = frontend->CreateSaveFile();
+	if (!hFile)  // no file -- assume user cancelled
+		return false;
+	Save::Parser sav(hFile);
+	sav.Prepare();
+	Save::AstNode *root;
+	try {
+		root = sav.Parse();
+	} catch (Save::ParserError &e) {
+		frontend->OutputText("<i>Restore failed: the selected save file appears to be invalid.</i>");
+		return false;
+	}
+	{
+		auto *metaNode = root->FindChildByName("meta");
+		if (!metaNode) return false;
+		auto *versionNode = metaNode->FindChildByName("version");
+		if (!versionNode) return false;
+		if (versionNode->sv.Int != Save::currentSaveFileVer) {
+			frontend->OutputText("<i>Restore failed: selected save file appears to have been created using a different version of Starlane.</i>");
+			return false;
+		}
+		auto *gameTitleNode = metaNode->FindChildByName("game_title");
+		auto *gameAuthorNode = metaNode->FindChildByName("game_author");
+		if (!gameTitleNode || !gameAuthorNode) return false;
+		if (gameTitleNode->Str != gameTitle || gameAuthorNode->Str != gameAuthor) {
+			frontend->OutputText("<i>Restore failed: selected save file appears to belong to a different game.</i>");
+			return false;
+		}
+		auto *gameRevNode = metaNode->FindChildByName("game_revision");
+		if (!gameRevNode) return false;
+		if (gameRevNode->Str != gameLastUpdated) {
+			// todo: offer player the option to attempt restore anyways.
+			frontend->OutputText("<i>Restore failed: selected save file appears to belong to a different revision of this game.</i>");
+			return false;
+		}
+	}
+	return false;
 }
 
 }

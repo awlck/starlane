@@ -63,6 +63,15 @@ struct AstNode {
 		bool Bool;
 		struct { AstNode *first, *last; } Child;
 	} sv = {0};
+
+	AstNode *FindChildByName(const char *name) const {
+		if (type != NT_COMPOUND) return nullptr;
+		for (AstNode *child = this->sv.Child.first; child; child = child->nextSibling) {
+			if (child->myName == name)
+				return child;
+		}
+		return nullptr;
+	}
 };
 
 enum ParseErr {
