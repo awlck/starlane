@@ -16,7 +16,7 @@
 
 namespace Starlane::Save {
 
-enum class TokenType {
+enum TokenType {
 	TT_SSTRING,
 	TT_LSTRING,
 	TT_OBRACE,
@@ -37,7 +37,7 @@ struct Token {
 	} tok;
 };
 
-enum class NodeType {
+enum NodeType {
 	NT_INDETERMINATE = 0,
 	NT_COMPOUND,
 	NT_STRING,
@@ -65,7 +65,7 @@ struct AstNode {
 	} sv = {0};
 };
 
-enum class ParseErr {
+enum ParseErr {
 	PE_NONE,
 	PE_INVALID_IN_COMPOUND,
 	PE_INVALID_AFTER_NAME,

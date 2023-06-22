@@ -52,8 +52,6 @@ void Parser::Prepare() {  // TODO: this is terrible. not that i expect to ever h
 }
 
 Token Parser::GetNextToken() {
-	using enum ParseErr;
-	using enum TokenType;
 	if (lexQueue.empty()) {
 		Lex();
 	}
@@ -67,9 +65,6 @@ Token Parser::GetNextToken() {
 #define LexGetc() (fileContent[position++])
 
 size_t Parser::Lex(size_t atLeast) {
-	using enum TokenType;
-	using enum ParseErr;
-
 	if (atLeast == 0) atLeast = tokensAtOnce;
 	char buf[64];
 	char c;
@@ -284,10 +279,6 @@ else { things.top()->sv.Child.first = (node); things.top()->sv.Child.last = (nod
 
 // This somewhat elephantine function is responsible for constructing the parse tree from the lexer output.
 AstNode* Parser::Parse() {
-	using enum NodeType;
-	using enum TokenType;
-	using enum ParseErr;
-
 	if (!prepared) Prepare();
 	try {
 		Lex();  // Initially fill token queue

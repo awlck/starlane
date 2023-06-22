@@ -19,6 +19,14 @@
 static const slc__frontend *cfe = nullptr;
 static Starlane::Frontend *fe = nullptr;
 
+static inline std::string StringChangeImpl(const std::string &str, slc__stringchange func) {
+	if (!func) return str;
+	auto result_cstr = func(str.c_str());
+	std::string result(result_cstr);
+	SLCWRAP_DEALLOC((void *) result_cstr);
+	return result;
+}
+
 namespace Wrap {
 
 void FatalError(const char *msg) {
@@ -30,24 +38,6 @@ void OutputText(const char *msg) {
 	if (!cfe || !cfe->output_text) return;
 	TAILCALL return (cfe->output_text)(msg);
 }
-
-#ifdef __GNUC__
-#define StringChangeImpl(str_, func) ((func) ? StringChangeImpl2((str_), (func)) : str_)
-#define StringChangeImpl2(str_, func) ({     \
-	auto result_cstr = func((str_).c_str()); \
-	std::string result(result_cstr);         \
-	SLCWRAP_DEALLOC((void *) result_cstr);   \
-	result;                                  \
-})
-#else
-static inline std::string StringChangeImpl(const std::string &str, slc__stringchange func) {
-	if (!func) return str;
-	auto result_cstr = func(str.c_str());
-	std::string result(result_cstr);
-	SLCWRAP_DEALLOC((void *) result_cstr);
-	return result;
-}
-#endif
 
 std::string StrToUpperCase(const std::string &str) {
 	return StringChangeImpl(str, cfe->str_to_upper_case);

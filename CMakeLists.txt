@@ -4,9 +4,6 @@
 cmake_minimum_required (VERSION 3.16)
 
 project("starlane")
-set(CMAKE_CXX_STANDARD 17)
-set(CMAKE_CXX_EXTENSIONS OFF)
-set(CMAKE_CXX_STANDARD_REQUIRED ON)
 
 option(BUILD_SHARED_LIBS "Build the interpreter core as a shared library" OFF)
 option(SL_BUILD_QT "Build the Starlane Qt frontent" ON)
