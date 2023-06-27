@@ -83,16 +83,11 @@ constexpr uint8_t adriftKey[] = { 41, 236, 221, 117, 23, 189, 44, 187, 161, 96, 
 
 // Undo ADRIFT's obfuscation using the key above.
 // input: byte array to work with
-// length: total length of the input array
-// offset: how many bytes from the start of the array should be skipped
-// count: how many bytes (starting at `offset') to process
-uint8_t *DeobfuscateByteArray(const uint8_t *input, size_t length, size_t count) {
-	assert(count <= length);
-	auto output = (uint8_t *) ::operator new(length);
-	for (size_t i = 0; i < 0 + count; i++)
-		output[i - 0] = (uint8_t) (input[i] ^ adriftKey[(i - 0) % sizeof(adriftKey)]);
-	for (size_t i = 0 + count; i < length; i++)
-		output[i] = input[i];
+// count: how many bytes to process
+uint8_t *DeobfuscateByteArray(const uint8_t *input, size_t count) {
+	auto output = (uint8_t *) ::operator new(count);
+	for (size_t i = 0; i < count; i++)
+		output[i] = (uint8_t) (input[i] ^ adriftKey[i % sizeof(adriftKey)]);
 	return output;
 }
 
@@ -249,11 +244,11 @@ std::string ExtractTaf(const uint8_t *input, size_t size) {
 		*/
 		uint32_t babelLen = ParseHex(input + 0xc);
 		deobflen = size - 26 - babelLen - 4;
-		deobf = DeobfuscateByteArray(input + 16 + babelLen, deobflen, deobflen);
+		deobf = DeobfuscateByteArray(input + 16 + babelLen, deobflen);
 	} else if (memcmp("0000", input + 0xc, 4) == 0 && input[0x10] == (0x78 ^ adriftKey[0])) {
         // Current format but without Babel data (i.e., extracted from Blorb file)
         deobflen = size - 26;
-        deobf = DeobfuscateByteArray(input + 0x10, deobflen, deobflen);
+        deobf = DeobfuscateByteArray(input + 0x10, deobflen);
     } else {
 		// pre 5.0.20 format: simply strip the first 12 bytes and go
 		deobflen = size - 26;
