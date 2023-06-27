@@ -60,7 +60,15 @@ public:
 	// For saving the game:
 	const std::vector<int64_t> &GetIntArray() const { return intVals; }
 	const std::vector<std::string> &GetStrArray() const { return strVals; }
-	bool GetEverChanged() const { return everChanged; }
+	void ClearAll() {
+		if (type == Type::Int || type == Type::IntArray) {
+			intVals.clear();
+			intVals.resize(capacity);
+		} else {
+			strVals.clear();
+			strVals.resize(capacity);
+		}
+	}
 
 private:
 	Variable() = default;

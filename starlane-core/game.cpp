@@ -12,6 +12,7 @@
 #include "gamecontent/variable.h"
 #include "savefiles/parser.h"
 #include "savefiles/writer.h"
+#include "valueparsers.h"
 
 namespace Starlane {
 
@@ -179,7 +180,6 @@ bool Game::Save() {
 
 	writer.BeginNamedCompound("variables");
 	for (const auto &var: variables) {
-		if (!var.second->GetEverChanged()) continue;
 		switch (var.second->GetType()) {
 		case Variable::Type::Int:
 		case Variable::Type::IntArray:
@@ -261,6 +261,93 @@ bool Game::Restore() {
 			return false;
 		}
 	}
+	SaveUndo();  // so we can return in the event of a failure once game state has been modified
+	return Game::Get()->ContinueRestore(root);  // in the new instance post-save
+}
+
+bool Game::ContinueRestore(const Save::AstNode *root) {
+	{
+		auto *objsNode = root->FindChildByName("objects");
+		if (!objsNode || objsNode->type != Save::NT_COMPOUND) return RollbackRestore();
+		ITERATE_CHILDREN(objsNode, objN) {
+			if (!GetObject(objN->myName)->RestoreState(objN)) return RollbackRestore();
+		}
+	}
+	{
+		auto *evtsNode = root->FindChildByName("events");
+		if (!evtsNode || evtsNode->type != Save::NT_COMPOUND) return RollbackRestore();
+		ITERATE_CHILDREN(evtsNode, evtN) {
+			if (!GetEvent(evtN->myName)->RestoreState(evtN)) return RollbackRestore();
+		}
+	}
+	{
+		auto *varsNode = root->FindChildByName("variables");
+		if (!varsNode || varsNode->type != Save::NT_COMPOUND) return RollbackRestore();
+		ITERATE_CHILDREN(varsNode, varN) {
+			auto *var = GetVariable(varN->myName);
+			size_t counter = 0;
+			switch (var->GetType()) {
+				case Variable::Type::Int:
+				case Variable::Type::IntArray:
+					if (varN->type != Save::NT_INTLIST) return RollbackRestore();
+					ITERATE_CHILDREN(varN, varV) {
+						var->SetValue(varV->sv.Int, ++counter);
+					}
+					break;
+				case Variable::Type::String:
+				case Variable::Type::StringArray:
+					if (varN->type != Save::NT_STRINGLIST) return RollbackRestore();
+					ITERATE_CHILDREN(varN, varV) {
+						var->SetValue(varV->Str, ++counter);
+					}
+					break;
+			}
+		}
+	}
+	{
+		const auto *grpsNode = root->FindChildByName("groups");
+		if (!grpsNode || grpsNode->type != Save::NT_COMPOUND) return RollbackRestore();
+		ITERATE_CHILDREN(grpsNode, grpN) {
+			if (!GetGroup(grpN->myName)->RestoreState(grpN)) return RollbackRestore();
+		}
+	}
+	{
+		const auto *descsNode = root->FindChildByName("descriptions_shown");
+		if (!descsNode || descsNode->type != Save::NT_COMPOUND) return RollbackRestore();
+		size_t nextDesc;
+		size_t lastDesc = 0;
+		ITERATE_CHILDREN(descsNode, descN) {
+			nextDesc = ParseInt(descN->myName.c_str());
+			for (size_t i = lastDesc+1; i < nextDesc; i++)
+				descriptions[i]->RestoreState();
+			std::vector<bool> state;
+			ITERATE_CHILDREN(descN, entry) {
+				state.push_back(entry->sv.Bool);
+			}
+			descriptions[nextDesc]->RestoreState(state);
+			lastDesc = nextDesc;
+		}
+		for (size_t i = lastDesc+1; i < descriptionsSoFar; i++)
+			descriptions[i]->RestoreState();
+	}
+	{
+		const auto *tasksCompletedNode = root->FindChildByName("tasks_completed");
+		if (!tasksCompletedNode || tasksCompletedNode->type != Save::NT_STRINGLIST) return RollbackRestore();
+		for (auto &elem: taskCompletedStorage)
+			elem.second = false;
+		ITERATE_CHILDREN(tasksCompletedNode, taskNode) {
+			taskCompletedStorage[taskNode->myName] = taskNode->sv.Bool;
+		}
+	}
+	// finally, discard all previous undo states because UNDOing a restore would be a bit silly
+	while (Game::UndoAvailable())
+		Game::DiscardUndo();
+	return true;
+}
+
+bool Game::RollbackRestore() {
+	RestoreUndo();
+	frontend->OutputText("<i>Restore failed: selected save file is invalid.</i>");
 	return false;
 }
 

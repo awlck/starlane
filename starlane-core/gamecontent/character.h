@@ -48,7 +48,8 @@ public:
 	};
 	std::string GetPossessionsList(PossessionFilter pf = PossessionFilter::WornAndHeld, bool recurse = true) const;
 
-	void WriteState(Save::Writer &writer) override;
+	void WriteState(Save::Writer &writer) const override;
+	bool RestoreState(const Save::AstNode *node) override;
 private:
 	Character() = default;
 

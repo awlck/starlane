@@ -52,6 +52,10 @@ public:
 
 protected:
     void ErasePropValue(const std::string &key);
+	void ClearProps() noexcept {
+		intValuedProps.clear();
+		strValuedProps.clear();
+	}
 	
 private:
 	std::unordered_map<std::string, int64_t> intValuedProps;

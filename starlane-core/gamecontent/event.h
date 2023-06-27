@@ -65,7 +65,8 @@ public:
 	Util::Range &GetDuration() { return duration; }
 	int32_t GetTimeSinceStart() const { return timeSinceStart; }
 
-	void WriteState(Save::Writer &writer);
+	void WriteState(Save::Writer &writer) const;
+	bool RestoreState(const Save::AstNode *node);
 
 private:
 	Event() = default;

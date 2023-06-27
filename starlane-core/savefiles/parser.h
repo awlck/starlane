@@ -14,6 +14,8 @@
 
 #include "../expressions/exprp_utility.h"
 
+#define ITERATE_CHILDREN(ofNode, target) for (const auto *target = ofNode->sv.Child.first; target; target = target->nextSibling)
+
 namespace Starlane::Save {
 
 enum TokenType {

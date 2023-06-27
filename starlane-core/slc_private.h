@@ -66,6 +66,7 @@ enum class Pronoun {
 
 namespace Save {
 class Writer;
+struct AstNode;
 }
 
 std::string DoDecompression(const uint8_t *data, size_t dataLen);

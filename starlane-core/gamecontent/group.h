@@ -41,6 +41,7 @@ public:
 	const std::set<std::string> &GetAllMembers() const { return members; }
 
 	void WriteState(Save::Writer &writer) const;
+	bool RestoreState(const Save::AstNode *node);
 
 	virtual ~Group() {}
 

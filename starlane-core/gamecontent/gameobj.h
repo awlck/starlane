@@ -11,6 +11,7 @@
 #include <vector>
 
 #include "propholder.h"
+#include "../savefiles/parser.h"
 
 namespace Starlane {
 class Location;
@@ -92,7 +93,8 @@ public:
 	void MoveTo(const std::string &newParent, HoldingType newRelation);
 
 	// Write out mutable object state to a save file
-	virtual void WriteState(Save::Writer &writer);
+	virtual void WriteState(Save::Writer &writer) const;
+	virtual bool RestoreState(const Save::AstNode *node);
 
 protected:
 	void MakeCommonValues(const pugi::xml_node &xmlNode);

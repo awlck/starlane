@@ -8,6 +8,7 @@
 #include "../game.h"
 #include "../valueparsers.h"
 #include "../savefiles/writer.h"
+#include "../savefiles/parser.h"
 
 namespace Starlane {
 
@@ -112,10 +113,23 @@ void Event::ReceiveTaskNotification(Util::Control::Condition cond, const std::st
 	}
 }
 
-void Event::WriteState(Save::Writer &writer) {
+void Event::WriteState(Save::Writer &writer) const {
 	writer.WriteKV("determined_duration", duration.CurrentState());
 	writer.WriteKV("state", (int) state);
 	writer.WriteKV("time_since_start", timeSinceStart);
+}
+
+bool Event::RestoreState(const Save::AstNode *node) {
+	const auto *ddNode = node->FindChildByName("determined_duration");
+	if (!ddNode || ddNode->type != Save::NT_INT) return false;
+	duration.RestoreState(node->sv.Int);
+	const auto *sNode = ddNode->nextSibling;
+	if (!sNode || sNode->type != Save::NT_INT) return false;
+	state = (State) sNode->sv.Int;
+	const auto *tssNode = sNode->nextSibling;
+	if (!tssNode || tssNode->type != Save::NT_INT) return false;
+	timeSinceStart = (int32_t) tssNode->sv.Int;
+	return true;
 }
 
 }

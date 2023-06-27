@@ -26,6 +26,8 @@ public:
 	void ResolveText();
 
 	std::vector<bool> GetState() const;
+	void RestoreState();
+	void RestoreState(const std::vector<bool> &state);
 
 private:
 	enum class Display {

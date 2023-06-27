@@ -159,7 +159,7 @@ std::string GameObj::GetListOfChildren(GameObj::ChildFilter f1, GameObj::ChildRe
 	return result;
 }
 
-void GameObj::WriteState(Save::Writer &writer) {
+void GameObj::WriteState(Save::Writer &writer) const {
 	writer.WriteKV("parent", parent);
 	writer.WriteKV("dynamic", dynamic);
 	writer.WriteKV("holding_type", (int) relation);
@@ -173,6 +173,32 @@ void GameObj::WriteState(Save::Writer &writer) {
 	for (const auto &p: strProps)
 		writer.WriteKV(p.first.c_str(), p.second);
 	writer.EndCompound();
+}
+
+bool GameObj::RestoreState(const Save::AstNode *node) {
+	const auto *parentNode = node->FindChildByName("parent");
+	if (!parentNode) return false;
+	parent = parentNode->Str;
+	const auto *dynamicNode = parentNode->nextSibling;
+	if (!dynamicNode) return false;
+	dynamic = dynamicNode->sv.Bool;
+	const auto *htNode = dynamicNode->nextSibling;
+	if (!htNode) return false;
+	relation = (HoldingType) htNode->sv.Int;
+	const auto *grpNode = htNode->nextSibling;
+	if (!grpNode) return false;
+	for (const auto *grp = grpNode->sv.Child.first; grp; grp = grp->nextSibling)
+		groupMembership.insert(grp->Str);
+	const auto *propsNode = grpNode->nextSibling;
+	if (!propsNode) return false;
+	ClearProps();
+	ITERATE_CHILDREN(propsNode, prop) {
+		if (prop->type == Save::NT_INT)
+			SetPropValue(prop->myName, prop->sv.Int);
+		else
+			SetPropValue(prop->myName, prop->Str);
+	}
+	return true;
 }
 
 const Group *GameObj::GetGroupWithProp(const std::string &k) const {

@@ -81,7 +81,7 @@ public:
 	bool RestoreUndo();
 	// Discard the oldest saved game state.
 	// Does nothing if there currently aren't any undo states.
-	void DiscardUndo();
+	static void DiscardUndo();
 	// Is there at least one undo state available?
 	bool UndoAvailable() const { return !undoStates.empty(); }
 	// Restart the game.
@@ -136,6 +136,9 @@ private:
 	void CreateFunctionFromXML(const pugi::xml_node &funcNode);
 
     void StartupSanityCheck() const;
+
+	bool ContinueRestore(const Save::AstNode *node);
+	bool RollbackRestore();
 
 	// mutable game state (objects copied for undo state)
 	std::unordered_map<std::string, GameObj *> objects;

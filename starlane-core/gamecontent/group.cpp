@@ -49,4 +49,15 @@ void Group::WriteState(Save::Writer &writer) const {
 	}
 }
 
+bool Group::RestoreState(const Save::AstNode *node) {
+	ClearProps();
+	ITERATE_CHILDREN(node, prop) {
+		if (prop->type == Save::NT_INT)
+			SetPropValue(prop->myName, prop->sv.Int);
+		else
+			SetPropValue(prop->myName, prop->Str);
+	}
+	return true;
+}
+
 }

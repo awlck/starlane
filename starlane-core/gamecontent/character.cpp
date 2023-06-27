@@ -115,9 +115,20 @@ std::string Character::GetPossessionsList(Starlane::Character::PossessionFilter 
 	return result;
 }
 
-void Character::WriteState(Save::Writer &writer) {
+void Character::WriteState(Save::Writer &writer) const {
 	GameObj::WriteState(writer);
 	writer.WriteKV("seen", seenStorage);
+}
+
+bool Character::RestoreState(const Save::AstNode *node) {
+	if (!GameObj::RestoreState(node)) return false;
+	const auto *seenNode = node->FindChildByName("seen");
+	if (!seenNode) return false;
+	seenStorage.clear();
+	ITERATE_CHILDREN(seenNode, s) {
+		seenStorage.insert(s->Str);
+	}
+	return true;
 }
 
 }

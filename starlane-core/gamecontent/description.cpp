@@ -409,4 +409,16 @@ std::vector<bool> Description::GetState() const {
 	return results;
 }
 
+void Description::RestoreState() {
+	for (auto &s: segments)
+		s.shown = false;
+}
+
+void Description::RestoreState(const std::vector<bool> &state) {
+	size_t count = state.size();
+	for (size_t i = 0; i < count; i++) {
+		segments[i].shown = state[i];
+	}
+}
+
 }
