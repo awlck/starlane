@@ -23,7 +23,9 @@ MainWindow::MainWindow() : QMainWindow(nullptr) {
 }
 
 void MainWindow::OutputText(const char *txt) {
-	output->insertHtml(txt);
+	output->moveCursor(QTextCursor::End, QTextCursor::MoveAnchor);
+	QString theText = QString(txt).replace('\n', "<br>").replace("<center>", "<div style=\"text-align: center;\">", Qt::CaseInsensitive).replace("</center>", "</div>", Qt::CaseInsensitive);
+	output->insertHtml(theText);
 }
 
 void MainWindow::InputReturnPressed() {
