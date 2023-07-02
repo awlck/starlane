@@ -188,8 +188,8 @@ private:
 
 	size_t descriptionsSoFar = 0;
 	size_t restrictionsSoFar = 0;
-	size_t textSnippetsSoFar = 0;
-	size_t expressionsSoFar = ((size_t) 1) << (std::numeric_limits<size_t>::digits-1);
+	ptrdiff_t textSnippetsSoFar = 0;
+	ptrdiff_t expressionsSoFar = 0;
 
 	std::unordered_map<std::string, uint32_t> blorbResMap;
 

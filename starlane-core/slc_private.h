@@ -49,11 +49,11 @@ struct Expression;
 // (with zero meaning "no text at all")
 using DescrRef = size_t;
 // ID number of a piece of plain text
-using PlainTextRef = size_t;
+using PlainTextRef = ptrdiff_t;
 // ID number of a restriction block
 using RestrRef = size_t;
 // ID number of an expression/function call
-using ExprRef = size_t;
+using ExprRef = ptrdiff_t;
 
 extern const Frontend *frontend;
 

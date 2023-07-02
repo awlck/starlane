@@ -9,8 +9,8 @@
 #include "../valueparsers.h"
 #include "restriction.h"
 
-// bit fuckery to tell plain text from expressions
-#define TOPBIT (((size_t) 1) << (std::numeric_limits<size_t>::digits - 1))
+// plain text is positive, expressions are negative:
+#define IS_EXPR(x) ((x) < 0)
 
 // "no position": basically just size_t_max
 #define NPOS ((size_t) -1)
@@ -147,7 +147,7 @@ std::string Description::Segment::Build(const UserFuncContext *context) const {
 	std::string result;
 	result.reserve(initialTextLength);
 	for (auto ref : content) {
-		if (ref & TOPBIT) {  // an expression
+		if (IS_EXPR(ref)) {  // an expression
 			result.append(Game::Get()->GetExpression(ref)->EvaluateStr(context));
 		} else {  // a plain text snippet
 			// We also need to deal with alternatives like '[am/are/is]' at this stage.

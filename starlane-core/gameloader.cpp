@@ -152,15 +152,20 @@ void Game::CreateFunctionFromXML(const pugi::xml_node &funcNode) {
 	userFuncNames[result->Name()] = result->Key();
 }
 
-// Parts of the program use the top bit to differentiate between plain text snippet references
-// and expression references, so we must make sure that we never allocate a plain text
-// reference so large that it uses the top bit.
-static void CheckSnippetsInRange(size_t snips) {
-	// TODO: figure out why clang seems to think that this expression is always false.
-	if (snips > (((size_t) 1) << (std::numeric_limits<size_t>::digits - 1))) {
+// Plain text and expressions are miscible in some parts of the program (particularly,
+// within the contents of descriptions), so in order to tell them apart, plain text snipped IDs
+// are always positive while expression IDs are negative. Make sure the plain text snippet count
+// doesn't overflow. (The type used to store them is architecture-dependent for performance reasons --
+// 32 bits on 32-bit systems, 64 bits on 64-bit systems. So this is exceedingly unlikely to ever
+// trigger on a 64-bit system, however there is a remote chance that some overly-ambitious game
+// might exceed the limit of ~2.147 billion runs of plain text supported on a 32-bit system. But,
+// then again, it seems likely that we would run out of memory and/or address space to store all
+// this text first. Oh well.)
+static void CheckSnippetsInRange(ptrdiff_t snips) {
+	if (snips == (std::numeric_limits<ptrdiff_t>::max() - 1)) {
 		std::stringstream s;
 		s << "My brain just exploded: On your system, I can only handle "
-			<< (((size_t) 1) << (std::numeric_limits<size_t>::digits - 1))
+			<< (std::numeric_limits<ptrdiff_t>::max() - 1)
 			<< " individual runs of plain text, but this game requires more than that.";
 		frontend->FatalError(s.str().c_str());
 		throw std::out_of_range(s.str());
@@ -187,7 +192,7 @@ ExprRef Game::CreateExpression(const std::string &expr) {
 	auto x = knownExprs[expr];
 	if (x != 0) return x;
 
-	x = ++expressionsSoFar;
+	x = -(++expressionsSoFar);
 	auto y = new Expression(expr);
 	expressions.emplace(x, y);
 	knownExprs[expr] = x;

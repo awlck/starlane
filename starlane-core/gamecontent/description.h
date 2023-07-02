@@ -48,9 +48,10 @@ private:
 		// At load time, store the entire text here
 		std::string text;
 		// After resolving references, we get this instead:
-		// (And because having a variant of PlainTextRef and ExprRef is hard, because they're
-		// both size_t under the hood, we'll do some wild shit with bit-flags instead.)
-		std::vector<size_t> content;
+		// (The easiest way I could come up with to tell PlainTextRefs and ExprRefs apart while still
+		//  storing them in a single container is to make sure one is always positive and the other is
+		//  always negative.)
+		std::vector<ptrdiff_t> content;
 		// remember how long the initial text (with expressions) was, as an estimate for how much
 		// memory we need to reserve when building the text back.
 		size_t initialTextLength = 0;
