@@ -15,7 +15,7 @@ static constexpr size_t WRITER_BUFSIZE = 1024;
 Writer::Writer(void *target, const Starlane::Game *game)
 		: hFile(target), textbuf(new uint8_t[WRITER_BUFSIZE]), zbuf(new uint8_t[WRITER_BUFSIZE])
 {
-	stream = (mz_stream *) calloc(1, sizeof(mz_stream));
+	stream = new mz_stream();
 	stream->avail_in = 0;
 	stream->next_in = textbuf;
 	stream->next_out = zbuf;
@@ -35,7 +35,7 @@ Writer::~Writer() {
 	mz_deflateEnd(stream);
 	delete[] textbuf;
 	delete[] zbuf;
-	free(stream);
+	delete stream;
 	frontend->CloseFile(hFile);
 }
 
