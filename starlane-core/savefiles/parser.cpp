@@ -56,7 +56,7 @@ Token Parser::GetNextToken() {
 		Lex();
 	}
 	if (lexQueue.empty()) {
-		throw ParserError { PE_UNEXPECTED_END, { TT_NONE, {{0}}} };
+		throw SaveFileError { PE_UNEXPECTED_END, { TT_NONE, {{0}}} };
 	}
 	return QueuePop(lexQueue);
 }
@@ -153,7 +153,7 @@ size_t Parser::Lex(size_t atLeast) {
 					if (token.tok.Int == 0 && eptr == buf) [[unlikely]] {
 						token.type = TT_NONE;
 						memcpy(token.tok.SString, buf, 64);
-						throw ParserError{ LE_INVALID_INT, token };
+						throw SaveFileError { LE_INVALID_INT, token };
 					}
 					break;
 				case TT_NONE:  // Special character
@@ -195,9 +195,9 @@ size_t Parser::Lex(size_t atLeast) {
 		lexerDone = true;
 		// produce an error if the file ended in the middle of a token.
 		if (assumption != TT_NONE) {
-			Token currentToken{ TT_NONE, {{0}} };
+			Token currentToken { TT_NONE, {{0}} };
 			memcpy(currentToken.tok.SString, buf, 64);
-			throw ParserError{PE_UNEXPECTED_END, currentToken};
+			throw SaveFileError { PE_UNEXPECTED_END, currentToken };
 		}
 	}
 	return tokensRead;
@@ -256,7 +256,10 @@ std::string Parser::MakeStringFromToken(const Token &t) {
 		case TokenType::TT_EQUALS:
 		case TokenType::TT_NONE:
 			return "";
+		default:
+			UNREACHABLE();
 	}
+	return "<invalid token>";  // shouldn't get here but MSVC is dumb, apparently.
 }
 
 // Represents the parser's internal state.
@@ -282,7 +285,7 @@ AstNode* Parser::Parse() {
 	if (!prepared) Prepare();
 	try {
 		Lex();  // Initially fill token queue
-	} catch (const ParserError &e) {
+	} catch (const SaveFileError &e) {
 		latestParserError = e;
 		return nullptr;
 	}
@@ -298,7 +301,7 @@ AstNode* Parser::Parse() {
 	while (!lexerDone || !lexQueue.empty()) {
 		try {
 			currentToken = GetNextToken();
-		} catch (const ParserError &e) {
+		} catch (const SaveFileError &e) {
 			if (lexerDone) break;  // in case the first token the lexer encounters is EOF
 			latestParserError = e;
 			return nullptr;
@@ -357,7 +360,7 @@ AstNode* Parser::Parse() {
 						TokenType nextType;
 						try {  // compound or string list
 							nextType = Lookahead();
-						} catch (const ParserError &e) {
+						} catch (const SaveFileError &e) {
 							latestParserError = e;
 							return nullptr;
 						}
@@ -396,7 +399,7 @@ AstNode* Parser::Parse() {
 								ADD_AS_CHILD(nextNode);
 								things.push(nextNode);
 							} else PARSE_ERROR(PE_INVALID_COMBO_AFTER_OPEN);
-						} catch (const ParserError &e) {
+						} catch (const SaveFileError &e) {
 							latestParserError = e;
 							return nullptr;
 						}

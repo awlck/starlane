@@ -8,8 +8,8 @@
 
 #include "../slc_private.h"
 
-#include <stdint.h>
 #include <queue>
+#include <stdexcept>
 #include <vector>
 
 #include "../expressions/exprp_utility.h"
@@ -91,7 +91,15 @@ enum ParseErr {
 	LE_INVALID_INT
 };
 
-struct ParserError {
+class SaveFileError : public std::runtime_error {
+public:
+	SaveFileError(ParseErr etype, const Token &erroredToken)
+		: etype(etype), erroredToken(erroredToken), std::runtime_error(std::string("Error parsing save file: ") + std::to_string(etype)) {}
+
+	ParseErr GetErrorType() const { return etype; }
+	const Token &GetErroredToken() const { return erroredToken; }
+
+private:
 	ParseErr etype;
 	Token erroredToken;
 };
@@ -102,13 +110,13 @@ public:
 	~Parser();
 	void Prepare();
 	AstNode *Parse();
-	ParserError GetLatestParserError() const { return latestParserError; }
+	SaveFileError GetLatestParserError() const { return latestParserError; }
 
 private:
 	void *hFile;
 	std::string fileContent;
 	bool prepared = false;
-	ParserError latestParserError{ParseErr::PE_NONE, {TokenType::TT_NONE, {{0}}}};
+	SaveFileError latestParserError{ParseErr::PE_NONE, {TokenType::TT_NONE, {{0}}}};
 
 	Token GetNextToken();
 	size_t Lex(size_t atLeast = 0);
