@@ -233,7 +233,11 @@ bool Game::Restore() {
 	Save::AstNode *root;
 	try {
 		root = sav.Parse();
-	} catch (Save::ParserError &e) {
+	} catch (Save::SaveFileError &e) {
+		frontend->OutputText("<i>Restore failed: the selected save file appears to be invalid.</i>");
+		return false;
+	}
+	if (root == nullptr) {
 		frontend->OutputText("<i>Restore failed: the selected save file appears to be invalid.</i>");
 		return false;
 	}
