@@ -94,7 +94,7 @@ enum ParseErr {
 class SaveFileError : public std::runtime_error {
 public:
 	SaveFileError(ParseErr etype, const Token &erroredToken)
-		: etype(etype), erroredToken(erroredToken), std::runtime_error(std::string("Error parsing save file: ") + std::to_string(etype)) {}
+		: std::runtime_error(std::string("Error parsing save file: ") + std::to_string(etype)), etype(etype), erroredToken(erroredToken) {}
 
 	ParseErr GetErrorType() const { return etype; }
 	const Token &GetErroredToken() const { return erroredToken; }
