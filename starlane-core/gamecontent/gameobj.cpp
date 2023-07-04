@@ -3,6 +3,7 @@
 #include <stdexcept>
 #include <string.h>
 
+#include <magic_enum.hpp>
 #include <pugixml.hpp>
 
 #include "../game.h"
@@ -162,7 +163,7 @@ std::string GameObj::GetListOfChildren(GameObj::ChildFilter f1, GameObj::ChildRe
 void GameObj::WriteState(Save::Writer &writer) const {
 	writer.WriteKV("parent", parent);
 	writer.WriteKV("dynamic", dynamic);
-	writer.WriteKV("holding_type", (int) relation);
+	writer.WriteKV("holding_type", magic_enum::enum_name(relation));
 	writer.WriteKV("groups", groupMembership);
 	writer.BeginNamedCompound("properties");
 	// make sure not to consult the groups here
@@ -184,7 +185,9 @@ bool GameObj::RestoreState(const Save::AstNode *node) {
 	dynamic = dynamicNode->sv.Bool;
 	const auto *htNode = dynamicNode->nextSibling;
 	if (!htNode) return false;
-	relation = (HoldingType) htNode->sv.Int;
+	auto tmpRelation = magic_enum::enum_cast<HoldingType>(htNode->Str);
+	if (!tmpRelation.has_value()) return false;
+	relation = tmpRelation.value();
 	const auto *grpNode = htNode->nextSibling;
 	if (!grpNode) return false;
 	for (const auto *grp = grpNode->sv.Child.first; grp; grp = grp->nextSibling)

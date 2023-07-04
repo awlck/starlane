@@ -3,6 +3,7 @@
 #include <algorithm>
 #include <sstream>
 
+#include <magic_enum.hpp>
 #include <pugixml.hpp>
 
 #include "../game.h"
@@ -115,7 +116,7 @@ void Event::ReceiveTaskNotification(Util::Control::Condition cond, const std::st
 
 void Event::WriteState(Save::Writer &writer) const {
 	writer.WriteKV("determined_duration", duration.CurrentState());
-	writer.WriteKV("state", (int) state);
+	writer.WriteKV("state", magic_enum::enum_name(state));
 	writer.WriteKV("time_since_start", timeSinceStart);
 }
 
@@ -124,8 +125,10 @@ bool Event::RestoreState(const Save::AstNode *node) {
 	if (!ddNode || ddNode->type != Save::NT_INT) return false;
 	duration.RestoreState(node->sv.Int);
 	const auto *sNode = ddNode->nextSibling;
-	if (!sNode || sNode->type != Save::NT_INT) return false;
-	state = (State) sNode->sv.Int;
+	if (!sNode || sNode->type != Save::NT_STRING) return false;
+	auto tmpState = magic_enum::enum_cast<State>(sNode->Str);
+	if (!tmpState.has_value()) return false;
+	state = tmpState.value();
 	const auto *tssNode = sNode->nextSibling;
 	if (!tssNode || tssNode->type != Save::NT_INT) return false;
 	timeSinceStart = (int32_t) tssNode->sv.Int;

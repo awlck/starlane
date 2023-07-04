@@ -67,7 +67,7 @@ add_library(starlane-core
     savefiles/writer.cpp savefiles/writer.h
 	savefiles/parser.cpp savefiles/parser.h)
 target_link_libraries(starlane-core miniz pugixml slc_exprparser)
-target_include_directories(starlane-core PRIVATE deps/miniz deps/pugixml/src ${CMAKE_CURRENT_BINARY_DIR})
+target_include_directories(starlane-core PRIVATE deps/miniz deps/pugixml/src deps/magicenum ${CMAKE_CURRENT_BINARY_DIR})
 if (BUILD_SHARED_LIBS)
 	target_compile_definitions(starlane-core PUBLIC SL_SHARED_CORE)
 endif()
