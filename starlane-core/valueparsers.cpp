@@ -7,6 +7,8 @@
 #include <string.h>
 #include <sstream>
 
+#include <magic_enum.hpp>
+
 #include "game.h"
 #include "gamecontent/description.h"
 #include "gamecontent/event.h"
@@ -90,13 +92,10 @@ Property::ValueType Property::ParseValueType(const char *txt) {
 }
 
 Task::Type Task::ParseType(const char *txt) {
-	if (STREQ(txt, "General"))
-		return Task::Type::General;
-	if (STREQ(txt, "Specific"))
-		return Task::Type::Specific;
-	if (STREQ(txt, "System"))
-		return Task::Type::System;
-	throw VALERR(Task::Type, txt);
+	auto tmp = magic_enum::enum_cast<Task::Type>(txt);
+	if (!tmp.has_value())
+		throw VALERR(Task::Type, txt);
+	return tmp.value();
 }
 
 Task::OverrideType Task::ParseOverrideType(const char *txt) {
@@ -180,15 +179,10 @@ Event::TimeType Event::ParseTimeType(const char *txt) {
 }
 
 Event::SEType Event::ParseSEType(const char *txt) {
-	if (STREQ(txt, "DisplayMessage"))
-		return SEType::DisplayMessage;
-	if (STREQ(txt, "SetLook"))
-		return SEType::SetLook;
-	if (STREQ(txt, "ExecuteTask"))
-		return SEType::ExecuteTask;
-	if (STREQ(txt, "UnsetTask"))
-		return SEType::UnsetTask;
-	throw VALERR(Event::SEType, txt);
+	auto tmp = magic_enum::enum_cast<SEType>(txt);
+	if (!tmp.has_value())
+		throw VALERR(Event::SEType, txt);
+	return tmp.value();
 }
 
 Event::SERefType Event::ParseSERefType(const char *txt) {
@@ -218,17 +212,10 @@ Restriction::TargetType Restriction::ParseTargetType(const char *txt) {
 }
 
 UserFunction::ArgType UserFunction::ParseArgType(const char *txt) {
-	if (STREQ(txt, "Object"))
-		return ArgType::Object;
-	if (STREQ(txt, "Character"))
-		return ArgType::Character;
-	if (STREQ(txt, "Location"))
-		return ArgType::Location;
-	if (STREQ(txt, "Number"))
-		return ArgType::Number;
-	if (STREQ(txt, "Text"))
-		return ArgType::Text;
-	throw VALERR(UserFunction::ArgType, txt);
+	auto tmp = magic_enum::enum_cast<UserFunction::ArgType>(txt);
+	if (!tmp.has_value())
+		throw VALERR(UserFunction::ArgType, txt);
+	return tmp.value();
 }
 
 Util::Range::Range(const char *txt) {
@@ -268,13 +255,10 @@ const char *SkipText(const char *input, const char *toSkip) {
 }
 
 Game::ReferralPerson Game::ParseReferralPerson(const char *txt) {
-	if (STREQ(txt, "FirstPerson"))
-		return ReferralPerson::FirstPerson;
-	if (STREQ(txt, "SecondPerson"))
-		return ReferralPerson::SecondPerson;
-	if (STREQ(txt, "ThirdPerson"))
-		return ReferralPerson::ThirdPerson;
-	throw VALERR(Game::ReferralPerson, txt);
+	auto tmp = magic_enum::enum_cast<Game::ReferralPerson>(txt);
+	if (!tmp.has_value())
+		throw VALERR(Game::ReferralPerson, txt);
+	return tmp.value();
 }
 
 }
