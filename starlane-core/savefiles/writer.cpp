@@ -96,6 +96,44 @@ void Writer::WriteLiteralString(const char *str) {
 	}
 }
 
+void Writer::WriteLiteralString(const std::string_view &sv) {
+	// basically the same as the above but taking advantage of the fact that we know the length beforehand
+	bool needQuotes = (sv.size() >= 64 || sv.empty());
+	if (!needQuotes) {
+		for (char p : sv) {
+			if (!((p >= 'a' && p <= 'z') || (p >= 'A' && p <= 'Z') || (p >= '0' && p <= '9') || p == '_')) {
+				needQuotes = true;
+				break;
+			}
+		}
+	}
+	if (needQuotes) {
+		AcceptChar('"');
+		for (char p: sv) {
+			switch (p) {
+			case '\n':
+				AcceptChar('\\');
+				AcceptChar('n');
+				break;
+			case '\t':
+				AcceptChar('\\');
+				AcceptChar('t');
+				break;
+			case '"':
+			case '\\':
+				AcceptChar('\\');
+				[[fallthrough]];
+			default:
+				AcceptChar(p);
+			}
+		}
+		AcceptChar('"');
+	} else {
+		for (char p: sv)
+			AcceptChar(p);
+	}
+}
+
 void Writer::RunCompressor(bool finish) {
 	stream->next_in = textbuf;
 	stream->avail_in = position;

@@ -42,8 +42,9 @@ public:
 		WriteValue(val);
 	}
 	// Write out a string value
-	void WriteValue(const std::string &str) { WriteLiteralString(str.c_str()); }
+	void WriteValue(const std::string &str) { WriteLiteralString(str); }
 	void WriteValue(const char *str) { WriteLiteralString(str); }
+	void WriteValue(const std::string_view &sv) { WriteLiteralString(sv); }
 	// Write out a boolean
 	void WriteValue(bool b) { WriteUnqouted(b ? "yes" : "no"); }
 	// Write out an integer
@@ -79,6 +80,7 @@ public:
 
 	// Write out a string value, adding quotation marks and escaping special characters as needed.
 	void WriteLiteralString(const char *str);
+	void WriteLiteralString(const std::string_view &str);
 	// Write in normal mode, adding indents as needed.
 	void WriteUnqouted(const char *str);
 
