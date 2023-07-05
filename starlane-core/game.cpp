@@ -273,6 +273,11 @@ bool Game::Restore() {
 
 bool Game::ContinueRestore(const Save::AstNode *root) {
 	{
+		auto *playerNode = root->FindChildByName("player");
+		if (!playerNode || playerNode->type != Save::NT_STRING) return RollbackRestore();
+		playerKey = playerNode->Str;
+	}
+	{
 		auto *objsNode = root->FindChildByName("objects");
 		if (!objsNode || objsNode->type != Save::NT_COMPOUND) return RollbackRestore();
 		ITERATE_CHILDREN(objsNode, objN) {
