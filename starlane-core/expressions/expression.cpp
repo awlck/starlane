@@ -1,5 +1,6 @@
 #include "../expression.h"
 
+#include <algorithm>
 #include <cmath>
 #include <string_view>
 

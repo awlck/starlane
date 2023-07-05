@@ -6,6 +6,7 @@
 #include <starlane-core.h>
 
 #include <stdlib.h>
+#include <string.h>
 
 #define SLCWRAP_ALLOC(size) ((cfe && cfe->alloc_func) ? cfe->alloc_func : malloc)(size)
 #define SLCWRAP_DEALLOC(size) ((cfe && cfe->free_func) ? cfe->free_func : free)(size)

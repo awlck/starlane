@@ -1,5 +1,7 @@
 #include "game.h"
 
+#include <algorithm>
+
 #include "starlane-core.h"
 #include "gamecontent/event.h"
 #include "expression.h"
