@@ -160,8 +160,16 @@ private:
 	std::vector<std::string> completeSubs;
 	// Events subscribed to this task being uncompleted.
 	std::vector<std::string> uncompleteSubs;
+
+	friend struct TaskPrioLess;
 };
 
-}
+struct TaskPrioLess {
+	bool operator() (const Task *a, const Task *b) const {
+		return a->priority <= b->priority;
+	};
+};
+
+}  // namespace Starlane
 
 #endif  // !SLC_TASK_H

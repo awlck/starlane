@@ -7,9 +7,12 @@
 
 #include <deque>
 #include <limits>
+#include <set>
 #include <string>
 #include <unordered_map>
 #include <utility>
+
+#include "gamecontent/task.h"
 
 namespace Starlane {
 
@@ -17,6 +20,45 @@ template<typename K, typename V> V *SafeMapGet(std::unordered_map<K, V *> map, c
 	auto f = map.find(key);
 	return f == map.end() ? nullptr : f->second;
 }
+
+enum class ReferralPerson {
+	FirstPerson,
+	SecondPerson,
+	ThirdPerson
+};
+
+class GameStatic {
+	std::string gameTitle;
+	std::string gameAuthor;
+	std::string gameAdriftVersion;
+	std::string gameLastUpdated;
+	std::string gameStatusLine;
+	bool showFirstLocation = true;
+	bool showExits = true;
+	DescrRef gameIntro = 0;
+
+	// immutable content (only exists once)
+	std::unordered_map<RestrRef, Restriction *> restrictions;
+	std::unordered_map<std::string, Property *> properties;
+	std::unordered_map<std::string, Task *> tasks;
+	std::unordered_map<std::string, std::string> varNames;
+	std::unordered_map<ExprRef, Expression *> expressions;
+	std::unordered_map<std::string, UserFunction *> userFunctions;
+	std::unordered_map<std::string, std::string> userFuncNames;
+	// Snippets of "Plain text", simple strings that do not contain any expressions
+	// and can be output as-is. Maintained like this to reduce the amount of text
+	// that is unnecessarily duplicated when copying descriptions for undo/save.
+	std::unordered_map<PlainTextRef, const char *> plainTextSnippets;
+	// The grammatical person by which to refer to the player character
+	ReferralPerson pcReferralPerson = ReferralPerson::SecondPerson;
+
+	// Tasks in priority order
+	std::set<Task *, TaskPrioLess> prioOrderedTasks;
+
+	friend class Game;
+public:
+	~GameStatic();
+};
 
 class Game {
 public:
@@ -34,19 +76,19 @@ public:
 	Event *GetEvent(const std::string &key) { return SafeMapGet(events, key); }
 	Group *GetGroup(const std::string &key) { return SafeMapGet(groups, key); }
 	GameObj *GetObject(const std::string &key) { return SafeMapGet(objects, key); }
-	const Property *GetPropMeta(const std::string &key) const { return SafeMapGet(properties, key); }
-	const Restriction *GetRestriction(RestrRef key) const { return restrictions.at(key); }
+	const Property *GetPropMeta(const std::string &key) const { return SafeMapGet(staticData->properties, key); }
+	const Restriction *GetRestriction(RestrRef key) const { return staticData->restrictions.at(key); }
 	Variable *GetVariable(const std::string &key) { return SafeMapGet(variables, key); }
-	Variable *GetVarByName(const std::string &name) { auto f = varNames.find(name); return f == varNames.end() ? nullptr : variables.at(f->second); }
-	const UserFunction *GetUserFunction(const std::string &key) { return SafeMapGet(userFunctions, key); }
-	const UserFunction *GetUserFuncByName(const std::string &name) {auto f = userFuncNames.find(name); return f == userFuncNames.end() ? nullptr : userFunctions.at(f->second); }
-	Expression *GetExpression(ExprRef ref) { return expressions.at(ref); }
-	const char *GetPlainTextSnippet(PlainTextRef ref) { return plainTextSnippets.at(ref); }
+	Variable *GetVarByName(const std::string &name) { auto f = staticData->varNames.find(name); return f == staticData->varNames.end() ? nullptr : variables.at(f->second); }
+	const UserFunction *GetUserFunction(const std::string &key) { return SafeMapGet(staticData->userFunctions, key); }
+	const UserFunction *GetUserFuncByName(const std::string &name) { auto f = staticData->userFuncNames.find(name); return f == staticData->userFuncNames.end() ? nullptr : staticData->userFunctions.at(f->second); }
+	Expression *GetExpression(ExprRef ref) { return staticData->expressions.at(ref); }
+	const char *GetPlainTextSnippet(PlainTextRef ref) { return staticData->plainTextSnippets.at(ref); }
 
 	bool GroupExists(const std::string &key) const { return groups.find(key) != groups.end(); }
 	bool ObjectExists(const std::string &key) const { return objects.find(key) != objects.end(); }
-	bool PropExists(const std::string &key) const { return properties.find(key) != properties.end(); }
-	bool VarOfNameExists(const std::string &name) const { return varNames.find(name) != varNames.end(); }
+	bool PropExists(const std::string &key) const { return staticData->properties.find(key) != staticData->properties.end(); }
+	bool VarOfNameExists(const std::string &name) const { return staticData->varNames.find(name) != staticData->varNames.end(); }
 	const std::unordered_map<std::string, GameObj *> &GetAllObjects() const { return objects; }
 	GameObj *GetPlayerChar() const { return objects.at(playerKey); }
 
@@ -97,23 +139,18 @@ public:
 	// Restore a saved game.
 	bool Restore();
 
-	enum class ReferralPerson {
-		FirstPerson,
-		SecondPerson,
-		ThirdPerson
-	};
 	ReferralPerson GetCurrentReferralPerson() const {
 		if (mostRecentlyMentioned.first.empty() || mostRecentlyMentioned.first == playerKey)
-			return pcReferralPerson;
+			return staticData->pcReferralPerson;
 		return ReferralPerson::ThirdPerson;
 	}
-	ReferralPerson GetPCReferralPerson() const { return pcReferralPerson; }
+	ReferralPerson GetPCReferralPerson() const { return staticData->pcReferralPerson; }
 	const std::pair<std::string, Pronoun> &GetMostRecentlyMentioned() const { return mostRecentlyMentioned; }
 	void MentionCharacter(const std::string &key, Pronoun p) { mostRecentlyMentioned = {key, p}; }
 
-	const std::string &GetTitle() const { return gameTitle; }
-	const std::string &GetAuthor() const { return gameAuthor; }
-	const std::string &GetLastUpdated() const { return gameLastUpdated; }
+	const std::string &GetTitle() const { return staticData->gameTitle; }
+	const std::string &GetAuthor() const { return staticData->gameAuthor; }
+	const std::string &GetLastUpdated() const { return staticData->gameLastUpdated; }
 
 	bool IsGameOngoing() const { return gameHasBegun; }
 	uint32_t GetBlorbResource(const std::string &path) const {
@@ -129,7 +166,7 @@ private:
 
 	void CreateObjFromXML(const pugi::xml_node &objNode);
 	void CreatePropertyFromXML(const pugi::xml_node &propNode);
-	void CreateTaskFromXML(const pugi::xml_node &taskNode);
+	Task *CreateTaskFromXML(const pugi::xml_node &taskNode);
 	void CreateEventFromXML(const pugi::xml_node &evtNode);
 	void CreateVariableFromXML(const pugi::xml_node &varNode);
 	void CreateGroupFromXML(const pugi::xml_node &grpNode);
@@ -153,20 +190,8 @@ private:
 	// most recently mentioned character and pronoun
 	std::pair<std::string, Pronoun> mostRecentlyMentioned;
 
-	// immutable content (only exists once)
-	std::unordered_map<RestrRef, Restriction *> restrictions;
-	std::unordered_map<std::string, Property *> properties;
-	std::unordered_map<std::string, Task *> tasks;
-	std::unordered_map<std::string, std::string> varNames;
-	std::unordered_map<ExprRef, Expression *> expressions;
-	std::unordered_map<std::string, UserFunction *> userFunctions;
-	std::unordered_map<std::string, std::string> userFuncNames;
-	// Snippets of "Plain text", simple strings that do not contain any expressions
-	// and can be output as-is. Maintained like this to reduce the amount of text
-	// that is unnecessarily duplicated when copying descriptions for undo/save.
-	std::unordered_map<PlainTextRef, const char *> plainTextSnippets;
-	// The grammatical person by which to refer to the player character
-	ReferralPerson pcReferralPerson = ReferralPerson::SecondPerson;
+	// static data lives here for performance reasons:
+	const GameStatic *staticData;
 
 	// transient storage -- only relevant while evaluating commands.
 	// Never needs to be retained for UNDO/SAVE.
@@ -177,15 +202,6 @@ private:
 
 	bool gameHasBegun = false;
 
-	std::string gameTitle;
-	std::string gameAuthor;
-	std::string gameAdriftVersion;
-	std::string gameLastUpdated;
-	std::string gameStatusLine;
-	bool showFirstLocation = true;
-	bool showExits = true;
-	DescrRef gameIntro = 0;
-
 	size_t descriptionsSoFar = 0;
 	size_t restrictionsSoFar = 0;
 	ptrdiff_t textSnippetsSoFar = 0;
@@ -195,14 +211,12 @@ private:
 
 	// The Game instance holding the current state of the game, for the benefit of any
 	// functions that might need it (restrictions, descriptions, action processing)
-	// [fun fact: static data members need to be declared `inline`, otherwise they function
-	//  like an `extern` global declaration]
-	inline static Game *theGame = nullptr;
+	static Game *theGame;
 	// The list of former game states maintained for use with the UNDO command.
-	inline static std::deque<Game *> undoStates;
+	static std::deque<Game *> undoStates;
 	// The initial state right as the game starts. Maintained for the benefit of the
 	// `restart` command.
-	inline static Game *startupState = nullptr;
+	static Game *startupState;
 
 	static ReferralPerson ParseReferralPerson(const char *p);
 };

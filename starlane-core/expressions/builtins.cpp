@@ -168,7 +168,7 @@ std::string LanguageNumber(int64_t num, bool f = false) {
 
 std::string ShowPronounForChar(const std::string &key, Pronoun pronoun) {
 	auto *g = Game::Get();
-	if (key == g->GetReference("%Player%") && g->GetPCReferralPerson() == Game::ReferralPerson::FirstPerson) {
+	if (key == g->GetReference("%Player%") && g->GetPCReferralPerson() == ReferralPerson::FirstPerson) {
 		switch (pronoun) {
 		case Pronoun::Subject:
 			return "I";
@@ -179,7 +179,7 @@ std::string ShowPronounForChar(const std::string &key, Pronoun pronoun) {
 		case Pronoun::Reflective:
 			return "myself";
 		}
-	} else if (key == g->GetReference("%Player%") && g->GetPCReferralPerson() == Game::ReferralPerson::SecondPerson) {
+	} else if (key == g->GetReference("%Player%") && g->GetPCReferralPerson() == ReferralPerson::SecondPerson) {
 		switch (pronoun) {
 		case Pronoun::Subject:
 		case Pronoun::Object:

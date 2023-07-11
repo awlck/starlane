@@ -35,14 +35,16 @@ Game *Game::LoadFromXML(const std::string &gameTxt) {
 	auto gameNode = doc.child("Adventure");
 
 	auto result = new Game;
-	result->gameTitle = gameNode.child_value("Title");
-	result->gameAuthor = gameNode.child_value("Author");
-	result->gameLastUpdated = gameNode.child_value("LastUpdated");
-	result->gameAdriftVersion = gameNode.child_value("Version");
-	result->gameStatusLine = gameNode.child_value("UserStatus");
-	result->showFirstLocation = ParseBool(gameNode.child("ShowFirstLocation").child_value());
-	result->showExits = ParseBool(gameNode.child("ShowExits").child_value());
-	result->gameIntro = result->CreateDescFromXML(gameNode.child("Introduction"));
+	auto rStatic = new GameStatic;
+	result->staticData = rStatic;
+	rStatic->gameTitle = gameNode.child_value("Title");
+	rStatic->gameAuthor = gameNode.child_value("Author");
+	rStatic->gameLastUpdated = gameNode.child_value("LastUpdated");
+	rStatic->gameAdriftVersion = gameNode.child_value("Version");
+	rStatic->gameStatusLine = gameNode.child_value("UserStatus");
+	rStatic->showFirstLocation = ParseBool(gameNode.child("ShowFirstLocation").child_value());
+	rStatic->showExits = ParseBool(gameNode.child("ShowExits").child_value());
+	rStatic->gameIntro = result->CreateDescFromXML(gameNode.child("Introduction"));
 	Game::theGame = result;
 
 	// It is important that all properties are created before anything tries to use them.
@@ -59,8 +61,10 @@ Game *Game::LoadFromXML(const std::string &gameTxt) {
 	for (const auto &it: gameNode.children("Object"))
 		result->CreateObjFromXML(it);
 
-	for (const auto &it: gameNode.children("Task"))
-		result->CreateTaskFromXML(it);
+	for (const auto &it: gameNode.children("Task")) {
+		auto t = result->CreateTaskFromXML(it);
+		rStatic->prioOrderedTasks.insert(t);
+	}
 
 	for (const auto &it : gameNode.children("Event"))
 		result->CreateEventFromXML(it);
@@ -85,7 +89,7 @@ Game *Game::LoadFromXML(const std::string &gameTxt) {
 	// (defaults to second person)
 	auto perspectiveNode = doc.select_node(R"(//Character[Key="Player"]/Perspective)");
 	if (perspectiveNode.node().type() != pugi::node_null)
-		result->pcReferralPerson = ParseReferralPerson(perspectiveNode.node().child_value());
+		rStatic->pcReferralPerson = ParseReferralPerson(perspectiveNode.node().child_value());
 
 	// determine who is the initial player character (can this even be changed?).
 	// set by the special element 'Type' on a Character entity.
@@ -117,17 +121,21 @@ void Game::CreateObjFromXML(const pugi::xml_node &objNode) {
 
 void Game::CreatePropertyFromXML(const pugi::xml_node &propNode) {
 	auto result = Property::CreateFromXML(propNode);
-	properties[result->Key()] = result;
+	auto s = const_cast<GameStatic *>(staticData);
+	s->properties[result->Key()] = result;
 }
 
 size_t Game::CreateRestrictionsFromXML(const pugi::xml_node &restrNode) {
-	restrictions[++restrictionsSoFar] = Restriction::CreateFromXML(restrNode);
+	auto s = const_cast<GameStatic *>(staticData);
+	s->restrictions[++restrictionsSoFar] = Restriction::CreateFromXML(restrNode);
 	return restrictionsSoFar;
 }
 
-void Game::CreateTaskFromXML(const pugi::xml_node &propNode) {
+Task *Game::CreateTaskFromXML(const pugi::xml_node &propNode) {
 	auto result = Task::CreateFromXML(this, propNode);
-	tasks[result->Key()] = result;
+	auto s = const_cast<GameStatic *>(staticData);
+	s->tasks[result->Key()] = result;
+	return result;
 }
 
 void Game::CreateEventFromXML(const pugi::xml_node &evtNode) {
@@ -138,7 +146,8 @@ void Game::CreateEventFromXML(const pugi::xml_node &evtNode) {
 void Game::CreateVariableFromXML(const pugi::xml_node &varNode) {
 	auto result = Variable::CreateFromXML(varNode);
 	variables[result->Key()] = result;
-	varNames[result->Name()] = result->Key();
+	auto s = const_cast<GameStatic *>(staticData);
+	s->varNames[result->Name()] = result->Key();
 }
 
 void Game::CreateGroupFromXML(const pugi::xml_node &grpNode) {
@@ -148,8 +157,9 @@ void Game::CreateGroupFromXML(const pugi::xml_node &grpNode) {
 
 void Game::CreateFunctionFromXML(const pugi::xml_node &funcNode) {
 	auto result = UserFunction::CreateFromXML(funcNode);
-	userFunctions[result->Key()] = result;
-	userFuncNames[result->Name()] = result->Key();
+	auto s = const_cast<GameStatic *>(staticData);
+	s->userFunctions[result->Key()] = result;
+	s->userFuncNames[result->Name()] = result->Key();
 }
 
 // Plain text and expressions are miscible in some parts of the program (particularly,
@@ -175,7 +185,8 @@ static void CheckSnippetsInRange(ptrdiff_t snips) {
 PlainTextRef Game::StorePlainTextSnippet(const std::string &snip) {
 	char *c = new char[snip.length() + 1];
 	strcpy(c, snip.c_str());
-	plainTextSnippets.emplace(++textSnippetsSoFar, c);
+	auto s = const_cast<GameStatic *>(staticData);
+	s->plainTextSnippets.emplace(++textSnippetsSoFar, c);
 	CheckSnippetsInRange(textSnippetsSoFar);
 	return textSnippetsSoFar;
 }
@@ -183,7 +194,8 @@ PlainTextRef Game::StorePlainTextSnippet(std::string_view snip) {
 	char *c = new char[snip.length() + 1];
 	strncpy(c, snip.data(), snip.length());
 	c[snip.length()] = 0;
-	plainTextSnippets.emplace(++textSnippetsSoFar, c);
+	auto s = const_cast<GameStatic *>(staticData);
+	s->plainTextSnippets.emplace(++textSnippetsSoFar, c);
 	CheckSnippetsInRange(textSnippetsSoFar);
 	return textSnippetsSoFar;
 }
@@ -193,8 +205,9 @@ ExprRef Game::CreateExpression(const std::string &expr) {
 	if (x != 0) return x;
 
 	x = -(++expressionsSoFar);
-	auto y = new Expression(expr);
-	expressions.emplace(x, y);
+	auto result = new Expression(expr);
+	auto s = const_cast<GameStatic *>(staticData);
+	s->expressions.emplace(x, result);
 	knownExprs[expr] = x;
 	return x;
 }
@@ -203,8 +216,8 @@ void Game::StartupSanityCheck() const {
     size_t sanityCheck = std::distance(descriptions.begin(), descriptions.end());
     if (sanityCheck != descriptionsSoFar || sanityCheck != descriptions.size() || descriptionsSoFar != descriptions.size())
         frontend->FatalError("Startup sanity check failed: description count mismatch.");
-    sanityCheck = std::distance(restrictions.begin(), restrictions.end());
-    if (sanityCheck != restrictionsSoFar || sanityCheck != restrictions.size() || restrictionsSoFar != restrictions.size())
+    sanityCheck = std::distance(staticData->restrictions.begin(), staticData->restrictions.end());
+    if (sanityCheck != restrictionsSoFar || sanityCheck != staticData->restrictions.size() || restrictionsSoFar != staticData->restrictions.size())
         frontend->FatalError("Startup sanity check failed: restriction count mismatch.");
 }
 

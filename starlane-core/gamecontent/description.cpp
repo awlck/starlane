@@ -157,13 +157,13 @@ std::string Description::Segment::Build(const UserFuncContext *context) const {
 			std::regex matchEx(R"(\[(.*?)\/(.*?)\/(.*?)\])");
 			const char *replacement;
 			switch (Game::Get()->GetCurrentReferralPerson()) {
-			case Game::ReferralPerson::FirstPerson:
+			case ReferralPerson::FirstPerson:
 				replacement = "$1";
 				break;
-			case Game::ReferralPerson::SecondPerson:
+			case ReferralPerson::SecondPerson:
 				replacement = "$2";
 				break;
-			case Game::ReferralPerson::ThirdPerson:
+			case ReferralPerson::ThirdPerson:
 				replacement = "$3";
 				break;
 			}

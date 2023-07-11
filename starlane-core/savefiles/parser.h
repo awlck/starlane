@@ -3,8 +3,8 @@
 //
 #pragma once
 
-#ifndef SLC_SAVEFILES_READER_H
-#define SLC_SAVEFILES_READER_H
+#ifndef SLC_SAVEFILES_PARSER_H
+#define SLC_SAVEFILES_PARSER_H
 
 #include "../slc_private.h"
 
@@ -135,4 +135,4 @@ private:
 
 }
 
-#endif  // !SLC_SAVEFILES_READER_H
+#endif  // !SLC_SAVEFILES_PARSER_H

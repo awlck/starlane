@@ -41,8 +41,7 @@ add_library(starlane-core
 	"starlane-core.cpp" "starlane-core.h"
 	"slc_private.h"
 	"taffile.cpp"
-	"game.cpp" "game.h"
-	"gameloader.cpp"
+	"game.cpp" "game.h" "gameloader.cpp" "parser.cpp"
 	"valueparsers.cpp" "valueparsers.h"
 	"random.cpp" "random.h"
 	# expression handling

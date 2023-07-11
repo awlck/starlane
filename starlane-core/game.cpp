@@ -11,12 +11,17 @@
 #include "gamecontent/property.h"
 #include "gamecontent/description.h"
 #include "gamecontent/restriction.h"
+#include "gamecontent/userfunc.h"
 #include "gamecontent/variable.h"
 #include "savefiles/parser.h"
 #include "savefiles/writer.h"
 #include "valueparsers.h"
 
 namespace Starlane {
+
+Game *Game::theGame = nullptr;
+std::deque<Game *> Game::undoStates;
+Game *Game::startupState = nullptr;
 
 /* Copy constructor for game instances. Needs to create copies of all
  * the mutable game state objects.
@@ -40,35 +45,19 @@ Game::Game(const Game &rhs) {
 		descriptions[it.first] = new Description(*it.second);
 	}
 
-	// For restrictions (immutable), it's enough to copy the references.
-	restrictions = rhs.restrictions;
-	properties = rhs.properties;
-	tasks = rhs.tasks;
-	varNames = rhs.varNames;
-	userFunctions = rhs.userFunctions;
-	userFuncNames = rhs.userFuncNames;
-	expressions = rhs.expressions;
-	plainTextSnippets = rhs.plainTextSnippets;
 	// just bools, so a vector copy is sufficient.
 	taskCompletedStorage = rhs.taskCompletedStorage;
 
 	// Finally, the simple data copies.
 	playerKey = rhs.playerKey;
 	mostRecentlyMentioned = rhs.mostRecentlyMentioned;
-	pcReferralPerson = rhs.pcReferralPerson;
 	gameHasBegun = rhs.gameHasBegun;
-	gameTitle = rhs.gameTitle;
-	gameAuthor = rhs.gameAuthor;
-	gameAdriftVersion = rhs.gameAdriftVersion;
-	gameStatusLine = rhs.gameStatusLine;
-	showFirstLocation = rhs.showFirstLocation;
-	showExits = rhs.showExits;
-	gameIntro = rhs.gameIntro;
 	descriptionsSoFar = rhs.descriptionsSoFar;
 	restrictionsSoFar = rhs.restrictionsSoFar;
 	textSnippetsSoFar = rhs.textSnippetsSoFar;
 	expressionsSoFar = rhs.expressionsSoFar;
 	blorbResMap = rhs.blorbResMap;
+	staticData = rhs.staticData;
 }
 
 /* Destruct Game instance. This requires a bit of extra attention,
@@ -78,6 +67,7 @@ Game::Game(const Game &rhs) {
  */
 Game::~Game() {
 	// destroy mutable game state
+	// (C++ fun fact: it is indeed valid to `delete` a `const Foo *`.)
 	for (const auto &it : objects)
 		delete it.second;
 	for (const auto &it : events)
@@ -94,17 +84,23 @@ Game::~Game() {
 		// (Should really only happen when shutting down the interpreter / loading a new game.)
 		if (startupState != this)
 			delete startupState;
-		for (const auto &it : restrictions)
-			delete it.second;
-		for (const auto &it : properties)
-			delete it.second;
-		for (const auto &it : tasks)
-			delete it.second;
-		for (const auto &it : expressions)
-			delete it.second;
-		for (const auto &it : plainTextSnippets)
-			delete it.second;
+		delete staticData;
 	}
+}
+
+GameStatic::~GameStatic() {
+	for (const auto &it: restrictions)
+		delete it.second;
+	for (const auto &it: properties)
+		delete it.second;
+	for (const auto &it: tasks)
+		delete it.second;
+	for (const auto &it: expressions)
+		delete it.second;
+	for (const auto &it: userFunctions)
+		delete it.second;
+	for (const auto &it: plainTextSnippets)
+		delete it.second;
 }
 
 void Game::SaveUndo() {
@@ -131,7 +127,7 @@ void Game::DiscardUndo() {
 }
 
 void Game::Restart() {
-	theGame = startupState;
+	theGame = new Game(*startupState);
 	for (auto i : undoStates)
 		delete i;
 	delete this;
@@ -141,16 +137,16 @@ void Game::Restart() {
 void Game::Begin() {
 	if (!startupState)
 		startupState = new Game(*this);
-	taskCompletedStorage.reserve(tasks.size());
-	for (const auto &it : tasks)
+	taskCompletedStorage.reserve(staticData->tasks.size());
+	for (const auto &it : staticData->tasks)
 		taskCompletedStorage[it.first] = false;
 	for (const auto &it : events) {
 		if (it.second->GetStartType() == Event::StartType::Immediately)
 			it.second->Start();
 	}
 	gameHasBegun = true;
-	if (gameIntro != 0)
-		frontend->OutputText(GetDescription(gameIntro)->Build().c_str());
+	if (staticData->gameIntro != 0)
+		frontend->OutputText(GetDescription(staticData->gameIntro)->Build().c_str());
 }
 
 void Game::Tick() {
@@ -255,13 +251,13 @@ bool Game::Restore() {
 		auto *gameTitleNode = metaNode->FindChildByName("game_title");
 		auto *gameAuthorNode = metaNode->FindChildByName("game_author");
 		if (!gameTitleNode || !gameAuthorNode) return false;
-		if (gameTitleNode->Str != gameTitle || gameAuthorNode->Str != gameAuthor) {
+		if (gameTitleNode->Str != staticData->gameTitle || gameAuthorNode->Str != staticData->gameAuthor) {
 			frontend->OutputText("<i>Restore failed: selected save file appears to belong to a different game.</i>");
 			return false;
 		}
 		auto *gameRevNode = metaNode->FindChildByName("game_revision");
 		if (!gameRevNode) return false;
-		if (gameRevNode->Str != gameLastUpdated) {
+		if (gameRevNode->Str != staticData->gameLastUpdated) {
 			// todo: offer player the option to attempt restore anyways.
 			frontend->OutputText("<i>Restore failed: selected save file appears to belong to a different revision of this game.</i>");
 			return false;

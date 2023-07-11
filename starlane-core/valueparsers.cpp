@@ -254,8 +254,8 @@ const char *SkipText(const char *input, const char *toSkip) {
 	return output + strlen(toSkip);
 }
 
-Game::ReferralPerson Game::ParseReferralPerson(const char *txt) {
-	auto tmp = magic_enum::enum_cast<Game::ReferralPerson>(txt);
+ReferralPerson Game::ParseReferralPerson(const char *txt) {
+	auto tmp = magic_enum::enum_cast<ReferralPerson>(txt);
 	if (!tmp.has_value())
 		throw VALERR(Game::ReferralPerson, txt);
 	return tmp.value();
