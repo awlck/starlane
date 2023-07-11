@@ -9,13 +9,10 @@ add_subdirectory(deps/pugixml)
 add_subdirectory(deps/miniz)
 
 # When cross-compiling, import the executable targets from a file
-IF(CMAKE_CROSSCOMPILING)
+IF(CROSSCOMPILING)
 	SET(IMPORT_EXECUTABLES "IMPORTFILE-NOTFOUND" CACHE FILEPATH "Point it to the export file from a native build")
 	INCLUDE(${IMPORT_EXECUTABLES})
-ENDIF()
-
-# Only build the generator if not crosscompiling
-IF(NOT CMAKE_CROSSCOMPILING)
+ELSE()  # Only build the generator if not crosscompiling
 	add_executable(packcc "deps/packcc/src/packcc.c")
 ENDIF()
 
@@ -75,6 +72,6 @@ if (MSVC)  # make sure SEH exceptions work
 endif()
 
 # Export the parser generator binary for use by cross-compilation targets.
-if(NOT CMAKE_CROSSCOMPILING)
+if(NOT CROSSCOMPILING)
 	EXPORT(TARGETS packcc FILE "${CMAKE_BINARY_DIR}/ImportExecutables.cmake")
 endif()
