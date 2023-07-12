@@ -1,6 +1,7 @@
 #include "task.h"
 
 #include <algorithm>
+#include <iostream>
 #include <sstream>
 
 #include <pugixml.hpp>
@@ -28,7 +29,149 @@ bool MaybeIsExpr(const std::string &s) {
 	}
 	return false;
 }
+
+std::string EscapeForRegex(const std::string_view &block) {
+	std::string result;
+	for (char c: block) {
+		switch (c) {
+			case '\\':
+			case '(':
+			case ')':
+			case '.':
+			case '?':
+			case '*':
+			case '+':
+			case '|':
+			case '^':
+			case '$':
+			case '<':
+			case '>':
+				result += '\\';
+				[[fallthrough]];
+			default:
+				result += c;
+		}
+	}
+	return result;
 }
+
+// https://github.com/jcwild/ADRIFT-5/blob/1163031574aab161f1abc28f96354cc64eec9070/ADRIFT/clsUserSession.vb#L8342
+std::string_view GetNextSubBlock(const std::string_view &block) {
+	size_t depth = 0;
+
+	for (size_t count = 0; count < block.size(); count++) {
+		switch (block[count]) {
+			case '{':
+			case '[':
+				if (depth++ == 0 && count != 0)
+					return block.substr(0, count);
+				break;
+			case '}':
+			case ']':
+				if (--depth == 0)
+					return block.substr(0, count+1);
+				break;
+			case '/':
+				if (depth == 0)
+					return block.substr(0, count+1);
+				break;
+			default:
+				continue;
+		}
+	}
+
+	return block;
+}
+
+bool ContainsMandatoryText(const std::string_view &block) {
+	size_t depth = 0;
+	for (char c: block) {
+		switch (c) {
+			case ' ':
+				continue;
+			case '{':
+				depth += 1;
+				break;
+			case '}':
+				depth -= 1;
+				break;
+			default:
+				if (depth == 0)
+					return true;
+				break;
+		}
+	}
+	return false;
+}
+
+std::string ProcessBlock(std::string_view block) {
+	std::string_view nextBlock;
+	std::string result;
+
+	do {
+		nextBlock = GetNextSubBlock(block);
+		block = block.substr(nextBlock.size());
+		if (nextBlock.empty()) continue;
+
+		if (nextBlock[0] == '{') {
+			std::string transformedBlock;
+			// not at all intuitive algorithm that I don't quite understand but that I've also ported to
+			// C++ and adapted to output regex. fml.
+			bool containsMandatory = ContainsMandatoryText(block);
+			if (containsMandatory && !block.empty() && block[0] == ' ') {
+				if (result.empty() || result[result.size()-1] == ' ' || result[result.size()-1] == '}') {
+					if (nextBlock.find('/') != std::string_view::npos) {
+						transformedBlock = "{[";
+						transformedBlock += nextBlock.substr(1, nextBlock.size()-2);
+						transformedBlock += "] }";
+					} else {
+						transformedBlock = nextBlock.substr(0, nextBlock.size()-1);
+						transformedBlock += " }";
+					}
+					block = block.substr(1, block.size()-1);
+				}
+			} else if (!containsMandatory && result[result.size()-1] == ' ') {
+				if (nextBlock.find('/') != std::string_view::npos) {
+					transformedBlock = "{ [";
+					transformedBlock += nextBlock.substr(1, nextBlock.size()-2);
+					transformedBlock += "]}";
+				} else {
+					transformedBlock = "{ ";
+					transformedBlock += nextBlock.substr(1);
+				}
+				result = result.substr(0, result.size()-1);
+			}
+
+			if (result[result.size()-1] == ' ' && block.empty()) {
+				if (nextBlock.find('/') != std::string_view::npos) {
+					transformedBlock = "{ [";
+					transformedBlock += nextBlock.substr(1, nextBlock.size()-2);
+					transformedBlock += "]}";
+				} else {
+					transformedBlock = "{ ";
+					transformedBlock += nextBlock.substr(1);
+				}
+				result = result.substr(0, result.size()-1);
+			}
+
+			if (transformedBlock.empty()) transformedBlock = nextBlock;
+			result += "(?:";
+			result += ProcessBlock(std::string_view(transformedBlock).substr(1, transformedBlock.size()-2));
+			result += ")?";
+		} else if (nextBlock[0] == '[') {
+			result += "(?:";
+			result += ProcessBlock(nextBlock.substr(1, nextBlock.size()-2));
+			result += ')';
+		} else if (nextBlock[nextBlock.size()-1] == '/') {
+			result += ProcessBlock(nextBlock.substr(0, nextBlock.size()-1));
+			result += '|';
+		} else {
+			result += EscapeForRegex(nextBlock);
+		}
+	} while (!block.empty());
+	return result;
+}
+}  // anonymous namespace
 
 Task *Task::CreateFromXML(Game *g, const pugi::xml_node &xmlNode) {
 	auto result = new Task;
@@ -58,8 +201,25 @@ Task *Task::CreateFromXML(Game *g, const pugi::xml_node &xmlNode) {
 		}
 		result->overrideType = ParseOverrideType(xmlNode.child_value("SpecificOverrideType"));
 	} else if (result->type == Type::General) {
-		result->command = xmlNode.child_value("Command");
-
+		std::regex translateRefs("%.+?%", std::regex_constants::icase);
+		// result->commandStrs = Util::SplitLines(xmlNode.child_value("Command"));
+		auto commandStrs = Util::SplitLines(xmlNode.child_value("Command"));
+		result->commandRegexes.reserve(commandStrs.size());
+		for (const auto &cmd: commandStrs) {
+			auto transformed = ProcessBlock(cmd);
+			std::cout << "Converted \"" << cmd << "\" to \"" << transformed << "\".\n";
+			std::sregex_iterator itBegin(transformed.begin(), transformed.end(), translateRefs);
+			std::sregex_iterator itEnd;
+			std::vector<std::string> matches;
+			for (auto it = itBegin; it != itEnd; it++) {
+				const std::smatch &match = *it;
+				matches.emplace_back(match.str());
+			}
+			if (!matches.empty())
+				transformed = std::regex_replace(transformed, translateRefs, "(.+)");
+			result->commandRegexes.push_back(std::regex(transformed, std::regex_constants::icase));
+			result->groupNumToRef.emplace_back(std::move(matches));
+		}
 	}
 
 	for (const auto &it: xmlNode.child("Actions").children())

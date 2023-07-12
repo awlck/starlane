@@ -99,7 +99,8 @@ static inline bool IsList(const std::string &o) {
 
 // Take an ADRIFT-style textual list (e.g., "foo|bar|baz") and turn it into a vector of strings.
 std::vector<std::string> SplitList(const std::string &lst);
-
+// and the same for splitting a string at each newline:
+std::vector<std::string> SplitLines(const std::string &lst);
 }
 
 #endif  // !SLC_UTILITY_H

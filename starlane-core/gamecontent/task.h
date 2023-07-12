@@ -5,6 +5,7 @@
 
 #include "../slc_private.h"
 
+#include <regex>
 #include <string>
 #include <vector>
 
@@ -22,6 +23,7 @@ public:
 		System
 	};
 	static Type ParseType(const char *txt);
+	Type GetType() const { return type; }
 
 	struct OverrideType {
 		static constexpr int Override = 0;  // execute the specific task only
@@ -45,7 +47,7 @@ public:
 	// and the success or failure message to be printed.
 	std::pair<bool, DescrRef> Execute();
 
-	const std::string &GetCmdRegex() const { return cmdRegex; }
+	const std::vector<std::regex> &GetCmdRegexes() const { return commandRegexes; }
 
 	void RegisterNotification(const std::string &evtKey, Util::Control::Condition cond);
 
@@ -153,9 +155,9 @@ private:
 	// Is this a general, specific, or system task?
 	Type type;
 	// For general tasks, the command string, regex transformed string, and set of references.
-	std::string command;
-	std::string cmdRegex;
-	std::vector<std::string> groupNumToRef;
+	// std::vector<std::string> commandStrs;
+	std::vector<std::regex> commandRegexes;
+	std::vector<std::vector<std::string>> groupNumToRef;
 	// For specific tasks, the key of the general task we are overriding
 	std::string overridesTask;
 	std::vector<SpecificInfo> specificRefs;

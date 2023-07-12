@@ -18,17 +18,21 @@ void Game::ProcessInput(const std::string &s) {
 	Task *chosenTask;
 	std::pair<bool, DescrRef> eligible;
 	for (const auto &t: staticData->prioOrderedTasks) {
-		if (std::regex_match(currentCommand, std::regex(t->GetCmdRegex()))) {
-			eligible = t->Eligible();
-			// Choose the first (highest-priority) task that tentatively passes restrictions,
-			// or otherwise fails restrictions but wants to output some text because of it.
-			// Ignore tasks that fail restrictions and have no associated message.
-			if (eligible.first || eligible.second != 0) {
-				chosenTask = t;
-				break;
-			} else continue;
-		}
+		if (t->GetType() != Task::Type::General) continue;
+		//if (std::regex_match(currentCommand, std::regex(t->GetCmdRegex()))) {
+		for (const auto &rex: t->GetCmdRegexes())
+			if (std::regex_match(currentCommand, rex)) {
+				eligible = t->Eligible();
+				// Choose the first (highest-priority) task that tentatively passes restrictions,
+				// or otherwise fails restrictions but wants to output some text because of it.
+				// Ignore tasks that fail restrictions and have no associated message.
+				if (eligible.first || eligible.second != 0) {
+					chosenTask = t;
+					goto foundTask;
+				}
+			}
 	}
+foundTask:
 	// output failure message if restrictions failed
 	if (!eligible.first) {
 		if (eligible.second != 0) {
@@ -39,6 +43,11 @@ void Game::ProcessInput(const std::string &s) {
 		}
 		return;
 	}
+
+	// Match the command again, this time taking care to capture the references within
+	std::smatch matches;
+	for (const auto &rex: chosenTask->GetCmdRegexes())
+		if (std::regex_match(currentCommand, rex)) break;
 }
 
 }  // namespace Starlane

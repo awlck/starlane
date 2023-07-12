@@ -9,3 +9,8 @@ std::vector<std::string> Starlane::Util::SplitList(const std::string &lst) {
 	// implicitly initialise vector from iterator, since this is just what you probably wouldn't expect:
 	return { first, last };
 }
+std::vector<std::string> Starlane::Util::SplitLines(const std::string &lst) {
+	std::regex re("\n");
+	std::sregex_token_iterator first(lst.begin(), lst.end(), re, -1), last;
+	return { first, last };
+}
