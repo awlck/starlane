@@ -181,12 +181,11 @@ void Game::CreateFunctionFromXML(const pugi::xml_node &funcNode) {
 // this text first. Oh well.)
 static void CheckSnippetsInRange(ptrdiff_t snips) {
 	if (snips == (std::numeric_limits<ptrdiff_t>::max() - 1)) {
-		std::stringstream s;
-		s << "My brain just exploded: On your system, I can only handle "
-			<< (std::numeric_limits<ptrdiff_t>::max() - 1)
-			<< " individual runs of plain text, but this game requires more than that.";
-		frontend->FatalError(s.str().c_str());
-		throw std::out_of_range(s.str());
+		std::string s("My brain just exploded: On your system, I can only handle ");
+		s += std::to_string(std::numeric_limits<ptrdiff_t>::max() - 1);
+		s += " individual runs of plain text, but this game requires more than that.";
+		frontend->FatalError(s.c_str());
+		throw std::out_of_range(s);
 	}
 }
 

@@ -1,5 +1,4 @@
 #include <string.h>
-#include <sstream>
 #include <vector>
 
 #include "deps/miniz/miniz.h"
@@ -158,7 +157,7 @@ uint32_t ParseHex(const uint8_t *input) {
 }  // anonymous namespace
 
 std::string DoDecompression(const uint8_t *data, size_t dataLen) {
-    std::stringstream decompressed;
+    std::string decompressed;
     mz_ulong writtenInTotal = 0;
     mz_stream zstm;
     int ret;
@@ -196,11 +195,11 @@ std::string DoDecompression(const uint8_t *data, size_t dataLen) {
             frontend->FatalError("Selected file doesn't seem to end; presumed corrupted.");
             goto fail;
         }
-        decompressed.write((char *) z_out, written);
+        decompressed.append((char *) z_out, written);
     } while (zstm.avail_out == 0 || ret != MZ_STREAM_END);
     mz_inflateEnd(&zstm);
     ::operator delete(z_out);
-    return decompressed.str();
+    return decompressed;
 
     fail:
     mz_inflateEnd(&zstm);

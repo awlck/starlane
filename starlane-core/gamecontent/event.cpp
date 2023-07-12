@@ -1,7 +1,6 @@
 #include "event.h"
 
 #include <algorithm>
-#include <sstream>
 
 #include <magic_enum.hpp>
 #include <pugixml.hpp>

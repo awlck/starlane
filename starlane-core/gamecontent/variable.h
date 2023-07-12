@@ -5,7 +5,6 @@
 
 #include <stdexcept>
 #include <string>
-#include <sstream>
 #include <vector>
 
 #include "../slc_private.h"
@@ -29,9 +28,11 @@ public:
 
 	template <typename T> T GetValue(uint32_t idx = 1) const {
 		if (idx == 0 || idx > capacity) {
-			std::stringstream errmsg;
-			errmsg << "Index " << idx << " out of range for variabe " << key;
-			throw std::runtime_error(errmsg.str());
+			std::string errmsg("Index ");
+			errmsg += std::to_string(idx);
+			errmsg += " out of range for variable ";
+			errmsg += key;
+			throw std::runtime_error(errmsg);
 		}
 		if constexpr (std::is_integral_v<T>) {
 			return (T) intVals.at(idx-1);
@@ -40,18 +41,22 @@ public:
 
 	void SetValue(int64_t val, uint32_t idx = 1) {
 		if (idx == 0 || idx > capacity) {
-			std::stringstream errmsg;
-			errmsg << "Index " << idx << " out of range for variabe " << key;
-			throw std::runtime_error(errmsg.str());
+			std::string errmsg("Index ");
+			errmsg += std::to_string(idx);
+			errmsg += " out of range for variable ";
+			errmsg += key;
+			throw std::runtime_error(errmsg);
 		}
 		everChanged = true;
 		intVals[idx] = val;
 	}
 	void SetValue(const std::string &val, uint32_t idx = 1) {
 		if (idx == 0 || idx > capacity) {
-			std::stringstream errmsg;
-			errmsg << "Index " << idx << " out of range for variabe " << key;
-			throw std::runtime_error(errmsg.str());
+			std::string errmsg("Index ");
+			errmsg += std::to_string(idx);
+			errmsg += " out of range for variable ";
+			errmsg += key;
+			throw std::runtime_error(errmsg);
 		}
 		everChanged = true;
 		strVals[idx] = val;

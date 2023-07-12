@@ -97,10 +97,13 @@ static inline bool IsList(const std::string &o) {
 	return false;
 }
 
+// Split a string with the specified delimiter:
+std::vector<std::string> SplitString(const std::string &s, const std::string &delimRegex);
+
 // Take an ADRIFT-style textual list (e.g., "foo|bar|baz") and turn it into a vector of strings.
-std::vector<std::string> SplitList(const std::string &lst);
+inline std::vector<std::string> SplitList(const std::string &lst) { return SplitString(lst, "\\|"); }
 // and the same for splitting a string at each newline:
-std::vector<std::string> SplitLines(const std::string &lst);
+inline std::vector<std::string> SplitLines(const std::string &str) { return SplitString(str, "\n"); }
 }
 
 #endif  // !SLC_UTILITY_H

@@ -5,7 +5,6 @@
 // The C library header for `strcmp':
 // (Microsoft's STL includes this implicitly, but others don't)
 #include <string.h>
-#include <sstream>
 
 #include <magic_enum.hpp>
 
@@ -223,11 +222,10 @@ Util::Range::Range(const char *txt) {
 		// ugly hack to delegate constructors outside of initialization lists...
 		*this = Util::Range(ParseInt(txt));
 	} else {
-		std::istringstream strm((std::string(txt)));
-		std::string t;
 		int cnt = 0;
 		value = (uint32_t) -1;
-		while (std::getline(strm, t, ' ')) {
+		auto tokens = Util::SplitString(txt, " ");
+		for (const auto &t: tokens) {
 			cnt++;
 			if (cnt == 1 && IsDigits(t.c_str())) {
 				min = ParseInt(t.c_str());

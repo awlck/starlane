@@ -3,6 +3,7 @@
 #include <pugixml.hpp>
 
 #include "../valueparsers.h"
+#include "utility.h"
 
 namespace Starlane {
 
@@ -23,19 +24,12 @@ Variable *Variable::CreateFromXML(const pugi::xml_node &xmlNode) {
 		result->capacity = ParseInt(arrl.child_value());
 		if (result->type == Type::Int) {
 			result->intVals.reserve(result->capacity);
-			std::istringstream i(val);
-			std::string v;
-			while (std::getline(i, v, ',')) {
+			auto tmp = Util::SplitString(val, ",");
+			for (const auto &v: tmp)
 				result->intVals.push_back(ParseInt(v.c_str()));
-			}
 			result->type = Type::IntArray;
 		} else if (result->type == Type::String) {
-			result->strVals.reserve(result->capacity);
-			std::istringstream i(val);
-			std::string v;
-			while (std::getline(i, v, '\n')) {
-				result->strVals.push_back(v);
-			}
+			result->strVals = Util::SplitLines(val);
 			result->type = Type::StringArray;
 		}
 	} else if (result->type == Type::Int) {

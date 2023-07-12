@@ -2,7 +2,6 @@
 
 #include <algorithm>
 #include <iostream>
-#include <sstream>
 
 #include <pugixml.hpp>
 
@@ -231,11 +230,7 @@ Task *Task::CreateFromXML(Game *g, const pugi::xml_node &xmlNode) {
 Task::Action Task::Action::CreateFromXML(const pugi::xml_node &xmlNode) {
 	Action result;
 	std::string name = xmlNode.name();
-	std::istringstream strm(std::string(xmlNode.child_value()));
-	std::string t;
-	std::vector<std::string> tokens;
-	while (std::getline(strm, t, ' '))
-		tokens.push_back(t);
+	std::vector<std::string> tokens = Util::SplitString(xmlNode.child_value(), " ");
 
 	// Deal with, e.g., "move every object with property x set to y to location z"
 	if (tokens[0] == "EverythingWithProperty" || tokens[0] == "EveryoneWithProperty") {
