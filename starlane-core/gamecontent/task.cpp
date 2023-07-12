@@ -129,7 +129,7 @@ std::string ProcessBlock(std::string_view block) {
 					}
 					block = block.substr(1, block.size()-1);
 				}
-			} else if (!containsMandatory && result[result.size()-1] == ' ') {
+			} else if (!containsMandatory && !result.empty() && result[result.size()-1] == ' ') {
 				if (nextBlock.find('/') != std::string_view::npos) {
 					transformedBlock = "{ [";
 					transformedBlock += nextBlock.substr(1, nextBlock.size()-2);
@@ -141,7 +141,7 @@ std::string ProcessBlock(std::string_view block) {
 				result = result.substr(0, result.size()-1);
 			}
 
-			if (result[result.size()-1] == ' ' && block.empty()) {
+			if (!result.empty() && result[result.size()-1] == ' ' && block.empty()) {
 				if (nextBlock.find('/') != std::string_view::npos) {
 					transformedBlock = "{ [";
 					transformedBlock += nextBlock.substr(1, nextBlock.size()-2);

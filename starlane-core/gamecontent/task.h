@@ -173,7 +173,7 @@ private:
 
 struct TaskPrioLess {
 	bool operator() (const Task *a, const Task *b) const {
-		return a->priority <= b->priority;
+		return a->priority < b->priority;
 	};
 };
 
