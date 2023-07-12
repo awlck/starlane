@@ -45,6 +45,8 @@ public:
 	// and the success or failure message to be printed.
 	std::pair<bool, DescrRef> Execute();
 
+	const std::string &GetCmdRegex() const { return cmdRegex; }
+
 	void RegisterNotification(const std::string &evtKey, Util::Control::Condition cond);
 
 	enum class ActionType {
@@ -131,8 +133,7 @@ private:
 	};
 
 	std::string key;
-	std::string command;
-	std::string descr;
+	//std::string descr;
 	uint64_t priority;
 	bool repeatable;
 	DescrRef completionMsg;
@@ -149,8 +150,12 @@ private:
 		bool multiple;
 		std::string key;
 	};
-	// Is this a generic, specific, or system task?
+	// Is this a general, specific, or system task?
 	Type type;
+	// For general tasks, the command string, regex transformed string, and set of references.
+	std::string command;
+	std::string cmdRegex;
+	std::vector<std::string> groupNumToRef;
 	// For specific tasks, the key of the general task we are overriding
 	std::string overridesTask;
 	std::vector<SpecificInfo> specificRefs;

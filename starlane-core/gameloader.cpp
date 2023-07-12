@@ -23,6 +23,7 @@ namespace Starlane {
 Game *Game::LoadFromXML(const std::string &gameTxt) {
 	// If a game is already ongoing, delete it.
 	// Assume that, if we get here, the user has already consented to this.
+	// TODO: deal with `startupState` and the undo history.
 	if (Game::theGame)
 		delete Game::theGame;
 
@@ -46,6 +47,13 @@ Game *Game::LoadFromXML(const std::string &gameTxt) {
 	rStatic->showExits = ParseBool(gameNode.child("ShowExits").child_value());
 	rStatic->gameIntro = result->CreateDescFromXML(gameNode.child("Introduction"));
 	Game::theGame = result;
+
+	{
+		pugi::xml_node n;
+		if ((n = gameNode.child("TaskExecution")).type() != pugi::node_null &&
+				STREQ(n.child_value(), "HighestPriorityPassingTask"))
+			rStatic->executionPolicy = ExecutionPolicy::HighestPrioPassing;
+	}
 
 	// It is important that all properties are created before anything tries to use them.
 	for (const auto &it: gameNode.children("Property"))

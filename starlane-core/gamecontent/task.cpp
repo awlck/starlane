@@ -35,8 +35,7 @@ Task *Task::CreateFromXML(Game *g, const pugi::xml_node &xmlNode) {
 	result->key = xmlNode.child_value("Key");
 	result->priority = ParseInt(xmlNode.child_value("Priority"));
 	result->type = Task::ParseType(xmlNode.child_value("Type"));
-	result->command = xmlNode.child_value("Command");
-	result->descr = xmlNode.child_value("Description");
+	//result->descr = xmlNode.child_value("Description");
 	result->completionMsg = Game::Get()->CreateDescFromXML(xmlNode.child("CompletionMessage"));
 	result->repeatable = ParseBool(xmlNode.child_value("Repeatable"));
 	result->restrictions = g->CreateRestrictionsFromXML(xmlNode.child("Restrictions"));
@@ -53,11 +52,14 @@ Task *Task::CreateFromXML(Game *g, const pugi::xml_node &xmlNode) {
 			if (spi.type != SpType::Text) {
 				spi.key = spcNode.child_value("Key");
 			}
-			if (std::count_if(spcNode.begin(), spcNode.end(), [&](const auto &item) {
+			if (std::count_if(spcNode.begin(), spcNode.end(), [](const auto &item) {
 				return STREQ(item.name(), "Key");
 			}) > 1) throw std::runtime_error(std::string("In task ") + result->key + ": specific tasks with multiple explicitly-named objects in the same reference are currently unsupported.");
 		}
 		result->overrideType = ParseOverrideType(xmlNode.child_value("SpecificOverrideType"));
+	} else if (result->type == Type::General) {
+		result->command = xmlNode.child_value("Command");
+
 	}
 
 	for (const auto &it: xmlNode.child("Actions").children())

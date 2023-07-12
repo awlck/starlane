@@ -27,6 +27,11 @@ enum class ReferralPerson {
 	ThirdPerson
 };
 
+enum class ExecutionPolicy {
+	HighestPrio,
+	HighestPrioPassing
+};
+
 class GameStatic {
 	std::string gameTitle;
 	std::string gameAuthor;
@@ -51,6 +56,7 @@ class GameStatic {
 	std::unordered_map<PlainTextRef, const char *> plainTextSnippets;
 	// The grammatical person by which to refer to the player character
 	ReferralPerson pcReferralPerson = ReferralPerson::SecondPerson;
+	ExecutionPolicy executionPolicy = ExecutionPolicy::HighestPrio;
 
 	// Tasks in priority order
 	std::set<Task *, TaskPrioLess> prioOrderedTasks;
@@ -159,6 +165,8 @@ public:
 		return f->second;
 	}
 
+	void ProcessInput(const std::string &s);
+
 private:
 	Game() = default;
 	Game(const Game &);  // copy constructor -- for undo state saving
@@ -190,12 +198,13 @@ private:
 	// most recently mentioned character and pronoun
 	std::pair<std::string, Pronoun> mostRecentlyMentioned;
 
-	// static data lives here for performance reasons:
+	// static data lives here for performance and memory usage reasons:
 	const GameStatic *staticData;
 
 	// transient storage -- only relevant while evaluating commands.
 	// Never needs to be retained for UNDO/SAVE.
 	std::unordered_map<std::string, std::string> currentRefs;
+	std::string currentCommand;
 
 	// used at load-time to prevent duplicating expressions too much
 	std::unordered_map<std::string, ExprRef> knownExprs;
