@@ -54,19 +54,18 @@ void SkipRemainderOfBlock(const std::string &seq, size_t &tidx, size_t &ridx, si
 		switch (seq[++tidx]) {
 		case '(':
 			b++;
-			tidx++;
 			break;
 		case ')':
-			tidx++;
+			b--;
 			break;
 		case '#':
 			ridx++;
-			tidx++;
 			break;
 		case 'A':
 		case 'O':
-			tidx++;
 			break;
+		default:
+			UNREACHABLE();
 		}
 	}
 }
