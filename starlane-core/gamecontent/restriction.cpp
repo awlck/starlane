@@ -175,11 +175,12 @@ std::pair<bool, DescrRef> Restriction::PassRestrictionBlock(size_t &tidx, size_t
 }
 
 bool Restriction::Single::PassImpl(DescrRef *out, bool ignoreUnsetRefs) const {
-	const std::string &lhs_ = lhsIsRef ? Game::Get()->GetReference(lhs) : lhs;
-	if (ignoreUnsetRefs && lhs_.empty())
+	// Yes, this shadows the fields `lhs` and `rhs`. That's sort of the point.
+	const std::string &lhs = lhsIsRef ? Game::Get()->GetReference(this->lhs) : this->lhs;
+	if (ignoreUnsetRefs && lhs.empty())
 		return true;
-	const std::string &rhs_ = rhsIsRef ? Game::Get()->GetReference(rhs) : rhs;
-	if (ignoreUnsetRefs && ConditionHasRHS(cond) && rhs_.empty())
+	const std::string &rhs = rhsIsRef ? Game::Get()->GetReference(this->rhs) : this->rhs;
+	if (ignoreUnsetRefs && ConditionHasRHS(cond) && rhs.empty())
 		return true;
 
 	switch (targetType) {
@@ -332,7 +333,7 @@ bool Restriction::Single::PassImpl(DescrRef *out, bool ignoreUnsetRefs) const {
 		break;
 	case ConditionType::Alone:
 	{  // "Alone" meaning "no other character is in the same location as the lhs"
-		return !std::any_of(g->GetAllObjects().cbegin(), g->GetAllObjects().cend(), [this](const auto &o) {
+		return !std::any_of(g->GetAllObjects().cbegin(), g->GetAllObjects().cend(), [&](const auto &o) {
 			return o.first != lhs && dynamic_cast<Character *>(o.second)
 				&& o.second->GetLocationKey() != Game::Get()->GetObject(lhs)->GetLocationKey();
 		});
@@ -340,7 +341,7 @@ bool Restriction::Single::PassImpl(DescrRef *out, bool ignoreUnsetRefs) const {
 	case ConditionType::AloneWith:
 	{  // "Alone with" meaning "no other character except rhs is in the same location as the lhs"
 		if (g->GetObject(lhs)->GetLocationKey() != g->GetObject(rhs)->GetLocationKey()) return false;
-		return !std::any_of(g->GetAllObjects().cbegin(), g->GetAllObjects().cend(), [this](const auto &o) {
+		return !std::any_of(g->GetAllObjects().cbegin(), g->GetAllObjects().cend(), [&](const auto &o) {
 			return o.first != lhs && o.first != rhs && dynamic_cast<Character *>(o.second)
 				&& o.second->GetLocationKey() != Game::Get()->GetObject(lhs)->GetLocationKey();
 		});
@@ -395,7 +396,7 @@ bool Restriction::Single::PassImpl(DescrRef *out, bool ignoreUnsetRefs) const {
 	case ConditionType::InState:
 	{	// This can be the value of any Enum property, without actually naming the property we need to check...
 		GameObj *l = g->GetObject(lhs);
-		return std::any_of(l->GetAllStrProps().cbegin(), l->GetAllStrProps().cend(), [this](const auto &p) {
+		return std::any_of(l->GetAllStrProps().cbegin(), l->GetAllStrProps().cend(), [&](const auto &p) {
 			return Game::Get()->GetPropMeta(p.first)->Type() == Property::ValueType::Enum && p.second == rhs;
 		});
 	}
