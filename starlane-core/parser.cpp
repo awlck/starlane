@@ -19,8 +19,7 @@ void Game::ProcessInput(const std::string &s) {
 	std::pair<bool, DescrRef> eligible;
 	for (const auto &t: staticData->prioOrderedTasks) {
 		if (t->GetType() != Task::Type::General) continue;
-		//if (std::regex_match(currentCommand, std::regex(t->GetCmdRegex()))) {
-		for (const auto &rex: t->GetCmdRegexes())
+		for (const auto &rex: t->GetCmdRegexes()) {
 			if (std::regex_match(currentCommand, rex)) {
 				eligible = t->Eligible();
 				// Choose the first (highest-priority) task that tentatively passes restrictions,
@@ -31,7 +30,16 @@ void Game::ProcessInput(const std::string &s) {
 					goto foundTask;
 				}
 			}
+		}
 	}
+
+	// If we get here, the above loop ran through without finding any matching general task.
+	// Attempt to read this as a system command ...
+	if (AttemptMatchSystemCommand()) return;
+	// ... and, failing that, reject the command as unknown.
+	frontend->OutputText("I didn't understand that sentence.\n");
+	return;
+
 foundTask:
 	// output failure message if restrictions failed
 	if (!eligible.first) {
@@ -47,7 +55,11 @@ foundTask:
 	// Match the command again, this time taking care to capture the references within
 	std::smatch matches;
 	for (const auto &rex: chosenTask->GetCmdRegexes())
-		if (std::regex_match(currentCommand, rex)) break;
+		if (std::regex_match(currentCommand, matches, rex)) break;
+}
+
+bool Game::AttemptMatchSystemCommand() {
+	return false;
 }
 
 }  // namespace Starlane

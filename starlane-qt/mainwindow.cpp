@@ -30,5 +30,7 @@ void MainWindow::OutputText(const char *txt) {
 
 void MainWindow::InputReturnPressed() {
 	output->insertHtml(QStringLiteral("<font color=red>> ") + input->text() + QStringLiteral("</font>\n"));
-	// todo: submit command
+	std::string cmd(input->text().toStdString());
+	input->clear();
+	Starlane::ProcessInput(cmd);
 }

@@ -165,6 +165,7 @@ public:
 		return f->second;
 	}
 
+	// Submit player input for processing
 	void ProcessInput(const std::string &s);
 
 private:
@@ -184,6 +185,8 @@ private:
 
 	bool ContinueRestore(const Save::AstNode *node);
 	bool RollbackRestore();
+
+	bool AttemptMatchSystemCommand();
 
 	// mutable game state (objects copied for undo state)
 	std::unordered_map<std::string, GameObj *> objects;

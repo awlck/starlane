@@ -116,6 +116,6 @@ int main(int argc, char **argv) {
 	Starlane::CreateGame(input, fsize);
 	QApplication::processEvents();
 	Starlane::BeginGame();
-	Starlane::SaveGame();
+	//Starlane::SaveGame();
 	return app.exec();
 }

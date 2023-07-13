@@ -64,6 +64,8 @@ SLC_API void CreateGame(const uint8_t *tafBytes, size_t tafLength);
 SLC_API void BeginGame();
 // Call this once per second to advance real-time events.
 SLC_API void TimeTick();
+// Input text for processing:
+SLC_API void ProcessInput(const std::string &cmd);
 
 // If you just need the unobfuscated XML representation of an ADRIFT game file,
 // this function produces it.

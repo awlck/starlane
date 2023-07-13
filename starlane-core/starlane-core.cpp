@@ -29,6 +29,12 @@ void TimeTick() {
 		theGame->Tick();
 }
 
+void ProcessInput(const std::string &cmd) {
+	auto theGame = Game::Get();
+	if (theGame)
+		theGame->ProcessInput(cmd);
+}
+
 bool GameIsOngoing() {
 	return (Game::Get() && Game::Get()->IsGameOngoing());
 }

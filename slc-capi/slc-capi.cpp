@@ -109,6 +109,11 @@ void slc__time_tick() {
 	TAILCALL return Starlane::TimeTick();
 }
 
+void slc__process_input(const char *cmd) {
+	std::string theCommand(cmd);
+	return Starlane::ProcessInput(theCommand);
+}
+
 bool slc__save_game() {
     TAILCALL return Starlane::SaveGame();
 }
