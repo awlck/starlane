@@ -77,7 +77,7 @@ static inline bool IsReference(const std::string &o) {
 		o == "ReferencedItem" || o == "ReferencedNumber" ||
 		// and now the whole deluge of numbered possibilities
 		o == "ReferencedObject1" || o == "ReferencedObject2" || o == "ReferencedObject3" ||
-		o == "ReferencedObject4" || o == "ReferencedObject5" ||
+		o == "ReferencedObject4" || o == "ReferencedObject5" || o == "%direction%" ||
 		o == "ReferencedDirection1" || o == "ReferencedDirection2" || o == "ReferencedDirection3" ||
 		o == "ReferencedDirection4" || o == "ReferencedDirection5" ||
 		o == "ReferencedCharacter1" || o == "ReferencedCharacter2" || o == "ReferencedCharacter3" ||

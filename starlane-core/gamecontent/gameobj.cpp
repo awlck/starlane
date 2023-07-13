@@ -70,7 +70,7 @@ const std::string &GameObj::GetLocationKey() const {
 	const GameObj *o = this;
 	Game *theGame = Game::Get();
 	while (!(o = theGame->GetObject(o->parent))->parent.empty());
-	return o->parent;
+	return o->key;
 }
 
 Location *GameObj::GetLocation() const {

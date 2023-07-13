@@ -102,7 +102,7 @@ public:
 	void SetTaskCompleted(const std::string &key, bool val) { taskCompletedStorage[key] = val; }
 	// Get an object referred to by the input.
 	const std::string &GetReference(const std::string &rk) {
-		if (rk == "%Player%") return playerKey;
+		if (rk == "%Player%" || rk == "Player") return playerKey;
 		// This will insert a new element into the map if there is no such entry.
 		// Not ideal, but there can only ever be twenty or so references, so I think it's OK.
 		return currentRefs[rk];
