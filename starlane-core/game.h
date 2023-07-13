@@ -186,6 +186,7 @@ private:
 	bool ContinueRestore(const Save::AstNode *node);
 	bool RollbackRestore();
 
+	std::pair<bool, DescrRef> SearchTaskFrom(typename decltype(GameStatic::prioOrderedTasks)::const_iterator &it) const;
 	bool AttemptMatchSystemCommand();
 
 	// mutable game state (objects copied for undo state)
