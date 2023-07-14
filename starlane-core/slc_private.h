@@ -43,6 +43,7 @@ class Property;
 class Task;
 class UserFunction;
 class Variable;
+class Synonym;
 struct Expression;
 
 // ID number of a description

@@ -14,6 +14,7 @@
 #include "gamecontent/group.h"
 #include "gamecontent/property.h"
 #include "gamecontent/restriction.h"
+#include "gamecontent/synonym.h"
 #include "gamecontent/userfunc.h"
 #include "gamecontent/variable.h"
 #include "gamecontent/task.h"
@@ -82,6 +83,9 @@ Game *Game::LoadFromXML(const std::string &gameTxt) {
 
 	for (const auto &it: gameNode.children("Function"))
 		result->CreateFunctionFromXML(it);
+
+	for (const auto &it: gameNode.children("Synonym"))
+		result->CreateSynonymFromXML(it);
 
 	// Load file path --> blorb resource id mappings, if any.
 	const auto &mappingsNode = gameNode.child("FileMappings");
@@ -168,6 +172,12 @@ void Game::CreateFunctionFromXML(const pugi::xml_node &funcNode) {
 	auto s = const_cast<GameStatic *>(staticData);
 	s->userFunctions[result->Key()] = result;
 	s->userFuncNames[result->Name()] = result->Key();
+}
+
+void Game::CreateSynonymFromXML(const pugi::xml_node &synoNode) {
+	auto result = Synonym::CreateFromXML(synoNode);
+	auto s = const_cast<GameStatic *>(staticData);
+	s->synonyms[result->Key()] = result;
 }
 
 // Plain text and expressions are miscible in some parts of the program (particularly,
