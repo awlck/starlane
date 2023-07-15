@@ -82,7 +82,7 @@ public:
 	PlainTextRef StorePlainTextSnippet(std::string_view snip);
 	ExprRef CreateExpression(const std::string &expr);
 
-	Description *GetDescription(DescrRef d) { return descriptions.at(d); }
+	Description *GetDescription(DescrRef d) const { return descriptions.at(d); }
 	Event *GetEvent(const std::string &key) { return SafeMapGet(events, key); }
 	Group *GetGroup(const std::string &key) { return SafeMapGet(groups, key); }
 	GameObj *GetObject(const std::string &key) { return SafeMapGet(objects, key); }
@@ -193,9 +193,10 @@ private:
 	bool RollbackRestore();
 
 	// Command parser related internals
-	std::string ApplySynonyms(const std::string &s);
+	std::string ApplySynonyms(std::string s);
 	std::pair<bool, DescrRef> SearchTaskFrom(typename decltype(GameStatic::prioOrderedTasks)::const_iterator &it) const;
 	bool AttemptMatchSystemCommand();
+	void OutputFiltered(std::string s) const;
 
 	// mutable game state (objects copied for undo state)
 	std::unordered_map<std::string, GameObj *> objects;

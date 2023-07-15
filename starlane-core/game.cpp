@@ -363,4 +363,20 @@ bool Game::RollbackRestore() {
 	return false;
 }
 
+void Game::OutputFiltered(std::string s) const {
+	std::string initialText;
+	do {
+		initialText = s;
+		for (const auto &it: staticData->textOverrides) {
+			const auto &f = it.second->GetFrom();
+			size_t pos;
+			while ((pos = s.find(f)) != std::string::npos) {
+				std::string replacement(GetDescription(it.second->GetReplacement())->Build());
+				s.replace(pos, f.size(), replacement);
+			}
+		}
+	} while (initialText != s);
+	frontend->OutputText(s.c_str());
+}
+
 }

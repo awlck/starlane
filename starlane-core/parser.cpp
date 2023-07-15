@@ -11,16 +11,15 @@
 
 namespace Starlane {
 
-std::string Game::ApplySynonyms(const std::string &s) {
-	std::string result(s);
+std::string Game::ApplySynonyms(std::string s) {
 	for (const auto &it: staticData->synonyms) {
 		for (const auto &f: it.second->GetFrom()) {
 			size_t n;
-			while ((n = result.find(f)) != std::string::npos)
-				result.replace(n, f.size(), it.second->GetReplacement());
+			while ((n = s.find(f)) != std::string::npos)
+				s.replace(n, f.size(), it.second->GetReplacement());
 		}
 	}
-	return result;
+	return s;
 }
 
 std::pair<bool, DescrRef> Game::SearchTaskFrom(typename decltype(GameStatic::prioOrderedTasks)::const_iterator &it) const {
@@ -56,7 +55,7 @@ continueSearch:
 		// No match, attempt to read this as a system command ...
 		if (AttemptMatchSystemCommand()) return;
 		// ... and, failing that, reject the command as unknown.
-		frontend->OutputText("I didn't understand that sentence.\n");
+		OutputFiltered("I didn't understand that sentence.\n");
 		return;
 	} else {
 		chosenTask = *taskIter;
@@ -65,10 +64,9 @@ continueSearch:
 	// output failure message if restrictions failed
 	if (!eligible.first) {
 		if (eligible.second != 0) {
-			std::string out(GetDescription(eligible.second)->Build());
-			frontend->OutputText(out.c_str());
+			OutputFiltered(GetDescription(eligible.second)->Build());
 		} else {
-			frontend->OutputText("You can't do that right now.");
+			OutputFiltered("You can't do that right now.\n");
 		}
 		return;
 	}
