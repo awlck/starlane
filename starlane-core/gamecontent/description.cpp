@@ -266,7 +266,7 @@ ResolveText_FakeTailcall:
 		}
 		if (percents % 2 == 0 && bracketDepth == 0 && functionFound) {  // at end of this function call
 			if (!anybrackets) {
-				auto vname = std::string(theText.substr(beginningOfFunc + 1, pos));
+				auto vname = std::string(theText.substr(beginningOfFunc + 1, pos - beginningOfFunc - 1));
 				// When there aren't any brackets, the name between the percentage signs must be a
 				// known variable or built-in function.
 				if (!Game::Get()->VarOfNameExists(vname) && vname != "AloneWithChar" && vname != "ConvCharacter" && vname != "Player" && vname != "CharacterName") {
