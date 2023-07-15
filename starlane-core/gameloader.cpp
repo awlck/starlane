@@ -20,6 +20,11 @@
 #include "gamecontent/variable.h"
 #include "gamecontent/task.h"
 
+#ifndef NDEBUG
+#include <iostream>
+#endif // !NDEBUG
+
+
 namespace Starlane {
 
 Game *Game::LoadFromXML(const std::string &gameTxt) {
@@ -57,13 +62,22 @@ Game *Game::LoadFromXML(const std::string &gameTxt) {
 			rStatic->executionPolicy = ExecutionPolicy::HighestPrioPassing;
 	}
 
+#ifndef NDEBUG
+	std::cout << "\n\n==========================================\nLoading Properties\n==========================================\n";
+#endif
 	// It is important that all properties are created before anything tries to use them.
 	for (const auto &it: gameNode.children("Property"))
 		result->CreatePropertyFromXML(it);
+#ifndef NDEBUG
+	std::cout << "\n\n==========================================\nLoading Variables\n==========================================\n";
+#endif
 	// Similarly, variables must be known before considering restrictions and task actions.
 	for (const auto &it : gameNode.children("Variable"))
 		result->CreateVariableFromXML(it);
 
+#ifndef NDEBUG
+	std::cout << "\n\n==========================================\nLoading Objects\n==========================================\n";
+#endif
 	for (const auto &it : gameNode.children("Location"))
 		result->CreateObjFromXML(it);
 	for (const auto &it : gameNode.children("Character"))
@@ -71,23 +85,41 @@ Game *Game::LoadFromXML(const std::string &gameTxt) {
 	for (const auto &it: gameNode.children("Object"))
 		result->CreateObjFromXML(it);
 
+#ifndef NDEBUG
+	std::cout << "\n\n==========================================\nLoading Tasks\n==========================================\n";
+#endif
 	for (const auto &it: gameNode.children("Task")) {
 		auto t = result->CreateTaskFromXML(it);
 		rStatic->prioOrderedTasks.insert(t);
 	}
 
+#ifndef NDEBUG
+	std::cout << "\n\n==========================================\nLoading Events\n==========================================\n";
+#endif
 	for (const auto &it : gameNode.children("Event"))
 		result->CreateEventFromXML(it);
 
+#ifndef NDEBUG
+	std::cout << "\n\n==========================================\nLoading Groups\n==========================================\n";
+#endif
 	for (const auto &it : gameNode.children("Group"))
 		result->CreateGroupFromXML(it);
 
+#ifndef NDEBUG
+	std::cout << "\n\n==========================================\nLoading Functions\n==========================================\n";
+#endif
 	for (const auto &it: gameNode.children("Function"))
 		result->CreateFunctionFromXML(it);
 
+#ifndef NDEBUG
+	std::cout << "\n\n==========================================\nLoading Synonyms\n==========================================\n";
+#endif
 	for (const auto &it: gameNode.children("Synonym"))
 		result->CreateSynonymFromXML(it);
 
+#ifndef NDEBUG
+	std::cout << "\n\n==========================================\nLoading Text Overrides\n==========================================\n";
+#endif
 	for (const auto &it: gameNode.children("TextOverride"))
 		result->CreateTextOverrideFromXML(it);
 
@@ -115,12 +147,28 @@ Game *Game::LoadFromXML(const std::string &gameTxt) {
 	else  // fallback
 		result->playerKey = "Player";
 
+#ifndef NDEBUG
+	std::cout << "\n\n==========================================\nFiguring out Text\n==========================================\n";
+#endif
 	// Finally, pre-split all descriptions into runs of plain text and expressions.
 	// (This needs to happen after objects are loaded since we need to determine whether
 	//  'A.B' is indeed accessing property 'B' of object with key 'A' (if 'A' is a valid object key)
 	//  or just a period not followed by a space (if 'A' is not a valid object key).)
+#ifndef NDEBUG
+	size_t count = 0;
+	for (auto &it : result->descriptions) {
+		if (++count % 250 == 0)
+			std::cout << count << "... ";
+		it.second->ResolveText();
+	}
+#else
 	for (auto &it : result->descriptions)
 		it.second->ResolveText();
+#endif
+
+#ifndef NDEBUG
+	std::cout << "\n\n==========================================\nDONE!\n==========================================\n";
+#endif
 
     return result;
 }
