@@ -95,7 +95,7 @@ Game *Game::LoadFromXML(const std::string &gameTxt) {
 	const auto &mappingsNode = gameNode.child("FileMappings");
 	if (mappingsNode.type() != pugi::node_null) {
 		for (const auto &it: mappingsNode.children()) {
-			result->blorbResMap[it.child_value("File")] = ParseInt(it.child_value("Resource"));
+			rStatic->blorbResMap[it.child_value("File")] = ParseInt(it.child_value("Resource"));
 		}
 	}
 

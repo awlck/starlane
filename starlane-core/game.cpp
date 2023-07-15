@@ -56,7 +56,6 @@ Game::Game(const Game &rhs) {
 	restrictionsSoFar = rhs.restrictionsSoFar;
 	textSnippetsSoFar = rhs.textSnippetsSoFar;
 	expressionsSoFar = rhs.expressionsSoFar;
-	blorbResMap = rhs.blorbResMap;
 	staticData = rhs.staticData;
 }
 

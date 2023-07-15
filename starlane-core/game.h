@@ -59,6 +59,8 @@ class GameStatic {
 	// The grammatical person by which to refer to the player character
 	ReferralPerson pcReferralPerson = ReferralPerson::SecondPerson;
 	ExecutionPolicy executionPolicy = ExecutionPolicy::HighestPrio;
+	// The mapping of file path -> Blorb resource ID, if applicable.
+	std::unordered_map<std::string, uint32_t> blorbResMap;
 
 	// Tasks in priority order
 	std::set<Task *, TaskPrioLess> prioOrderedTasks;
@@ -162,8 +164,8 @@ public:
 
 	bool IsGameOngoing() const { return gameHasBegun; }
 	uint32_t GetBlorbResource(const std::string &path) const {
-		auto f = blorbResMap.find(path);
-		if (f == blorbResMap.cend()) return -1;
+		auto f = staticData->blorbResMap.find(path);
+		if (f == staticData->blorbResMap.cend()) return -1;
 		return f->second;
 	}
 
@@ -225,8 +227,6 @@ private:
 	size_t restrictionsSoFar = 0;
 	ptrdiff_t textSnippetsSoFar = 0;
 	ptrdiff_t expressionsSoFar = 0;
-
-	std::unordered_map<std::string, uint32_t> blorbResMap;
 
 	// The Game instance holding the current state of the game, for the benefit of any
 	// functions that might need it (restrictions, descriptions, action processing)
