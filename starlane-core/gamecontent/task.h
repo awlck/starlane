@@ -48,6 +48,7 @@ public:
 	std::pair<bool, DescrRef> Execute();
 
 	const std::vector<std::regex> &GetCmdRegexes() const { return commandRegexes; }
+	const std::vector<std::vector<std::string>> &GetGroupCoding() const { return groupNumToRef; }
 
 	void RegisterNotification(const std::string &evtKey, Util::Control::Condition cond);
 

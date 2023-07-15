@@ -41,6 +41,10 @@ std::pair<bool, DescrRef> Game::SearchTaskFrom(typename decltype(GameStatic::pri
 	return { false, 0 };
 }
 
+std::string Game::ResolveReference(const std::string &from, const std::string &refType) const {
+	return "";
+}
+
 void Game::ProcessInput(const std::string &s) {
 	currentCommand = ApplySynonyms(s);
 
@@ -82,7 +86,14 @@ continueSearch:
 		taskIter++;
 		goto continueSearch;
 	}
-	
+	currentRefs.clear();
+	{
+		const auto &refSpecs = chosenTask->GetGroupCoding()[cnt];
+		for (size_t i = 0; i < refSpecs.size(); i++) {
+			const std::string &ref = refSpecs[i];
+			currentRefs[ref] = ResolveReference(matches[i+1], ref);
+		}
+	}
 }
 
 bool Game::AttemptMatchSystemCommand() {
