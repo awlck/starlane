@@ -190,6 +190,8 @@ private:
 	bool ContinueRestore(const Save::AstNode *node);
 	bool RollbackRestore();
 
+	// Command parser related internals
+	std::string ApplySynonyms(const std::string &s);
 	std::pair<bool, DescrRef> SearchTaskFrom(typename decltype(GameStatic::prioOrderedTasks)::const_iterator &it) const;
 	bool AttemptMatchSystemCommand();
 

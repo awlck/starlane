@@ -7,8 +7,21 @@
 #include <regex>
 
 #include "gamecontent/description.h"
+#include "gamecontent/synonym.h"
 
 namespace Starlane {
+
+std::string Game::ApplySynonyms(const std::string &s) {
+	std::string result(s);
+	for (const auto &it: staticData->synonyms) {
+		for (const auto &f: it.second->GetFrom()) {
+			size_t n;
+			while ((n = result.find(f)) != std::string::npos)
+				result.replace(n, f.size(), it.second->GetReplacement());
+		}
+	}
+	return result;
+}
 
 std::pair<bool, DescrRef> Game::SearchTaskFrom(typename decltype(GameStatic::prioOrderedTasks)::const_iterator &it) const {
 	std::pair<bool, DescrRef> eligible;
@@ -30,7 +43,7 @@ std::pair<bool, DescrRef> Game::SearchTaskFrom(typename decltype(GameStatic::pri
 }
 
 void Game::ProcessInput(const std::string &s) {
-	currentCommand = s;
+	currentCommand = ApplySynonyms(s);
 
 	// TODO: deal with the two execution policies.
 	// figure out which general task to apply, and whether it's currently possible to do so:
