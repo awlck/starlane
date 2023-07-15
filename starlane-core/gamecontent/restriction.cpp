@@ -51,7 +51,7 @@ void TransformRestrictionSequence(std::string &seq) {
 void SkipRemainderOfBlock(const std::string &seq, size_t &tidx, size_t &ridx, size_t bracketLevel) {
 	size_t b = bracketLevel;
 	while (tidx < seq.size() && b >= bracketLevel) {
-		switch (seq[++tidx]) {
+		switch (seq[tidx++]) {
 		case '(':
 			b++;
 			break;
