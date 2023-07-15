@@ -40,10 +40,11 @@ class Group;
 class Restriction;
 class GameObj;
 class Property;
+class Synonym;
 class Task;
+class TextOverride;
 class UserFunction;
 class Variable;
-class Synonym;
 struct Expression;
 
 // ID number of a description

@@ -60,6 +60,7 @@ add_library(starlane-core
 	"gamecontent/userfunc.cpp" "gamecontent/userfunc.h"
 	"gamecontent/utility.h" "gamecontent/utility.cpp"
 	gamecontent/synonym.cpp gamecontent/synonym.h
+	gamecontent/textoverride.cpp gamecontent/textoverride.h
 	# save files
     savefiles/writer.cpp savefiles/writer.h
 	savefiles/parser.cpp savefiles/parser.h)

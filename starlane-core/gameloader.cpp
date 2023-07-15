@@ -15,6 +15,7 @@
 #include "gamecontent/property.h"
 #include "gamecontent/restriction.h"
 #include "gamecontent/synonym.h"
+#include "gamecontent/textoverride.h"
 #include "gamecontent/userfunc.h"
 #include "gamecontent/variable.h"
 #include "gamecontent/task.h"
@@ -86,6 +87,9 @@ Game *Game::LoadFromXML(const std::string &gameTxt) {
 
 	for (const auto &it: gameNode.children("Synonym"))
 		result->CreateSynonymFromXML(it);
+
+	for (const auto &it: gameNode.children("TextOverride"))
+		result->CreateTextOverrideFromXML(it);
 
 	// Load file path --> blorb resource id mappings, if any.
 	const auto &mappingsNode = gameNode.child("FileMappings");
@@ -178,6 +182,12 @@ void Game::CreateSynonymFromXML(const pugi::xml_node &synoNode) {
 	auto result = Synonym::CreateFromXML(synoNode);
 	auto s = const_cast<GameStatic *>(staticData);
 	s->synonyms[result->Key()] = result;
+}
+
+void Game::CreateTextOverrideFromXML(const pugi::xml_node &toNode) {
+	auto result = TextOverride::CreateFromXML(this, toNode);
+	auto s = const_cast<GameStatic *>(staticData);
+	s->textOverrides[result->Key()] = result;
 }
 
 // Plain text and expressions are miscible in some parts of the program (particularly,

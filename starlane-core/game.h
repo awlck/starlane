@@ -51,6 +51,7 @@ class GameStatic {
 	std::unordered_map<std::string, UserFunction *> userFunctions;
 	std::unordered_map<std::string, std::string> userFuncNames;
 	std::unordered_map<std::string, Synonym *> synonyms;
+	std::unordered_map<std::string, TextOverride *> textOverrides;
 	// Snippets of "Plain text", simple strings that do not contain any expressions
 	// and can be output as-is. Maintained like this to reduce the amount of text
 	// that is unnecessarily duplicated when copying descriptions for undo/save.
@@ -182,6 +183,7 @@ private:
 	void CreateGroupFromXML(const pugi::xml_node &grpNode);
 	void CreateFunctionFromXML(const pugi::xml_node &funcNode);
 	void CreateSynonymFromXML(const pugi::xml_node &synoNode);
+	void CreateTextOverrideFromXML(const pugi::xml_node &toNode);
 
     void StartupSanityCheck() const;
 
