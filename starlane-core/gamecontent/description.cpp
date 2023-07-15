@@ -1,6 +1,5 @@
 #include "description.h"
 
-#include <limits>
 #include <regex>
 
 #include <pugixml.hpp>

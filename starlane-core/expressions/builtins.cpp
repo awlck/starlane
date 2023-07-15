@@ -1,3 +1,5 @@
+#include "builtins.h"
+
 #include "../expression.h"
 #include "exprp_utility.h"
 #include "../game.h"
@@ -6,8 +8,6 @@
 #include "../gamecontent/character.h"
 #include "../gamecontent/location.h"
 #include "../gamecontent/utility.h"
-#include "builtins.h"
-
 
 namespace Starlane {
 #define CHECK_ARGCOUNT(funcname, cnt) do { if (args->arity != (cnt)) throw std::runtime_error("Wrong number of arguments to built-in function " funcname ": expected " #cnt ", got " + std::to_string(args->arity)); } while (0)

@@ -1,6 +1,7 @@
 //
 // Created by Adrian Welcker on 14.07.23.
 //
+#pragma once
 
 #ifndef SLC_SYNONYM_H
 #define SLC_SYNONYM_H

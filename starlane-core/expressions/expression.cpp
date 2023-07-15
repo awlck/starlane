@@ -12,7 +12,6 @@
 #include "../gamecontent/character.h"
 #include "../gamecontent/description.h"
 #include "../gamecontent/event.h"
-#include "../gamecontent/gameobj.h"
 #include "../gamecontent/location.h"
 #include "../gamecontent/property.h"
 #include "../gamecontent/userfunc.h"

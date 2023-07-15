@@ -1,9 +1,10 @@
 //
 // Created by Adrian Welcker on 15.07.23.
 //
+#pragma once
 
-#ifndef STARLANE_TEXTOVERRIDE_H
-#define STARLANE_TEXTOVERRIDE_H
+#ifndef SLC_TEXTOVERRIDE_H
+#define SLC_TEXTOVERRIDE_H
 
 #include "../slc_private.h"
 
@@ -25,4 +26,4 @@ private:
 
 }
 
-#endif  // !STARLANE_TEXTOVERRIDE_H
+#endif  // !SLC_TEXTOVERRIDE_H
