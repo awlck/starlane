@@ -11,6 +11,8 @@
 #include "gamecontent/property.h"
 #include "gamecontent/description.h"
 #include "gamecontent/restriction.h"
+#include "gamecontent/synonym.h"
+#include "gamecontent/textoverride.h"
 #include "gamecontent/userfunc.h"
 #include "gamecontent/variable.h"
 #include "savefiles/parser.h"
@@ -99,6 +101,10 @@ GameStatic::~GameStatic() {
 	for (const auto &it: userFunctions)
 		delete it.second;
 	for (const auto &it: plainTextSnippets)
+		delete it.second;
+	for (const auto &it: synonyms)
+		delete it.second;
+	for (const auto &it: textOverrides)
 		delete it.second;
 }
 
