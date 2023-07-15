@@ -8,6 +8,8 @@
 
 #include "../slc_private.h"
 
+#include <vector>
+
 namespace Starlane {
 
 class Synonym {

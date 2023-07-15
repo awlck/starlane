@@ -11,6 +11,7 @@
 #include <string>
 #include <unordered_map>
 #include <utility>
+#include <string_view>
 
 #include "gamecontent/task.h"
 
