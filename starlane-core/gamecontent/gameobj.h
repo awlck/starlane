@@ -26,7 +26,7 @@ public:
 	bool GetBoolProp(const std::string &key) const override;
 	const std::unordered_map<std::string, std::string> &GetAllStrProps() const override;
 	const std::unordered_map<std::string, int64_t> &GetAllIntProps() const override;
-	const std::regex &GetMatchExpr() const { return matchRegex; }
+	virtual const std::regex &GetMatchExpr() const { return matchRegex; }
 	static GameObj *CreateFromXML(const pugi::xml_node &xmlNode);
 	virtual GameObj *Clone() const;  // sort of a copy constructor that respects subclassing.
     virtual ~GameObj() = default;
@@ -114,7 +114,7 @@ protected:
 	std::unordered_set<std::string> groupMembership;
 	// A regular expression that matches this object's name.
 	std::regex matchRegex;
-	void MakeMatchExpr();
+	virtual void MakeMatchExpr();
 
 	const Group *GetGroupWithProp(const std::string &k) const;
 

@@ -131,4 +131,44 @@ bool Character::RestoreState(const Save::AstNode *node) {
 	return true;
 }
 
+void Character::MakeMatchExpr() {
+	std::string baseExpr("(?:");
+	baseExpr += article;
+	baseExpr += " )?";
+	if (!prefix.empty()) {
+		baseExpr += "(?:";
+		auto prefixes = Util::SplitString(prefix, " ");
+		size_t count = 0;
+		for (const auto &pref : prefixes) {
+			if (++count != 1)
+				baseExpr += "|";
+			baseExpr += pref;
+		}
+		baseExpr += " )*";
+	}
+
+	std::string unknownExpr(baseExpr);
+	unknownExpr += "(?:(?:";
+	size_t count = 0;
+	for (const auto &n : nouns) {
+		if (++count != 1)
+			unknownExpr += "|";
+		unknownExpr += n;
+	}
+	unknownExpr += ") ?)+";
+	matchRegex = std::regex(unknownExpr, std::regex_constants::icase);
+
+	std::string knownExpr(baseExpr);
+	knownExpr += "(?:(?:";
+	count = 0;
+	auto properNameComponents = Util::SplitString(properName, " ");
+	for (const auto &n : properNameComponents) {
+		if (++count != 1)
+			knownExpr += "|";
+		knownExpr += n;
+	}
+	knownExpr += ") ?)+";
+	matchWhenKnownRegex = std::regex(knownExpr, std::regex_constants::icase);
+}
+
 }

@@ -61,4 +61,10 @@ std::string Location::GetListOfExits() const {
 	return result;
 }
 
+void Location::MakeMatchExpr() {
+	// This expression requires a string to both begin and not begin with the letter x,
+	// thus it can never match.
+	matchRegex = std::regex("^(?!x)x");
+}
+
 }

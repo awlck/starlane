@@ -273,14 +273,14 @@ void GameObj::MakeMatchExpr() {
 		}
 		expr += " )*";
 	}
-	expr += "(?:";
+	expr += "(?:(?:";
 	size_t count = 0;
 	for (const auto &n : nouns) {
 		if (++count != 1)
 			expr += "|";
 		expr += n;
 	}
-	expr += ")+";
+	expr += ") ?)+";
 	matchRegex = std::regex(expr, std::regex_constants::icase);
 }
 

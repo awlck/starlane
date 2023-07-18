@@ -29,6 +29,7 @@ public:
 	// Always returns the descriptor, regardless of the status of the `Known` property.
 	std::string GetDescriptor() const { return GameObj::GetDisplayName(); }
 	std::string GetDescription(bool forDisplay = true) const override;
+	const std::regex &GetMatchExpr() const override { return GetBoolProp("Known") ? matchWhenKnownRegex : matchRegex; };
 
 	std::pair<bool, DescrRef> HasRoute(const std::string &dir) const;
 	// Whether this character can currently see the object in question.
@@ -55,6 +56,9 @@ private:
 
 	std::string properName;
 	std::unordered_set<std::string> seenStorage;
+
+	void MakeMatchExpr() override;
+	std::regex matchWhenKnownRegex;
 };
 
 }

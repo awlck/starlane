@@ -7,6 +7,7 @@
 #include <regex>
 
 #include "gamecontent/description.h"
+#include "gamecontent/gameobj.h"
 #include "gamecontent/synonym.h"
 
 namespace Starlane {
@@ -42,6 +43,13 @@ std::pair<bool, DescrRef> Game::SearchTaskFrom(typename decltype(GameStatic::pri
 }
 
 std::string Game::ResolveReference(const std::string &from, const std::string &refType) const {
+	if (refType == "text") return from;
+	// TODO: account for directions and the difference between characters and objects
+	// TODO: resolve ambiguities (favoring available objects), ask disambiguation questions, etc.
+	for (const auto &it : objects) {
+		if (std::regex_match(from, it.second->GetMatchExpr()))
+			return it.first;
+	}
 	return "";
 }
 
