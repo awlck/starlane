@@ -5,8 +5,9 @@
 
 #include "../slc_private.h"
 
-#include <unordered_set>
+#include <regex>
 #include <string>
+#include <unordered_set>
 #include <utility>
 #include <vector>
 
@@ -25,6 +26,7 @@ public:
 	bool GetBoolProp(const std::string &key) const override;
 	const std::unordered_map<std::string, std::string> &GetAllStrProps() const override;
 	const std::unordered_map<std::string, int64_t> &GetAllIntProps() const override;
+	const std::regex &GetMatchExpr() const { return matchRegex; }
 	static GameObj *CreateFromXML(const pugi::xml_node &xmlNode);
 	virtual GameObj *Clone() const;  // sort of a copy constructor that respects subclassing.
     virtual ~GameObj() = default;
@@ -110,6 +112,9 @@ protected:
 	DescrRef description;
 	// The keys of all the groups this object is a member of.
 	std::unordered_set<std::string> groupMembership;
+	// A regular expression that matches this object's name.
+	std::regex matchRegex;
+	void MakeMatchExpr();
 
 	const Group *GetGroupWithProp(const std::string &k) const;
 

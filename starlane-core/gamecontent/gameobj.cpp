@@ -258,4 +258,30 @@ const std::unordered_map<std::string, int64_t> &GameObj::GetAllIntProps() const 
 	return hackyIntPropCache;
 }
 
+void GameObj::MakeMatchExpr() {
+	std::string expr("(?:");
+	expr += article;
+	expr += " )?";
+	if (!prefix.empty()) {
+		expr += "(?:";
+		auto prefixes = Util::SplitString(prefix, " ");
+		size_t count = 0;
+		for (const auto &pref : prefixes) {
+			if (++count != 1)
+				expr += "|";
+			expr += pref;
+		}
+		expr += " )*";
+	}
+	expr += "(?:";
+	size_t count = 0;
+	for (const auto &n : nouns) {
+		if (++count != 1)
+			expr += "|";
+		expr += n;
+	}
+	expr += ")+";
+	matchRegex = std::regex(expr, std::regex_constants::icase);
+}
+
 }
