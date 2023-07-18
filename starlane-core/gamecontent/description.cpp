@@ -165,6 +165,8 @@ std::string Description::Segment::Build(const UserFuncContext *context) const {
 			case ReferralPerson::ThirdPerson:
 				replacement = "$3";
 				break;
+			default:
+				UNREACHABLE();
 			}
 			result.append(std::regex_replace(str, matchEx, replacement));
 		}

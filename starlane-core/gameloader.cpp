@@ -20,9 +20,14 @@
 #include "gamecontent/variable.h"
 #include "gamecontent/task.h"
 
+#include <cassert>
+
 #ifndef NDEBUG
 #include <iostream>
-#endif // !NDEBUG
+#define LOAD_STAGE(msg) std::cout << "\n\n==========================================\n" msg "\n==========================================\n"
+#else
+#define LOAD_STAGE(msg)
+#endif
 
 
 namespace Starlane {
@@ -34,6 +39,7 @@ Game *Game::LoadFromXML(const std::string &gameTxt) {
 	if (Game::theGame)
 		delete Game::theGame;
 
+	LOAD_STAGE("Parsing File");
 	pugi::xml_document doc;
 	auto parseResult = doc.load_string(gameTxt.c_str());
 	if (parseResult.status != pugi::status_ok) {
@@ -62,22 +68,17 @@ Game *Game::LoadFromXML(const std::string &gameTxt) {
 			rStatic->executionPolicy = ExecutionPolicy::HighestPrioPassing;
 	}
 
-#ifndef NDEBUG
-	std::cout << "\n\n==========================================\nLoading Properties\n==========================================\n";
-#endif
+	LOAD_STAGE("Loading Properties");
 	// It is important that all properties are created before anything tries to use them.
 	for (const auto &it: gameNode.children("Property"))
 		result->CreatePropertyFromXML(it);
-#ifndef NDEBUG
-	std::cout << "\n\n==========================================\nLoading Variables\n==========================================\n";
-#endif
+
+	LOAD_STAGE("Loading Variables");
 	// Similarly, variables must be known before considering restrictions and task actions.
 	for (const auto &it : gameNode.children("Variable"))
 		result->CreateVariableFromXML(it);
 
-#ifndef NDEBUG
-	std::cout << "\n\n==========================================\nLoading Objects\n==========================================\n";
-#endif
+	LOAD_STAGE("Loading Objects");
 	for (const auto &it : gameNode.children("Location"))
 		result->CreateObjFromXML(it);
 	for (const auto &it : gameNode.children("Character"))
@@ -85,41 +86,29 @@ Game *Game::LoadFromXML(const std::string &gameTxt) {
 	for (const auto &it: gameNode.children("Object"))
 		result->CreateObjFromXML(it);
 
-#ifndef NDEBUG
-	std::cout << "\n\n==========================================\nLoading Tasks\n==========================================\n";
-#endif
+	LOAD_STAGE("Loading Tasks");
 	for (const auto &it: gameNode.children("Task")) {
 		auto t = result->CreateTaskFromXML(it);
 		rStatic->prioOrderedTasks.insert(t);
 	}
 
-#ifndef NDEBUG
-	std::cout << "\n\n==========================================\nLoading Events\n==========================================\n";
-#endif
+	LOAD_STAGE("Loading Events");
 	for (const auto &it : gameNode.children("Event"))
 		result->CreateEventFromXML(it);
-
-#ifndef NDEBUG
-	std::cout << "\n\n==========================================\nLoading Groups\n==========================================\n";
-#endif
+	
+	LOAD_STAGE("Loading Groups");
 	for (const auto &it : gameNode.children("Group"))
 		result->CreateGroupFromXML(it);
 
-#ifndef NDEBUG
-	std::cout << "\n\n==========================================\nLoading Functions\n==========================================\n";
-#endif
+	LOAD_STAGE("Loading Functions");
 	for (const auto &it: gameNode.children("Function"))
 		result->CreateFunctionFromXML(it);
 
-#ifndef NDEBUG
-	std::cout << "\n\n==========================================\nLoading Synonyms\n==========================================\n";
-#endif
+	LOAD_STAGE("Loading Synonyms");
 	for (const auto &it: gameNode.children("Synonym"))
 		result->CreateSynonymFromXML(it);
 
-#ifndef NDEBUG
-	std::cout << "\n\n==========================================\nLoading Text Overrides\n==========================================\n";
-#endif
+	LOAD_STAGE("Loading Text Overrides");
 	for (const auto &it: gameNode.children("TextOverride"))
 		result->CreateTextOverrideFromXML(it);
 
@@ -147,9 +136,8 @@ Game *Game::LoadFromXML(const std::string &gameTxt) {
 	else  // fallback
 		result->playerKey = "Player";
 
-#ifndef NDEBUG
-	std::cout << "\n\n==========================================\nFiguring out Text\n==========================================\n";
-#endif
+
+	LOAD_STAGE("Figuring Out Text");
 	// Finally, pre-split all descriptions into runs of plain text and expressions.
 	// (This needs to happen after objects are loaded since we need to determine whether
 	//  'A.B' is indeed accessing property 'B' of object with key 'A' (if 'A' is a valid object key)
@@ -166,9 +154,7 @@ Game *Game::LoadFromXML(const std::string &gameTxt) {
 		it.second->ResolveText();
 #endif
 
-#ifndef NDEBUG
-	std::cout << "\n\n==========================================\nDONE!\n==========================================\n";
-#endif
+	LOAD_STAGE("Done!");
 
     return result;
 }
@@ -180,11 +166,13 @@ size_t Game::CreateDescFromXML(const pugi::xml_node &descNode) {
 
 void Game::CreateObjFromXML(const pugi::xml_node &objNode) {
 	auto result = GameObj::CreateFromXML(objNode);
+	assert(result);
 	objects[result->Key()] = result;
 }
 
 void Game::CreatePropertyFromXML(const pugi::xml_node &propNode) {
 	auto result = Property::CreateFromXML(propNode);
+	assert(result);
 	auto s = const_cast<GameStatic *>(staticData);
 	s->properties[result->Key()] = result;
 }
@@ -197,6 +185,7 @@ size_t Game::CreateRestrictionsFromXML(const pugi::xml_node &restrNode) {
 
 Task *Game::CreateTaskFromXML(const pugi::xml_node &propNode) {
 	auto result = Task::CreateFromXML(this, propNode);
+	assert(result);
 	auto s = const_cast<GameStatic *>(staticData);
 	s->tasks[result->Key()] = result;
 	return result;
@@ -204,11 +193,13 @@ Task *Game::CreateTaskFromXML(const pugi::xml_node &propNode) {
 
 void Game::CreateEventFromXML(const pugi::xml_node &evtNode) {
 	auto result = Event::CreateFromXML(evtNode);
+	assert(result);
 	events[result->Key()] = result;
 }
 
 void Game::CreateVariableFromXML(const pugi::xml_node &varNode) {
 	auto result = Variable::CreateFromXML(varNode);
+	assert(result);
 	variables[result->Key()] = result;
 	auto s = const_cast<GameStatic *>(staticData);
 	s->varNames[result->Name()] = result->Key();
@@ -216,11 +207,13 @@ void Game::CreateVariableFromXML(const pugi::xml_node &varNode) {
 
 void Game::CreateGroupFromXML(const pugi::xml_node &grpNode) {
     auto result = Group::CreateFromXML(grpNode);
+	assert(result);
     groups[result->Key()] = result;
 }
 
 void Game::CreateFunctionFromXML(const pugi::xml_node &funcNode) {
 	auto result = UserFunction::CreateFromXML(funcNode);
+	assert(result);
 	auto s = const_cast<GameStatic *>(staticData);
 	s->userFunctions[result->Key()] = result;
 	s->userFuncNames[result->Name()] = result->Key();
@@ -228,12 +221,14 @@ void Game::CreateFunctionFromXML(const pugi::xml_node &funcNode) {
 
 void Game::CreateSynonymFromXML(const pugi::xml_node &synoNode) {
 	auto result = Synonym::CreateFromXML(synoNode);
+	assert(result);
 	auto s = const_cast<GameStatic *>(staticData);
 	s->synonyms[result->Key()] = result;
 }
 
 void Game::CreateTextOverrideFromXML(const pugi::xml_node &toNode) {
 	auto result = TextOverride::CreateFromXML(this, toNode);
+	assert(result);
 	auto s = const_cast<GameStatic *>(staticData);
 	s->textOverrides[result->Key()] = result;
 }

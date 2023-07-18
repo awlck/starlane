@@ -931,6 +931,7 @@ void Task::Action::PerformImpl() const {
 			break;
 		case Property::ValueType::ErrorType:
 			UNREACHABLE();
+			break;  // to satisfy MSVC code analysis, which would otherwise assume that this falls through.
 		default:
 			target->SetPropValue(prop, rhs);  // meh
 			break;
