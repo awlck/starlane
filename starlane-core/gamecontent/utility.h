@@ -104,6 +104,31 @@ std::vector<std::string> SplitString(const std::string &s, const std::string &de
 inline std::vector<std::string> SplitList(const std::string &lst) { return SplitString(lst, "\\|"); }
 // and the same for splitting a string at each newline:
 inline std::vector<std::string> SplitLines(const std::string &str) { return SplitString(str, "\n"); }
+
+inline bool StringIsNullOrEmpty(const std::string &str) { return str.size() == 0; }
+inline bool StringIsNullOrEmpty(const std::string *str) {
+    return str == nullptr || str->size() == 0;
+}
+inline bool StringIsNullOrEmpty(const char *str) {
+    return str == nullptr || *str == 0;
+}
+inline bool StringIsNullOrWhitespace(std::string_view str) {
+    for (char c: str) {
+        if (!isspace(c)) return false;
+    }
+    return true;
+}
+inline bool StringIsNullOrWhitespace(const std::string *str) {
+    if (str == nullptr) return true;
+    return StringIsNullOrWhitespace(std::string_view(str->data(), str->size()));
+}
+inline bool StringIsNullOrWhitespace(const char *str) {
+    if (str == nullptr) return true;
+    for (const char *p = str; *p; p++) {
+        if (!isspace(*p)) return false;
+    }
+    return true;
+}
 }
 
 #endif  // !SLC_UTILITY_H
