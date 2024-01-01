@@ -318,7 +318,7 @@ bool Restriction::Single::PassImpl(DescrRef *out, bool ignoreUnsetRefs) const {
 	case ConditionType::InSameLocationAs:
 		return g->GetObject(lhs)->GetLocationKey() == g->GetObject(rhs)->GetLocationKey();
 	case ConditionType::InObject:
-	case ConditionType::HeldBy:  // Starlane trats `held by` simply as `in`.
+	case ConditionType::HeldBy:  // Starlane treats `held by` simply as `in`.
 	{
 		GameObj *l = g->GetObject(lhs);
 		return l->GetParentKey() == rhs && l->GetParentRelation() == GameObj::HoldingType::InObject;
@@ -331,20 +331,18 @@ bool Restriction::Single::PassImpl(DescrRef *out, bool ignoreUnsetRefs) const {
 	case Starlane::Restriction::ConditionType::OfType:  // ?
 		break;
 	case ConditionType::Alone:
-	{  // "Alone" meaning "no other character is in the same location as the lhs"
+	    // "Alone" meaning "no other character is in the same location as the lhs"
 		return !std::any_of(g->GetAllObjects().cbegin(), g->GetAllObjects().cend(), [&](const auto &o) {
 			return o.first != lhs && dynamic_cast<Character *>(o.second)
 				&& o.second->GetLocationKey() != Game::Get()->GetObject(lhs)->GetLocationKey();
 		});
-	}
 	case ConditionType::AloneWith:
-	{  // "Alone with" meaning "no other character except rhs is in the same location as the lhs"
+	    // "Alone with" meaning "no other character except rhs is in the same location as the lhs"
 		if (g->GetObject(lhs)->GetLocationKey() != g->GetObject(rhs)->GetLocationKey()) return false;
 		return !std::any_of(g->GetAllObjects().cbegin(), g->GetAllObjects().cend(), [&](const auto &o) {
 			return o.first != lhs && o.first != rhs && dynamic_cast<Character *>(o.second)
 				&& o.second->GetLocationKey() != Game::Get()->GetObject(lhs)->GetLocationKey();
 		});
-	}
 	case Starlane::Restriction::ConditionType::InConversationWith:
 		break;  // TODO (once the conversations system is in place)
 	case ConditionType::HaveRoute:
@@ -547,7 +545,7 @@ void Restriction::Single::Translate() {
 	} else if (tok == "BeComplet") {
 		cond = ConditionType::Complete;
 	} else if (targetType == TargetType::Property && Game::Get()->GetPropMeta(prop)->Type() == Property::ValueType::Object) {
-		// Restrictions on object-valued properties are stored as "prop lhs Must rhs", implying "must/must not be equal"
+		// Restrictions on object-valued properties are stored as "prop lhs Must/MustNot rhs", implying "must/must not be equal"
 		cond = ConditionType::EqualTo;
 		rhs = tok;
 		rhsIsRef = Util::IsReference(rhs);

@@ -196,7 +196,7 @@ private:
 	// Command parser related internals
 	std::string ApplySynonyms(std::string s);
 	std::pair<bool, DescrRef> SearchTaskFrom(typename decltype(GameStatic::prioOrderedTasks)::const_iterator &it) const;
-	std::string ResolveReference(const std::string &from, const std::string &refType) const;
+	std::vector<std::string> MatchListForReference(const std::string &from, const std::string &refType) const;
 	bool AttemptMatchSystemCommand();
 	void OutputFiltered(std::string s) const;
 
