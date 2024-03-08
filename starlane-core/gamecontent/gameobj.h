@@ -106,6 +106,11 @@ protected:
 	std::string parent;
 	// The relationship we have with our parent object.
 	HoldingType relation;
+	// Whether or not this object is considered 'dynamic' (i.e., takeable). Characters and
+	// locations are never dynamic. Objects have this set from the `StaticOrDynamic` property.
+	// (It more convenient to have this attribute directly accessible to the interpreter code
+	//  than having to go through a property lookup each time.)
+	bool dynamic = false;
 	std::string article;
 	std::string prefix;
 	std::vector<std::string> nouns;
@@ -117,12 +122,6 @@ protected:
 	virtual void MakeMatchExpr();
 
 	const Group *GetGroupWithProp(const std::string &k) const;
-
-	// Whether or not this object is considered 'dynamic' (i.e., takeable). Characters and
-	// locations are never dynamic. Objects have this set from the `StaticOrDynamic` property.
-	// (It more convenient to have this attribute directly accessible to the interpreter code
-	//  than having to go through a property lookup each time.)
-	bool dynamic = false;
 
 	mutable std::unordered_map<std::string, std::string> hackyStrPropCache;
 	mutable std::unordered_map<std::string, int64_t> hackyIntPropCache;
