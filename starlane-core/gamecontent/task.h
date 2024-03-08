@@ -123,16 +123,24 @@ private:
 	private:
 		ActionRefType refType;
 		ActionType type;
+		// for simple moves, the object on the left-hand side (e.g. object to move, object whose children to move)
+		// for moves based on boolean, enum, or map properties, the the value that the property must hold
+		//  in order for the object to be moved
 		std::string lhs;
+		// on moves choosing objects by property, the key of the property to check
 		std::string prop;
 		std::string rhs;
 
 		// there are no reference mode / action combinations that have an expression both
 		// on the left and the right side, so we can get away with just one reference here.
+		// (for moves based on properties where the property can hold arbitrary strings or integers,
+		//  an expression producing a string or integer to check against.)
 		ExprRef expr = 0;
 
 		// Actually perform the action for concrete objects/values.
 		void PerformImpl() const;
+		// Perform a move
+		void PerformMoveTo(const std::string &moveTarget) const;
 	};
 
 	std::string key;

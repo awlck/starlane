@@ -540,6 +540,7 @@ static inline constexpr GameObj::HoldingType ActionTypeToHoldingType(Task::Actio
 		return GameObj::HoldingType::AtLocation;
 	case Task::ActionType::MoveInsideObj:
 	case Task::ActionType::MakeCarriedBy:
+	case Task::ActionType::MoveToGroup:
 		return GameObj::HoldingType::InObject;
 	case Task::ActionType::MoveOntoObj:
 		return GameObj::HoldingType::OnObject;
@@ -610,7 +611,6 @@ static inline constexpr bool ObjIsAppropriate(Task::ActionRefType t, GameObj *o)
 void Task::Action::PerformImpl() const {
 	// at this stage, all references and lists are resolved.
 	Game *g = Game::Get();
-	std::string moveTarget;
 	switch (type) {
 	case ActionType::MoveToLocation:
 	case ActionType::MoveInsideObj:
@@ -618,102 +618,20 @@ void Task::Action::PerformImpl() const {
 	case ActionType::MakeCarriedBy:
 	case ActionType::MakeWornBy:
 	case ActionType::MakePartOf:
-		moveTarget = rhs;
-		goto ActionPerformMove;  // le sigh.
+		PerformMoveTo(rhs);
+		break;
 	case ActionType::MoveToLocationOf:
-		moveTarget = g->GetObject(rhs)->GetParentKey();
-		goto ActionPerformMove;
+		PerformMoveTo(g->GetObject(rhs)->GetParentKey());
+		break;
 	case ActionType::MoveToParent:  // moving a character "up" one level
 		{
 			const std::string &parent = g->GetObject(lhs)->GetParentKey();
 			if (!g->GetObject(parent)->GetParentKey().empty())
-				moveTarget = g->GetObject(parent)->GetParentKey();
-		}
-
-		// move implementation.
-		ActionPerformMove:
-		switch (refType) {
-		case ActionRefType::SingleObj:
-			g->GetObject(lhs)->MoveTo(rhs, ActionTypeToHoldingType(type));
-			break;
-		case ActionRefType::ObjsHeldBy:
-		case ActionRefType::ObjsInside:
-		case ActionRefType::ObjsWornBy:
-		case ActionRefType::ObjsOn:
-		case ActionRefType::ObjsAtLocation:
-		case ActionRefType::CharsInside:
-		case ActionRefType::CharsOn:
-		case ActionRefType::CharsAtLocation: {
-			auto &allObjs = g->GetAllObjects();
-			auto ht = ActionRefToHoldingType(refType);
-			for (auto &o : allObjs) {
-				if (ObjIsAppropriate(refType, o.second) && o.second->GetParentKey() == lhs && o.second->GetParentRelation() == ht)
-					o.second->MoveTo(rhs, ActionTypeToHoldingType(type));
-			}
-		}
-			break;
-		case ActionRefType::ObjsWithProp:
-		case ActionRefType::CharsWithProp: {
-			auto &allObjs = g->GetAllObjects();
-			auto propType = g->GetPropMeta(prop)->Type();
-			switch (propType) {
-			case Property::ValueType::Bool:
-				for (auto &o : allObjs) {
-					if (ObjIsAppropriate(refType, o.second) && o.second->GetBoolProp(prop))
-						o.second->MoveTo(rhs, ActionTypeToHoldingType(type));
-				}
-				break;
-			case Property::ValueType::Object:
-			case Property::ValueType::Enum:
-				for (auto &o : allObjs) {
-					if (ObjIsAppropriate(refType, o.second) && o.second->GetStrProp(prop) == rhs)
-						o.second->MoveTo(rhs, ActionTypeToHoldingType(type));
-				}
-				break;
-			case Property::ValueType::Map:
-			case Property::ValueType::Int: {
-				auto tmpInt = propType == Property::ValueType::Map ? ParseInt(rhs.c_str()) : g->GetExpression(expr)->EvaluateInt();
-				for (auto &o : allObjs) {
-					if (ObjIsAppropriate(refType, o.second) && o.second->GetIntProp(prop) == tmpInt)
-						o.second->MoveTo(rhs, ActionTypeToHoldingType(type));
-				}
-				break;
-			}
-			case Property::ValueType::Text: {
-				std::string tmpTxt(g->GetExpression(expr)->EvaluateStr());
-				for (auto &o : allObjs) {
-					if (ObjIsAppropriate(refType, o.second) && o.second->GetStrProp(prop) == tmpTxt)
-						o.second->MoveTo(rhs, ActionTypeToHoldingType(type));
-				}
-				break;
-			}
-			case Property::ValueType::ErrorType:
-				UNREACHABLE();
-			}
-			break;
-		}
-		case ActionRefType::ObjsInGroup:
-		case ActionRefType::CharsInGroup: {
-			auto &allObjs = g->GetAllObjects();
-			for (auto &o : allObjs) {
-				if (ObjIsAppropriate(refType, o.second) && o.second->IsMemberOfGroup(lhs))
-					o.second->MoveTo(rhs, ActionTypeToHoldingType(type));
-			}
-		}
-			break;
-		case ActionRefType::LocationOf:
-		case ActionRefType::LocationsInGroup:
-		case ActionRefType::LocationsWithProp:
-			throw std::runtime_error("Task tried to move a location.");
-		case ActionRefType::Task:
-			throw std::runtime_error("Task tried to move a task.");
-		case ActionRefType::None:
-			throw std::runtime_error("Task tried to move nothing.");
-		default:
-			break;
+				PerformMoveTo(g->GetObject(parent)->GetParentKey());
 		}
 		break;
 	case Starlane::Task::ActionType::MoveToGroup:
+		// TODO: randomly pick group member to move to.
 		break;
 	case Starlane::Task::ActionType::MoveInDirection:
 		break;
@@ -968,6 +886,91 @@ void Task::Action::PerformImpl() const {
 		break;
 	case Starlane::Task::ActionType::GameContinue:
 		break;
+	default:
+		break;
+	}
+}
+
+void Task::Action::PerformMoveTo(const std::string &moveTarget) const {
+	auto *g = Game::Get();
+	switch (refType) {
+	case ActionRefType::SingleObj:
+		g->GetObject(lhs)->MoveTo(moveTarget, ActionTypeToHoldingType(type));
+		break;
+	case ActionRefType::ObjsHeldBy:
+	case ActionRefType::ObjsInside:
+	case ActionRefType::ObjsWornBy:
+	case ActionRefType::ObjsOn:
+	case ActionRefType::ObjsAtLocation:
+	case ActionRefType::CharsInside:
+	case ActionRefType::CharsOn:
+	case ActionRefType::CharsAtLocation: {
+		auto &allObjs = g->GetAllObjects();
+		auto ht = ActionRefToHoldingType(refType);
+		for (auto &o : allObjs) {
+			if (ObjIsAppropriate(refType, o.second) && o.second->GetParentKey() == lhs && o.second->GetParentRelation() == ht)
+				o.second->MoveTo(moveTarget, ActionTypeToHoldingType(type));
+		}
+	}
+		break;
+	case ActionRefType::ObjsWithProp:
+	case ActionRefType::CharsWithProp: {
+		auto &allObjs = g->GetAllObjects();
+		auto propType = g->GetPropMeta(prop)->Type();
+		switch (propType) {
+		case Property::ValueType::Bool:
+			for (auto &o : allObjs) {
+				if (ObjIsAppropriate(refType, o.second) && o.second->GetBoolProp(prop))
+					o.second->MoveTo(moveTarget, ActionTypeToHoldingType(type));
+			}
+			break;
+			// TODO: these do not seem right.
+		case Property::ValueType::Object:
+		case Property::ValueType::Enum:
+			for (auto &o : allObjs) {
+				if (ObjIsAppropriate(refType, o.second) && o.second->GetStrProp(prop) == lhs)
+					o.second->MoveTo(moveTarget, ActionTypeToHoldingType(type));
+			}
+			break;
+		case Property::ValueType::Map:
+		case Property::ValueType::Int: {
+			auto tmpInt = propType == Property::ValueType::Map ? ParseInt(lhs.c_str()) : g->GetExpression(expr)->EvaluateInt();
+			for (auto &o : allObjs) {
+				if (ObjIsAppropriate(refType, o.second) && o.second->GetIntProp(prop) == tmpInt)
+					o.second->MoveTo(moveTarget, ActionTypeToHoldingType(type));
+			}
+			break;
+		}
+		case Property::ValueType::Text: {
+			std::string tmpTxt(g->GetExpression(expr)->EvaluateStr());
+			for (auto &o : allObjs) {
+				if (ObjIsAppropriate(refType, o.second) && o.second->GetStrProp(prop) == tmpTxt)
+					o.second->MoveTo(moveTarget, ActionTypeToHoldingType(type));
+			}
+			break;
+		}
+		case Property::ValueType::ErrorType:
+			UNREACHABLE();
+		}
+		break;
+	}
+	case ActionRefType::ObjsInGroup:
+	case ActionRefType::CharsInGroup: {
+		auto &allObjs = g->GetAllObjects();
+		for (auto &o : allObjs) {
+			if (ObjIsAppropriate(refType, o.second) && o.second->IsMemberOfGroup(lhs))
+				o.second->MoveTo(moveTarget, ActionTypeToHoldingType(type));
+		}
+	}
+		break;
+	case ActionRefType::LocationOf:
+	case ActionRefType::LocationsInGroup:
+	case ActionRefType::LocationsWithProp:
+		throw std::runtime_error("Task tried to move a location.");
+	case ActionRefType::Task:
+		throw std::runtime_error("Task tried to move a task.");
+	case ActionRefType::None:
+		throw std::runtime_error("Task tried to move nothing.");
 	default:
 		break;
 	}
