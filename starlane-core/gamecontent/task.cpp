@@ -29,6 +29,7 @@ bool MaybeIsExpr(const std::string &s) {
 	return false;
 }
 
+// Escape characters that have a special meaning in Regex.
 std::string EscapeForRegex(const std::string_view &block) {
 	std::string result;
 	for (char c: block) {
@@ -618,17 +619,18 @@ void Task::Action::PerformImpl() const {
 	case ActionType::MakeWornBy:
 	case ActionType::MakePartOf:
 		moveTarget = rhs;
-		goto ActionPerformMove;
+		goto ActionPerformMove;  // le sigh.
 	case ActionType::MoveToLocationOf:
-		if (moveTarget.empty())  // jumped here directly rather than falling through
-			moveTarget = g->GetObject(rhs)->GetParentKey();
+		moveTarget = g->GetObject(rhs)->GetParentKey();
 		goto ActionPerformMove;
 	case ActionType::MoveToParent:  // moving a character "up" one level
-		if (moveTarget.empty()) {  // jumped here directly rather than falling through
+		{
 			const std::string &parent = g->GetObject(lhs)->GetParentKey();
 			if (!g->GetObject(parent)->GetParentKey().empty())
 				moveTarget = g->GetObject(parent)->GetParentKey();
 		}
+
+		// move implementation.
 		ActionPerformMove:
 		switch (refType) {
 		case ActionRefType::SingleObj:
