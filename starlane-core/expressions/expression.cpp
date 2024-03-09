@@ -196,8 +196,8 @@ Expression::Expression(const std::string &expr) : exprStr(expr), currentContext(
 	}
 	exprp_context_t *ctx = exprp_create(this);
 	int remaining = exprp_parse(ctx, &rootNode);
-    if (remaining > 0 && !Util::StringIsNullOrWhitespace( std::string_view(expr).substr(expr.size()-remaining)))
-        throw std::runtime_error("Did not consume entire expression while parsing: " + expr + "\n(" + std::to_string(remaining) + " chars remained.)");
+	if (remaining > 0 && !Util::StringIsNullOrWhitespace( std::string_view(expr).substr(expr.size()-remaining)))
+		throw std::runtime_error("Did not consume entire expression while parsing: " + expr + "\n(" + std::to_string(remaining) + " chars remained.)");
 	exprp_destroy(ctx);
 	PostProcessTree();
 }
