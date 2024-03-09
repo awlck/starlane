@@ -171,6 +171,43 @@ std::string ProcessBlock(std::string_view block) {
 	} while (!block.empty());
 	return result;
 }
+
+/* ADRIFT 5 stores the location of an object in a whole conglomerate of properties, where
+ * the current relation to the parent dictates which property is read to determine what
+ * the parent actually is.  This means that if an object goes from laying around in a
+ * location to being held by a character, the `AtLocation` property continues to hold the
+ * location the object was taken from, while `HeldByWho` holds the character now holding
+ * the object, and the property `DynamicLocation` changes to "Held By Character" to indicate
+ * the relationship. This also means that manually changing the `DynamicLocation` property
+ * back to "Single Location" (which the developer allows you to do through the Set Property action)
+ * would move the object back to the last location it was laying around in.
+ * 
+ * Because that's a right mess and would be really inconvenient to reimplement, we altogether
+ * disallow setting the location properties directly, meaning we reject all of the following as
+ * errors, at least for now:
+ */
+void DisallowSettingLocationProperties(const std::string &prop) {
+	if (prop == "StaticLocation"
+		|| prop == "DynamicLocation"
+		|| prop == "AtLocation"
+		|| prop == "InLocation"
+		|| prop == "AtLocationGroup"
+		|| prop == "InsideWhat"
+		|| prop == "InsideWho"
+		|| prop == "HeldByWho"
+		|| prop == "OnWhat"
+		|| prop == "HeldByWho"
+		|| prop == "OnWhat"
+		|| prop == "WornByWho"
+		|| prop == "PartOfWho"
+		|| prop == "PartOfWhat"
+		|| prop == "CharacterAtLocation"
+		|| prop == "CharInsideWhat"
+		|| prop == "CharOnWhat"
+		|| prop == "CharOnWho") {
+		throw std::logic_error("Task attempted to set location property " + prop);
+	}
+}
 }  // anonymous namespace
 
 Task *Task::CreateFromXML(Game *g, const pugi::xml_node &xmlNode) {
@@ -306,26 +343,39 @@ Task::Action Task::Action::CreateFromXML(const pugi::xml_node &xmlNode) {
 		result.rhs = tokens[3];
 		// reference type determined below.
 	} else if (name == "SetProperty") {
-		result.type = ActionType::SetPropTo;
 		result.lhs = tokens[0];
-		result.prop = tokens[1];
-		std::string temp;
-		for (size_t idx = 2; idx < tokens.size(); idx++) {
-			if (idx != 2)
-				temp += ' ';
-			temp += tokens[idx];
-		}
-		// make an expression if necessary
-		switch (Game::Get()->GetPropMeta(result.prop)->Type()) {
-		case Property::ValueType::Object:
-		case Property::ValueType::Enum:
-		case Property::ValueType::Bool:
-			result.rhs = temp;
-			break;
-		default:
-			result.expr = Game::Get()->CreateExpression(temp);
-		}
 		result.refType = ActionRefType::SingleObj;
+		if (tokens[1] == "StaticOrDynamic") {
+			// this action wants to change the object type (i.e. the "StaticOrDynamic" property).
+			// we don't treat this as a regular property, so we need to special-case assigning to it.
+			result.type = ActionType::SpecialSetDynamic;
+			if (tokens[2] == "Dynamic")
+				result.rhs = "yes";
+			else if (tokens[2] == "Static")
+				result.rhs = "no";
+			else
+				throw std::runtime_error("Task action tried to set StaticOrDynamic to an invalid value: " + tokens[2]);
+		} else {  // normal property
+			DisallowSettingLocationProperties(tokens[1]);
+			result.type = ActionType::SetPropTo;
+			result.prop = tokens[1];
+			std::string temp;
+			for (size_t idx = 2; idx < tokens.size(); idx++) {
+				if (idx != 2)
+					temp += ' ';
+				temp += tokens[idx];
+			}
+			// make an expression if necessary
+			switch (Game::Get()->GetPropMeta(result.prop)->Type()) {
+			case Property::ValueType::Object:
+			case Property::ValueType::Enum:
+			case Property::ValueType::Bool:
+				result.rhs = temp;
+				break;
+			default:
+				result.expr = Game::Get()->CreateExpression(temp);
+			}
+		}
 		return result;
 	} else if (name == "SetTasks") {
 		if (tokens[0] == "Execute")
@@ -747,7 +797,7 @@ void Task::Action::PerformImpl() const {
 			}
 		}
 			break;
-		case Starlane::Task::ActionRefType::CharsWithProp: {
+		case ActionRefType::CharsWithProp: {
 			auto &allObjs = g->GetAllObjects();
 			auto propType = g->GetPropMeta(prop)->Type();
 			Character *c;
@@ -761,13 +811,13 @@ void Task::Action::PerformImpl() const {
 			case Property::ValueType::Object:
 			case Property::ValueType::Enum:
 				for (auto &o : allObjs) {
-					if ((c = dynamic_cast<Character *>(o.second)) && o.second->GetStrProp(prop) == rhs)
+					if ((c = dynamic_cast<Character *>(o.second)) && o.second->GetStrProp(prop) == lhs)
 						c->MakePosture(rhs, ActionTypeToPosture(type));
 				}
 				break;
 			case Property::ValueType::Map:
 			case Property::ValueType::Int: {
-				auto tmpInt = propType == Property::ValueType::Map ? ParseInt(rhs.c_str()) : g->GetExpression(expr)->EvaluateInt();
+				auto tmpInt = propType == Property::ValueType::Map ? ParseInt(lhs.c_str()) : g->GetExpression(expr)->EvaluateInt();
 				for (auto &o : allObjs) {
 					if ((c = dynamic_cast<Character *>(o.second)) && o.second->GetIntProp(prop) == tmpInt)
 						c->MakePosture(rhs, ActionTypeToPosture(type));
@@ -885,6 +935,11 @@ void Task::Action::PerformImpl() const {
 	case Starlane::Task::ActionType::GameEndNeutral:
 		break;
 	case Starlane::Task::ActionType::GameContinue:
+		break;
+	case ActionType::SpecialSetDynamic: {
+		auto *target = g->GetObject(lhs);
+		target->SetDynamic(ParseBool(rhs.c_str()));
+	}
 		break;
 	default:
 		break;

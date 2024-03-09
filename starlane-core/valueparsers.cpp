@@ -43,6 +43,8 @@ bool ParseBool(const char *txt) {
 	if (STREQ(txt, "false")) return false;
 	if (STREQ(txt, "False")) return false;
 	if (STREQ(txt, "FALSE")) return false;
+	if (STREQ(txt, "<Selected>")) return true;
+	if (STREQ(txt, "<Unselected>")) return false;
 	throw VALERR(bool, txt);
 }
 

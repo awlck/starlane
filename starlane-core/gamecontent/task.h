@@ -85,7 +85,9 @@ public:
 		GameWin,
 		GameLose,
 		GameEndNeutral,
-		GameContinue
+		GameContinue,
+		// special types of actions that arise from directly setting the location properties
+		SpecialSetDynamic
 	};
 	enum class ActionRefType {
 		SingleObj,  // a particular game object of any type

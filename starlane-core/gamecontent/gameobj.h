@@ -94,6 +94,9 @@ public:
 	// Move this object so that it has this parent and relation
 	void MoveTo(const std::string &newParent, HoldingType newRelation);
 
+	// Set the `dynamic` state, because of course you can change that through property assignments.
+	void SetDynamic(bool dynamic) { this->dynamic = dynamic; }
+
 	// Write out mutable object state to a save file
 	virtual void WriteState(Save::Writer &writer) const;
 	virtual bool RestoreState(const Save::AstNode *node);
