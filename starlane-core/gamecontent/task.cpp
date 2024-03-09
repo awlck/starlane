@@ -225,6 +225,7 @@ Task *Task::CreateFromXML(Game *g, const pugi::xml_node &xmlNode) {
 			result->overrideFailMsg = Game::Get()->CreateDescFromXML(foNode);
 	}
 	if (result->type == Type::Specific) {
+		result->overridesTask = xmlNode.child_value("GeneralTask");
 		for (const auto &spcNode: xmlNode.children("Specific")) {
 			SpecificInfo spi;
 			spi.type = STREQ(spcNode.child_value("Type"), "Text") ? SpType::Text : SpType::Object;
@@ -244,7 +245,9 @@ Task *Task::CreateFromXML(Game *g, const pugi::xml_node &xmlNode) {
 		result->commandRegexes.reserve(commandStrs.size());
 		for (const auto &cmd: commandStrs) {
 			auto transformed = ProcessBlock(cmd);
+#ifndef NDEBUG
 			std::cout << "Converted \"" << cmd << "\" to \"" << transformed << "\".\n";
+#endif
 			std::sregex_iterator itBegin(transformed.begin(), transformed.end(), translateRefs);
 			std::sregex_iterator itEnd;
 			std::vector<std::string> matches;

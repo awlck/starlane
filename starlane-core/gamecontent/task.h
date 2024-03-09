@@ -126,8 +126,8 @@ private:
 		ActionRefType refType;
 		ActionType type;
 		// for simple moves, the object on the left-hand side (e.g. object to move, object whose children to move)
-		// for moves based on boolean, enum, or map properties, the the value that the property must hold
-		//  in order for the object to be moved
+		// for moves based on boolean, enum, or map properties, the value that the property must hold
+		//  in order for the object(s) to be moved
 		std::string lhs;
 		// on moves choosing objects by property, the key of the property to check
 		std::string prop;
