@@ -7,9 +7,9 @@ project("starlane")
 
 option(BUILD_SHARED_LIBS "Build the interpreter core as a shared library" OFF)
 option(CROSSCOMPILING "Whether cross-compiling to a different platform" ${CMAKE_CROSSCOMPILING})
-option(SL_BUILD_QT "Build the Starlane Qt frontent" ON)
+option(SL_BUILD_QT "Build the Starlane Qt frontend" ON)
 option(SL_BUILD_TOOLS "Build command-line utilities" ON)
-option(SL_BUILD_C_WRAPPER "Build c-style API wrapper" ON)
+option(SL_BUILD_C_WRAPPER "Build C-style API wrapper" ON)
 
 # Global compiler options: warnings, security, optimizations
 if(MSVC)
