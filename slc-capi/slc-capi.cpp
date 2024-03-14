@@ -20,24 +20,14 @@
 static const slc__frontend *cfe = nullptr;
 static Starlane::Frontend *fe = nullptr;
 
+namespace Wrap {
+
 static inline std::string StringChangeImpl(const std::string &str, slc__stringchange func) {
 	if (!func) return str;
 	auto result_cstr = func(str.c_str());
 	std::string result(result_cstr);
 	SLCWRAP_DEALLOC((void *) result_cstr);
 	return result;
-}
-
-namespace Wrap {
-
-void FatalError(const char *msg) {
-	if (!cfe || !cfe->fatal_error) return;
-	TAILCALL return (cfe->fatal_error)(msg);
-}
-
-void OutputText(const char *msg) {
-	if (!cfe || !cfe->output_text) return;
-	TAILCALL return (cfe->output_text)(msg);
 }
 
 std::string StrToUpperCase(const std::string &str) {
@@ -52,31 +42,6 @@ std::string StrToSentenceCase(const std::string &str) {
 	return StringChangeImpl(str, cfe->str_to_sentence_case);
 }
 
-void *CreateSaveFile() {
-	if (!cfe->create_save_file) return nullptr;
-	TAILCALL return (cfe->create_save_file)();
-}
-
-void *OpenSaveFile() {
-	if (!cfe->create_save_file) return nullptr;
-	TAILCALL return (cfe->open_save_file)();
-}
-
-size_t ReadFile(void *handle, uint8_t *buffer, size_t bufsize) {
-	if (!cfe->read_file) return 0;
-	TAILCALL return (cfe->read_file)(handle, buffer, bufsize);
-}
-
-void WriteFile(void *handle, const uint8_t *buffer, size_t count) {
-	if (!cfe->write_file) return;
-	TAILCALL return (cfe->write_file)(handle, buffer, count);
-}
-
-void CloseFile(void *handle) {
-	if (!cfe->close_file) return;
-	TAILCALL return (cfe->close_file)(handle);
-}
-
 }
 
 void slc__init_backend(const slc__frontend *settings) {
@@ -84,16 +49,16 @@ void slc__init_backend(const slc__frontend *settings) {
 	fe = (Starlane::Frontend *) SLCWRAP_ALLOC(sizeof(Starlane::Frontend));
 	fe->randomSeed = cfe->random_seed;
 	fe->timersAvailable = cfe->timers_available;
-	fe->FatalError = &Wrap::FatalError;
-	fe->OutputText = &Wrap::OutputText;
+	fe->FatalError = cfe->fatal_error;
+	fe->OutputText = cfe->output_text;
 	fe->StrToUpperCase = &Wrap::StrToUpperCase;
 	fe->StrToLowerCase = &Wrap::StrToLowerCase;
 	fe->StrToSentenceCase = &Wrap::StrToSentenceCase;
-	fe->CreateSaveFile = &Wrap::CreateSaveFile;
-	fe->OpenSaveFile = &Wrap::OpenSaveFile;
-	fe->ReadFile = &Wrap::ReadFile;
-	fe->WriteFile = &Wrap::WriteFile;
-	fe->CloseFile = &Wrap::CloseFile;
+	fe->CreateSaveFile = cfe->create_save_file;
+	fe->OpenSaveFile = cfe->open_save_file;
+	fe->ReadFile = cfe->read_file;
+	fe->WriteFile = cfe->write_file;
+	fe->CloseFile = cfe->close_file;
 	return Starlane::InitBackend(fe);
 }
 
