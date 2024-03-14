@@ -7,15 +7,10 @@
 
 #include <stdlib.h>
 #include <string.h>
+#include <stdexcept>
 
 #define SLCWRAP_ALLOC(size) ((cfe && cfe->alloc_func) ? cfe->alloc_func : malloc)(size)
 #define SLCWRAP_DEALLOC(size) ((cfe && cfe->free_func) ? cfe->free_func : free)(size)
-
-#ifdef __clang__
-#define TAILCALL [[clang::musttail]]
-#else
-#define TAILCALL
-#endif
 
 static const slc__frontend *cfe = nullptr;
 static Starlane::Frontend *fe = nullptr;
@@ -62,42 +57,69 @@ void slc__init_backend(const slc__frontend *settings) {
 	return Starlane::InitBackend(fe);
 }
 
+#define ISSUE_ERROR_FROM(exc, stage) { \
+	std::string msg = "Error " stage ": "; \
+	msg.append(exc.what()); \
+	cfe->fatal_error(msg.c_str()); \
+}
+
 void slc__create_game(const uint8_t *taf_bytes, size_t taf_length) {
-	TAILCALL return Starlane::CreateGame(taf_bytes, taf_length);
+	try {
+		return Starlane::CreateGame(taf_bytes, taf_length);
+	} catch (const std::runtime_error &e)
+		ISSUE_ERROR_FROM(e, "loading game");
 }
 
 void slc__begin_game() {
-	TAILCALL return Starlane::BeginGame();
+	try {
+		return Starlane::BeginGame();
+	} catch (const std::runtime_error &e)
+		ISSUE_ERROR_FROM(e, "starting game")
 }
 
 void slc__time_tick() {
-	TAILCALL return Starlane::TimeTick();
+	try {
+		return Starlane::TimeTick();
+	} catch (const std::runtime_error &e)
+		ISSUE_ERROR_FROM(e, "ticking game clock");
 }
 
 void slc__process_input(const char *cmd) {
 	std::string theCommand(cmd);
-	return Starlane::ProcessInput(theCommand);
+	try {
+		return Starlane::ProcessInput(theCommand);
+	} catch (const std::runtime_error &e)
+		ISSUE_ERROR_FROM(e, "processing command");
 }
 
 bool slc__save_game() {
-    TAILCALL return Starlane::SaveGame();
+	try {
+		return Starlane::SaveGame();
+	} catch (const std::runtime_error &e)
+		ISSUE_ERROR_FROM(e, "saving game");
 }
 
 bool slc__restore_game() {
-	TAILCALL return Starlane::RestoreGame();
+	try {
+		return Starlane::RestoreGame();
+	} catch (const std::runtime_error &e)
+		ISSUE_ERROR_FROM(e, "restoring game");
 }
 
 char *slc__extract_taf(const uint8_t *input, size_t size) {
-	auto content = Starlane::ExtractTaf(input, size);
-    auto resultsize = content.size();
-	auto result = (char *) SLCWRAP_ALLOC(resultsize + 1);
-	memcpy(result, content.c_str(), resultsize);
-    result[resultsize] = 0;
-	return result;
+	try {
+		auto content = Starlane::ExtractTaf(input, size);
+		auto resultsize = content.size();
+		auto result = (char *) SLCWRAP_ALLOC(resultsize + 1);
+		memcpy(result, content.c_str(), resultsize);
+		result[resultsize] = 0;
+		return result;
+	} catch (const std::runtime_error &e)
+		ISSUE_ERROR_FROM(e, "extracting TAF file");
 }
 
 bool slc__game_is_ongoing() {
-	TAILCALL return Starlane::GameIsOngoing();
+	return Starlane::GameIsOngoing();
 }
 
 uint32_t slc__get_blorb_resource_for_path(const char *path) {
