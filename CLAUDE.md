@@ -27,6 +27,7 @@ The code is structured as follows:
   * `starlane-core/parser.cpp`: code to deal with player input.
 * `starlane-qt/`: the main UI built using Qt6. The aim for this is to
   replicate the multimedia capabilities of ADRIFT 5 as closely as possible.
+* `starlane-console/`: an as-simple-as-possible frontend used for testing purposes.
 * `starlane-utils/`: a collection of small utilities that I found
   occasionally useful during development. Not terribly important.
 * `slc-capi/`: A plain C wrapper over starlane-core's C++ API.
