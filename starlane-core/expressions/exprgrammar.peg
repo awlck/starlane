@@ -20,11 +20,11 @@ main
 	{
 		$$ = e;
 	}
-	 / _ '"' e:expr '"' _  # adrift be weird
+	 / _ '"' _ e:expr _ '"' _  # adrift be weird
 	{
 		$$ = e;
 	}
-	 / _ "'" e:expr "'" _  # because that's just what you probably wouldn't expect
+	 / _ "'" _ e:expr _ "'" _  # because that's just what you probably wouldn't expect
 	{
 		$$ = e;
 	}

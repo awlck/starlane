@@ -1,6 +1,7 @@
 #include "restriction.h"
 
 #include <algorithm>
+#include <iostream>
 #include <iterator>
 #include <stdexcept>
 #include <string.h>
@@ -559,7 +560,11 @@ void Restriction::Single::Translate() {
 		return;
 
 	if (targetType == TargetType::Variable || targetType == TargetType::Property) {
-		exprContent = Game::Get()->CreateExpression(x);
+		try {
+			exprContent = Game::Get()->CreateExpression(x);
+		} catch (std::runtime_error& e) {
+			throw std::runtime_error("Unable to handle restriction text: " + restrText + "\n(Encountered expression parse error.)");
+		}
 		return;
 	}
 
