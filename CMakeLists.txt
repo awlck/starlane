@@ -1,13 +1,11 @@
-﻿# CMakeList.txt: CMake-Projekt für "starlane". Schließen Sie die Quelle ein, und definieren Sie
-# projektspezifische Logik hier.
-#
-cmake_minimum_required (VERSION 3.16)
+﻿cmake_minimum_required (VERSION 3.16)
 
 project("starlane")
 
 option(BUILD_SHARED_LIBS "Build the interpreter core as a shared library" OFF)
 option(CROSSCOMPILING "Whether cross-compiling to a different platform" ${CMAKE_CROSSCOMPILING})
 option(SL_BUILD_QT "Build the Starlane Qt frontend" ON)
+option(SL_BUILD_CONSOLE "Build the Starlane console frontend" ON)
 option(SL_BUILD_TOOLS "Build command-line utilities" ON)
 option(SL_BUILD_C_WRAPPER "Build C-style API wrapper" ON)
 
@@ -53,6 +51,10 @@ add_subdirectory("starlane-utils")
 
 if(SL_BUILD_QT)
 	add_subdirectory("starlane-qt")
+endif()
+
+if(SL_BUILD_CONSOLE)
+	add_subdirectory("starlane-console")
 endif()
 
 if(SL_BUILD_C_WRAPPER)
