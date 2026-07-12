@@ -4,3 +4,6 @@
 [submodule "starlane-core/deps/packcc"]
 	path = starlane-core/deps/packcc
 	url = https://github.com/arithy/packcc
+[submodule "reference/ADRIFT-5"]
+	path = reference/ADRIFT-5
+	url = git@github.com:jcwild/ADRIFT-5
