@@ -104,7 +104,7 @@ bool ContainsMandatoryText(const std::string_view &block) {
 	return false;
 }
 
-std::string ProcessBlock(std::string_view block) {
+std::string ProcessBlock(std::string_view block) {  //NOLINT(misc-no-recursion)
 	std::string_view nextBlock;
 	std::string result;
 
@@ -422,7 +422,11 @@ Task::Action Task::Action::CreateFromXML(const pugi::xml_node &xmlNode) {
 			if (vartype != Variable::Type::String || MaybeIsExpr(temp2))
 				temp2.swap(temp);
 		}
-		result.expr = Game::Get()->CreateExpression(temp);
+		try {
+			result.expr = Game::Get()->CreateExpression(temp);
+		} catch (std::runtime_error &e) {
+			throw std::runtime_error(std::string("Unable to process Task action: ") + name + ": " + xmlNode.child_value());
+		}
 		return result;
 	} else if (name == "Conversation") {
 		result.refType = ActionRefType::None;

@@ -190,7 +190,7 @@ static size_t SkipSingleOOExpression(std::string_view theText) {
 	bool openParens = false;
 	for (pos = 0; pos < theText.length(); pos++) {
 		char x = theText[pos];
-		if (x == '!' || x == '?' || x == '/' || x == '\n') break;
+		if (x == '!' || x == '?' || x == '/' || x == '<' || x == '\n') break;
 		if (x == '(') openParens = true;
 		if ((x == ',' || x == ' ') && !openParens) break;
 		if (x == ')') {
@@ -282,7 +282,9 @@ ResolveText_FakeTailcall:
 			// handle all the text prior to the first '%'
 			ResolveExpressions(theText.substr(0, beginningOfFunc));
 			// check whether we also need to resolve an OO-style property for the resulting value
-			if (pos + 2 < theText.length() && theText[pos + 1] == '.' && theText[pos + 2]) {
+			// (property names start with a letter; anything else -- like a tag in '%func%.</font>' --
+			// means the period is just ordinary end-of-sentence text)
+			if (pos + 2 < theText.length() && theText[pos + 1] == '.' && isalpha((unsigned char) theText[pos + 2])) {
 				pos += SkipSingleOOExpression(theText.substr(pos));
 			} else {
 				pos += 1;

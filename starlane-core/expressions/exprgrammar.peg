@@ -210,15 +210,24 @@ funcargs
 	}
 
 bracketcall
-	<- e:identifier '[' _ r:funcargs _ ']'
+	<- e:bracketname '[' _ r:funcargs _ ']'
 	{
 		$$ = system__create_ast_node_binary(auxil, AST_NODE_TYPE_FUNCCALL, range__new($0s, $0e), e, r);
 	}
 	# some of these functions will take fucking anything, like this:
 	# %PCase[%adjectives[%tavernname1%]% %nouns[%tavernname2%]%]%
-	 / e:identifier '[' r:textcontent ']'
+	 / e:bracketname '[' r:textcontent ']'
 	{
 		$$ = system__create_ast_node_binary(auxil, AST_NODE_TYPE_FUNCCALL, range__new($0s, $0e), e, r);
+	}
+
+# Like `identifier`, but also allows '-', '#', and '!' (unambiguous here since the name is
+# always immediately followed by '[' rather than participating in arithmetic). Some ADRIFT
+# authors give array variables names with such punctuation, e.g. %rumor-forgotten[RAND (1, 10)]%.
+bracketname
+	<- L(L/D/'-'/'#'/'!')*
+	{
+		$$ = system__create_ast_node_terminal(auxil, AST_NODE_TYPE_IDENTIFIER, range__new($0s, $0e));
 	}
 
 textcontent
@@ -254,9 +263,10 @@ expr_primary
 	 / e:string { $$ = e; }
 	 / '(' _ e:expr _ ')' { $$ = e; }
 	 / e:errstring { $$ = e; }
+	 / e:errstring_sq { $$ = e; }
 
 identifier
-	<- '%' (L/D)(L/D/'-')* '%'
+	<- '%' (L/D)(L/D/'-'/'#'/'!')* '%'  # ADRIFT lets authors name variables with trailing punctuation, e.g. %weaponhitflavor#% or %AdventurePoints!%
 	{
 		$$ = system__create_ast_node_terminal(auxil, AST_NODE_TYPE_VARIABLE, range__new($0s+1, $0e-1));
 	}
@@ -277,6 +287,10 @@ string
 	{
 		$$ = system__create_ast_node_terminal(auxil, AST_NODE_TYPE_STRING, range__new($0s+1, $0e-1));
 	}
+	 / "'" strcontent_sq "'"  # ADRIFT accepts single-quoted string literals, e.g. Gravity = "'1.31'"
+	{
+		$$ = system__create_ast_node_terminal(auxil, AST_NODE_TYPE_STRING, range__new($0s+1, $0e-1));
+	}
 
 errstring
 	<- ('\\"' / (!'"' .))+ '"'  # for error recovery
@@ -285,9 +299,17 @@ errstring
 		$$ = system__create_ast_node_terminal(auxil, AST_NODE_TYPE_STRING, range__new($0s, $0e-1));
 	}
 
+errstring_sq
+	<- "'" strcontent_sq !.  # error recovery for an unterminated single-quoted string, e.g. Gravity = "'.94"
+	{
+		system__handle_syntax_error(auxil, SYNTAX_ERROR_MISSING_QUOTEMARK, range__new($0s, $0e));
+		$$ = system__create_ast_node_terminal(auxil, AST_NODE_TYPE_STRING, range__new($0s+1, $0e));
+	}
+
 L <- [a-zA-Z_]
 D <- [0-9]
 strcontent <- ('\\"' / (!'"' .))*
+strcontent_sq <- (!"'" .)*
 
 _ <- space*
 space <- [ \t\v\f\n]
