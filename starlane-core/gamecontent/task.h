@@ -32,20 +32,49 @@ public:
 		static constexpr int BeforeParent = 0b0100;  // run this task before the specified parent text/actions
 		static constexpr int AfterParent = 0b1000;  // run this task after the specified parent text/actions
 		OverrideType(uint8_t val) : v(val) {}
+		[[nodiscard]] bool Has(int flag) const { return (v & flag) != 0; }
 		uint8_t v;
 	};
 	static OverrideType ParseOverrideType(const char *txt);
 
+	// Whether a Specific task's %ref% is restricted to a particular object/character/direction
+	// key (SpType::Object) or a particular piece of literal text/number (SpType::Text, compared
+	// case-insensitively against what the player actually typed).
+	enum class SpType {
+		Object,
+		Text
+	};
+	// One entry per %ref% in the general task's Command, in the same order, describing what a
+	// Specific task requires of that reference in order to apply. An empty `key` matches any
+	// value (i.e. this reference doesn't narrow down which specific task applies).
+	struct SpecificInfo {
+		SpType type;
+		bool multiple;
+		std::string key;
+	};
+
 	[[nodiscard]] const std::string &Key() const { return key; }
+	[[nodiscard]] bool IsRepeatable() const { return repeatable; }
 	bool Completed() const;
 	void Uncomplete();
+	// Mark this task completed and, if it wasn't already, notify any subscribed events.
+	void MarkCompleted();
 
 	// Tentatively decide whether the restrictions for this task are currently satisfied.
 	// Restrictions on referenced objects that haven't been determined are ignored.
 	std::pair<bool, DescrRef> Eligible() const;
-	// Attempt to carry out this task. Returns whether or not the task succeeded,
-	// and the success or failure message to be printed.
-	std::pair<bool, DescrRef> Execute();
+	// Actually (non-tentatively) check whether this task's restrictions are satisfied right now.
+	// A completed, non-repeatable task always fails this check.
+	std::pair<bool, DescrRef> CheckRestrictions() const;
+	// Run this task's actions. Assumes the caller has already confirmed CheckRestrictions() passes.
+	void RunActions();
+	[[nodiscard]] DescrRef GetCompletionMsg() const { return completionMsg; }
+
+	// For Specific tasks: the key of the General task this one overrides, and the per-reference
+	// constraints that must hold for it to apply. Empty/default for General and System tasks.
+	[[nodiscard]] const std::string &OverridesTask() const { return overridesTask; }
+	[[nodiscard]] const std::vector<SpecificInfo> &GetSpecificRefs() const { return specificRefs; }
+	[[nodiscard]] OverrideType GetOverrideType() const { return overrideType; }
 
 	const std::vector<std::regex> &GetCmdRegexes() const { return commandRegexes; }
 	const std::vector<std::vector<std::string>> &GetGroupCoding() const { return groupNumToRef; }
@@ -154,15 +183,6 @@ private:
 	RestrRef restrictions;
 	std::vector<Action> actions;
 
-	enum class SpType {
-		Object,
-		Text
-	};
-	struct SpecificInfo {
-		SpType type;
-		bool multiple;
-		std::string key;
-	};
 	// Is this a general, specific, or system task?
 	Type type;
 	// For general tasks, the command string, regex transformed string, and set of references.

@@ -57,14 +57,21 @@ std::string GenericAliasFamily(const std::string &family) {
 	if (family == "text") return "ReferencedText";
 	return "";
 }
+
+bool CaseInsensitiveEq(const std::string &a, const std::string &b) {
+	if (a.size() != b.size()) return false;
+	for (size_t i = 0; i < a.size(); i++)
+		if (std::tolower((unsigned char) a[i]) != std::tolower((unsigned char) b[i])) return false;
+	return true;
+}
 }  // anonymous namespace
 
 std::string Game::ApplySynonyms(std::string s) {
-	for (const auto &it: staticData->synonyms) {
-		for (const auto &f: it.second->GetFrom()) {
+	for (const auto &[fst, snd]: staticData->synonyms) {
+		for (const auto &f: snd->GetFrom()) {
 			size_t n;
 			while ((n = s.find(f)) != std::string::npos)
-				s.replace(n, f.size(), it.second->GetReplacement());
+				s.replace(n, f.size(), snd->GetReplacement());
 		}
 	}
 	return s;
@@ -146,9 +153,17 @@ bool Game::CaptureReferences(const std::vector<std::string> &refSpecs, const std
 	return true;
 }
 
-Task *Game::FindMatchingTask(std::pair<bool, DescrRef> &eligible) {
+Task *Game::FindMatchingTask() {
+	// Only used as a fallback under ExecutionPolicy::HighestPrioPassing: the first
+	// failing-with-message match encountered, in case no task ever passes restrictions.
+	Task *fallback = nullptr;
+	std::vector<std::string> fallbackRefTokens;
+	std::unordered_map<std::string, std::string> fallbackRefs;
+
 	for (Task *task : staticData->prioOrderedTasks) {
 		if (task->GetType() != Task::Type::General) continue;
+		// A completed, non-repeatable task is not a candidate at all.
+		if (task->Completed() && !task->IsRepeatable()) continue;
 
 		const auto &regexes = task->GetCmdRegexes();
 		const auto &groupCoding = task->GetGroupCoding();
@@ -162,22 +177,140 @@ Task *Game::FindMatchingTask(std::pair<bool, DescrRef> &eligible) {
 			currentRefs.clear();
 			if (!CaptureReferences(groupCoding[cmdIdx], matches)) continue;
 
-			eligible = task->Eligible();
-			// Choose the first (highest-priority) task that tentatively passes restrictions,
-			// or otherwise fails restrictions but wants to output some text because of it.
-			// Ignore tasks that fail restrictions and have no associated message.
-			if (eligible.first || eligible.second != 0) return task;
+			auto result = task->Eligible();
+			// A task that fails restrictions with no message at all isn't a real candidate
+			// under either policy -- it has nothing to say for itself, so a lower-priority
+			// (higher-numbered) task's command pattern still deserves a shot at matching too.
+			if (!result.first && result.second == 0) continue;
+
+			if (result.first || staticData->executionPolicy == ExecutionPolicy::HighestPrio) {
+				// Either this task passes outright, or (under HighestPrio) it's simply the
+				// first real candidate at all: stop looking, whether it passes or fails.
+				currentMatchedRefTokens = groupCoding[cmdIdx];
+				return task;
+			}
+			// HighestPrioPassing: this candidate fails (but has something to say); keep
+			// scanning for one that passes, remembering the first failing one as a fallback.
+			if (!fallback) {
+				fallback = task;
+				fallbackRefTokens = groupCoding[cmdIdx];
+				fallbackRefs = currentRefs;
+			}
 		}
 	}
-	return nullptr;
+
+	if (fallback) {
+		currentRefs = std::move(fallbackRefs);
+		currentMatchedRefTokens = std::move(fallbackRefTokens);
+	}
+	return fallback;
+}
+
+const std::vector<Task *> &Game::GetSpecificChildren(const std::string &generalKey) const {
+	static const std::vector<Task *> kEmpty;
+	auto it = staticData->specificChildren.find(generalKey);
+	return it == staticData->specificChildren.end() ? kEmpty : it->second;
+}
+
+bool Game::SpecificTaskMatches(const Task *specific, const std::vector<std::string> &refTokens) const {
+	const auto &specifics = specific->GetSpecificRefs();
+	// A Specific task's %ref% constraints are positional, mirroring the general command's own
+	// %ref% tokens; if the counts don't match, this Specific task doesn't apply to the
+	// particular command pattern that was matched (e.g. it targets a differently-shaped
+	// alternate Command line on the same General task).
+	if (specifics.size() != refTokens.size()) return false;
+
+	for (size_t i = 0; i < specifics.size(); i++) {
+		const auto &spec = specifics[i];
+		if (spec.key.empty()) continue;  // wildcard: matches any value for this reference
+
+		auto it = currentRefs.find(refTokens[i]);
+		if (it == currentRefs.end()) return false;
+
+		if (spec.type == Task::SpType::Text) {
+			if (!CaseInsensitiveEq(it->second, spec.key)) return false;
+		} else {
+			const std::string &want = (spec.key == "%Player%" || spec.key == "Player") ? playerKey : spec.key;
+			if (it->second != want) return false;
+		}
+	}
+	return true;
+}
+
+void Game::ExecuteMatchedTask(Task *general) {
+	auto parentResult = general->CheckRestrictions();
+	if (!parentResult.first) {
+		OutputFiltered(parentResult.second != 0 ? GetDescription(parentResult.second)->Build() : "You can't do that right now.\n");
+		return;
+	}
+
+	// A general task's restrictions passed; see whether any of its Specific children apply.
+	// At most one "before/override" child and one "after" child are ever considered -- the
+	// first (highest-priority) one, in each group, whose per-reference constraints match.
+	Task *beforeChild = nullptr;
+	Task *afterChild = nullptr;
+	for (Task *child : GetSpecificChildren(general->Key())) {
+		if (!SpecificTaskMatches(child, currentMatchedRefTokens)) continue;
+		if (child->GetOverrideType().Has(Task::OverrideType::AfterParent)) {
+			if (!afterChild) afterChild = child;
+		} else {
+			if (!beforeChild) beforeChild = child;
+		}
+		if (beforeChild && afterChild) break;
+	}
+
+	bool showParentText = true;
+	bool runParentActions = true;
+	std::string output;
+
+	if (beforeChild) {
+		auto overrideType = beforeChild->GetOverrideType();
+		auto childResult = beforeChild->CheckRestrictions();
+		DescrRef childMsg = 0;
+		if (childResult.first) {
+			beforeChild->RunActions();
+			beforeChild->MarkCompleted();
+			childMsg = beforeChild->GetCompletionMsg();
+		} else if (childResult.second != 0) {
+			// The child failed, but produced restriction-failure text of its own: that takes
+			// precedence over the parent, same as if the child had passed.
+			childMsg = childResult.second;
+		}
+		// A child that neither ran nor produced any message is treated as if it hadn't
+		// matched at all, and the parent proceeds completely normally.
+		if (childResult.first || childResult.second != 0) {
+			if (!overrideType.Has(Task::OverrideType::ParentText)) showParentText = false;
+			if (!overrideType.Has(Task::OverrideType::ParentActions)) runParentActions = false;
+		}
+		if (childMsg != 0)
+			output += GetDescription(childMsg)->Build();
+	}
+
+	general->MarkCompleted();
+	if (runParentActions) general->RunActions();
+	if (showParentText && general->GetCompletionMsg() != 0)
+		output += GetDescription(general->GetCompletionMsg())->Build();
+
+	if (afterChild) {
+		auto childResult = afterChild->CheckRestrictions();
+		if (childResult.first) {
+			afterChild->RunActions();
+			afterChild->MarkCompleted();
+			if (afterChild->GetCompletionMsg() != 0)
+				output += GetDescription(afterChild->GetCompletionMsg())->Build();
+		} else if (childResult.second != 0) {
+			output += GetDescription(childResult.second)->Build();
+		}
+	}
+
+	if (!output.empty())
+		OutputFiltered(output);
 }
 
 void Game::ProcessInput(const std::string &s) {
 	currentCommand = ApplySynonyms(s);
 
-	// TODO: deal with the two execution policies.
-	std::pair<bool, DescrRef> eligible{false, 0};
-	Task *chosenTask = FindMatchingTask(eligible);
+	Task *chosenTask = FindMatchingTask();
 
 	if (!chosenTask) {
 		// No match, attempt to read this as a system command ...
@@ -187,23 +320,7 @@ void Game::ProcessInput(const std::string &s) {
 		return;
 	}
 
-	// output failure message if restrictions failed
-	if (!eligible.first) {
-		if (eligible.second != 0) {
-			OutputFiltered(GetDescription(eligible.second)->Build());
-		} else {
-			OutputFiltered("You can't do that right now.\n");
-		}
-		return;
-	}
-
-	auto result = chosenTask->Execute();
-	if (!result.first) {
-		OutputFiltered(result.second != 0 ? GetDescription(result.second)->Build() : "You can't do that right now.\n");
-		return;
-	}
-	if (result.second != 0)
-		OutputFiltered(GetDescription(result.second)->Build());
+	ExecuteMatchedTask(chosenTask);
 }
 
 bool Game::AttemptMatchSystemCommand() {

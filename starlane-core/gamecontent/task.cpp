@@ -255,12 +255,16 @@ Task *Task::CreateFromXML(Game *g, const pugi::xml_node &xmlNode) {
 			if (std::count_if(spcNode.begin(), spcNode.end(), [](const auto &item) {
 				return STREQ(item.name(), "Key");
 			}) > 1) throw std::runtime_error(std::string("In task ") + result->key + ": specific tasks with multiple explicitly-named objects in the same reference are currently unsupported.");
+			result->specificRefs.push_back(std::move(spi));
 		}
 		result->overrideType = ParseOverrideType(xmlNode.child_value("SpecificOverrideType"));
 	} else if (result->type == Type::General) {
 		std::regex translateRefs("%.+?%", std::regex_constants::icase);
-		// result->commandStrs = Util::SplitLines(xmlNode.child_value("Command"));
-		auto commandStrs = Util::SplitLines(xmlNode.child_value("Command"));
+		std::vector<std::string> commandStrs;
+		for (const auto &cmdNode: xmlNode.children("Command")) {
+			auto lines = Util::SplitLines(cmdNode.child_value());
+			commandStrs.insert(commandStrs.end(), lines.begin(), lines.end());
+		}
 		result->commandRegexes.reserve(commandStrs.size());
 		for (const auto &cmd: commandStrs) {
 			auto transformed = ProcessBlock(cmd);
@@ -546,12 +550,17 @@ std::pair<bool, DescrRef> Task::Eligible() const {
 	return Game::Get()->GetRestriction(restrictions)->PassRestrictionBlock(true);
 }
 
-std::pair<bool, DescrRef> Task::Execute() {
-	auto elig = Game::Get()->GetRestriction(restrictions)->PassRestrictionBlock();
-	if (!elig.first) return elig;
+std::pair<bool, DescrRef> Task::CheckRestrictions() const {
+	// A completed, non-repeatable task can never run again.
+	if (Completed() && !repeatable) return { false, 0 };
+	if (restrictions == 0)  // i.e., no restrictions set
+		return { true, 0 };
+	return Game::Get()->GetRestriction(restrictions)->PassRestrictionBlock();
+}
+
+void Task::RunActions() {
 	for (const auto &act : actions)
 		act.Perform();
-	return { true, completionMsg };
 }
 
 void Task::RegisterNotification(const std::string &evtKey, Util::Control::Condition cond) {
@@ -569,6 +578,13 @@ void Task::Uncomplete() {
 	if (Completed()) {
 		SendUncompleteNotifications();
 		Game::Get()->SetTaskCompleted(key, false);
+	}
+}
+
+void Task::MarkCompleted() {
+	if (!Completed()) {
+		Game::Get()->SetTaskCompleted(key, true);
+		SendCompleteNotifications();
 	}
 }
 

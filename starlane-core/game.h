@@ -29,7 +29,10 @@ enum class ReferralPerson {
 };
 
 enum class ExecutionPolicy {
+	/* Execute the highest priority task that matches command input, whether it passes or not. */
 	HighestPrio,
+	/* Execute the highest priority task matching command input that passes restrictions. If
+	 * none are found, execute the highest priority task matching command input that fails restrictions. */
 	HighestPrioPassing
 };
 
@@ -65,6 +68,9 @@ class GameStatic {
 
 	// Tasks in priority order
 	std::set<Task *, TaskPrioLess> prioOrderedTasks;
+	// Specific tasks that override a given General task (by that General task's key), in
+	// priority order. Populated once at load time from each Specific task's `overridesTask`.
+	std::unordered_map<std::string, std::vector<Task *>> specificChildren;
 
 	friend class Game;
 public:
@@ -195,11 +201,14 @@ private:
 
 	// Command parser related internals
 	std::string ApplySynonyms(std::string s);
-	// Find the general task (if any) whose command matches currentCommand and which is either
-	// eligible to run or eligible to fail with a message, trying tasks in priority order.
-	// On return, `eligible` holds that task's (tentative) eligibility result, and currentRefs
-	// holds the references captured from the matched command.
-	Task *FindMatchingTask(std::pair<bool, DescrRef> &eligible);
+	// Find the general task (if any) whose command matches currentCommand, honoring
+	// staticData->executionPolicy: under HighestPrio, the first (in priority order) task whose
+	// command syntax matches wins outright, whether or not it goes on to pass restrictions;
+	// under HighestPrioPassing, scanning continues past non-passing matches in search of one
+	// that passes, falling back to the first non-passing match if none ever does.
+	// On return, currentRefs and currentMatchedRefTokens hold the references captured from the
+	// matched command (needed to test that task's Specific children for applicability).
+	Task *FindMatchingTask();
 	// Resolve a single reference's raw matched text (e.g. "the sword") to the keys of all
 	// currently known game objects of the given family ("object"/"character"/etc.) that it
 	// could refer to. Matches in the narrowest non-empty scope win: objects currently
@@ -210,6 +219,14 @@ private:
 	// Returns false if some reference could not be resolved to anything (e.g. an %object%
 	// referring to an object that doesn't exist), meaning the task cannot apply after all.
 	bool CaptureReferences(const std::vector<std::string> &refSpecs, const std::smatch &matches);
+	// The Specific tasks (if any) that override the General task with this key, in priority order.
+	const std::vector<Task *> &GetSpecificChildren(const std::string &generalKey) const;
+	// Whether a Specific task's per-reference constraints are satisfied by the references
+	// currently captured in currentRefs (as named by refTokens, positionally).
+	bool SpecificTaskMatches(const Task *specific, const std::vector<std::string> &refTokens) const;
+	// Run a matched General task to completion, applying any overriding/extending Specific
+	// tasks per their OverrideType, and output whatever text results.
+	void ExecuteMatchedTask(Task *general);
 	bool AttemptMatchSystemCommand();
 	void OutputFiltered(std::string s) const;
 
@@ -233,6 +250,10 @@ private:
 	// Never needs to be retained for UNDO/SAVE.
 	std::unordered_map<std::string, std::string> currentRefs;
 	std::string currentCommand;
+	// The %ref% tokens (e.g. "%object1%", "%direction%"), in order, captured into currentRefs
+	// by the most recent successful match in FindMatchingTask -- needed to test the matched
+	// task's Specific children against currentRefs positionally.
+	std::vector<std::string> currentMatchedRefTokens;
 
 	// used at load-time to prevent duplicating expressions too much
 	std::unordered_map<std::string, ExprRef> knownExprs;

@@ -66,6 +66,7 @@ Game *Game::LoadFromXML(const std::string &gameTxt) {
 		if ((n = gameNode.child("TaskExecution")).type() != pugi::node_null &&
 				STREQ(n.child_value(), "HighestPriorityPassingTask"))
 			rStatic->executionPolicy = ExecutionPolicy::HighestPrioPassing;
+		// TODO: games with versions <5.0.0.22 need to use the other one by default.
 	}
 
 	LOAD_STAGE("Loading Properties");
@@ -90,6 +91,12 @@ Game *Game::LoadFromXML(const std::string &gameTxt) {
 	for (const auto &it: gameNode.children("Task")) {
 		auto t = result->CreateTaskFromXML(it);
 		rStatic->prioOrderedTasks.insert(t);
+	}
+	// Index Specific tasks by the General task they override, in priority order (which
+	// prioOrderedTasks already iterates in, so each per-parent list comes out sorted for free).
+	for (Task *t : rStatic->prioOrderedTasks) {
+		if (t->GetType() == Task::Type::Specific && !t->OverridesTask().empty())
+			rStatic->specificChildren[t->OverridesTask()].push_back(t);
 	}
 
 	LOAD_STAGE("Loading Events");
