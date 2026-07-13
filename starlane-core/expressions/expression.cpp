@@ -302,8 +302,7 @@ Expr::Value Expression::EvalAnyNode(const ast_node_tag *node) const {
 	case AST_NODE_TYPE_VARIABLE: {
 		std::string nt(GetNodeText(node));
 		if (currentContext) {
-			auto f = currentContext->find(nt);
-			if (f != currentContext->end())
+			if (auto f = currentContext->find(nt); f != currentContext->end())
 				return f->second;
 		}
 		if (Util::IsReference(nt)) {
@@ -311,7 +310,7 @@ Expr::Value Expression::EvalAnyNode(const ast_node_tag *node) const {
 		} else if (Util::IsReference('%' + nt + '%')) {
 			return Game::Get()->GetReference('%' + nt + '%');
 		}
-		auto theVar = Game::Get()->GetVariable(nt);
+		auto theVar = Game::Get()->GetVarByName(nt);
 		auto theType = theVar->GetType();
 		if (theType == Variable::Type::String)
 			return theVar->GetValue<std::string>();
