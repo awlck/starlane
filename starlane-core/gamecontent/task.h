@@ -184,7 +184,10 @@ private:
 
 struct TaskPrioLess {
 	bool operator() (const Task *a, const Task *b) const {
-		return a->priority < b->priority;
+		// Tie-break equal priorities by key: a std::set would otherwise consider two
+		// distinct tasks with the same priority duplicates and silently drop one.
+		if (a->priority != b->priority) return a->priority < b->priority;
+		return a->key < b->key;
 	};
 };
 

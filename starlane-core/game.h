@@ -195,8 +195,21 @@ private:
 
 	// Command parser related internals
 	std::string ApplySynonyms(std::string s);
-	std::pair<bool, DescrRef> SearchTaskFrom(typename decltype(GameStatic::prioOrderedTasks)::const_iterator &it) const;
-	std::vector<std::string> MatchListForReference(const std::string &from, const std::string &refType) const;
+	// Find the general task (if any) whose command matches currentCommand and which is either
+	// eligible to run or eligible to fail with a message, trying tasks in priority order.
+	// On return, `eligible` holds that task's (tentative) eligibility result, and currentRefs
+	// holds the references captured from the matched command.
+	Task *FindMatchingTask(std::pair<bool, DescrRef> &eligible);
+	// Resolve a single reference's raw matched text (e.g. "the sword") to the keys of all
+	// currently known game objects of the given family ("object"/"character"/etc.) that it
+	// could refer to. Matches in the narrowest non-empty scope win: objects currently
+	// visible to the player beat objects merely seen before, which beat everything else.
+	std::vector<std::string> MatchListForReference(const std::string &from, const std::string &refFamily) const;
+	// Populate currentRefs from a command match, given the task's reference names for that
+	// particular command (e.g. "%direction%", "%object1%") and the corresponding capture groups.
+	// Returns false if some reference could not be resolved to anything (e.g. an %object%
+	// referring to an object that doesn't exist), meaning the task cannot apply after all.
+	bool CaptureReferences(const std::vector<std::string> &refSpecs, const std::smatch &matches);
 	bool AttemptMatchSystemCommand();
 	void OutputFiltered(std::string s) const;
 

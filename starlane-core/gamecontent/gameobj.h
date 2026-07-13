@@ -91,8 +91,9 @@ public:
 	// Gets the relationship this object has to its parent.
 	HoldingType GetParentRelation() const { return relation; }
 
-	// Move this object so that it has this parent and relation
-	void MoveTo(const std::string &newParent, HoldingType newRelation);
+	// Move this object so that it has this parent and relation.
+	// Any character that can see the object at its new position will note it as "seen".
+	virtual void MoveTo(const std::string &newParent, HoldingType newRelation);
 
 	// Set the `dynamic` state, because of course you can change that through property assignments.
 	void SetDynamic(bool dynamic) { this->dynamic = dynamic; }

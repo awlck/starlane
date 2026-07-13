@@ -29,6 +29,7 @@ Character *Character::CreateFromXML(const pugi::xml_node &xmlNode) {
 	// TODO: Walks
     // TODO: Conversation
 
+	result->MakeMatchExpr();
 	return result;
 }
 
@@ -83,6 +84,22 @@ bool Character::CanSee(const std::string &key) const {
 
 GameObj *Character::Clone() const {
 	return new Character(*this);
+}
+
+void Character::MarkVisibleAsSeen() {
+	if (GetVisbilityCeiling().empty()) return;  // hidden characters see nothing
+	MarkSeen(key);  // we can always see ourselves
+	for (const auto &o: Game::Get()->GetAllObjects()) {
+		// CanSee also covers the location itself: when we stand in a location,
+		// that location is our visibility ceiling.
+		if (CanSee(o.first))
+			MarkSeen(o.first);
+	}
+}
+
+void Character::MoveTo(const std::string &newParent, HoldingType newRelation) {
+	GameObj::MoveTo(newParent, newRelation);
+	MarkVisibleAsSeen();
 }
 
 void Character::MakePosture(const std::string &newParent, const char *p) {

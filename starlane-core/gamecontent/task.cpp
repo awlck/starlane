@@ -1,6 +1,7 @@
 #include "task.h"
 
 #include <algorithm>
+#include <cctype>
 #include <iostream>
 
 #include <pugixml.hpp>
@@ -19,6 +20,24 @@
 namespace Starlane {
 
 namespace {
+// Returns the regex fragment (a single capturing group) that a "%name%" / "%name1%".."%name5%"
+// placeholder in a task's Command text should compile to. %direction% (and its numbered variants)
+// is restricted to actual direction words/abbreviations; everything else (objects, characters,
+// text, locations, items) is a generic non-greedy capture that gets resolved to a specific
+// game object -- or kept as raw text -- once the command has actually matched.
+std::string RegexFragmentForRef(const std::string &token) {
+	std::string family = token.substr(1, token.size() - 2);  // strip surrounding '%'
+	if (!family.empty() && std::isdigit((unsigned char) family.back()))
+		family.pop_back();  // strip trailing 1-5, if any
+	for (auto &c : family) c = (char) std::tolower((unsigned char) c);
+
+	if (family == "direction")
+		return "(" + Util::DirectionsRegexAlternation() + ")";
+	if (family == "number")
+		return "(-?[0-9]+)";
+	return "(.+?)";
+}
+
 bool MaybeIsExpr(const std::string &s) {
 	size_t pos = 0;
 	for (; pos < s.length(); ++pos) {
@@ -255,8 +274,18 @@ Task *Task::CreateFromXML(Game *g, const pugi::xml_node &xmlNode) {
 				const std::smatch &match = *it;
 				matches.emplace_back(match.str());
 			}
-			if (!matches.empty())
-				transformed = std::regex_replace(transformed, translateRefs, "(.+)");
+			if (!matches.empty()) {
+				std::string rebuilt;
+				rebuilt.reserve(transformed.size());
+				size_t lastEnd = 0;
+				for (auto it = itBegin; it != itEnd; it++) {
+					rebuilt.append(transformed, lastEnd, it->position() - lastEnd);
+					rebuilt += RegexFragmentForRef(it->str());
+					lastEnd = it->position() + it->length();
+				}
+				rebuilt.append(transformed, lastEnd, transformed.size() - lastEnd);
+				transformed = std::move(rebuilt);
+			}
 			result->commandRegexes.push_back(std::regex(transformed, std::regex_constants::icase));
 			result->groupNumToRef.emplace_back(std::move(matches));
 		}

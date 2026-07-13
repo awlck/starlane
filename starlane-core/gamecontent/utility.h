@@ -66,15 +66,33 @@ private:
 };
 
 
+// Determine whether a word is the literal name of a command reference, as it appears
+// in a task's Command pattern: "%object%", "%object2%", "%text%", and so on. Captured
+// references are stored under exactly this spelling, so restrictions and description
+// text can refer to them by it as well.
+static inline bool IsCommandRefName(const std::string &o) {
+	if (o.size() < 3 || o.front() != '%' || o.back() != '%') return false;
+	std::string family = o.substr(1, o.size() - 2);
+	if (family.back() >= '0' && family.back() <= '9') {
+		// only the suffixes 1-5 are valid for disambiguating multiple references
+		if (family.back() < '1' || family.back() > '5') return false;
+		family.pop_back();
+	}
+	return family == "object" || family == "objects" || family == "character" ||
+		family == "direction" || family == "location" || family == "item" ||
+		family == "number" || family == "text";
+}
+
 // Determine whether a word is a reference. I'm not sure why five was chosen as the limit
 // for each type of reference, but here we are.
 // (We can optimize this some more later by using a map or strcmp if it turns out to be necessary.)
 static inline bool IsReference(const std::string &o) {
+	if (IsCommandRefName(o)) return true;
 	// put the most likely ones at the top
 	return
 		o == "%Player%" || o == "ReferencedObject" || o == "ReferencedObjects" ||
 		o == "ReferencedDirection" || o == "ReferencedCharacter" || o == "ReferencedLocation" ||
-		o == "ReferencedItem" || o == "ReferencedNumber" ||
+		o == "ReferencedItem" || o == "ReferencedNumber" || o == "ReferencedText" ||
 		// and now the whole deluge of numbered possibilities
 		o == "ReferencedObject1" || o == "ReferencedObject2" || o == "ReferencedObject3" ||
 		o == "ReferencedObject4" || o == "ReferencedObject5" || o == "%direction%" ||
@@ -87,7 +105,9 @@ static inline bool IsReference(const std::string &o) {
 		o == "ReferencedItem1" || o == "ReferencedItem2" || o == "ReferencedItem3" ||
 		o == "ReferencedItem4" || o == "ReferencedItem5" ||
 		o == "ReferencedNumber1" || o == "ReferencedNumber2" || o == "ReferencedNumber3" ||
-		o == "ReferencedNumber4" || o == "ReferencedNumber5"
+		o == "ReferencedNumber4" || o == "ReferencedNumber5" ||
+		o == "ReferencedText1" || o == "ReferencedText2" || o == "ReferencedText3" ||
+		o == "ReferencedText4" || o == "ReferencedText5"
 		;
 }
 
@@ -99,6 +119,13 @@ static inline bool IsList(const std::string &o) {
 
 // Split a string with the specified delimiter:
 std::vector<std::string> SplitString(const std::string &s, const std::string &delimRegex);
+
+// A regex alternation (e.g. "north|n|northeast|ne|...") of every direction word and
+// abbreviation ADRIFT recognizes, suitable for embedding in a capturing group.
+const std::string &DirectionsRegexAlternation();
+// Canonicalize a matched direction word/abbreviation (e.g. "n", "North-East") to the form
+// used as a Location's exit key (e.g. "North", "NorthEast"). Returns "" if not recognized.
+std::string CanonicalizeDirection(const std::string &raw);
 
 // Take an ADRIFT-style textual list (e.g., "foo|bar|baz") and turn it into a vector of strings.
 inline std::vector<std::string> SplitList(const std::string &lst) { return SplitString(lst, "\\|"); }

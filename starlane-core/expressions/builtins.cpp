@@ -134,10 +134,12 @@ std::string LanguageNumber(int64_t num, bool f = false) {
 
 		switch (transform) {
 		case ListTransformType::IndefName:
-			result += Game::Get()->GetObject(entries[i])->GetDisplayName();
-			break;
 		case ListTransformType::DefName:
-			result += Game::Get()->GetObject(entries[i])->GetDisplayName(true);
+			result += Game::Get()->GetObject(entries[i])->GetDisplayName(transform == ListTransformType::DefName);
+			// Displaying a thing's name to the player means the player has now seen it.
+			// (This is how, e.g., the contents of a just-opened container become "seen".)
+			if (auto *pc = dynamic_cast<Character *>(Game::Get()->GetPlayerChar()))
+				pc->MarkSeen(entries[i]);
 			break;
 		case ListTransformType::None:
 			result += entries[i];

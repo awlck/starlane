@@ -48,6 +48,7 @@ GameObj *GameObj::CreateFromXML(const pugi::xml_node &xmlNode) {
         result->ErasePropValue(nextProp);
     }
 
+	result->MakeMatchExpr();
 	return result;
 }
 
@@ -101,6 +102,13 @@ const std::string &GameObj::GetVisbilityCeiling() const {
 void GameObj::MoveTo(const std::string &newParent, HoldingType newRelation) {
 	parent = newParent == "Hidden" ? "" : newParent;
 	relation = newRelation;
+
+	// Anyone watching this object arrive at its new position has now seen it.
+	for (const auto &o: Game::Get()->GetAllObjects()) {
+		auto *c = dynamic_cast<Character *>(o.second);
+		if (c && c->CanSee(key))
+			c->MarkSeen(key);
+	}
 }
 
 void GameObj::MakeCommonValues(const pugi::xml_node &xmlNode) {
@@ -214,6 +222,11 @@ const Group *GameObj::GetGroupWithProp(const std::string &k) const {
 }
 
 std::string GameObj::GetStrProp(const std::string &k) const {
+	// This property is consumed into the `dynamic` flag at load time, but restrictions
+	// and expressions may still consult it afterwards; synthesize it from the flag.
+	// (During loading itself the real property still exists and must win, since the
+	//  flag has not been derived from it yet.)
+	if (k == "StaticOrDynamic" && !HasProp(k)) return dynamic ? "Dynamic" : "Static";
 	const Group *grp = GetGroupWithProp(k);
 	if (grp != nullptr)
 		return grp->GetStrProp(k);

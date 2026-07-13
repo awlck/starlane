@@ -105,6 +105,10 @@ private:
 	private:
 		// Whether the underlying condidion is fulfilled, not accounting for the `positive` flag.
 		bool PassImpl(DescrRef *out, bool ignoreUnsetRefs) const;
+		// Whether an object condition (the TargetType::Object cases) is fulfilled for these
+		// operands. Expands the standard library's "AnyObject"/"AnyCharacter" quantifiers
+		// existentially: the condition passes if any object of that kind fulfills it.
+		bool PassObjectCond(const std::string &lhs, const std::string &rhs, DescrRef *out) const;
 	};
 
 	std::vector<Single> restrs;

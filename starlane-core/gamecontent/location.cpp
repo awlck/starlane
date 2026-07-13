@@ -26,6 +26,7 @@ Location *Location::CreateFromXML(const pugi::xml_node &xmlNode) {
 		result->exits[direction] = { destination, restrs };
 	}
 
+	result->MakeMatchExpr();
 	return result;
 }
 

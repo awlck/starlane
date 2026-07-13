@@ -36,6 +36,14 @@ public:
 	bool CanSee(const std::string &key) const;
 	// Whether this character has ever seen the object in question.
 	bool HasSeen(const std::string &key) const { return seenStorage.count(key) > 0; }
+	// Note that this character has (at some point) seen the object in question.
+	void MarkSeen(const std::string &key) { seenStorage.insert(key); }
+	// Mark everything this character can currently see (including its location and
+	// itself) as seen. Called whenever the character arrives somewhere new.
+	void MarkVisibleAsSeen();
+
+	// Moving a character around additionally marks everything at the new position as seen.
+	void MoveTo(const std::string &newParent, HoldingType newRelation) override;
 
 	// Characters have their own set of properties storing their location. Brilliant!
 	static std::pair<HoldingType, std::string> ParseHoldingType(const char *txt);

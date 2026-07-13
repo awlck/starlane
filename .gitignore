@@ -1,5 +1,9 @@
 .vs/
 out/
 cmake-build-*/
+cmake-xcode/
+build/
+build-*/
 .idea/
+testdata/
 .DS_Store

@@ -13,6 +13,7 @@
 #include "../valueparsers.h"
 #include "character.h"
 #include "description.h"
+#include "location.h"
 #include "property.h"
 #include "utility.h"
 #include "variable.h"
@@ -79,17 +80,13 @@ std::string NextToken(const char **const str) {
 	// if the first character of the string pointed to is '\0'
 	if (!**str) return "";
 
-	size_t i = 0;
-	std::string result;
 	// skip multiple spaces
-	while (**str && isspace(**str)) (*str)++;
-	// determine the number of consecutive characters that aren't spaces
-	while ((*str)[i] && !isspace((*str)[i++])) ;
-	// add those characters to the result
-	result.append(*str, i-1);
-	// advance the input pointer
-	(*str) += i-1;
-	return result;
+	while (**str && isspace((unsigned char) **str)) (*str)++;
+	const char *tokenStart = *str;
+	// advance past all consecutive characters that aren't spaces (this correctly
+	// stops at either a space or the string's terminating '\0')
+	while (**str && !isspace((unsigned char) **str)) (*str)++;
+	return std::string(tokenStart, *str);
 }
 
 constexpr bool ConditionHasRHS(Restriction::ConditionType t) {
@@ -120,6 +117,11 @@ Restriction *Restriction::CreateFromXML(const pugi::xml_node &xmlNode) {
 		result->restrs.emplace_back(std::move(s));
 	}
 	std::string sequence(xmlNode.child_value("BracketSequence"));
+	// ADRIFT abbreviates doubled brackets in sequences: '[' stands for "((" and ']' for "))".
+	for (size_t i = 0; i < sequence.size(); i++) {
+		if (sequence[i] == '[') sequence.replace(i, 1, "((");
+		else if (sequence[i] == ']') sequence.replace(i, 1, "))");
+	}
 	TransformRestrictionSequence(sequence);
 	result->sequence = sequence;
 	return result;
@@ -132,7 +134,9 @@ std::pair<bool, DescrRef> Restriction::PassRestrictionBlock(bool ignoreUnsetRefs
 }
 
 std::pair<bool, DescrRef> Restriction::PassRestrictionBlock(size_t &tidx, size_t &ridx, size_t brackets, bool ignoreUnsetRefs) const {
-	std::pair<bool, DescrRef> state;
+	// An empty sequence means there are no restrictions to check (e.g. a task/description with
+	// no <Restrictions> at all), which should trivially pass rather than fail.
+	std::pair<bool, DescrRef> state{true, 0};
 	while (tidx < sequence.size()) {
 		if (sequence[tidx] == '(') {
 			state = PassRestrictionBlock(++tidx, ridx, brackets + 1, ignoreUnsetRefs);
@@ -176,11 +180,13 @@ std::pair<bool, DescrRef> Restriction::PassRestrictionBlock(size_t &tidx, size_t
 
 bool Restriction::Single::PassImpl(DescrRef *out, bool ignoreUnsetRefs) const {
 	// Yes, this shadows the fields `lhs` and `rhs`. That's sort of the point.
+	// (The "unset reference" skips must only apply to actual references: e.g. property
+	//  restrictions always leave `rhs` empty, but still need to be evaluated.)
 	const std::string &lhs = lhsIsRef ? Game::Get()->GetReference(this->lhs) : this->lhs;
-	if (ignoreUnsetRefs && lhs.empty())
+	if (ignoreUnsetRefs && lhsIsRef && lhs.empty())
 		return true;
 	const std::string &rhs = rhsIsRef ? Game::Get()->GetReference(this->rhs) : this->rhs;
-	if (ignoreUnsetRefs && ConditionHasRHS(cond) && rhs.empty())
+	if (ignoreUnsetRefs && rhsIsRef && ConditionHasRHS(cond) && rhs.empty())
 		return true;
 
 	switch (targetType) {
@@ -201,12 +207,28 @@ bool Restriction::Single::PassImpl(DescrRef *out, bool ignoreUnsetRefs) const {
 		std::string strVal;
 		bool isInt = false;
 		if (targetType == TargetType::Variable) {
-			const Variable *theVar = Game::Get()->GetVariable(lhs);
-			if (theVar->GetType() <= Variable::Type::IntArray) {
-				intVal = theVar->GetValue<int64_t>(varIdx);
-				isInt = true;
+			if (lhsIsRef) {
+				// The left-hand side doesn't name a variable, but is a command reference
+				// (e.g. "ReferencedText"/"ReferencedNumber") whose captured value has
+				// already been substituted into `lhs` above.
+				bool numeric = this->lhs.compare(0, sizeof("ReferencedNumber") - 1, "ReferencedNumber") == 0
+					|| this->lhs.compare(0, sizeof("%number") - 1, "%number") == 0;
+				if (numeric) {
+					intVal = ParseInt(lhs.c_str());
+					isInt = true;
+				} else {
+					strVal = lhs;
+				}
 			} else {
-				strVal = theVar->GetValue<std::string>(varIdx);
+				const Variable *theVar = Game::Get()->GetVariable(lhs);
+				if (!theVar)
+					throw std::runtime_error("Restriction references unknown variable: " + lhs);
+				if (theVar->GetType() <= Variable::Type::IntArray) {
+					intVal = theVar->GetValue<int64_t>(varIdx);
+					isInt = true;
+				} else {
+					strVal = theVar->GetValue<std::string>(varIdx);
+				}
 			}
 		} else {  // Property
 			const Property *meta = Game::Get()->GetPropMeta(prop);
@@ -262,9 +284,31 @@ bool Restriction::Single::PassImpl(DescrRef *out, bool ignoreUnsetRefs) const {
 		throw std::runtime_error("Unknown restriction type while evaluating restriction.");
 	}
 
+	return PassObjectCond(lhs, rhs, out);
+}
+
+bool Restriction::Single::PassObjectCond(const std::string &lhs, const std::string &rhs, DescrRef *out) const {
 	Game *g = Game::Get();
+
+	// The standard library quantifies some conditions over "AnyObject" or "AnyCharacter"
+	// rather than naming a specific thing. Expand these existentially: the condition
+	// passes if some object of the requested kind fulfills it. (For a `MustNot`
+	// restriction this means no such object may fulfill it, since the negation
+	// happens in Pass(), outside of us.)
+	for (const std::string *side: { &lhs, &rhs }) {
+		if (*side != "AnyObject" && *side != "AnyCharacter") continue;
+		bool wantChar = (*side == "AnyCharacter");
+		for (const auto &o: g->GetAllObjects()) {
+			if (dynamic_cast<Location *>(o.second)) continue;
+			if ((dynamic_cast<Character *>(o.second) != nullptr) != wantChar) continue;
+			bool pass = (side == &lhs) ? PassObjectCond(o.first, rhs, out)
+			                           : PassObjectCond(lhs, o.first, out);
+			if (pass) return true;
+		}
+		return false;
+	}
+
 	// And now for all the various restrictions on objects...
-	// TODO: handle all the various 'any' cases.
 	switch (cond) {
 	case ConditionType::EqualTo:
 		return lhs == rhs;
@@ -543,7 +587,7 @@ void Restriction::Single::Translate() {
 		cond = ConditionType::PartOf;
 	} else if (tok == "BeWithinLocationGroup") {
 		cond = ConditionType::WithinGroup;
-	} else if (tok == "BeComplet") {
+	} else if (tok == "BeComplete" || tok == "BeCompleted") {
 		cond = ConditionType::Complete;
 	} else if (targetType == TargetType::Property && Game::Get()->GetPropMeta(prop)->Type() == Property::ValueType::Object) {
 		// Restrictions on object-valued properties are stored as "prop lhs Must/MustNot rhs", implying "must/must not be equal"

@@ -7,6 +7,7 @@
 #include "../game.h"
 #include "../valueparsers.h"
 #include "restriction.h"
+#include "utility.h"
 
 // plain text is positive, expressions are negative:
 #define IS_EXPR(x) ((x) < 0)
@@ -271,7 +272,8 @@ ResolveText_FakeTailcall:
 				auto vname = std::string(theText.substr(beginningOfFunc + 1, pos - beginningOfFunc - 1));
 				// When there aren't any brackets, the name between the percentage signs must be a
 				// known variable or built-in function.
-				if (!Game::Get()->VarOfNameExists(vname) && vname != "AloneWithChar" && vname != "ConvCharacter" && vname != "Player" && vname != "CharacterName") {
+				if (!Game::Get()->VarOfNameExists(vname) && vname != "AloneWithChar" && vname != "ConvCharacter" && vname != "Player" && vname != "CharacterName"
+						&& !Util::IsCommandRefName('%' + vname + '%')) {
 					// no known name: just some gibberish and not a function/variable after all
 					ResolveExpressions(theText.substr(0, pos+1));
 					//return ResolveText(theText.substr(pos+1));

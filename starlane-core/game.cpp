@@ -3,6 +3,7 @@
 #include <algorithm>
 
 #include "starlane-core.h"
+#include "gamecontent/character.h"
 #include "gamecontent/event.h"
 #include "expression.h"
 #include "gamecontent/gameobj.h"
@@ -148,6 +149,11 @@ void Game::Begin() {
 	for (const auto &it : events) {
 		if (it.second->GetStartType() == Event::StartType::Immediately)
 			it.second->Start();
+	}
+	// Every character has "seen" their initial surroundings.
+	for (const auto &it : objects) {
+		if (auto *c = dynamic_cast<Character *>(it.second))
+			c->MarkVisibleAsSeen();
 	}
 	gameHasBegun = true;
 	if (staticData->gameIntro != 0)

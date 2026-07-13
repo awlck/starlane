@@ -21,4 +21,8 @@ if(SL_BUILD_TOOLS)
 	target_link_libraries(sltools sl-mapper)
 	target_link_libraries(sltools starlane-core)
 	target_include_directories(sltools PRIVATE ../starlane-core)
+
+	add_executable(sl-dumptaf "dumptaf.cpp")
+	target_link_libraries(sl-dumptaf starlane-core)
+	target_include_directories(sl-dumptaf PRIVATE ../starlane-core)
 endif()
