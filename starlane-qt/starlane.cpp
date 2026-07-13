@@ -35,18 +35,24 @@ std::string StrToSentenceCase(const std::string &s) {  // whatevs
 }
 
 void *CreateSaveFile() {
-	auto result = QFileDialog::getSaveFileName(theWin, "Select save file location", QString(), "Starlane Save File (*.sls)");
+	const auto result = QFileDialog::getSaveFileName(theWin, "Select save file location", QString(), "Starlane Save File (*.sls)");
 	if (result.isEmpty()) return nullptr;
 	auto file = new QFile(result);
-	file->open(QIODevice::WriteOnly);
+	if (!file->open(QIODevice::WriteOnly)) {
+		delete file;
+		return nullptr;
+	}
 	return file;
 }
 
 void *OpenSaveFile() {
-	auto result = QFileDialog::getOpenFileName(theWin, "Select a save file", QString(), "Starlane Save File (*.sls)");
+	const auto result = QFileDialog::getOpenFileName(theWin, "Select a save file", QString(), "Starlane Save File (*.sls)");
 	if (result.isEmpty()) return nullptr;
 	auto file = new QFile(result);
-	file->open(QIODevice::ReadOnly);
+	if (!file->open(QIODevice::ReadOnly)) {
+		delete file;
+		return nullptr;
+	}
 	return file;
 }
 
