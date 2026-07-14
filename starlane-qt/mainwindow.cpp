@@ -24,12 +24,17 @@ MainWindow::MainWindow() : QMainWindow(nullptr) {
 
 void MainWindow::OutputText(const char *txt) {
 	output->moveCursor(QTextCursor::End, QTextCursor::MoveAnchor);
-	QString theText = QString(txt).replace('\n', "<br>").replace("<center>", "<div style=\"text-align: center;\">", Qt::CaseInsensitive).replace("</center>", "</div>", Qt::CaseInsensitive);
+	QString theText = QString(txt).replace('\n', "<br>")
+	                                 .replace("<center>", "<div style=\"text-align: center;\">", Qt::CaseInsensitive)
+	                                 .replace("</center>", "</div>", Qt::CaseInsensitive)
+	                                 .replace("<centre>", "<div style=\"text-align: center;\">", Qt::CaseInsensitive)
+	                                 .replace("</centre>", "</div>", Qt::CaseInsensitive);
 	output->insertHtml(theText);
+	output->ensureCursorVisible();
 }
 
 void MainWindow::InputReturnPressed() {
-	output->insertHtml(QStringLiteral("<font color=red>> ") + input->text() + QStringLiteral("</font>\n"));
+	output->insertHtml(QStringLiteral("<br><font color=red>> ") + input->text() + QStringLiteral("</font><br>"));
 	std::string cmd(input->text().toStdString());
 	input->clear();
 	Starlane::ProcessInput(cmd);
