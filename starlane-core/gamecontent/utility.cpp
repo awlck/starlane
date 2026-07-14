@@ -1,6 +1,5 @@
 #include "utility.h"
 
-#include <cctype>
 #include <regex>
 
 // see: https://stackoverflow.com/a/9437426

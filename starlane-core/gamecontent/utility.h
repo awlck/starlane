@@ -4,8 +4,9 @@
 #define SLC_UTILITY_H
 
 #include <string>
-#include "../random.h"
 #include <vector>
+
+#include "../random.h"
 
 namespace Starlane::Util {
 
@@ -40,7 +41,7 @@ struct Range {
 	// Proper ranges with an upper and lower bound.
 	Range(uint32_t min_, uint32_t max_) : min(min_), max(max_), value(min_ == max_ ? min : (uint32_t) -1) {}
 	// Parse a range value from a string like "1 to 10"
-	Range(const char *txt);
+	explicit Range(const char *txt);
 
 	uint32_t Value() {
 		if (value != (uint32_t) -1)
@@ -54,7 +55,7 @@ struct Range {
 			value = (uint32_t) -1;
 	}
 
-	// Non-desctructively get the current value, for the purpose of save-games.
+	// Non-destructively get the current value, for the purpose of save-games.
 	uint32_t CurrentState() const { return value; }
 	// ... and to restore it:
 	void RestoreState(uint32_t val) { value = val; }
@@ -133,18 +134,15 @@ inline std::vector<std::string> SplitList(const std::string &lst) { return Split
 // and the same for splitting a string at each newline:
 inline std::vector<std::string> SplitLines(const std::string &str) { return SplitString(str, "\n"); }
 
-inline bool StringIsNullOrEmpty(const std::string &str) { return str.size() == 0; }
+inline bool StringIsNullOrEmpty(const std::string &str) { return str.empty(); }
 inline bool StringIsNullOrEmpty(const std::string *str) {
-    return str == nullptr || str->size() == 0;
+    return str == nullptr || str->empty();
 }
 inline bool StringIsNullOrEmpty(const char *str) {
     return str == nullptr || *str == 0;
 }
 inline bool StringIsNullOrWhitespace(std::string_view str) {
-    for (char c: str) {
-        if (!isspace(c)) return false;
-    }
-    return true;
+    return std::all_of(str.begin(), str.end(), isspace);
 }
 inline bool StringIsNullOrWhitespace(const std::string *str) {
     if (str == nullptr) return true;

@@ -6,7 +6,6 @@
 #include "slc_private.h"
 
 #include <deque>
-#include <limits>
 #include <set>
 #include <string>
 #include <unordered_map>
@@ -106,11 +105,11 @@ public:
 	const Property *GetPropMeta(const std::string &key) const { return SafeMapGet(staticData->properties, key); }
 	const Restriction *GetRestriction(RestrRef key) const { return staticData->restrictions.at(key); }
 	Variable *GetVariable(const std::string &key) { return SafeMapGet(variables, key); }
-	Variable *GetVarByName(const std::string &name) { auto f = staticData->varNames.find(name); return f == staticData->varNames.end() ? nullptr : variables.at(f->second); }
-	const UserFunction *GetUserFunction(const std::string &key) { return SafeMapGet(staticData->userFunctions, key); }
-	const UserFunction *GetUserFuncByName(const std::string &name) { auto f = staticData->userFuncNames.find(name); return f == staticData->userFuncNames.end() ? nullptr : staticData->userFunctions.at(f->second); }
+	Variable *GetVarByName(const std::string &name) { const auto f = staticData->varNames.find(name); return f == staticData->varNames.end() ? nullptr : variables.at(f->second); }
+	const UserFunction *GetUserFunction(const std::string &key) const { return SafeMapGet(staticData->userFunctions, key); }
+	const UserFunction *GetUserFuncByName(const std::string &name) const { const auto f = staticData->userFuncNames.find(name); return f == staticData->userFuncNames.end() ? nullptr : staticData->userFunctions.at(f->second); }
 	Expression *GetExpression(ExprRef ref) { return staticData->expressions.at(ref); }
-	const char *GetPlainTextSnippet(PlainTextRef ref) { return staticData->plainTextSnippets.at(ref); }
+	const char *GetPlainTextSnippet(PlainTextRef ref) const { return staticData->plainTextSnippets.at(ref); }
 
 	bool GroupExists(const std::string &key) const { return groups.find(key) != groups.end(); }
 	bool ObjectExists(const std::string &key) const { return objects.find(key) != objects.end(); }
@@ -121,7 +120,7 @@ public:
 	const std::vector<std::string> &GetObjectLoadOrder() const { return staticData->objectLoadOrder; }
 	GameObj *GetPlayerChar() const { return objects.at(playerKey); }
 
-	bool GetIsTaskCompleted(const std::string &key) { return taskCompletedStorage.at(key); }
+	bool GetIsTaskCompleted(const std::string &key) const { return taskCompletedStorage.at(key); }
 	void SetTaskCompleted(const std::string &key, bool val) { taskCompletedStorage[key] = val; }
 	// The key of the location the player is currently in. Out of line because it needs
 	// GameObj to be complete.
