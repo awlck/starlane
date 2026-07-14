@@ -1,5 +1,10 @@
 #include "location.h"
 
+#include <algorithm>
+#include <cctype>
+#include <utility>
+#include <vector>
+
 #include <pugixml.hpp>
 
 #include "../game.h"
@@ -52,6 +57,41 @@ static void PadForAppend(std::string &s) {
 		s += "  ";
 }
 
+// Join names the way the original runner lists them: "A", "A and B", "A, B and C".
+static std::string JoinNames(const std::vector<std::string> &names) {
+	std::string result;
+	for (size_t i = 0; i < names.size(); i++) {
+		if (i > 0)
+			result += i == names.size() - 1 ? " and " : ", ";
+		result += names[i];
+	}
+	return result;
+}
+
+static void ReplaceAll(std::string &str, const std::string &from, const std::string &to) {
+	if (from.empty()) return;
+	size_t pos = 0;
+	while ((pos = str.find(from, pos)) != std::string::npos) {
+		str.replace(pos, from.size(), to);
+		pos += to.size();
+	}
+}
+
+// Replace only the first case-insensitive occurrence of `from`, matched literally.
+// (The original's ReplaceIgnoreCase escapes the needle's regex metacharacters and caps
+//  its replacement count at one, so a name recurring later in the text is left alone.)
+static void ReplaceFirstIgnoreCase(std::string &str, const std::string &from, const std::string &to) {
+	if (from.empty()) return;
+	auto found = std::search(str.begin(), str.end(), from.begin(), from.end(),
+		[](char a, char b) { return std::tolower((unsigned char) a) == std::tolower((unsigned char) b); });
+	if (found == str.end()) return;
+	str.replace((size_t) (found - str.begin()), from.size(), to);
+}
+
+// Stands in for a character's own name while grouping characters that share a
+// here-description, so that the names can be substituted back as a single list.
+static const char *const kCharNamePlaceholder = "##CHARNAME##";
+
 bool Location::HoldsDirectly(const GameObj *obj) const {
 	switch (obj->GetParentRelation()) {
 	case HoldingType::AtLocation:
@@ -65,6 +105,19 @@ bool Location::HoldsDirectly(const GameObj *obj) const {
 	default:
 		return false;
 	}
+}
+
+bool Location::IsCharVisibleHere(const Character *ch) const {
+	// A character's visibility ceiling is the location they are ultimately standing in,
+	// unless something opaque (a closed container) hides them along the way.
+	const std::string &ceiling = ch->GetVisbilityCeiling();
+	if (ceiling.empty())  // hidden characters are nowhere at all
+		return false;
+	if (Game::Get()->GroupExists(ceiling)) {
+		const auto *grp = Game::Get()->GetGroup(ceiling);
+		return grp && grp->ContainsObj(key);
+	}
+	return ceiling == key;
 }
 
 std::string Location::GetDescription(bool forDisplay) const {
@@ -99,18 +152,50 @@ std::string Location::GetDescription(bool forDisplay) const {
 	}
 
 	if (!generalListed.empty()) {
-		std::string list;
-		for (size_t i = 0; i < generalListed.size(); i++) {
-			if (i > 0)
-				list += i == generalListed.size() - 1 ? " and " : ", ";
-			list += generalListed[i];
-		}
+		std::string list = JoinNames(generalListed);
 		if (result.empty()) {
 			result = "There is " + list + " here.";
 		} else {
 			PadForAppend(result);
 			result += "Also here is " + list + ".";
 		}
+	}
+
+	// Characters visible here are listed after the objects. Each contributes its
+	// CharHereDesc property if it has one, or a plain "<name> is here." otherwise; an
+	// explicitly empty CharHereDesc means the character isn't announced at all.
+	// Characters whose descriptions differ only by their own name are listed together,
+	// so two bystanders become "Bob and Alice are here." rather than two sentences.
+	const std::string &playerKey = theGame->GetPlayerChar()->Key();
+	std::vector<std::pair<std::string, std::vector<std::string>>> charDescs;
+	for (const auto &objKey: theGame->GetObjectLoadOrder()) {
+		if (objKey == playerKey)  // you are never listed to yourself
+			continue;
+		const auto *ch = dynamic_cast<const Character *>(theGame->GetObject(objKey));
+		if (!ch || !IsCharVisibleHere(ch))
+			continue;
+		std::string name = ch->GetDisplayName(false);
+		std::string hereDesc = ch->HasProp("CharHereDesc")
+			? theGame->GetDescription(ch->GetIntProp("CharHereDesc"))->Build(forDisplay)
+			: name + " is here.";
+		if (hereDesc.empty())
+			continue;
+		std::string grouped = hereDesc;
+		ReplaceFirstIgnoreCase(grouped, name, kCharNamePlaceholder);
+		auto it = std::find_if(charDescs.begin(), charDescs.end(),
+			[&](const auto &e) { return e.first == grouped; });
+		if (it == charDescs.end())
+			charDescs.emplace_back(grouped, std::vector<std::string>{ name });
+		else if (std::find(it->second.begin(), it->second.end(), name) == it->second.end())
+			it->second.push_back(name);
+	}
+	for (const auto &entry: charDescs) {
+		std::string desc = entry.first;
+		if (entry.second.size() > 1)  // several characters sharing a description need a plural verb
+			ReplaceAll(desc, " is ", " are ");
+		ReplaceAll(desc, kCharNamePlaceholder, JoinNames(entry.second));
+		PadForAppend(result);
+		result += desc;
 	}
 
 	return result;

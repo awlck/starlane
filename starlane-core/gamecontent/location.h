@@ -9,6 +9,8 @@
 
 namespace Starlane {
 
+class Character;
+
 class Location: public GameObj {
 public:
 	static Location *CreateFromXML(const pugi::xml_node &xmlNode);
@@ -25,6 +27,10 @@ public:
 	// Is the given object directly at this location (i.e. laying around here,
 	// not held by a character or inside/on top of another object)?
 	bool HoldsDirectly(const GameObj *obj) const;
+
+	// Is the given character visible to someone standing here? Unlike HoldsDirectly,
+	// this also covers characters positioned on or inside something here.
+	bool IsCharVisibleHere(const Character *ch) const;
 
 	struct ExitSpec {
 		std::string destination;
