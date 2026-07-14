@@ -70,6 +70,17 @@ public:
 	void RunActions();
 	[[nodiscard]] DescrRef GetCompletionMsg() const { return completionMsg; }
 
+	// Whether *this* task's own completion message displays before or after *this* task's own
+	// actions run (independent of OverrideType's Before/After, which is about a Specific task's
+	// output relative to its parent's). Defaults to Before when the XML doesn't specify it --
+	// matching ADRIFT 5's own loader, which only ever writes out the tag for the non-default
+	// "After" case.
+	enum class MessagePlacement {
+		Before,
+		After
+	};
+	[[nodiscard]] MessagePlacement GetMessagePlacement() const { return messagePlacement; }
+
 	// For Specific tasks: the key of the General task this one overrides, and the per-reference
 	// constraints that must hold for it to apply. Empty/default for General and System tasks.
 	[[nodiscard]] const std::string &OverridesTask() const { return overridesTask; }
@@ -182,6 +193,7 @@ private:
 	DescrRef overrideFailMsg = 0;
 	RestrRef restrictions;
 	std::vector<Action> actions;
+	MessagePlacement messagePlacement = MessagePlacement::Before;
 
 	// Is this a general, specific, or system task?
 	Type type;

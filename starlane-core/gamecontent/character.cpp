@@ -47,7 +47,7 @@ std::string Character::GetDescription(bool forDisplay) const {
 }
 
 void Character::SetPropValue(const std::string &key, const std::string &value) {
-	if (key == "CharacterAProperName") {
+	if (key == "CharacterProperName") {
 		properName = value;
 		MakeMatchExpr();
 	}

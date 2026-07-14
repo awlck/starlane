@@ -237,6 +237,19 @@ bool Game::SpecificTaskMatches(const Task *specific, const std::vector<std::stri
 	return true;
 }
 
+void Game::RunTaskAndCapture(Task *task, bool showText, bool runActions) {
+	task->MarkCompleted();
+	bool msgFirst = task->GetMessagePlacement() == Task::MessagePlacement::Before;
+	if (msgFirst && showText && task->GetCompletionMsg() != 0)
+		OutputFiltered(GetDescription(task->GetCompletionMsg())->Build());
+	// Actions run between (or after/before) the message output points above/below, so that a
+	// nested "Execute" action's own output interleaves in true chronological order rather than
+	// being buffered and flushed out of order relative to this task's own message.
+	if (runActions) task->RunActions();
+	if (!msgFirst && showText && task->GetCompletionMsg() != 0)
+		OutputFiltered(GetDescription(task->GetCompletionMsg())->Build());
+}
+
 void Game::ExecuteTaskByKey(const std::string &key) {
 	Task *task = GetTask(key);
 	if (!task) return;  // unknown task key: nothing to do
@@ -247,10 +260,7 @@ void Game::ExecuteTaskByKey(const std::string &key) {
 			OutputFiltered(GetDescription(result.second)->Build());
 		return;
 	}
-	task->RunActions();
-	task->MarkCompleted();
-	if (task->GetCompletionMsg() != 0)
-		OutputFiltered(GetDescription(task->GetCompletionMsg())->Build());
+	RunTaskAndCapture(task);
 }
 
 void Game::ExecuteMatchedTask(Task *general) {
@@ -277,50 +287,37 @@ void Game::ExecuteMatchedTask(Task *general) {
 
 	bool showParentText = true;
 	bool runParentActions = true;
-	std::string output;
 
 	if (beforeChild) {
 		auto overrideType = beforeChild->GetOverrideType();
 		auto childResult = beforeChild->CheckRestrictions();
-		DescrRef childMsg = 0;
+		bool childHadSomethingToSay = childResult.first;
 		if (childResult.first) {
-			beforeChild->RunActions();
-			beforeChild->MarkCompleted();
-			childMsg = beforeChild->GetCompletionMsg();
+			RunTaskAndCapture(beforeChild);
 		} else if (childResult.second != 0) {
 			// The child failed, but produced restriction-failure text of its own: that takes
 			// precedence over the parent, same as if the child had passed.
-			childMsg = childResult.second;
+			OutputFiltered(GetDescription(childResult.second)->Build());
+			childHadSomethingToSay = true;
 		}
 		// A child that neither ran nor produced any message is treated as if it hadn't
 		// matched at all, and the parent proceeds completely normally.
-		if (childResult.first || childResult.second != 0) {
+		if (childHadSomethingToSay) {
 			if (!overrideType.Has(Task::OverrideType::ParentText)) showParentText = false;
 			if (!overrideType.Has(Task::OverrideType::ParentActions)) runParentActions = false;
 		}
-		if (childMsg != 0)
-			output += GetDescription(childMsg)->Build();
 	}
 
-	general->MarkCompleted();
-	if (runParentActions) general->RunActions();
-	if (showParentText && general->GetCompletionMsg() != 0)
-		output += GetDescription(general->GetCompletionMsg())->Build();
+	RunTaskAndCapture(general, showParentText, runParentActions);
 
 	if (afterChild) {
 		auto childResult = afterChild->CheckRestrictions();
 		if (childResult.first) {
-			afterChild->RunActions();
-			afterChild->MarkCompleted();
-			if (afterChild->GetCompletionMsg() != 0)
-				output += GetDescription(afterChild->GetCompletionMsg())->Build();
+			RunTaskAndCapture(afterChild);
 		} else if (childResult.second != 0) {
-			output += GetDescription(childResult.second)->Build();
+			OutputFiltered(GetDescription(childResult.second)->Build());
 		}
 	}
-
-	if (!output.empty())
-		OutputFiltered(output);
 }
 
 void Game::ProcessInput(const std::string &s) {

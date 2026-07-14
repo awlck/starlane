@@ -233,6 +233,13 @@ private:
 	// Run a matched General task to completion, applying any overriding/extending Specific
 	// tasks per their OverrideType, and output whatever text results.
 	void ExecuteMatchedTask(Task *general);
+	// Run `task`'s actions and/or output its completion message, in whichever order that
+	// task's own MessagePlacement calls for. Assumes restrictions already passed. Output
+	// happens immediately (not buffered) so it interleaves correctly with any nested task
+	// executions triggered by this task's own actions (e.g. a chained "Execute" action).
+	// `showText`/`runActions` let a Specific task's OverrideType selectively suppress either
+	// half of its General parent's own execution.
+	void RunTaskAndCapture(Task *task, bool showText = true, bool runActions = true);
 	bool AttemptMatchSystemCommand();
 	void OutputFiltered(std::string s) const;
 

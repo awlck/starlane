@@ -243,6 +243,10 @@ Task *Task::CreateFromXML(Game *g, const pugi::xml_node &xmlNode) {
 		if (foNode.type() != pugi::node_null)
 			result->overrideFailMsg = Game::Get()->CreateDescFromXML(foNode);
 	}
+	// ADRIFT 5 only ever writes this tag out for the non-default "After" case, so its absence
+	// means "Before" -- not the "After" that the in-editor default suggests.
+	if (STREQ(xmlNode.child_value("MessageBeforeOrAfter"), "After"))
+		result->messagePlacement = MessagePlacement::After;
 	if (result->type == Type::Specific) {
 		result->overridesTask = xmlNode.child_value("GeneralTask");
 		for (const auto &spcNode: xmlNode.children("Specific")) {
