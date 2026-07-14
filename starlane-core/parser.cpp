@@ -237,6 +237,22 @@ bool Game::SpecificTaskMatches(const Task *specific, const std::vector<std::stri
 	return true;
 }
 
+void Game::ExecuteTaskByKey(const std::string &key) {
+	Task *task = GetTask(key);
+	if (!task) return;  // unknown task key: nothing to do
+
+	auto result = task->CheckRestrictions();
+	if (!result.first) {
+		if (result.second != 0)
+			OutputFiltered(GetDescription(result.second)->Build());
+		return;
+	}
+	task->RunActions();
+	task->MarkCompleted();
+	if (task->GetCompletionMsg() != 0)
+		OutputFiltered(GetDescription(task->GetCompletionMsg())->Build());
+}
+
 void Game::ExecuteMatchedTask(Task *general) {
 	auto parentResult = general->CheckRestrictions();
 	if (!parentResult.first) {
