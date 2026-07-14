@@ -43,6 +43,8 @@ extern "C" {
 		slc__stringchange str_to_upper_case;
 		slc__stringchange str_to_lower_case;
 		slc__stringchange str_to_sentence_case;
+		bool (*ask_yes_no)(const char *question);
+		void (*quit_game)();
 
 		void *(*create_save_file)();
 		void *(*open_save_file)();

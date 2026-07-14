@@ -1,5 +1,6 @@
 #include "game.h"
 
+#include <algorithm>
 #include <iterator>
 #include <limits>
 
@@ -58,6 +59,10 @@ Game *Game::LoadFromXML(const std::string &gameTxt) {
 	rStatic->gameStatusLine = gameNode.child_value("UserStatus");
 	rStatic->showFirstLocation = ParseBool(gameNode.child("ShowFirstLocation").child_value());
 	rStatic->showExits = ParseBool(gameNode.child("ShowExits").child_value());
+	// ADRIFT only writes this out when it differs from its default of 3, and clamps it at zero
+	// on the way in (a negative wait is meaningless, and would wrap around here).
+	if (gameNode.child("WaitTurns").type() != pugi::node_null)
+		rStatic->waitTurns = (uint32_t) std::max((int64_t) 0, ParseInt(gameNode.child_value("WaitTurns")));
 	rStatic->gameIntro = result->CreateDescFromXML(gameNode.child("Introduction"));
 	Game::theGame = result;
 

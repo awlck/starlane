@@ -49,6 +49,8 @@ void slc__init_backend(const slc__frontend *settings) {
 	fe->StrToUpperCase = &Wrap::StrToUpperCase;
 	fe->StrToLowerCase = &Wrap::StrToLowerCase;
 	fe->StrToSentenceCase = &Wrap::StrToSentenceCase;
+	fe->AskYesNo = cfe->ask_yes_no;
+	fe->QuitGame = cfe->quit_game;
 	fe->CreateSaveFile = cfe->create_save_file;
 	fe->OpenSaveFile = cfe->open_save_file;
 	fe->ReadFile = cfe->read_file;

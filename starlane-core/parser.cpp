@@ -58,6 +58,18 @@ std::string GenericAliasFamily(const std::string &family) {
 	return "";
 }
 
+// A system command is matched against the player's input directly rather than through a task's
+// Command pattern, so it has to make its own arrangements for the leniency those (case-insensitive)
+// regexes afford: fold case, and ignore surrounding whitespace.
+std::string NormalizeSystemCommand(const std::string &s) {
+	static const char *kBlank = " \t\r\n";  // a frontend reading CRLF input leaves the '\r' on
+	size_t first = s.find_first_not_of(kBlank);
+	if (first == std::string::npos) return "";
+	std::string result = s.substr(first, s.find_last_not_of(kBlank) - first + 1);
+	for (auto &c : result) c = (char) std::tolower((unsigned char) c);
+	return result;
+}
+
 bool CaseInsensitiveEq(const std::string &a, const std::string &b) {
 	if (a.size() != b.size()) return false;
 	for (size_t i = 0; i < a.size(); i++)
@@ -339,16 +351,85 @@ void Game::ProcessInput(const std::string &s) {
 
 	if (!chosenTask) {
 		// No match, attempt to read this as a system command ...
+		// (Careful: a system command may well have deleted `this` by the time this returns.)
 		if (AttemptMatchSystemCommand()) return;
 		// ... and, failing that, reject the command as unknown.
 		OutputFiltered("I didn't understand that sentence.\n");
 		return;
 	}
 
+	// Whatever changes the game world counts as a turn and gets a state recorded for UNDO to
+	// return to. That is every task, and -- among the system commands -- WAIT alone, which
+	// records its own (see AttemptMatchSystemCommand); undoing a SAVE would be meaningless.
+	// The state goes in before the task runs, so that what UNDO comes back to is the game as
+	// it stood when the player typed the command.
+	SaveUndo();
 	ExecuteMatchedTask(chosenTask);
 }
 
 bool Game::AttemptMatchSystemCommand() {
+	const std::string cmd = NormalizeSystemCommand(currentCommand);
+
+	if (cmd == "restart") {
+		// Restart() puts a fresh copy of the game's starting state in our place and destroys
+		// this instance, so there is nothing left here to say afterwards -- and nothing of
+		// `this` left to say it with.
+		Restart();
+		return true;
+	}
+	if (cmd == "restore") {
+		// Restore() reports its own failures, and a failed restore rolls the game back to a
+		// snapshot taken before it started meddling -- which destroys this instance. So the
+		// success message has to come from whatever instance is current afterwards.
+		if (Restore())
+			Game::Get()->OutputFiltered("Restored.\n");
+		return true;
+	}
+	// ADRIFT remembers the file a game was last saved to and quietly overwrites it on every
+	// subsequent SAVE, reserving SAVE AS for choosing a new one. We always ask the player where
+	// the save should go, which leaves the two commands with nothing to tell them apart.
+	if (cmd == "save" || cmd == "save as" || cmd == "saveas") {
+		OutputFiltered(Save() ? "Saved.\n" : "Save cancelled.\n");
+		return true;
+	}
+	if (cmd == "quit") {
+		if (!frontend->AskYesNo("Are you sure you want to quit?"))
+			return true;
+		// Signal the end of play before handing over, so that a frontend asking GameIsOngoing()
+		// from within QuitGame() gets a truthful answer.
+		gameHasBegun = false;
+		frontend->QuitGame();
+		return true;
+	}
+	if (cmd == "undo") {
+		if (!UndoAvailable()) {
+			OutputFiltered("Sorry, <c>undo</c> is not currently available.\n");
+			return true;
+		}
+		// As with RESTART, `this` is gone once RestoreUndo() has put the previous state back.
+		RestoreUndo();
+		Game::Get()->OutputFiltered("Undone.\n");
+		return true;
+	}
+	if (cmd == "wait" || cmd == "z") {
+		// Alone among the commands here, WAIT changes the game: it is the player choosing to
+		// spend `waitTurns` turns doing nothing while the world carries on around them. That
+		// makes it a turn like any other, so it records a state of its own -- without one, an
+		// UNDO after a WAIT would skip back past whatever the player did *before* the wait,
+		// losing a command they never asked to undo. ADRIFT doesn't do this, but it only ever
+		// treated WAIT as a system command for want of somewhere better to put it (its source
+		// marks it as something that ought to have been an ordinary task).
+		// Recorded before the output, since producing text can mark a "display once" segment
+		// as shown, which is itself game state.
+		SaveUndo();
+		OutputFiltered("Time passes...\n");
+		// TODO: let staticData->waitTurns turns' worth of turn-based events run once event
+		// execution exists. The player character deliberately does nothing meanwhile.
+		return true;
+	}
+
+	// SAVE <filename> and RESTORE <filename> are deliberately absent: picking a file is the
+	// frontend's business, not ours.
 	return false;
 }
 

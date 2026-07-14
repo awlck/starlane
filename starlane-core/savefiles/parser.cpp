@@ -102,12 +102,17 @@ size_t Parser::Lex(size_t atLeast) {
 			if (c == '"') {
 				if (haveOpenQuote) {  // This ends a quoted string
 					haveOpenQuote = false;
+					// The length was incremented for this character on the way in, but a
+					// closing quote is not part of the string it closes.
+					lStringLen -= 1;
 					goto finish_off_token;  // Immediately finish this token, don't add the quotation mark to the result.
 				}
 				else {  // This begins a quoted string
 					haveOpenQuote = true;
 					assumption = TT_LSTRING;
-					lStringBegun = position+1;  // Don't add the quotation mark to the result
+					// LexGetc() has already stepped past the opening quotation mark, so this
+					// is the first character of the string proper.
+					lStringBegun = position;
 					lStringLen = 0;
 					continue;
 				}
@@ -120,8 +125,11 @@ size_t Parser::Lex(size_t atLeast) {
 				if (assumption == TT_NONE) {
 					if (isdigit(c) || c == '-') assumption = TT_INT;
 					else assumption = TT_SSTRING;
-				} else if (assumption == TT_INT && c == '.') {
-					// probably an error, but...
+				} else if (assumption == TT_INT && !isdigit((unsigned char) c)) {
+					// Something that opened like a number but turns out not to be one: game keys
+					// such as "1stVoicesH" are perfectly legal, and a leading '-' only makes a
+					// number of what follows it if what follows it really is digits. (Left as an
+					// int, strtoll would quietly read "1stVoicesH" as 1 and lose the rest.)
 					assumption = TT_SSTRING;
 				}
 			}

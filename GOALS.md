@@ -6,8 +6,11 @@
 [x] implement the logic for specific tasks overriding general tasks
 [x] list visible objects and characters in location descriptions
 [x] Implement Direction restrictions
+[x] Implement system commands
+[ ] make WAIT actually let `WaitTurns` turns pass (blocked on event execution)
 [ ] implement event execution
 [ ] implement Character walks
+[ ] implement disambiguation
 [ ] implement the conversation system (or refuse to load games using it because it isn't very widely used)
 [ ] implement tasks that use a loop
 [ ] resolve outstanding TODO markers within starlane-core

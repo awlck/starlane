@@ -66,6 +66,12 @@ struct AstNode {
 		struct { AstNode *first, *last; } Child;
 	} sv = {0};
 
+	// Whether this node holds a collection of the given kind (NT_COMPOUND, NT_STRINGLIST, ...).
+	// An empty "{ }" gives the parser nothing to tell the collection types apart by, so it comes
+	// out as NT_EMPTY and stands in for an empty collection of any of them -- iterating it simply
+	// yields no children.
+	bool IsCollection(NodeType kind) const { return type == kind || type == NT_EMPTY; }
+
 	AstNode *FindChildByName(const char *name) const {
 		if (type != NT_COMPOUND) return nullptr;
 		for (AstNode *child = this->sv.Child.first; child; child = child->nextSibling) {

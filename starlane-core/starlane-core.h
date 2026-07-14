@@ -39,6 +39,14 @@ struct SLC_API Frontend {
 	StringChanger StrToLowerCase;  // translate the given string to lower case
 	StringChanger StrToSentenceCase;  // translate the given string to sentence case
 
+	// put the given yes/no question to the player and return their answer, blocking until
+	// they have given one. A frontend that cannot ask must answer `false`.
+	bool (*AskYesNo)(const char *question);
+	// the player has quit; tear down the game and, for a frontend that only ever hosts the
+	// one game, likely the application along with it. `GameIsOngoing()` already returns
+	// false by the time this is called.
+	void (*QuitGame)();
+
 	// prompt the user to create (or replace) a save file, open it for writing, and return a handle to it
 	void *(*CreateSaveFile)();
 	// prompt the user to choose an existing save file to restore from, open it for reading, and return a handle to it

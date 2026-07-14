@@ -44,6 +44,8 @@ class GameStatic {
 	std::string gameStatusLine;
 	bool showFirstLocation = true;
 	bool showExits = true;
+	// How many turns a single WAIT command lets pass.
+	uint32_t waitTurns = 3;
 	DescrRef gameIntro = 0;
 
 	// immutable content (only exists once)
@@ -152,7 +154,8 @@ public:
 		currentRefs["<" + ref + ">"] = "";
 	}
 
-	// Save the current game state to the undo list.
+	// Save the current game state to the undo list, discarding the oldest state(s) if that
+	// would take the list over `kMaxUndoStates`.
 	void SaveUndo();
 	// If any undo states are available, discard the current state and go back one step.
 	bool RestoreUndo();
@@ -257,6 +260,12 @@ private:
 	// `showText`/`runActions` let a Specific task's OverrideType selectively suppress either
 	// half of its General parent's own execution.
 	void RunTaskAndCapture(Task *task, bool showText = true, bool runActions = true);
+	// Try to read currentCommand as one of the commands that address the interpreter rather than
+	// the game world (SAVE, QUIT, UNDO, ...), running it if so and returning whether it matched.
+	// Only consulted once no task has matched, so that a game remains free to define a task whose
+	// command shadows any of these.
+	// Caution: RESTART and UNDO replace the current Game instance wholesale, so this may well
+	// `delete this` -- the caller must not touch the instance afterwards.
 	bool AttemptMatchSystemCommand();
 	void OutputFiltered(std::string s) const;
 
@@ -300,6 +309,9 @@ private:
 	static Game *theGame;
 	// The list of former game states maintained for use with the UNDO command.
 	static std::deque<Game *> undoStates;
+	// How many of them to keep around: each one is a full copy of the mutable game state, so
+	// they are not cheap. (ADRIFT 5 settles on 100 as well.)
+	static constexpr size_t kMaxUndoStates = 100;
 	// The initial state right as the game starts. Maintained for the benefit of the
 	// `restart` command.
 	static Game *startupState;

@@ -5,6 +5,7 @@
 #include <clocale>
 #include <QtCore/QFile>
 #include <QtWidgets/QFileDialog>
+#include <QtWidgets/QMessageBox>
 
 #include "mainwindow.h"
 
@@ -32,6 +33,15 @@ std::string StrToUpperCase(const std::string &s) {
 
 std::string StrToSentenceCase(const std::string &s) {  // whatevs
 	return QString::fromUtf8(s.c_str(), s.length()).toUpper().toUtf8().toStdString();
+}
+
+bool AskYesNo(const char *question) {
+	return QMessageBox::question(theWin, "Starlane", QString::fromUtf8(question),
+	                             QMessageBox::Yes | QMessageBox::No) == QMessageBox::Yes;
+}
+
+void QuitGame() {
+	QApplication::quit();
 }
 
 void *CreateSaveFile() {
@@ -100,6 +110,8 @@ int main(int argc, char **argv) {
 		/* .StrToUpperCase = */ &StrToUpperCase,
 		/* .StrToLowerCase = */ &StrToLowerCase,
 		/* .StrToSentenceCase = */ &StrToSentenceCase,
+		/* .AskYesNo = */ &AskYesNo,
+		/* .QuitGame = */ &QuitGame,
 		/* .CreateSaveFile = */ &CreateSaveFile,
 		/* .OpenSaveFile = */ &OpenSaveFile,
 		/* .ReadFile = */ &ReadFile,

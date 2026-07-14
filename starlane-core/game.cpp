@@ -116,6 +116,8 @@ const std::string &Game::GetPlayerLocationKey() const {
 void Game::SaveUndo() {
 	auto storedGame = new Game(*this);
 	undoStates.push_back(storedGame);
+	while (undoStates.size() > kMaxUndoStates)
+		DiscardUndo();
 }
 
 bool Game::RestoreUndo() {
@@ -140,6 +142,9 @@ void Game::Restart() {
 	theGame = new Game(*startupState);
 	for (auto i : undoStates)
 		delete i;
+	// The states belonged to the game that just ended: leaving the (now dangling) pointers in
+	// the list would have the next UNDO reach straight into freed memory.
+	undoStates.clear();
 	delete this;
 	theGame->Begin();
 }
@@ -238,7 +243,7 @@ bool Game::Save() {
 }
 
 bool Game::Restore() {
-	auto hFile = frontend->CreateSaveFile();
+	auto hFile = frontend->OpenSaveFile();
 	if (!hFile)  // no file -- assume user cancelled
 		return false;
 	Save::Parser sav(hFile);
@@ -290,35 +295,39 @@ bool Game::ContinueRestore(const Save::AstNode *root) {
 	}
 	{
 		auto *objsNode = root->FindChildByName("objects");
-		if (!objsNode || objsNode->type != Save::NT_COMPOUND) return RollbackRestore();
+		if (!objsNode || !objsNode->IsCollection(Save::NT_COMPOUND)) return RollbackRestore();
 		ITERATE_CHILDREN(objsNode, objN) {
-			if (!GetObject(objN->myName)->RestoreState(objN)) return RollbackRestore();
+			// A save file naming something this game hasn't got is not one of ours.
+			auto *obj = GetObject(objN->myName);
+			if (!obj || !obj->RestoreState(objN)) return RollbackRestore();
 		}
 	}
 	{
 		auto *evtsNode = root->FindChildByName("events");
-		if (!evtsNode || evtsNode->type != Save::NT_COMPOUND) return RollbackRestore();
+		if (!evtsNode || !evtsNode->IsCollection(Save::NT_COMPOUND)) return RollbackRestore();
 		ITERATE_CHILDREN(evtsNode, evtN) {
-			if (!GetEvent(evtN->myName)->RestoreState(evtN)) return RollbackRestore();
+			auto *evt = GetEvent(evtN->myName);
+			if (!evt || !evt->RestoreState(evtN)) return RollbackRestore();
 		}
 	}
 	{
 		auto *varsNode = root->FindChildByName("variables");
-		if (!varsNode || varsNode->type != Save::NT_COMPOUND) return RollbackRestore();
+		if (!varsNode || !varsNode->IsCollection(Save::NT_COMPOUND)) return RollbackRestore();
 		ITERATE_CHILDREN(varsNode, varN) {
 			auto *var = GetVariable(varN->myName);
+			if (!var) return RollbackRestore();
 			size_t counter = 0;
 			switch (var->GetType()) {
 				case Variable::Type::Int:
 				case Variable::Type::IntArray:
-					if (varN->type != Save::NT_INTLIST) return RollbackRestore();
+					if (!varN->IsCollection(Save::NT_INTLIST)) return RollbackRestore();
 					ITERATE_CHILDREN(varN, varV) {
 						var->SetValue(varV->sv.Int, ++counter);
 					}
 					break;
 				case Variable::Type::String:
 				case Variable::Type::StringArray:
-					if (varN->type != Save::NT_STRINGLIST) return RollbackRestore();
+					if (!varN->IsCollection(Save::NT_STRINGLIST)) return RollbackRestore();
 					ITERATE_CHILDREN(varN, varV) {
 						var->SetValue(varV->Str, ++counter);
 					}
@@ -328,33 +337,34 @@ bool Game::ContinueRestore(const Save::AstNode *root) {
 	}
 	{
 		const auto *grpsNode = root->FindChildByName("groups");
-		if (!grpsNode || grpsNode->type != Save::NT_COMPOUND) return RollbackRestore();
+		if (!grpsNode || !grpsNode->IsCollection(Save::NT_COMPOUND)) return RollbackRestore();
 		ITERATE_CHILDREN(grpsNode, grpN) {
-			if (!GetGroup(grpN->myName)->RestoreState(grpN)) return RollbackRestore();
+			auto *grp = GetGroup(grpN->myName);
+			if (!grp || !grp->RestoreState(grpN)) return RollbackRestore();
 		}
 	}
 	{
 		const auto *descsNode = root->FindChildByName("descriptions_shown");
-		if (!descsNode || descsNode->type != Save::NT_COMPOUND) return RollbackRestore();
-		size_t nextDesc;
-		size_t lastDesc = 0;
+		if (!descsNode || !descsNode->IsCollection(Save::NT_COMPOUND)) return RollbackRestore();
+		// Only descriptions with at least one segment shown get written out, so reset the lot
+		// to "not shown" and let the file fill in the exceptions. The entries are written out
+		// of an unordered_map, so they arrive in no particular order -- hence resetting up
+		// front rather than filling the gaps between consecutive entries as we go.
+		for (const auto &desc: descriptions)
+			desc.second->RestoreState();
 		ITERATE_CHILDREN(descsNode, descN) {
-			nextDesc = ParseInt(descN->myName.c_str());
-			for (size_t i = lastDesc+1; i < nextDesc; i++)
-				descriptions[i]->RestoreState();
+			auto desc = descriptions.find(ParseInt(descN->myName.c_str()));
+			if (desc == descriptions.end()) return RollbackRestore();  // no such description
 			std::vector<bool> state;
 			ITERATE_CHILDREN(descN, entry) {
 				state.push_back(entry->sv.Bool);
 			}
-			descriptions[nextDesc]->RestoreState(state);
-			lastDesc = nextDesc;
+			desc->second->RestoreState(state);
 		}
-		for (size_t i = lastDesc+1; i < descriptionsSoFar; i++)
-			descriptions[i]->RestoreState();
 	}
 	{
 		const auto *tasksCompletedNode = root->FindChildByName("tasks_completed");
-		if (!tasksCompletedNode || tasksCompletedNode->type != Save::NT_STRINGLIST) return RollbackRestore();
+		if (!tasksCompletedNode || !tasksCompletedNode->IsCollection(Save::NT_STRINGLIST)) return RollbackRestore();
 		for (auto &elem: taskCompletedStorage)
 			elem.second = false;
 		ITERATE_CHILDREN(tasksCompletedNode, taskNode) {
