@@ -32,6 +32,11 @@ Variable *Variable::CreateFromXML(const pugi::xml_node &xmlNode) {
 			result->strVals = Util::SplitLines(val);
 			result->type = Type::StringArray;
 		}
+		// The initial value need not spell out every element; the remainder defaults to 0/"".
+		// Sizing to capacity here is what lets every index the bounds checks accept actually
+		// be addressable.
+		if (result->type == Type::IntArray) result->intVals.resize(result->capacity);
+		else if (result->type == Type::StringArray) result->strVals.resize(result->capacity);
 	} else if (result->type == Type::Int) {
 		result->intVals.push_back(ParseInt(val));
 	} else if (result->type == Type::String) {

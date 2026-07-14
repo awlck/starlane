@@ -90,7 +90,8 @@ static inline bool IsReference(const std::string &o) {
 	if (IsCommandRefName(o)) return true;
 	// put the most likely ones at the top
 	return
-		o == "%Player%" || o == "ReferencedObject" || o == "ReferencedObjects" ||
+		o == "%Player%" || o == "PlayerLocation" ||
+		o == "ReferencedObject" || o == "ReferencedObjects" ||
 		o == "ReferencedDirection" || o == "ReferencedCharacter" || o == "ReferencedLocation" ||
 		o == "ReferencedItem" || o == "ReferencedNumber" || o == "ReferencedText" ||
 		// and now the whole deluge of numbered possibilities

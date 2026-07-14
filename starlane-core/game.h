@@ -123,9 +123,15 @@ public:
 
 	bool GetIsTaskCompleted(const std::string &key) { return taskCompletedStorage.at(key); }
 	void SetTaskCompleted(const std::string &key, bool val) { taskCompletedStorage[key] = val; }
+	// The key of the location the player is currently in. Out of line because it needs
+	// GameObj to be complete.
+	const std::string &GetPlayerLocationKey() const;
 	// Get an object referred to by the input.
 	const std::string &GetReference(const std::string &rk) {
 		if (rk == "%Player%" || rk == "Player") return playerKey;
+		// Not a captured reference but a pseudo-key the standard library uses to talk about
+		// wherever the player happens to be (e.g. "PlayerLocation MustNot BeInGroup DarkLocations").
+		if (rk == "PlayerLocation") return GetPlayerLocationKey();
 		// This will insert a new element into the map if there is no such entry.
 		// Not ideal, but there can only ever be twenty or so references, so I think it's OK.
 		return currentRefs[rk];
@@ -133,6 +139,7 @@ public:
 	// Determine if this reference holds anything.
 	bool RefExists(const std::string &rk) const {
 		if (rk == "%Player%") return true;
+		if (rk == "PlayerLocation") return !GetPlayerLocationKey().empty();
 		return currentRefs.count(rk) > 0;
 	}
 
@@ -239,6 +246,11 @@ private:
 	// Run a matched General task to completion, applying any overriding/extending Specific
 	// tasks per their OverrideType, and output whatever text results.
 	void ExecuteMatchedTask(Task *general);
+	// Run `general` together with whichever of its Specific children currently apply, per their
+	// OverrideType. Assumes `general`'s own restrictions have already passed. `refTokens` names
+	// the references a child's positional constraints are checked against (see
+	// SpecificTaskMatches).
+	void RunTaskWithSpecifics(Task *general, const std::vector<std::string> &refTokens);
 	// Run `task`'s actions and/or output its completion message, in whichever order that
 	// task's own MessagePlacement calls for. Assumes restrictions already passed. Output
 	// happens immediately (not buffered) so it interleaves correctly with any nested task

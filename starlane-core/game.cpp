@@ -109,6 +109,10 @@ GameStatic::~GameStatic() {
 		delete it.second;
 }
 
+const std::string &Game::GetPlayerLocationKey() const {
+	return GetPlayerChar()->GetLocationKey();
+}
+
 void Game::SaveUndo() {
 	auto storedGame = new Game(*this);
 	undoStates.push_back(storedGame);

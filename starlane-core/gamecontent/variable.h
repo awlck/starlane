@@ -48,7 +48,7 @@ public:
 			throw std::runtime_error(errmsg);
 		}
 		everChanged = true;
-		intVals[idx] = val;
+		intVals.at(idx-1) = val;
 	}
 	void SetValue(const std::string &val, uint32_t idx = 1) {
 		if (idx == 0 || idx > capacity) {
@@ -59,7 +59,7 @@ public:
 			throw std::runtime_error(errmsg);
 		}
 		everChanged = true;
-		strVals[idx] = val;
+		strVals.at(idx-1) = val;
 	}
 
 	// For saving the game:

@@ -260,7 +260,16 @@ void Game::ExecuteTaskByKey(const std::string &key) {
 			OutputFiltered(GetDescription(result.second)->Build());
 		return;
 	}
-	RunTaskAndCapture(task);
+	// A task reached through an "Execute" action still gets its Specific overrides applied,
+	// exactly as a task the player typed does; ADRIFT runs both through the same path.
+	// No command was matched here, so a child's constraints are checked against the references
+	// this task's own Command declares -- which still hold whatever the turn's original command
+	// captured, since an Execute action passes no references of its own.
+	// TODO: a task with several alternate Command lines only ever gets its first one's
+	// references considered this way.
+	static const std::vector<std::string> kNoRefs;
+	const auto &coding = task->GetGroupCoding();
+	RunTaskWithSpecifics(task, coding.empty() ? kNoRefs : coding.front());
 }
 
 void Game::ExecuteMatchedTask(Task *general) {
@@ -269,14 +278,17 @@ void Game::ExecuteMatchedTask(Task *general) {
 		OutputFiltered(parentResult.second != 0 ? GetDescription(parentResult.second)->Build() : "You can't do that right now.\n");
 		return;
 	}
+	RunTaskWithSpecifics(general, currentMatchedRefTokens);
+}
 
-	// A general task's restrictions passed; see whether any of its Specific children apply.
+void Game::RunTaskWithSpecifics(Task *general, const std::vector<std::string> &refTokens) {
+	// The general task's restrictions have passed; see whether any of its Specific children apply.
 	// At most one "before/override" child and one "after" child are ever considered -- the
 	// first (highest-priority) one, in each group, whose per-reference constraints match.
 	Task *beforeChild = nullptr;
 	Task *afterChild = nullptr;
 	for (Task *child : GetSpecificChildren(general->Key())) {
-		if (!SpecificTaskMatches(child, currentMatchedRefTokens)) continue;
+		if (!SpecificTaskMatches(child, refTokens)) continue;
 		if (child->GetOverrideType().Has(Task::OverrideType::AfterParent)) {
 			if (!afterChild) afterChild = child;
 		} else {
