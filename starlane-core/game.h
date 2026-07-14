@@ -93,6 +93,12 @@ public:
 	Event *GetEvent(const std::string &key) { return SafeMapGet(events, key); }
 	Group *GetGroup(const std::string &key) { return SafeMapGet(groups, key); }
 	GameObj *GetObject(const std::string &key) { return SafeMapGet(objects, key); }
+	Task *GetTask(const std::string &key) const { return SafeMapGet(staticData->tasks, key); }
+	// Directly run a task by key (used by the "Execute <task>" task action), independent of
+	// player command matching: check its restrictions, run its actions if they pass, mark it
+	// completed, and output its completion (or restriction failure) message. Does nothing if
+	// no task with that key exists.
+	void ExecuteTaskByKey(const std::string &key);
 	const Property *GetPropMeta(const std::string &key) const { return SafeMapGet(staticData->properties, key); }
 	const Restriction *GetRestriction(RestrRef key) const { return staticData->restrictions.at(key); }
 	Variable *GetVariable(const std::string &key) { return SafeMapGet(variables, key); }

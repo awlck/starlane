@@ -961,8 +961,11 @@ void Task::Action::PerformImpl() const {
 	}
 		break;
 	case Starlane::Task::ActionType::ExecTask:
+		g->ExecuteTaskByKey(lhs);
 		break;
 	case Starlane::Task::ActionType::UnsetTask:
+		if (Task *t = g->GetTask(lhs))
+			t->Uncomplete();
 		break;
 	case Starlane::Task::ActionType::SkipTurns:
 		break;

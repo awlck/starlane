@@ -564,6 +564,8 @@ Expr::Value Expression::EvalItemfunc(Expr::Value obj, const ast_node_tag *toCall
 		if (!theObj) throw std::runtime_error("Item function on characters applied to non-character: " + obj.Str);
 		if (toCall_.Str == "Descriptor")
 			return theObj->GetDescriptor();
+		if (toCall_.Str == "ProperName")
+			return theObj->GetProperName();
 		if (toCall_.Str == "Held")
 			return CharHeldImpl(theObj, args);
 		if (toCall_.Str == "Worn")
