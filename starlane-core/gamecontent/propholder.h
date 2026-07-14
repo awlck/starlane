@@ -41,10 +41,10 @@ public:
 		return intValuedProps.count(key) > 0 || strValuedProps.count(key) > 0;
 	}
 
-	void SetPropValue(const std::string &key, int64_t value) {
+	virtual void SetPropValue(const std::string &key, int64_t value) {
 		intValuedProps[key] = value;
 	}
-	void SetPropValue(const std::string &key, const std::string &value) {
+	virtual void SetPropValue(const std::string &key, const std::string &value) {
 		strValuedProps[key] = value;
 	}
 

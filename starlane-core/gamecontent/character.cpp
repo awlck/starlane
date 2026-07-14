@@ -41,8 +41,17 @@ std::string Character::GetDisplayName(bool defArt) const {
 
 std::string Character::GetDescription(bool forDisplay) const {
 	Game::Get()->SetInternalReference("referral-character", key);
-	return GameObj::GetDescription(forDisplay);
+	auto result = GameObj::GetDescription(forDisplay);
 	Game::Get()->ClearInternalReference("referral-character");
+	return result;
+}
+
+void Character::SetPropValue(const std::string &key, const std::string &value) {
+	if (key == "CharacterAProperName") {
+		properName = value;
+		MakeMatchExpr();
+	}
+	GameObj::SetPropValue(key, value);
 }
 
 std::pair<bool, DescrRef> Character::HasRoute(const std::string &dir) const {
