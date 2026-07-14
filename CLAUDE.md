@@ -62,6 +62,23 @@ cmake -DCMAKE_BUILD_TYPE=Debug -DCMAKE_PREFIX_PATH=$HOME/Documents/Development/Q
 ninja starlane
 ```
 
+## Console frontend
+
+`starlane-console` (built with `ninja starlane-console`) is the simplest way to exercise the
+interpreter core, e.g. under a debugger. It prints all output text verbatim, without
+interpreting any HTML, and otherwise takes the following parameters:
+
+```
+starlane-console [--quit] [--input <commands.txt>] <game.taf>
+```
+
+* `<game.taf>`: path to the ADRIFT 5 TAF file to load. Required.
+* `--quit`: terminate as soon as the game has loaded, without prompting for input.
+* `--input <commands.txt>`: read player input (and prompt responses, e.g. yes/no
+  questions or save/restore file paths) from the given file instead of stdin. Useful
+  when running under a debugger (e.g. LLDB), where redirecting stdin via the shell is
+  awkward.
+
 ## Test data
 
 There is no formal test suite yet, since we are still working towards making most files
