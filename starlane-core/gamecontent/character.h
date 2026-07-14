@@ -18,7 +18,7 @@ public:
 	[[nodiscard]] GameObj *Clone() const override;
 
 	// Implements `character.Name`.
-	// Returns the proper name if the character is known, or the property known dowsn't exist.
+	// Returns the proper name if the character is known, or the property known doesn't exist.
 	// If the property known exists and isn't set, returns the descriptor
 	// (i.e., the usual article+prefix+noun combo inherited from GameObj)
 	std::string GetDisplayName(bool defArt) const override;
@@ -30,6 +30,8 @@ public:
 	std::string GetDescriptor() const { return GameObj::GetDisplayName(); }
 	std::string GetDescription(bool forDisplay = true) const override;
 	const std::regex &GetMatchExpr() const override { return GetBoolProp("Known") ? matchWhenKnownRegex : matchRegex; };
+	// Intervene on setting string properties so that we can capture changes to the ProperName property.
+	void SetPropValue(const std::string &key, const std::string &value) override;
 
 	std::pair<bool, DescrRef> HasRoute(const std::string &dir) const;
 	// Whether this character can currently see the object in question.
