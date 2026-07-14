@@ -36,31 +36,40 @@ Event *Event::CreateFromXML(const pugi::xml_node &xmlNode) {
 			} else if ((x = SkipText(ctrlTxt, "Resume "))) {
 				c.action = Util::Control::Action::Resume;
 			} else throw std::runtime_error(std::string("Invalid event control action text: ") + ctrlTxt);
-			if ((x = SkipText(x, "Completion "))) {
+			// `y`, rather than assigning back into `x`: SkipText returns null when the needle
+			// isn't at offset 0, so a failing first arm would wipe out the very remainder the
+			// second arm needs to look at. Together with the second arm having been handed
+			// `ctrlTxt` (the whole "Stop Uncompletion Task1") instead of the remainder, that
+			// meant both arms always failed and any game with an Uncompletion control threw on
+			// load. No test game has one, and ADRIFT never acts on one either (it only ever
+			// tests for Completion), so nothing ever noticed.
+			const char *y;
+			if ((y = SkipText(x, "Completion "))) {
 				c.condition = Util::Control::Condition::Completion;
-			} else if ((x = SkipText(ctrlTxt, "Uncompletion "))) {
+			} else if ((y = SkipText(x, "Uncompletion "))) {
 				c.condition = Util::Control::Condition::Uncompletion;
 			} else throw std::runtime_error(std::string("Invalid control condition text: ") + ctrlTxt);
-			c.taskName = x;
+			c.taskName = y;
 			result->controls.emplace_back(c);
 		}
 	}
 
+	// TODO: handle other StartTypes?
+
 	for (const auto &it: xmlNode.children("SubEvent")) {
 		Subevent se;
-		{  // Parse "<When>1 FromStartOfEvent</When>" -- this is just terrible.
-			const char *rangeTxtOrig = it.child_value("When");
-			const char *rtypeTxt = rangeTxtOrig;
-			while (*rtypeTxt && (isdigit(*rtypeTxt) || *rtypeTxt == ' ' || *rtypeTxt == 't' || *rtypeTxt == 'o'))
-				rtypeTxt++;
-			ptrdiff_t rangeLen = rtypeTxt - rangeTxtOrig;
-			if (rangeLen >= 64)
-				throw std::runtime_error(std::string("Range specifier too long in ") + rangeTxtOrig);
-			char rangeTxt[64];
-			strncpy(rangeTxt, rangeTxtOrig, rangeLen);
-			rangeTxt[rangeLen] = 0;
-			se.when = Util::Range(rangeTxt);
-			se.whenRefType = ParseSERefType(rtypeTxt);
+		{  // "<When>1 FromStartOfEvent</When>", or "<When>1 to 7 FromStartOfEvent</When>".
+			// ADRIFT writes the reference type as the last space-separated token, so split there.
+			// The old version instead scanned forward over the characters a range happens to be
+			// made of (digits, spaces, and the letters of "to"), which stopped on the 'F' and so
+			// handed Util::Range a range text with a trailing space -- enough to send it down its
+			// broken path and leave the range's upper bound indeterminate.
+			std::string whenTxt = it.child_value("When");
+			auto sp = whenTxt.find_last_of(' ');
+			if (sp == std::string::npos)
+				throw std::runtime_error("Malformed subevent When: " + whenTxt);
+			se.when = Util::Range(whenTxt.substr(0, sp).c_str());
+			se.whenRefType = ParseSERefType(whenTxt.c_str() + sp + 1);
 		}
 		se.actionType = ParseSEType(it.child_value("What"));
 		se.timeType = ParseTimeType(it.child_value("Measure"));
@@ -91,26 +100,41 @@ void Event::Stop() {
 	// TODO
 }
 
+void Event::Pause() {
+	if (state == State::Running)
+		state = State::Paused;
+}
+
+void Event::Resume() {
+	if (state == State::Paused)
+		state = State::Running;
+}
+
 void Event::ReceiveTaskNotification(Util::Control::Condition cond, const std::string &taskKey) {
-	const auto &c = *std::find_if(controls.cbegin(), controls.cend(), [&](const auto &ctrl){
-		return ctrl.condition == cond && ctrl.taskName == taskKey;
-	});
-	switch (c.action) {
-		case Util::Control::Action::Start:
-			Start();
-			return;
-		case Util::Control::Action::Stop:
-			Stop();
-			return;
-		case Util::Control::Action::Pause:
-			if (state == State::Running)
-				state = State::Paused;
-			return;
-		case Util::Control::Action::Resume:
-			if (state == State::Paused)
-				state = State::Running;
-			return;
+	// Every matching control acts, as in ADRIFT: an event that lists the same task twice under
+	// the same condition genuinely does the thing twice. (The old code took only the first match
+	// -- and, having no end-iterator check, dereferenced controls.cend() outright when a task it
+	// had been told about matched no control at all.)
+	for (const auto &c : controls) {
+		if (c.condition != cond || c.taskName != taskKey) continue;
+		switch (c.action) {
+			case Util::Control::Action::Start:
+				Start();
+				break;
+			case Util::Control::Action::Stop:
+				Stop();
+				break;
+			case Util::Control::Action::Pause:
+				Pause();
+				break;
+			case Util::Control::Action::Resume:
+				Resume();
+				break;
+		}
 	}
+	// TODO: ADRIFT additionally ignores a control whose triggering task is a child of the task
+	// currently completing, so that a child task can't re-trigger what its parent already did.
+	// Not modelled here.
 }
 
 void Event::WriteState(Save::Writer &writer) const {
@@ -122,7 +146,10 @@ void Event::WriteState(Save::Writer &writer) const {
 bool Event::RestoreState(const Save::AstNode *node) {
 	const auto *ddNode = node->FindChildByName("determined_duration");
 	if (!ddNode || ddNode->type != Save::NT_INT) return false;
-	duration.RestoreState(node->sv.Int);
+	// `ddNode`, not `node`: the latter is the event's own compound, whose `sv` union holds its
+	// child list rather than an integer -- so reading `.Int` off it reinterpreted a pointer as
+	// the duration, quietly corrupting it on every single restore.
+	duration.RestoreState(ddNode->sv.Int);
 	const auto *sNode = ddNode->nextSibling;
 	if (!sNode || sNode->type != Save::NT_STRING) return false;
 	auto tmpState = magic_enum::enum_cast<State>(sNode->Str);

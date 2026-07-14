@@ -61,6 +61,8 @@ public:
 
 	void ReceiveTaskNotification(Util::Control::Condition ctrl, const std::string &taskKey);
 	void Start();
+	void Pause();
+	void Resume();
 
 	Util::Range &GetDuration() { return duration; }
 	int32_t GetTimeSinceStart() const { return timeSinceStart; }

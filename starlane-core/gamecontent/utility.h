@@ -61,9 +61,11 @@ struct Range {
 	void RestoreState(uint32_t val) { value = val; }
 
 private:
-	uint32_t min;
-	uint32_t max;
-	uint32_t value;
+	// Initialized here as well as in every constructor: a constructor that forgot one of these
+	// left it indeterminate, and Value() would then hand RandomInt whatever was on the stack.
+	uint32_t min = (uint32_t) -1;
+	uint32_t max = (uint32_t) -1;
+	uint32_t value = (uint32_t) -1;
 };
 
 

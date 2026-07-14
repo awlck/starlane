@@ -220,27 +220,40 @@ UserFunction::ArgType UserFunction::ParseArgType(const char *txt) {
 }
 
 Util::Range::Range(const char *txt) {
-	if (IsDigits(txt)) {
-		// ugly hack to delegate constructors outside of initialization lists...
-		*this = Util::Range(ParseInt(txt));
-	} else {
-		int cnt = 0;
-		value = (uint32_t) -1;
-		auto tokens = Util::SplitString(txt, " ");
-		for (const auto &t: tokens) {
-			cnt++;
-			if (cnt == 1 && IsDigits(t.c_str())) {
-				min = ParseInt(t.c_str());
-			} else if (cnt == 2 && t == "to") {
-				// nothing to be done, just swallow up "to"
-			} else if (cnt == 3 && IsDigits(t.c_str())) {
-				max = ParseInt(t.c_str());
-			} else {
-				// Should never get here unless the value is gibberish
-				throw VALERR(Util::Range, txt);
-			}
-		}
+	// Every path below delegates to one of the other constructors, so that all three members are
+	// always assigned. The old code only assigned `min`/`max` from inside its parsing loop, which
+	// left `max` indeterminate for anything that reached the loop but didn't spell out a full
+	// "<min> to <max>" -- and trailing whitespace was enough to get there, since a lone "1 " is
+	// not all-digits and splits into just ["1"]. The first Value() call would then hand RandomInt
+	// bounds it made up, and walk straight into UB inside uniform_int_distribution. Nothing
+	// called Value() on one of these until events learned to run, which is the only reason this
+	// never went off.
+	std::string s(txt ? txt : "");
+	const auto begin = s.find_first_not_of(" \t\r\n");
+	s = (begin == std::string::npos) ? std::string()
+	                                 : s.substr(begin, s.find_last_not_of(" \t\r\n") - begin + 1);
+
+	if (s.empty()) {
+		// An absent <Length>/<When> means "no time at all", which is a perfectly sensible thing
+		// for a game to say. (This used to throw.)
+		*this = Util::Range((uint32_t) 0);
+		return;
 	}
+	if (IsDigits(s.c_str())) {
+		*this = Util::Range((uint32_t) ParseInt(s.c_str()));
+		return;
+	}
+	// The only other shape ADRIFT ever writes is "<min> to <max>".
+	auto tokens = Util::SplitString(s, " +");
+	if (tokens.size() != 3 || !IsDigits(tokens[0].c_str()) || tokens[1] != "to" ||
+			!IsDigits(tokens[2].c_str()))
+		throw VALERR(Util::Range, txt);
+	auto lo = (uint32_t) ParseInt(tokens[0].c_str());
+	auto hi = (uint32_t) ParseInt(tokens[2].c_str());
+	// The editor won't write "10 to 1", but a hand-edited game file could, and RandomInt requires
+	// its bounds the right way round.
+	if (lo > hi) std::swap(lo, hi);
+	*this = Util::Range(lo, hi);
 }
 
 const char *SkipText(const char *input, const char *toSkip) {

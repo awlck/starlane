@@ -428,12 +428,23 @@ Task::Action Task::Action::CreateFromXML(const pugi::xml_node &xmlNode) {
 		result.lhs = tokens[1];
 		return result;
 	} else if (name == "Time") {
+		// `Skip "<expr>" turns`. The expression sits between the leading "Skip" and the trailing
+		// "turns", and may well contain spaces of its own (`Skip "%delay% + 1" turns`), so
+		// everything in between has to be rejoined. Taking tokens[1] alone truncated any such
+		// expression to garbage -- `%delay% + 1` came out as `%delay`. No test game has a Time
+		// action, which is the only reason that never showed up.
 		result.type = ActionType::SkipTurns;
 		result.refType = ActionRefType::None;
-		result.lhs = tokens[1];
-		if (result.lhs[0] == '"') {
-			result.lhs = result.lhs.erase(result.lhs.size()-1, 1).erase(0, 1);
-		}
+		if (tokens.size() < 3)
+			throw std::runtime_error(std::string("Malformed Time action: ") + xmlNode.child_value());
+		std::string temp(tokens[1]);
+		for (size_t i = 2; i + 1 < tokens.size(); i++)
+			temp += ' ' + tokens[i];
+		if (temp.size() >= 2 && temp.front() == '"' && temp.back() == '"')
+			temp = temp.substr(1, temp.size() - 2);
+		// An expression rather than `lhs`: ADRIFT evaluates it, and routing it through `lhs`
+		// would subject it to Perform()'s reference/list expansion instead.
+		result.expr = Game::Get()->CreateExpression(temp);
 		return result;
 	} else if (name == "SetVariable" || name == "IncVariable" || name == "DecVariable") {
 		if (tokens[0] == "FOR")
@@ -581,8 +592,11 @@ void Task::RegisterNotification(const std::string &evtKey, Util::Control::Condit
 
 void Task::Uncomplete() {
 	if (Completed()) {
-		SendUncompleteNotifications();
+		// Clear the flag before telling anyone, the way MarkCompleted does: an event woken by
+		// this notification may run a task restricted on "task X must not be complete", and it
+		// deserves to see the world as it is by then rather than as it was a moment ago.
 		Game::Get()->SetTaskCompleted(key, false);
+		SendUncompleteNotifications();
 	}
 }
 
@@ -593,15 +607,21 @@ void Task::MarkCompleted() {
 	}
 }
 
+// Subscribers are stored as event keys rather than pointers, and resolved here, at notification
+// time: tasks live in the shared static data and are never copied, whereas events belong to a
+// particular Game instance and are cloned wholesale for every undo state. A pointer taken at load
+// time would be aimed at whichever Game happened to be current back then.
 void Task::SendCompleteNotifications() const {
 	for (const auto &it: completeSubs) {
-		Game::Get()->GetEvent(it)->ReceiveTaskNotification(Util::Control::Condition::Completion, key);
+		if (auto *evt = Game::Get()->GetEvent(it))
+			evt->ReceiveTaskNotification(Util::Control::Condition::Completion, key);
 	}
 }
 
 void Task::SendUncompleteNotifications() const {
 	for (const auto &it: uncompleteSubs) {
-		Game::Get()->GetEvent(it)->ReceiveTaskNotification(Util::Control::Condition::Uncompletion, key);
+		if (auto *evt = Game::Get()->GetEvent(it))
+			evt->ReceiveTaskNotification(Util::Control::Condition::Uncompletion, key);
 	}
 }
 
