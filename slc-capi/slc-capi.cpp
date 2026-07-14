@@ -97,6 +97,7 @@ bool slc__save_game() {
 		return Starlane::SaveGame();
 	} catch (const std::runtime_error &e)
 		ISSUE_ERROR_FROM(e, "saving game");
+	return false;
 }
 
 bool slc__restore_game() {
@@ -104,6 +105,7 @@ bool slc__restore_game() {
 		return Starlane::RestoreGame();
 	} catch (const std::runtime_error &e)
 		ISSUE_ERROR_FROM(e, "restoring game");
+	return false;
 }
 
 char *slc__extract_taf(const uint8_t *input, size_t size) {
@@ -116,6 +118,7 @@ char *slc__extract_taf(const uint8_t *input, size_t size) {
 		return result;
 	} catch (const std::runtime_error &e)
 		ISSUE_ERROR_FROM(e, "extracting TAF file");
+	return nullptr;
 }
 
 bool slc__game_is_ongoing() {
