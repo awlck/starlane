@@ -7,10 +7,16 @@
 #include <cctype>
 #include <cstdio>
 #include <cstdlib>
+#include <fstream>
 #include <iostream>
 #include <string>
 
 namespace SlConsole {
+
+// Where to read player input (and prompt responses) from: stdin by default,
+// or a file given via --input, so input doesn't have to be piped through the
+// shell (which gets in the way when running under a debugger).
+std::istream *gInput = &std::cin;
 
 void FatalError(const char *msg) {
 	std::fprintf(stderr, "Fatal error: %s\n", msg);
@@ -43,17 +49,32 @@ std::string StrToSentenceCase(const std::string &s) {
 	return result;
 }
 
+bool AskYesNo(const char *question) {
+	std::string answer;
+	for (;;) {
+		std::cout << question << " (y/n) " << std::flush;
+		if (!std::getline(*gInput, answer)) return false;  // no more input: assume "no"
+		answer = StrToLowerCase(answer);
+		if (answer == "y" || answer == "yes") return true;
+		if (answer == "n" || answer == "no") return false;
+	}
+}
+
+void QuitGame() {
+	// Nothing to do: the main loop notices that the game is over and stops asking for input.
+}
+
 void *CreateSaveFile() {
 	std::cout << "Save file name: " << std::flush;
 	std::string path;
-	if (!std::getline(std::cin, path) || path.empty()) return nullptr;
+	if (!std::getline(*gInput, path) || path.empty()) return nullptr;
 	return std::fopen(path.c_str(), "wb");
 }
 
 void *OpenSaveFile() {
 	std::cout << "Restore from file: " << std::flush;
 	std::string path;
-	if (!std::getline(std::cin, path) || path.empty()) return nullptr;
+	if (!std::getline(*gInput, path) || path.empty()) return nullptr;
 	return std::fopen(path.c_str(), "rb");
 }
 
@@ -75,20 +96,37 @@ int main(int argc, char **argv) {
 	using namespace SlConsole;
 
 	std::string tafPath;
+	std::string inputPath;
 	bool quitAfterLoad = false;
 
 	for (int i = 1; i < argc; i++) {
 		std::string arg = argv[i];
 		if (arg == "--quit") {
 			quitAfterLoad = true;
+		} else if (arg == "--input") {
+			if (i + 1 >= argc) {
+				std::fprintf(stderr, "--input requires a file path\n");
+				return 1;
+			}
+			inputPath = argv[++i];
 		} else if (tafPath.empty()) {
 			tafPath = arg;
 		}
 	}
 
 	if (tafPath.empty()) {
-		std::fprintf(stderr, "Usage: %s [--quit] <game.taf>\n", argv[0]);
+		std::fprintf(stderr, "Usage: %s [--quit] [--input <commands.txt>] <game.taf>\n", argv[0]);
 		return 1;
+	}
+
+	std::ifstream inputFile;
+	if (!inputPath.empty()) {
+		inputFile.open(inputPath);
+		if (!inputFile) {
+			std::fprintf(stderr, "Could not open '%s'\n", inputPath.c_str());
+			return 1;
+		}
+		gInput = &inputFile;
 	}
 
 	FILE *f = std::fopen(tafPath.c_str(), "rb");
@@ -111,6 +149,8 @@ int main(int argc, char **argv) {
 		/* .StrToUpperCase = */ &StrToUpperCase,
 		/* .StrToLowerCase = */ &StrToLowerCase,
 		/* .StrToSentenceCase = */ &StrToSentenceCase,
+		/* .AskYesNo = */ &AskYesNo,
+		/* .QuitGame = */ &QuitGame,
 		/* .CreateSaveFile = */ &CreateSaveFile,
 		/* .OpenSaveFile = */ &OpenSaveFile,
 		/* .ReadFile = */ &ReadFile,
@@ -127,7 +167,7 @@ int main(int argc, char **argv) {
 	std::string line;
 	while (Starlane::GameIsOngoing()) {
 		std::cout << "> " << std::flush;
-		if (!std::getline(std::cin, line)) break;
+		if (!std::getline(*gInput, line)) break;
 		Starlane::ProcessInput(line);
 	}
 
