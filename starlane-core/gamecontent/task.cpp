@@ -8,6 +8,7 @@
 
 #include "../game.h"
 #include "../expression.h"
+#include "../random.h"
 #include "../valueparsers.h"
 #include "character.h"
 #include "event.h"
@@ -739,8 +740,32 @@ void Task::Action::PerformImpl() const {
 	case Starlane::Task::ActionType::MoveToGroup:
 		// TODO: randomly pick group member to move to.
 		break;
-	case Starlane::Task::ActionType::MoveInDirection:
+	case Starlane::Task::ActionType::MoveInDirection: {
+		// Move the character named by `lhs` through the exit in direction `rhs` (a
+		// canonical direction like "North"). Movement-related tasks generally validate
+		// the route in their own restrictions first, but we re-check here so that
+		// running this action directly can never teleport a character through a
+		// nonexistent or blocked (e.g. closed-door) exit.
+		auto *mover = dynamic_cast<Character *>(g->GetObject(lhs));
+		if (!mover)
+			break;
+		const auto *loc = mover->GetLocation();
+		if (!loc || !loc->HasExit(rhs) || !mover->HasRoute(rhs).first)
+			break;
+		std::string dest = loc->GetExit(rhs).destination;
+		// A movement destination may name a location group, in which case a member is
+		// picked at random (mirroring the original runner).
+		if (g->GroupExists(dest)) {
+			const auto &members = g->GetGroup(dest)->GetAllMembers();
+			if (members.empty())
+				break;
+			auto it = members.begin();
+			std::advance(it, RandomInt((uint32_t) members.size() - 1));
+			dest = *it;
+		}
+		mover->MoveTo(dest, GameObj::HoldingType::AtLocation);
 		break;
+	}
 	case ActionType::AddToGroup:
 	case ActionType::RemoveFromGroup:
 	{

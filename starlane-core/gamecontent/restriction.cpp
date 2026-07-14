@@ -278,8 +278,18 @@ bool Restriction::Single::PassImpl(DescrRef *out, bool ignoreUnsetRefs) const {
 				throw std::runtime_error("Invalid string operation while evaluating restriction.");
 		}
 	}
-	case TargetType::Direction:
-		throw std::runtime_error("Sorry, cannot handle 'Direction' restrictions yet.");  // TODO
+	case TargetType::Direction: {
+		// A direction restriction (only valid on movement-related tasks) checks the
+		// direction the player is actually moving -- captured from the command into the
+		// ReferencedDirection reference -- against the direction the restriction names
+		// (held in `lhs`). It passes when they are the same direction.
+		const std::string &movedDir = Game::Get()->GetReference("ReferencedDirection");
+		// While merely testing a task's applicability (no command matched yet), an unset
+		// direction shouldn't veto the task; leave that to the real restriction check.
+		if (ignoreUnsetRefs && movedDir.empty())
+			return true;
+		return lhs == movedDir;
+	}
 	case TargetType::ErrorType:
 		throw std::runtime_error("Unknown restriction type while evaluating restriction.");
 	}
