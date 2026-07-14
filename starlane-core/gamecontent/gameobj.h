@@ -97,6 +97,7 @@ public:
 
 	// Set the `dynamic` state, because of course you can change that through property assignments.
 	void SetDynamic(bool dynamic) { this->dynamic = dynamic; }
+	bool IsDynamic() const { return dynamic; }
 
 	// Write out mutable object state to a save file
 	virtual void WriteState(Save::Writer &writer) const;

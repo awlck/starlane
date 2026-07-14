@@ -12,6 +12,7 @@
 #include <unordered_map>
 #include <utility>
 #include <string_view>
+#include <vector>
 
 #include "gamecontent/task.h"
 
@@ -65,6 +66,9 @@ class GameStatic {
 	ExecutionPolicy executionPolicy = ExecutionPolicy::HighestPrio;
 	// The mapping of file path -> Blorb resource ID, if applicable.
 	std::unordered_map<std::string, uint32_t> blorbResMap;
+	// The keys of all game objects in the order they appear in the game file, since
+	// listing objects in a stable order requires it (the objects map is unordered).
+	std::vector<std::string> objectLoadOrder;
 
 	// Tasks in priority order
 	std::set<Task *, TaskPrioLess> prioOrderedTasks;
@@ -113,6 +117,8 @@ public:
 	bool PropExists(const std::string &key) const { return staticData->properties.find(key) != staticData->properties.end(); }
 	bool VarOfNameExists(const std::string &name) const { return staticData->varNames.find(name) != staticData->varNames.end(); }
 	const std::unordered_map<std::string, GameObj *> &GetAllObjects() const { return objects; }
+	// All object keys, in the order the objects appear in the game file.
+	const std::vector<std::string> &GetObjectLoadOrder() const { return staticData->objectLoadOrder; }
 	GameObj *GetPlayerChar() const { return objects.at(playerKey); }
 
 	bool GetIsTaskCompleted(const std::string &key) { return taskCompletedStorage.at(key); }

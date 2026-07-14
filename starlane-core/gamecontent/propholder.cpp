@@ -27,7 +27,9 @@ void PropHolder::SetPropValueFromXML(const pugi::xml_node &xmlNode) {
 		SetPropValue(propkey, ParseInt(xmlNode.child_value("Value")));
 		return;
 	case Property::ValueType::Text:
-		SetPropValue(propkey, (int64_t) Game::Get()->CreateDescFromXML(xmlNode.child("Value").child("Description")));
+		// The <Value> node holds the <Description> segments directly (there can be
+		// several, with restrictions), so it is the node to build the description from.
+		SetPropValue(propkey, (int64_t) Game::Get()->CreateDescFromXML(xmlNode.child("Value")));
 		return;
     case Property::ValueType::ErrorType:
         throw std::runtime_error("Attempted to assign to error-type property.");

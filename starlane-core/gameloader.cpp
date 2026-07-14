@@ -175,6 +175,7 @@ void Game::CreateObjFromXML(const pugi::xml_node &objNode) {
 	auto result = GameObj::CreateFromXML(objNode);
 	assert(result);
 	objects[result->Key()] = result;
+	const_cast<GameStatic *>(staticData)->objectLoadOrder.push_back(result->Key());
 }
 
 void Game::CreatePropertyFromXML(const pugi::xml_node &propNode) {

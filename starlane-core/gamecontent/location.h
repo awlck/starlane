@@ -17,6 +17,15 @@ public:
 	// Gets the display name (i.e. short location description) of this location
 	std::string GetDisplayName([[maybe_unused]] bool = false) const override;
 
+	// Builds the long description of this location, followed by a listing of the
+	// visible objects here (per their ListDescription/ListDescriptionDynamic
+	// properties, falling back to an "Also here is ..." style list).
+	std::string GetDescription(bool forDisplay = true) const override;
+
+	// Is the given object directly at this location (i.e. laying around here,
+	// not held by a character or inside/on top of another object)?
+	bool HoldsDirectly(const GameObj *obj) const;
+
 	struct ExitSpec {
 		std::string destination;
 		RestrRef restr;

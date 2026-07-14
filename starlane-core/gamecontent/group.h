@@ -36,7 +36,7 @@ public:
 	}
 
 	bool ContainsObj(const std::string &key) const {
-		return members.count(key) > 1;
+		return members.count(key) > 0;
 	}
 	const std::set<std::string> &GetAllMembers() const { return members; }
 
