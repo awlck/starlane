@@ -196,6 +196,13 @@ funcargs
 		$$->range = range__new($0s, $0e);
 		ast_node__prepend_child($$, e);
 	}
+	 / e:expr < _ > !')' !']' r:funcargs  # error condition: missing comma between arguments
+	{
+		system__handle_syntax_error(auxil, SYNTAX_ERROR_MISSING_COMMA, range__new($1s, $1e));
+		$$ = r;
+		$$->range = range__new($0s, $0e);
+		ast_node__prepend_child($$, e);
+	}
 	 / e:expr
 	{
 		$$ = system__create_ast_node_variadic(auxil, AST_NODE_TYPE_FUNCARGS, range__new($0s, $0e));
@@ -203,7 +210,7 @@ funcargs
 	}
 	 / e:expr _ < ',' _ (',' _)+ > r:funcargs  # error condition
 	{
-		system__handle_syntax_error(auxil, SYNTAX_ERROR_SPURIOUS_COMMA, range__new($1s, $1e));
+		system__handle_syntax_error(auxil, SYNTAX_ERROR_SPURIOUS_COMMA, range__new($2s, $2e));
 		$$ = r;
 		$$->range = range__new($0s, $0e);
 		ast_node__prepend_child($$, e);

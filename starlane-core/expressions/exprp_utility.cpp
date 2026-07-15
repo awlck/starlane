@@ -92,6 +92,9 @@ void system__handle_syntax_error(system_t *obj, syntax_error_t error, range_t ra
     case SYNTAX_ERROR_SPURIOUS_COMMA:
         FormatError(expr->exprStr, range, "spurious comma");
         return;
+    case SYNTAX_ERROR_MISSING_COMMA:
+        FormatError(expr->exprStr, range, "missing comma");
+        return;
     default:
         std::cerr << "General syntax error parsing expression:\n  " << expr->exprStr << std::endl;
         throw std::runtime_error("Syntax error.");
