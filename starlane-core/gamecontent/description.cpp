@@ -272,7 +272,12 @@ ResolveText_FakeTailcall:
 				auto vname = std::string(theText.substr(beginningOfFunc + 1, pos - beginningOfFunc - 1));
 				// When there aren't any brackets, the name between the percentage signs must be a
 				// known variable or built-in function.
+				// Deliberately a hand-written list rather than a lookup in
+				// tableOfBuiltInFunctions: that table also holds every function that takes
+				// arguments, and naming one of those here would promote "%Left%" from harmless
+				// gibberish that prints as-is into a zero-argument call that throws.
 				if (!Game::Get()->VarOfNameExists(vname) && vname != "AloneWithChar" && vname != "ConvCharacter" && vname != "Player" && vname != "CharacterName"
+						&& vname != "Turns" && vname != "turns" && vname != "TURNS"
 						&& !Util::IsCommandRefName('%' + vname + '%')) {
 					// no known name: just some gibberish and not a function/variable after all
 					ResolveExpressions(theText.substr(0, pos+1));

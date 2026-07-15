@@ -208,6 +208,7 @@ void Game::CreateEventFromXML(const pugi::xml_node &evtNode) {
 	auto result = Event::CreateFromXML(evtNode);
 	assert(result);
 	events[result->Key()] = result;
+	const_cast<GameStatic *>(staticData)->eventLoadOrder.push_back(result->Key());
 }
 
 void Game::CreateVariableFromXML(const pugi::xml_node &varNode) {

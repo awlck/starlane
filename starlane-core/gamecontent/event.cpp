@@ -92,6 +92,10 @@ Event *Event::CreateFromXML(const pugi::xml_node &xmlNode) {
 	return result;
 }
 
+void Event::IncrementTimer() {
+	// TODO: the state machine proper. Events don't advance yet.
+}
+
 void Event::Start() {
 	// TODO
 }

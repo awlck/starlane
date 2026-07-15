@@ -70,6 +70,11 @@ class GameStatic {
 	// The keys of all game objects in the order they appear in the game file, since
 	// listing objects in a stable order requires it (the objects map is unordered).
 	std::vector<std::string> objectLoadOrder;
+	// The same for events, and for much the same reason: they are held in an unordered map, but
+	// the order they tick in is observable -- one event's subevent can run a task that starts or
+	// stops another -- so it has to be the order the game file lists them in, which is the order
+	// ADRIFT ticks them in too.
+	std::vector<std::string> eventLoadOrder;
 
 	// Tasks in priority order
 	std::set<Task *, TaskPrioLess> prioOrderedTasks;
@@ -172,6 +177,15 @@ public:
 	void Begin();
 	// This function should be called once per second to advance real-time-based events.
 	void Tick();
+	// Advance the world by one turn: every turn-based event gets a tick and the turn counter
+	// moves on. Called once at the end of any command that changes the game world, once per
+	// waited turn by WAIT, and repeatedly by a task's "skip N turns" action -- which is why it
+	// has to be reachable from Task::Action, via Game::Get(), as ExecuteTaskByKey is.
+	void TurnTick();
+	uint32_t GetTurnCount() const { return turnCount; }
+	// Whether we are presently inside RunEventTick. An event asked to start or stop by a task
+	// consults this to decide whether to do so there and then or wait for its own next tick.
+	bool AreEventsRunning() const { return eventsRunning; }
 	// Save the game. Called by the action-processing machinery when the player types SAVE.
 	bool Save();
 	// Restore a saved game.
@@ -260,6 +274,10 @@ private:
 	// `showText`/`runActions` let a Specific task's OverrideType selectively suppress either
 	// half of its General parent's own execution.
 	void RunTaskAndCapture(Task *task, bool showText = true, bool runActions = true);
+	// Give every event of the matching kind (real-time or turn-based) one tick. Both TurnTick
+	// and Tick come through here; `realTime` is what tells the two populations apart.
+	// (A bool rather than an Event::TimeType because game.h only forward-declares Event.)
+	void RunEventTick(bool realTime);
 	// Try to read currentCommand as one of the commands that address the interpreter rather than
 	// the game world (SAVE, QUIT, UNDO, ...), running it if so and returning whether it matched.
 	// Only consulted once no task has matched, so that a game remains free to define a task whose
@@ -281,6 +299,12 @@ private:
 	std::string playerKey;
 	// most recently mentioned character and pronoun
 	std::pair<std::string, Pronoun> mostRecentlyMentioned;
+	// Turns elapsed, as reported by the `Turns` expression function. Counted once per TurnTick,
+	// so a WAIT that lets three turns pass counts three of them. ADRIFT instead bumps its own
+	// counter once per typed command, from the frontend, which has a three-turn WAIT count as
+	// one -- the same splitting of "what the player typed" from "what the world did" that had
+	// UNDO skipping whole commands.
+	uint32_t turnCount = 0;
 
 	// static data lives here for performance and memory usage reasons:
 	const GameStatic *staticData;
@@ -297,6 +321,16 @@ private:
 	// used at load-time to prevent duplicating expressions too much
 	std::unordered_map<std::string, ExprRef> knownExprs;
 
+	// Whether a tick is in progress. Transient: it only ever means anything within one call to
+	// RunEventTick, so it never needs to survive UNDO or SAVE.
+	bool eventsRunning = false;
+	// Whether we are part-way through handling a player command. A real-time tick must not cut
+	// in on one: a frontend prompting the player (a modal question, a file dialog) spins its own
+	// event loop while ProcessInput is still on the stack, so the timer can fire in the middle of
+	// a half-finished command. Static because ProcessInput can destroy the Game outright, on
+	// RESTART or UNDO, and the flag has to outlive that.
+	static bool inputInFlight;
+
 	bool gameHasBegun = false;
 
 	size_t descriptionsSoFar = 0;
@@ -312,6 +346,10 @@ private:
 	// How many of them to keep around: each one is a full copy of the mutable game state, so
 	// they are not cheap. (ADRIFT 5 settles on 100 as well.)
 	static constexpr size_t kMaxUndoStates = 100;
+	// How deeply turn ticks may nest before we refuse to go further. Only a task's "skip N turns"
+	// action can nest them at all, and only a game that has one run from an event it also drives
+	// can nest them without bound.
+	static constexpr int kMaxTickDepth = 32;
 	// The initial state right as the game starts. Maintained for the benefit of the
 	// `restart` command.
 	static Game *startupState;

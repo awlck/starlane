@@ -14,7 +14,11 @@ struct mz_stream_s;
 
 namespace Starlane::Save {
 
-constexpr int currentSaveFileVer = 1;
+// Bumped to 2 when events learned to run: save files gained a turn counter and a pile of
+// per-event scheduling state, and Event's saved status names changed outright. A version 1 file
+// would fail deep inside the restore with a misleading "this file is invalid"; the version check
+// turns that into an honest answer.
+constexpr int currentSaveFileVer = 2;
 
 namespace {
 // Helper to determine whether there's a const_iterator for T.

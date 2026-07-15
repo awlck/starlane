@@ -64,6 +64,15 @@ public:
 	void Pause();
 	void Resume();
 
+	// Whether this event is driven by the wall clock rather than by turns. The only thing that
+	// tells the two populations of events apart; both tick through IncrementTimer.
+	bool IsRealTime() const { return timeType == TimeType::RealTime; }
+	// Advance this event by one tick of whichever clock it runs on.
+	void IncrementTimer();
+	// Clear the "started on this very tick" flag. Done in a pass of its own once every event has
+	// ticked, rather than by the event itself -- see Game::RunEventTick.
+	void ClearJustStarted() { justStarted = false; }
+
 	Util::Range &GetDuration() { return duration; }
 	int32_t GetTimeSinceStart() const { return timeSinceStart; }
 
@@ -90,6 +99,8 @@ private:
 	bool repeatCountdown;
 	State state = State::NotOngoing;
 	int32_t timeSinceStart = 0;
+	// An event that started on this very tick does not also age on it.
+	bool justStarted = false;
 };
 
 }

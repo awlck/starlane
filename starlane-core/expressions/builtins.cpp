@@ -337,6 +337,13 @@ Expr::Value Expression::AloneWithCharImpl(const ast_node_tag *args) const {
 	return Expr::Value();  // invalid
 }
 
+Expr::Value Expression::TurnsImpl(const ast_node_tag *args) const {
+	CHECK_ARGCOUNT("Turns", 0);
+	// The cast picks Expr::Value's integer constructor: a turn count is a number, and games do
+	// arithmetic on it as readily as they print it.
+	return (int64_t) Game::Get()->GetTurnCount();
+}
+
 Expr::Value Expression::LocationNameImpl(const ast_node_tag *args) const {
 	CHECK_ARGCOUNT("LocationName", 1);
 	EXTRACT_FIRST_ARG_STR(args, theArg);

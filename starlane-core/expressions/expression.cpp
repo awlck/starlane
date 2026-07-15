@@ -143,6 +143,12 @@ std::map<std::string, decltype(&Expression::LCaseImpl)> Expression::tableOfBuilt
 	{ "Str", &Expression::StrImpl },
 	{ "STR", &Expression::StrImpl },
 	{ "str", &Expression::StrImpl },
+	// Not something ADRIFT resolves in an expression at all -- it keeps a turn count but only
+	// ever prints it from its own quit handler. Games write %Turns% into their own message text
+	// regardless ("...after taking %Turns% turns."), where it would otherwise come out verbatim.
+	{ "Turns", &Expression::TurnsImpl },
+	{ "TURNS", &Expression::TurnsImpl },
+	{ "turns", &Expression::TurnsImpl },
 	{ "Val", &Expression::ValImpl },
 	{ "VAL", &Expression::ValImpl },
 	{ "val", &Expression::ValImpl }

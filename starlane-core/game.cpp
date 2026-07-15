@@ -25,6 +25,7 @@ namespace Starlane {
 Game *Game::theGame = nullptr;
 std::deque<Game *> Game::undoStates;
 Game *Game::startupState = nullptr;
+bool Game::inputInFlight = false;
 
 /* Copy constructor for game instances. Needs to create copies of all
  * the mutable game state objects.
@@ -54,6 +55,7 @@ Game::Game(const Game &rhs) {
 	// Finally, the simple data copies.
 	playerKey = rhs.playerKey;
 	mostRecentlyMentioned = rhs.mostRecentlyMentioned;
+	turnCount = rhs.turnCount;
 	gameHasBegun = rhs.gameHasBegun;
 	descriptionsSoFar = rhs.descriptionsSoFar;
 	restrictionsSoFar = rhs.restrictionsSoFar;
@@ -155,9 +157,10 @@ void Game::Begin() {
 	taskCompletedStorage.reserve(staticData->tasks.size());
 	for (const auto &it : staticData->tasks)
 		taskCompletedStorage[it.first] = false;
-	for (const auto &it : events) {
-		if (it.second->GetStartType() == Event::StartType::Immediately)
-			it.second->Start();
+	for (const auto &key : staticData->eventLoadOrder) {
+		Event *evt = events.at(key);
+		if (evt->GetStartType() == Event::StartType::Immediately)
+			evt->Start();
 	}
 	// Every character has "seen" their initial surroundings.
 	for (const auto &it : objects) {
@@ -169,8 +172,53 @@ void Game::Begin() {
 		frontend->OutputText(GetDescription(staticData->gameIntro)->Build().c_str());
 }
 
+void Game::TurnTick() {
+	// An event's subevent can run a task, and that task can carry a "skip N turns" action, which
+	// ticks straight back through here. Depth-limited rather than trusted: a game that manages to
+	// tie that knot should misbehave, not take the interpreter down with it. (ADRIFT has no such
+	// guard and simply exhausts its stack.)
+	static int depth = 0;
+	if (depth >= kMaxTickDepth) return;
+	depth++;
+	turnCount += 1;
+	RunEventTick(false);
+	depth--;
+}
+
 void Game::Tick() {
-	// TODO
+	// See `inputInFlight`: a command is part-way through and its own turn tick hasn't happened
+	// yet, so the world must not move underneath it.
+	if (inputInFlight) return;
+	RunEventTick(true);
+	// Deliberately no SaveUndo(): a real-time tick is the world acting on its own, not the player
+	// taking a turn, and ADRIFT doesn't snapshot on one either. UNDO after a few seconds' thought
+	// should rewind the last thing the player *did*, not the seconds they spent thinking -- and
+	// snapshotting here would grow the undo stack while they sat idle.
+}
+
+void Game::RunEventTick(bool realTime) {
+	// The game can end part-way through a tick -- an event runs a task that wins or loses it --
+	// and the rest of that tick's events then don't happen. ADRIFT bails the same way.
+	if (!gameHasBegun) return;
+	// TODO: character walks advance here, ahead of the events.
+	// A "skip N turns" action can land us back in here while an outer tick is still going, so
+	// remember rather than assume what to put back.
+	const bool wasRunning = eventsRunning;
+	eventsRunning = true;
+	for (const auto &key : staticData->eventLoadOrder) {
+		if (!gameHasBegun) break;
+		Event *evt = events.at(key);
+		if (evt->IsRealTime() == realTime) evt->IncrementTimer();
+	}
+	// Deliberately a second pass over the same events, as in ADRIFT. An event late in the order
+	// can run a task that starts one earlier in the order, which has already had its tick; if the
+	// "don't age on the turn you started" flag survived into the next tick, that event would sit
+	// out a turn it ought to have counted.
+	for (const auto &key : staticData->eventLoadOrder) {
+		Event *evt = events.at(key);
+		if (evt->IsRealTime() == realTime) evt->ClearJustStarted();
+	}
+	eventsRunning = wasRunning;
 }
 
 bool Game::Save() {
@@ -179,6 +227,7 @@ bool Game::Save() {
 		return false;
 	Save::Writer writer(hFile, this);
 	writer.WriteKV("player", playerKey);
+	writer.WriteKV("turns", turnCount);
 
 	writer.BeginNamedCompound("objects");
 	for (const auto &obj: objects) {
@@ -189,9 +238,11 @@ bool Game::Save() {
 	writer.EndCompound();
 
 	writer.BeginNamedCompound("events");
-	for (const auto &evt: events) {
-		writer.BeginNamedCompound(evt.first.c_str());
-		evt.second->WriteState(writer);
+	// In load order rather than whatever the map hands us, so that two saves of the same game
+	// state produce the same bytes.
+	for (const auto &key: staticData->eventLoadOrder) {
+		writer.BeginNamedCompound(key.c_str());
+		events.at(key)->WriteState(writer);
 		writer.EndCompound();
 	}
 	writer.EndCompound();
@@ -292,6 +343,11 @@ bool Game::ContinueRestore(const Save::AstNode *root) {
 		auto *playerNode = root->FindChildByName("player");
 		if (!playerNode || playerNode->type != Save::NT_STRING) return RollbackRestore();
 		playerKey = playerNode->Str;
+	}
+	{
+		auto *turnsNode = root->FindChildByName("turns");
+		if (!turnsNode || turnsNode->type != Save::NT_INT) return RollbackRestore();
+		turnCount = (uint32_t) turnsNode->sv.Int;
 	}
 	{
 		auto *objsNode = root->FindChildByName("objects");

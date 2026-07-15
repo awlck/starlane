@@ -345,6 +345,16 @@ void Game::RunTaskWithSpecifics(Task *general, const std::vector<std::string> &r
 }
 
 void Game::ProcessInput(const std::string &s) {
+	// Hold off any real-time tick until this command is finished with. A frontend that stops to
+	// ask the player something (a modal question, a file dialog) will keep servicing its timer
+	// while this call is still on the stack, and a command half-applied is not a state the world
+	// should be allowed to move on from. An object, not a bare assignment, so that it also unwinds
+	// on the paths out of here that destroy the Game (RESTART, UNDO) or throw.
+	struct InputGuard {
+		InputGuard() { inputInFlight = true; }
+		~InputGuard() { inputInFlight = false; }
+	} guard;
+
 	currentCommand = ApplySynonyms(s);
 
 	Task *chosenTask = FindMatchingTask();
@@ -365,6 +375,9 @@ void Game::ProcessInput(const std::string &s) {
 	// it stood when the player typed the command.
 	SaveUndo();
 	ExecuteMatchedTask(chosenTask);
+	// The command is done; the world moves on. ADRIFT skips this for its System-type tasks, but
+	// only General tasks can ever be matched from player input here, so there is nothing to skip.
+	TurnTick();
 }
 
 bool Game::AttemptMatchSystemCommand() {
@@ -423,8 +436,10 @@ bool Game::AttemptMatchSystemCommand() {
 		// as shown, which is itself game state.
 		SaveUndo();
 		OutputFiltered("Time passes...\n");
-		// TODO: let staticData->waitTurns turns' worth of turn-based events run once event
-		// execution exists. The player character deliberately does nothing meanwhile.
+		// The player has chosen to spend `waitTurns` turns doing nothing, so the world gets that
+		// many turns to carry on around them while they do it.
+		for (uint32_t i = 0; i < staticData->waitTurns; i++)
+			TurnTick();
 		return true;
 	}
 
