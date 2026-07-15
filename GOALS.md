@@ -10,12 +10,13 @@
 [x] make WAIT actually let `WaitTurns` turns pass
 [x] implement event execution
 [x] run System tasks that trigger themselves (on arriving somewhere, and at the start of the game)
-[ ] implement subevents that override the room description (`SetLook`)
 [ ] implement subevents measured in seconds on turn-based events
 [ ] implement Character walks (they tick alongside events, see `Game::RunEventTick`)
-[ ] implement disambiguation
-[ ] implement the conversation system (or refuse to load games using it because it isn't very widely used)
+[ ] implement disambiguation ("TAKE BALL" -- "Which do you mean, the red ball or the green ball?")
+[ ] implement subevents that override the room description (`SetLook`)
 [ ] implement tasks that use a loop
+[ ] implement the conversation system (or refuse to load games using it because it isn't very widely used)
+[ ] come up with a better error-handling mechanism than crashing the entire interpreter on load issues
 [ ] resolve outstanding TODO markers within starlane-core
 [ ] implement the status bar in the Qt frontend
 [ ] fix and fully implement text formatting in the Qt frontend (including default colors and fonts)
@@ -24,6 +25,6 @@
 [ ] implement `blorb` support in the Qt frontend
 [ ] implement graphics support in the Qt frontend
 [ ] implement sound support in the Qt frontend
-[ ] think about implementing an automap (then probably decide against it)
 [ ] ensure the Qt frontend can be compiled for the web (WASM)
-[ ] begin work on a Glk frontend
+[ ] begin work on a Glk frontend (can probably rip off most of the implementation from FrankenDrift)
+[ ] think about implementing an automap (then probably decide against it)
