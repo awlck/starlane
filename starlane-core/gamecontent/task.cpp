@@ -1016,8 +1016,17 @@ void Task::Action::PerformImpl() const {
 		if (Task *t = g->GetTask(lhs))
 			t->Uncomplete();
 		break;
-	case Starlane::Task::ActionType::SkipTurns:
+	case Starlane::Task::ActionType::SkipTurns: {
+		// "Skip N turns": let that many turns' worth of events run here and now, part-way through
+		// this task's list of actions, as ADRIFT does. Note that the turn the command itself costs
+		// comes on top of these -- ProcessInput ticks once more once this task is done -- so
+		// "skip 3 turns" moves the world on by four. That is the reference's arithmetic, not a
+		// slip of ours.
+		auto n = g->GetExpression(expr)->EvaluateInt();
+		for (int64_t i = 0; i < n; i++)
+			g->TurnTick();
 		break;
+	}
 	case Starlane::Task::ActionType::ConvoGreet:
 		break;
 	case Starlane::Task::ActionType::ConvoFarewell:

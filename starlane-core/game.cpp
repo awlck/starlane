@@ -213,12 +213,19 @@ void Game::TurnTick() {
 	// ticks straight back through here. Depth-limited rather than trusted: a game that manages to
 	// tie that knot should misbehave, not take the interpreter down with it. (ADRIFT has no such
 	// guard and simply exhausts its stack.)
+	//
+	// Counted by an object rather than a bare increment/decrement around the call below, because a
+	// task action that throws unwinds straight past this frame -- and the frontend catches that and
+	// carries on playing. A depth left un-decremented would be permanent, and the thirty-second
+	// such throw would stop the world ticking for good, silently.
 	static int depth = 0;
 	if (depth >= kMaxTickDepth) return;
-	depth++;
+	struct DepthGuard {
+		DepthGuard() { depth++; }
+		~DepthGuard() { depth--; }
+	} guard;
 	turnCount += 1;
 	RunEventTick(false);
-	depth--;
 }
 
 void Game::Tick() {
@@ -238,9 +245,15 @@ void Game::RunEventTick(bool realTime) {
 	if (!gameHasBegun) return;
 	// TODO: character walks advance here, ahead of the events.
 	// A "skip N turns" action can land us back in here while an outer tick is still going, so
-	// remember rather than assume what to put back.
-	const bool wasRunning = eventsRunning;
-	eventsRunning = true;
+	// remember rather than assume what to put back -- and put it back from a destructor, since a
+	// task action that throws unwinds past this frame while the frontend carries on playing.
+	// Left stuck at true, every later event command would act at once instead of waiting its
+	// turn; ADRIFT has this exact bug, and bails out of its own loop leaving the flag set.
+	struct RunningGuard {
+		Game *g; bool prev;
+		explicit RunningGuard(Game *game) : g(game), prev(game->eventsRunning) { g->eventsRunning = true; }
+		~RunningGuard() { g->eventsRunning = prev; }
+	} runningGuard(this);
 	for (const auto &key : staticData->eventLoadOrder) {
 		if (!gameHasBegun) break;
 		Event *evt = events.at(key);
@@ -254,7 +267,6 @@ void Game::RunEventTick(bool realTime) {
 		Event *evt = events.at(key);
 		if (evt->IsRealTime() == realTime) evt->ClearJustStarted();
 	}
-	eventsRunning = wasRunning;
 }
 
 bool Game::Save() {
