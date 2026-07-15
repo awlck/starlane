@@ -204,6 +204,19 @@ void Game::Begin() {
 			c->MarkVisibleAsSeen();
 	}
 	gameHasBegun = true;
+	// A game with real-time events, on a frontend with no clock to drive them, would quietly lose
+	// whole subsystems. Better to say so than to let the player wonder. Deliberately not degraded
+	// to turn-based instead: a "fifteen seconds later" event turned into "fifteen turns later" is
+	// a different game, not a lesser one. Said again on RESTART, which is right -- it is still true.
+	if (!frontend->timersAvailable) {
+		for (const auto &key : staticData->eventLoadOrder) {
+			if (events.at(key)->IsRealTime()) {
+				frontend->OutputText("<i>This game uses real-time events, which this interpreter "
+				                     "cannot run. Parts of it will not happen.</i>\n");
+				break;
+			}
+		}
+	}
 	if (staticData->gameIntro != 0)
 		frontend->OutputText(GetDescription(staticData->gameIntro)->Build().c_str());
 }

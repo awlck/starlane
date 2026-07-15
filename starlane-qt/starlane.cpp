@@ -104,7 +104,7 @@ int main(int argc, char **argv) {
 	QApplication app(argc, argv);
 	Starlane::Frontend fe {
 		/* .randomSeed = */ 0,
-		/* .timersAvailable = */ false,
+		/* .timersAvailable = */ true,  // MainWindow drives TimeTick once a second
 		/* .FatalError = */ &FatalError,
 		/* .OutputText = */ &OutputText,
 		/* .StrToUpperCase = */ &StrToUpperCase,
@@ -134,6 +134,7 @@ int main(int argc, char **argv) {
 	Starlane::CreateGame(input, fsize);
 	QApplication::processEvents();
 	Starlane::BeginGame();
-	//Starlane::SaveGame();
+	// Only now: there is nothing for a tick to advance until the game has begun.
+	theWin->StartEventTimer();
 	return app.exec();
 }

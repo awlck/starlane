@@ -20,6 +20,14 @@ MainWindow::MainWindow() : QMainWindow(nullptr) {
 	box->addWidget(input);
 	dummy->setLayout(box);
 	setCentralWidget(dummy);
+
+	eventTimer = new QTimer(this);
+	eventTimer->setInterval(1000);  // the core counts real-time events in whole seconds
+	connect(eventTimer, &QTimer::timeout, this, []{ Starlane::TimeTick(); });
+}
+
+void MainWindow::StartEventTimer() {
+	eventTimer->start();
 }
 
 void MainWindow::OutputText(const char *txt) {
