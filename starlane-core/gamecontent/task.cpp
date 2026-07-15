@@ -248,6 +248,12 @@ Task *Task::CreateFromXML(Game *g, const pugi::xml_node &xmlNode) {
 	// means "Before" -- not the "After" that the in-editor default suggests.
 	if (STREQ(xmlNode.child_value("MessageBeforeOrAfter"), "After"))
 		result->messagePlacement = MessagePlacement::After;
+	if (result->type == Type::System) {
+		// Both are only written out when set, and only mean anything on a System task -- which is
+		// the one kind with no command of its own to be matched against.
+		result->locationTrigger = xmlNode.child_value("LocationTrigger");
+		result->runImmediately = ParseBool(xmlNode.child_value("RunImmediately"));
+	}
 	if (result->type == Type::Specific) {
 		result->overridesTask = xmlNode.child_value("GeneralTask");
 		for (const auto &spcNode: xmlNode.children("Specific")) {

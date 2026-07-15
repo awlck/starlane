@@ -81,6 +81,12 @@ class GameStatic {
 	// Specific tasks that override a given General task (by that General task's key), in
 	// priority order. Populated once at load time from each Specific task's `overridesTask`.
 	std::unordered_map<std::string, std::vector<Task *>> specificChildren;
+	// System tasks that run when the player arrives somewhere, indexed by the location's key and
+	// held in priority order. A System task has no command to match on, so this and the "run as
+	// the game starts" flag are the only ways one runs without another task naming it outright.
+	std::unordered_map<std::string, std::vector<Task *>> systemTasksByLocation;
+	// ...and the ones that run once, as the game starts, in priority order.
+	std::vector<Task *> runImmediatelyTasks;
 
 	friend class Game;
 public:
@@ -109,6 +115,14 @@ public:
 	// completed, and output its completion (or restriction failure) message. Does nothing if
 	// no task with that key exists.
 	void ExecuteTaskByKey(const std::string &key);
+	// Note that the player has arrived at the location with this key, so that any System task
+	// triggered by arriving there is lined up to run. Called by Character::MoveTo; does nothing
+	// for anyone but the player, or for a move that stays in the same location.
+	void NotePlayerArrived(const std::string &locationKey);
+	// Run whatever the moves above lined up, in the order they were lined up. Called once the
+	// player's command has been dealt with and before the world takes its turn -- not from
+	// inside the move itself, which would run a task in the middle of another task's actions.
+	void RunTriggeredTasks();
 	const Property *GetPropMeta(const std::string &key) const { return SafeMapGet(staticData->properties, key); }
 	const Restriction *GetRestriction(RestrRef key) const { return staticData->restrictions.at(key); }
 	Variable *GetVariable(const std::string &key) { return SafeMapGet(variables, key); }
@@ -131,6 +145,9 @@ public:
 	// All object keys, in the order the objects appear in the game file.
 	const std::vector<std::string> &GetObjectLoadOrder() const { return staticData->objectLoadOrder; }
 	GameObj *GetPlayerChar() const { return objects.at(playerKey); }
+	// The player's key, for asking "is this the player?" without a map lookup -- and without the
+	// throw GetPlayerChar() would give for a question asked before the player has been picked.
+	const std::string &GetPlayerKey() const { return playerKey; }
 
 	bool GetIsTaskCompleted(const std::string &key) const { return taskCompletedStorage.at(key); }
 	void SetTaskCompleted(const std::string &key, bool val) { taskCompletedStorage[key] = val; }
@@ -329,6 +346,9 @@ private:
 	// used at load-time to prevent duplicating expressions too much
 	std::unordered_map<std::string, ExprRef> knownExprs;
 
+	// System tasks lined up by the player arriving somewhere, in arrival order. Transient: it is
+	// filled and emptied within a single command, so it never needs to survive UNDO or SAVE.
+	std::deque<std::string> triggeredTasks;
 	// Whether a tick is in progress. Transient: it only ever means anything within one call to
 	// RunEventTick, so it never needs to survive UNDO or SAVE.
 	bool eventsRunning = false;
@@ -358,6 +378,9 @@ private:
 	// action can nest them at all, and only a game that has one run from an event it also drives
 	// can nest them without bound.
 	static constexpr int kMaxTickDepth = 32;
+	// How many arrival-triggered System tasks may run off a single command before we assume the
+	// game has tied a knot -- one of them moving the player somewhere that triggers another.
+	static constexpr size_t kMaxTriggeredTasks = 64;
 	// The initial state right as the game starts. Maintained for the benefit of the
 	// `restart` command.
 	static Game *startupState;

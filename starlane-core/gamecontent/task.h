@@ -87,6 +87,12 @@ public:
 	[[nodiscard]] const std::vector<SpecificInfo> &GetSpecificRefs() const { return specificRefs; }
 	[[nodiscard]] OverrideType GetOverrideType() const { return overrideType; }
 
+	// For System tasks: the two ways one can run without the player ever asking for it.
+	// The key of the location whose arrival runs this task, or "" for none.
+	[[nodiscard]] const std::string &LocationTrigger() const { return locationTrigger; }
+	// Whether this task runs once, as the game starts.
+	[[nodiscard]] bool RunsImmediately() const { return runImmediately; }
+
 	const std::vector<std::regex> &GetCmdRegexes() const { return commandRegexes; }
 	const std::vector<std::vector<std::string>> &GetGroupCoding() const { return groupNumToRef; }
 
@@ -201,6 +207,10 @@ private:
 	// std::vector<std::string> commandStrs;
 	std::vector<std::regex> commandRegexes;
 	std::vector<std::vector<std::string>> groupNumToRef;
+	// For System tasks: what makes this one run, given it has no command to match against.
+	// (A System task named by another task's or subevent's "execute" action needs neither.)
+	std::string locationTrigger;
+	bool runImmediately = false;
 	// For specific tasks, the key of the general task we are overriding
 	std::string overridesTask;
 	std::vector<SpecificInfo> specificRefs;

@@ -284,6 +284,34 @@ void Game::ExecuteTaskByKey(const std::string &key) {
 	RunTaskWithSpecifics(task, coding.empty() ? kNoRefs : coding.front());
 }
 
+void Game::NotePlayerArrived(const std::string &locationKey) {
+	auto found = staticData->systemTasksByLocation.find(locationKey);
+	if (found == staticData->systemTasksByLocation.end()) return;
+	for (const Task *t : found->second) {
+		// A task that has run its course cannot run again, so there is no sense lining it up.
+		// (RunTriggeredTasks would find this out for itself, but there is no point queueing
+		// something only to throw it away.)
+		if (t->Completed() && !t->IsRepeatable()) continue;
+		triggeredTasks.push_back(t->Key());
+	}
+}
+
+void Game::RunTriggeredTasks() {
+	// Bounded rather than trusted: one of these tasks may well move the player again, lining up
+	// more, which is the point -- but a pair of repeatable tasks that move the player back and
+	// forth between each other's trigger locations would otherwise never let go.
+	size_t ran = 0;
+	while (!triggeredTasks.empty()) {
+		if (++ran > kMaxTriggeredTasks) {
+			triggeredTasks.clear();
+			break;
+		}
+		std::string key = std::move(triggeredTasks.front());
+		triggeredTasks.pop_front();
+		ExecuteTaskByKey(key);
+	}
+}
+
 void Game::ExecuteMatchedTask(Task *general) {
 	auto parentResult = general->CheckRestrictions();
 	if (!parentResult.first) {
@@ -375,6 +403,10 @@ void Game::ProcessInput(const std::string &s) {
 	// it stood when the player typed the command.
 	SaveUndo();
 	ExecuteMatchedTask(chosenTask);
+	// If the command took the player somewhere, whatever waits there happens now -- after the
+	// command has finished having its effects, and before the world takes its turn. ADRIFT
+	// sequences these three the same way.
+	RunTriggeredTasks();
 	// The command is done; the world moves on. ADRIFT skips this for its System-type tasks, but
 	// only General tasks can ever be matched from player input here, so there is nothing to skip.
 	TurnTick();

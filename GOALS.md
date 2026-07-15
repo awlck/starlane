@@ -9,6 +9,7 @@
 [x] Implement system commands
 [x] make WAIT actually let `WaitTurns` turns pass
 [x] implement event execution
+[x] run System tasks that trigger themselves (on arriving somewhere, and at the start of the game)
 [ ] implement subevents that override the room description (`SetLook`)
 [ ] implement subevents measured in seconds on turn-based events
 [ ] implement Character walks (they tick alongside events, see `Game::RunEventTick`)

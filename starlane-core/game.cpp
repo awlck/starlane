@@ -204,6 +204,18 @@ void Game::Begin() {
 			c->MarkVisibleAsSeen();
 	}
 	gameHasBegun = true;
+	// System tasks set to run as the game starts do so now: the game is up, but nothing has been
+	// played yet. Directly rather than through the arrival queue -- nobody has arrived anywhere,
+	// and these run whatever location the player begins in. Before the intro, as in ADRIFT.
+	for (Task *t : staticData->runImmediatelyTasks)
+		ExecuteTaskByKey(t->Key());
+	// ...and if one of those moved the player, whatever waits where they landed runs here rather
+	// than being left to go off during the player's first command, which is where ADRIFT drains
+	// its queue. Games use a start-up task to walk the player through every location in turn, to
+	// mark them all as seen for the map, and any arrival triggers that walk trips are spurious
+	// either way -- better they happen amid the start-up they belong to than in the middle of the
+	// first real turn. (Grandpa does exactly this, tripping a music cue and its cancel.)
+	RunTriggeredTasks();
 	// A game with real-time events, on a frontend with no clock to drive them, would quietly lose
 	// whole subsystems. Better to say so than to let the player wonder. Deliberately not degraded
 	// to turn-based instead: a "fifteen seconds later" event turned into "fifteen turns later" is

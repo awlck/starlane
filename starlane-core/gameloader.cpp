@@ -97,11 +97,18 @@ Game *Game::LoadFromXML(const std::string &gameTxt) {
 		auto t = result->CreateTaskFromXML(it);
 		rStatic->prioOrderedTasks.insert(t);
 	}
-	// Index Specific tasks by the General task they override, in priority order (which
-	// prioOrderedTasks already iterates in, so each per-parent list comes out sorted for free).
+	// Index Specific tasks by the General task they override, and System tasks by whatever runs
+	// them of its own accord. All in priority order, which prioOrderedTasks already iterates in,
+	// so each list comes out sorted for free.
 	for (Task *t : rStatic->prioOrderedTasks) {
 		if (t->GetType() == Task::Type::Specific && !t->OverridesTask().empty())
 			rStatic->specificChildren[t->OverridesTask()].push_back(t);
+		if (t->GetType() == Task::Type::System) {
+			if (!t->LocationTrigger().empty())
+				rStatic->systemTasksByLocation[t->LocationTrigger()].push_back(t);
+			if (t->RunsImmediately())
+				rStatic->runImmediatelyTasks.push_back(t);
+		}
 	}
 
 	LOAD_STAGE("Loading Events");

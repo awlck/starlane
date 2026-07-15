@@ -107,8 +107,20 @@ void Character::MarkVisibleAsSeen() {
 }
 
 void Character::MoveTo(const std::string &newParent, HoldingType newRelation) {
+	// Compared by location rather than by parent: getting out of a chair changes what holds the
+	// player without moving them anywhere, and arriving is what a System task waits for.
+	// Copied, not referenced -- the move below is about to change what it names.
+	const std::string cameFrom = GetLocationKey();
 	GameObj::MoveTo(newParent, newRelation);
 	MarkVisibleAsSeen();
+	// Only the player's arrival triggers anything, and only a real change of location counts.
+	// Compared by key rather than by asking for the player object, which would throw if anything
+	// ever moved a character before the game had picked one.
+	auto *g = Game::Get();
+	if (key != g->GetPlayerKey()) return;
+	const std::string &arrivedAt = GetLocationKey();
+	if (arrivedAt != cameFrom)
+		g->NotePlayerArrived(arrivedAt);
 }
 
 void Character::MakePosture(const std::string &newParent, const char *p) {
