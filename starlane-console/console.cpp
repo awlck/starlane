@@ -98,6 +98,7 @@ int main(int argc, char **argv) {
 	std::string tafPath;
 	std::string inputPath;
 	bool quitAfterLoad = false;
+	uint32_t randomSeed = 0;  // 0 means "seed from the OS", see Starlane::SeedRNG
 
 	for (int i = 1; i < argc; i++) {
 		std::string arg = argv[i];
@@ -109,13 +110,19 @@ int main(int argc, char **argv) {
 				return 1;
 			}
 			inputPath = argv[++i];
+		} else if (arg == "--seed") {
+			if (i + 1 >= argc) {
+				std::fprintf(stderr, "--seed requires a number\n");
+				return 1;
+			}
+			randomSeed = (uint32_t) std::strtoul(argv[++i], nullptr, 10);
 		} else if (tafPath.empty()) {
 			tafPath = arg;
 		}
 	}
 
 	if (tafPath.empty()) {
-		std::fprintf(stderr, "Usage: %s [--quit] [--input <commands.txt>] <game.taf>\n", argv[0]);
+		std::fprintf(stderr, "Usage: %s [--quit] [--input <commands.txt>] [--seed <n>] <game.taf>\n", argv[0]);
 		return 1;
 	}
 
@@ -142,7 +149,7 @@ int main(int argc, char **argv) {
 	std::fclose(f);
 
 	Starlane::Frontend fe {
-		/* .randomSeed = */ 0,
+		/* .randomSeed = */ randomSeed,
 		/* .timersAvailable = */ false,
 		/* .FatalError = */ &FatalError,
 		/* .OutputText = */ &OutputText,

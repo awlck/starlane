@@ -69,7 +69,7 @@ interpreter core, e.g. under a debugger. It prints all output text verbatim, wit
 interpreting any HTML, and otherwise takes the following parameters:
 
 ```
-starlane-console [--quit] [--input <commands.txt>] <game.taf>
+starlane-console [--quit] [--input <commands.txt>] [--seed <n>] <game.taf>
 ```
 
 * `<game.taf>`: path to the ADRIFT 5 TAF file to load. Required.
@@ -78,9 +78,26 @@ starlane-console [--quit] [--input <commands.txt>] <game.taf>
   questions or save/restore file paths) from the given file instead of stdin. Useful
   when running under a debugger (e.g. LLDB), where redirecting stdin via the shell is
   awkward.
+* `--seed <n>`: seed the RNG with `n` for reproducible output. A seed of `0` (the
+  default) means "seed from the OS", i.e. nondeterministic — games with randomized
+  text (e.g. Skybreak's intro) will produce different output on every run unless a
+  nonzero seed is given.
 
 ## Test data
 
 There is no formal test suite yet, since we are still working towards making most files
 load properly (or at all). Test files in the appropriate format can be foud in the
 `testdata` directory.
+
+`scripts/run_regression.py` is a parallel regression harness that feeds a fixed command
+sequence into every game under `testdata` via `starlane-console` and records how each
+one exits (clean, crashed, or timed out), plus a hash of its transcript. It uses a
+worker pool sized to the number of CPU cores, so a full pass finishes in seconds rather
+than minutes. Typical before/after comparison workflow:
+
+```
+python3 scripts/run_regression.py --output /tmp/before.txt
+# make your change, rebuild starlane-console
+python3 scripts/run_regression.py --output /tmp/after.txt
+python3 scripts/run_regression.py --diff /tmp/before.txt /tmp/after.txt
+```
