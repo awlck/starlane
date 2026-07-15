@@ -1,6 +1,8 @@
 #include "event.h"
 
 #include <algorithm>
+#include <set>
+#include <utility>
 
 #include <magic_enum.hpp>
 #include <pugixml.hpp>
@@ -72,9 +74,20 @@ Event *Event::CreateFromXML(const pugi::xml_node &xmlNode) {
 			c.taskName = y;
 			result->controls.emplace_back(c);
 		}
+		// Subscribe to every task our controls listen for, so that completing one reaches us.
+		// Tasks are all loaded by the time any event is, so they can be looked up right here.
+		//
+		// Once per task and condition, however many controls name that pair: ReceiveTaskNotification
+		// walks all of its matching controls itself, so subscribing twice would run each of them
+		// twice over. A control naming a task that doesn't exist can never fire, so there is
+		// nothing to hook it to.
+		std::set<std::pair<std::string, Util::Control::Condition>> subscribed;
+		for (const auto &c : result->controls) {
+			if (!subscribed.emplace(c.taskName, c.condition).second) continue;
+			if (Task *t = Game::Get()->GetTask(c.taskName))
+				t->RegisterNotification(result->key, c.condition);
+		}
 	}
-
-	// TODO: handle other StartTypes?
 
 	for (const auto &it: xmlNode.children("SubEvent")) {
 		Subevent se;

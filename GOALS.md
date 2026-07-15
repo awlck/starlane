@@ -7,9 +7,11 @@
 [x] list visible objects and characters in location descriptions
 [x] Implement Direction restrictions
 [x] Implement system commands
-[ ] make WAIT actually let `WaitTurns` turns pass (blocked on event execution)
-[ ] implement event execution
-[ ] implement Character walks
+[x] make WAIT actually let `WaitTurns` turns pass
+[x] implement event execution
+[ ] implement subevents that override the room description (`SetLook`)
+[ ] implement subevents measured in seconds on turn-based events
+[ ] implement Character walks (they tick alongside events, see `Game::RunEventTick`)
 [ ] implement disambiguation
 [ ] implement the conversation system (or refuse to load games using it because it isn't very widely used)
 [ ] implement tasks that use a loop
