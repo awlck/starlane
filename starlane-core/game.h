@@ -118,6 +118,11 @@ public:
 	Expression *GetExpression(ExprRef ref) { return staticData->expressions.at(ref); }
 	const char *GetPlainTextSnippet(PlainTextRef ref) const { return staticData->plainTextSnippets.at(ref); }
 
+	// Whether the player is at the location with this key, or at a location belonging to the
+	// group with this key. Used by subevents that only speak up in certain places -- the field
+	// naming those is called "OnlyApplyAt" and holds either sort of key. A key naming neither a
+	// location nor a group matches nowhere.
+	bool PlayerIsInLocationOrGroup(const std::string &key) const;
 	bool GroupExists(const std::string &key) const { return groups.find(key) != groups.end(); }
 	bool ObjectExists(const std::string &key) const { return objects.find(key) != objects.end(); }
 	bool PropExists(const std::string &key) const { return staticData->properties.find(key) != staticData->properties.end(); }
@@ -214,6 +219,10 @@ public:
 	// Submit player input for processing
 	void ProcessInput(const std::string &s);
 
+	// Send text to the frontend, with any text overrides the game defines applied to it first.
+	// Public because an event's subevent displays its message through here.
+	void OutputFiltered(std::string s) const;
+
 private:
 	Game() = default;
 	Game(const Game &);  // copy constructor -- for undo state saving
@@ -285,7 +294,6 @@ private:
 	// Caution: RESTART and UNDO replace the current Game instance wholesale, so this may well
 	// `delete this` -- the caller must not touch the instance afterwards.
 	bool AttemptMatchSystemCommand();
-	void OutputFiltered(std::string s) const;
 
 	// mutable game state (objects copied for undo state)
 	std::unordered_map<std::string, GameObj *> objects;

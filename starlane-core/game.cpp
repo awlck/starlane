@@ -8,6 +8,7 @@
 #include "expression.h"
 #include "gamecontent/gameobj.h"
 #include "gamecontent/group.h"
+#include "gamecontent/location.h"
 #include "gamecontent/task.h"
 #include "gamecontent/property.h"
 #include "gamecontent/description.h"
@@ -113,6 +114,17 @@ GameStatic::~GameStatic() {
 
 const std::string &Game::GetPlayerLocationKey() const {
 	return GetPlayerChar()->GetLocationKey();
+}
+
+bool Game::PlayerIsInLocationOrGroup(const std::string &key) const {
+	const std::string &here = GetPlayerLocationKey();
+	// A key naming a location is only ever about that location, even if a group happens to share
+	// the name: ADRIFT checks its locations first and stops there.
+	if (dynamic_cast<const Location *>(SafeMapGet(objects, key)))
+		return here == key;
+	if (const Group *grp = SafeMapGet(groups, key))
+		return grp->ContainsObj(here);
+	return false;
 }
 
 void Game::SaveUndo() {

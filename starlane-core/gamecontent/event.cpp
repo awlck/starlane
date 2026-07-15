@@ -9,6 +9,8 @@
 #include "../valueparsers.h"
 #include "../savefiles/writer.h"
 #include "../savefiles/parser.h"
+#include "description.h"
+#include "task.h"
 
 // An event's schedule is otherwise almost impossible to observe: most of what events do is run
 // tasks, whose own output says nothing about which event ran them or when. Follows the same
@@ -295,8 +297,37 @@ void Event::DoAnySubEvents() {
 }
 
 void Event::RunSubEvent(int32_t idx) {
-	EVENT_TRACE("subevent " << idx);
-	// TODO: dispatch the subevent's action.
+	auto &se = subevents[idx];
+	auto *g = Game::Get();
+	EVENT_TRACE("subevent " << idx << ' ' << magic_enum::enum_name(se.actionType) << ' '
+	                        << (se.actionType == SEType::ExecuteTask || se.actionType == SEType::UnsetTask
+	                            ? se.actionTask : se.onlyAtLocation));
+	switch (se.actionType) {
+		case SEType::DisplayMessage:
+			// An empty key means the message never shows at all, rather than showing everywhere:
+			// ADRIFT tests for a key before it tests where the player is, and so must we.
+			if (!se.onlyAtLocation.empty() && g->PlayerIsInLocationOrGroup(se.onlyAtLocation))
+				g->OutputFiltered(g->GetDescription(se.actionDescr)->Build());
+			break;
+		case SEType::ExecuteTask:
+			// Already does nothing for a task that doesn't exist, which is ADRIFT's behaviour
+			// here too. A task that fails its restrictions still gets to say so -- ADRIFT only
+			// suppresses the hunt for a lower-priority task when an event runs one, not output.
+			g->ExecuteTaskByKey(se.actionTask);
+			break;
+		case SEType::UnsetTask:
+			// ADRIFT looks the task up unguarded and throws outright on a key that isn't there;
+			// doing nothing is the more useful reading of a game file naming a task it hasn't got.
+			if (Task *t = g->GetTask(se.actionTask))
+				t->Uncomplete();
+			break;
+		case SEType::SetLook:
+			// TODO: SetLook stacks an override of the location description, which LOOK and the
+			// room description then read back. Wiring that stack into description building is a
+			// change of its own, and no subevent in any test game asks for it -- so this is
+			// deliberately not implemented, rather than half-implemented and silently wrong.
+			break;
+	}
 	lastSubEventTime = timeSinceStart;
 	lastSubEventIndex = idx;
 }
