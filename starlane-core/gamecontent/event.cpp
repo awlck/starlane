@@ -10,6 +10,21 @@
 #include "../savefiles/writer.h"
 #include "../savefiles/parser.h"
 
+// An event's schedule is otherwise almost impossible to observe: most of what events do is run
+// tasks, whose own output says nothing about which event ran them or when. Follows the same
+// pattern as gameloader.cpp's load-stage tracing.
+#ifndef NDEBUG
+#include <iostream>
+// `what` is pasted into the '<<' chain unparenthesized, so that callers can go on chaining onto
+// it. Anything binding more loosely than '<<' -- a ternary, say -- needs parenthesizing by the
+// caller.
+#define EVENT_TRACE(what) \
+	std::cerr << "[evt] " << key << ' ' << what << " t=" << timeSinceStart \
+	          << '/' << (int32_t) duration.CurrentState() << '\n'
+#else
+#define EVENT_TRACE(what) ((void) 0)
+#endif
+
 namespace Starlane {
 
 Event *Event::CreateFromXML(const pugi::xml_node &xmlNode) {
@@ -20,6 +35,9 @@ Event *Event::CreateFromXML(const pugi::xml_node &xmlNode) {
 	result->repeating = ParseBool(xmlNode.child_value("Repeating"));
 	result->repeatCountdown = xmlNode.child("RepeatCountdown").type() != pugi::node_null;
 	result->duration = Util::Range(xmlNode.child_value("Length"));
+	// ADRIFT only writes this out for an event that starts after a delay, so it is absent far
+	// more often than not -- and absent means no delay at all.
+	result->startDelay = Util::Range(xmlNode.child_value("StartDelay"));
 
 	if (result->startType == StartType::TaskBased) {
 		for (const auto &it: xmlNode.children("Control")) {
@@ -92,26 +110,195 @@ Event *Event::CreateFromXML(const pugi::xml_node &xmlNode) {
 	return result;
 }
 
-void Event::IncrementTimer() {
-	// TODO: the state machine proper. Events don't advance yet.
+// A task asking for something gets it now if we are already mid-tick, and otherwise has to wait
+// for our next one. See the declaration of Start() for why.
+#define DEFER_OR(cmd, impl) \
+	do { \
+		if (Game::Get()->AreEventsRunning()) impl; \
+		else nextCommand = Command::cmd; \
+	} while (0)
+
+void Event::Start(bool force) {
+	if (force) { StartImpl(false); return; }
+	DEFER_OR(Start, StartImpl(false));
 }
 
-void Event::Start() {
-	// TODO
+void Event::Stop() { DEFER_OR(Stop, StopImpl(false)); }
+void Event::Pause() { DEFER_OR(Pause, PauseImpl()); }
+void Event::Resume() { DEFER_OR(Resume, ResumeImpl()); }
+
+#undef DEFER_OR
+
+void Event::BeginCountdown() {
+	state = State::CountingDownToStart;
+	startDelay.Reset();
+	duration.Reset();
+	duration.Value();  // settle the roll now, so TimeToEnd has an answer to give from here on
+	// Negative: we are this many ticks *before* the start. Counting up to zero starts the event,
+	// which SetTimeSinceStart sees to -- including right now, if there is no delay to wait out.
+	SetTimeSinceStart(-(int32_t) startDelay.Value());
 }
 
-void Event::Stop() {
-	// TODO
+void Event::SetTimeSinceStart(int32_t t) {
+	timeSinceStart = t;
+	// Counted all the way down: begin. Straight to StartImpl rather than through Start(), since
+	// this is the clock arriving rather than a task asking, and there is nothing to defer to.
+	if (state == State::CountingDownToStart && timeSinceStart == 0)
+		StartImpl(false);
+	// Run out of time: end. This is the only path on which a repeating event repeats, which is
+	// what stops one that a task stopped early from starting itself up again.
+	if (state == State::Running && TimeToEnd() == 0)
+		StopImpl(true);
 }
 
-void Event::Pause() {
+void Event::StartImpl(bool restart) {
+	// ADRIFT logs "Can't Start an Event that isn't waiting!" and does nothing.
+	if (!(state == State::NotYetStarted || state == State::CountingDownToStart ||
+			state == State::Finished || (state == State::Running && restart)))
+		return;
+	state = State::Running;
+	// A "takes 3 to 7 turns" event rolls afresh every time it starts, rather than being stuck
+	// with whatever it rolled the first time.
+	duration.Reset();
+	duration.Value();  // settle it, so TimeToEnd works for the rest of this run
+	lastSubEventIndex = -1;
+	lastSubEventTime = 0;
+	for (auto &se : subevents)
+		se.when.Reset();
+	// Plain assignment, purely so the trace below reports the clock we are starting from; the
+	// line after puts the same value through the transitions.
+	timeSinceStart = 0;
+	EVENT_TRACE((restart ? "restart" : "start"));
+	// May end the event here and now: an event with no length has no time left the instant it
+	// starts, so this trips the "run out of time" arm above, which runs the 0-turn subevents and
+	// finishes the event before we get back.
+	SetTimeSinceStart(0);
+	// ...and if it didn't, the 0-turn subevents still get their chance. A no-op when the line
+	// above already finished us off, since DoAnySubEvents only acts on a running event.
+	if (timeSinceStart == 0) DoAnySubEvents();
+	// ADRIFT rewrites the event's own start type here, and keeps the rewrite. It has to: the
+	// 0-turn test in DoAnySubEvents refuses to fire while the start type still says Immediately,
+	// so without this a repeating "immediately, 0 turns from the start" event -- the ordinary way
+	// to say "every turn", and the whole of skybreak's status, death and mission machinery --
+	// would never fire once. Hence also its presence in save files.
+	if (startType == StartType::Immediately) startType = StartType::AfterDelay;
+	justStarted = true;
+}
+
+void Event::StopImpl(bool runSubEvents) {
+	// End-of-event subevents get their turn before we call this finished; it is the only chance
+	// an "N turns before the end" subevent ever gets.
+	if (runSubEvents) DoAnySubEvents();
+	// ADRIFT declines to stop a paused event -- but only after the subevents above, which are
+	// gated on the event running and so do nothing here anyway. Kept in this order to match.
+	if (state == State::Paused) return;
+	state = State::Finished;
+	EVENT_TRACE("stop");
+	// Repeat only on running out of time. A task that stopped us early leaves time on the clock,
+	// and ADRIFT tests for exactly that, so an event stopped early stays stopped.
+	if (repeating && TimeToEnd() == 0) {
+		if (duration.CurrentState() > 0) {
+			if (repeatCountdown)
+				BeginCountdown();
+			else
+				StartImpl(true);
+		}
+		// else: a zero-length repeating event would restart, expire on the spot, restart... and
+		// never hand control back. ADRIFT bails out here for the same reason, and axe-of-kolt has
+		// three such events, so this is not hypothetical.
+	}
+}
+
+void Event::PauseImpl() {
 	if (state == State::Running)
 		state = State::Paused;
 }
 
-void Event::Resume() {
+void Event::ResumeImpl() {
 	if (state == State::Paused)
 		state = State::Running;
+}
+
+void Event::IncrementTimer() {
+	// Anything a task asked of us since our last tick happens now, ahead of everything else.
+	if (nextCommand != Command::None) {
+		// Cleared first: these run the same code a task would reach were it running inside the
+		// event loop, and that code may well queue something new for our next tick.
+		Command cmd = nextCommand;
+		nextCommand = Command::None;
+		switch (cmd) {
+			case Command::Start:  StartImpl(false); break;
+			case Command::Stop:   StopImpl(false); break;
+			case Command::Pause:  PauseImpl(); break;
+			case Command::Resume: ResumeImpl(); break;
+			case Command::None:   break;
+		}
+	}
+	// Two steps rather than one, as in ADRIFT: moving the clock can itself change our state, run
+	// subevents and restart us, so which state we were in has to be settled beforehand.
+	switch (state) {
+		case State::CountingDownToStart:
+			SetTimeSinceStart(timeSinceStart + 1);
+			break;
+		case State::Running:
+			if (!justStarted) SetTimeSinceStart(timeSinceStart + 1);
+			break;
+		case State::NotYetStarted:
+		case State::Paused:
+		case State::Finished:
+			break;
+	}
+	// Re-reads justStarted rather than trusting the value from the top: the clock move above may
+	// have restarted us, and a restart has already run its own 0-turn subevents.
+	if (!justStarted) DoAnySubEvents();
+	justStarted = false;
+}
+
+void Event::DoAnySubEvents() {
+	if (state != State::Running) return;
+	for (int32_t i = 0; i < (int32_t) subevents.size(); i++) {
+		auto &se = subevents[i];
+		// A subevent counted in seconds only rides along with the event on a real-time event; on
+		// a turn-based one ADRIFT gives it a timer of its own.
+		// TODO: real-time subevents on turn-based events. (Every subevent in every test game is
+		// counted in turns, so there is nothing here to check such a thing against.)
+		if (!(se.timeType == TimeType::Turns || timeType == TimeType::RealTime)) continue;
+		// Read afresh each time round rather than hoisted out of the loop: an earlier subevent
+		// can run a task that reaches back and restarts this very event -- and immediately, since
+		// we are inside the event loop -- moving the clock and re-rolling the ranges underneath
+		// us. ADRIFT reads them as properties every time for the same reason.
+		const int32_t elapsed = timeSinceStart;
+		const int32_t len = (int32_t) duration.CurrentState();
+		const int32_t when = (int32_t) se.when.Value();
+		bool run = false;
+		switch (se.whenRefType) {
+			case SERefType::EventBegin:
+				run = elapsed == when && when <= len
+					// "0 turns from the start" is held back on the first run of an event that
+					// started immediately, and only then -- see the start-type rewrite in
+					// StartImpl, which is what lets it fire on every run after that.
+					&& (when > 0 || startType != StartType::Immediately);
+				break;
+			case SERefType::LastSubEvent:
+				// A strict chain: this subevent only ever follows the one before it in the list.
+				// If anything else ran last the chain is broken and this one sits the run out.
+				// (The first subevent has nothing to follow, so it may open a chain itself.)
+				run = TimeSinceLastSubEvent() == when
+					&& ((lastSubEventIndex < 0 && i == 0) || (i > 0 && lastSubEventIndex == i - 1));
+				break;
+			case SERefType::EventEnd:
+				run = TimeToEnd() == when;
+				break;
+		}
+		if (run) RunSubEvent(i);
+	}
+}
+
+void Event::RunSubEvent(int32_t idx) {
+	EVENT_TRACE("subevent " << idx);
+	// TODO: dispatch the subevent's action.
+	lastSubEventTime = timeSinceStart;
+	lastSubEventIndex = idx;
 }
 
 void Event::ReceiveTaskNotification(Util::Control::Condition cond, const std::string &taskKey) {
@@ -143,25 +330,79 @@ void Event::ReceiveTaskNotification(Util::Control::Condition cond, const std::st
 
 void Event::WriteState(Save::Writer &writer) const {
 	writer.WriteKV("determined_duration", duration.CurrentState());
+	writer.WriteKV("determined_start_delay", startDelay.CurrentState());
+	// Rewritten as the event runs (StartImpl turns Immediately into AfterDelay for good), so it
+	// is state rather than content, however much it looks like the latter. Leave it out and a
+	// restored save resurrects Immediately, silently killing every 0-turn subevent the event has.
+	writer.WriteKV("start_type", magic_enum::enum_name(startType));
 	writer.WriteKV("state", magic_enum::enum_name(state));
 	writer.WriteKV("time_since_start", timeSinceStart);
+	writer.WriteKV("just_started", justStarted);
+	writer.WriteKV("next_command", magic_enum::enum_name(nextCommand));
+	writer.WriteKV("last_subevent", lastSubEventIndex);
+	writer.WriteKV("last_subevent_time", lastSubEventTime);
+	// Each subevent's own settled roll. Every "When" in the test games is a bare number, so these
+	// are all foregone conclusions today -- but "3 to 7 FromStartOfEvent" is legal, and then the
+	// roll is real state that a restore has no way to guess.
+	std::vector<uint32_t> whens;
+	whens.reserve(subevents.size());
+	for (const auto &se : subevents)
+		whens.push_back(se.when.CurrentState());
+	writer.WriteKV("subevent_whens", whens);
 }
 
+namespace {
+// Look a field up by name and check its type. The whole of this used to walk `nextSibling` from
+// one named lookup instead, which quietly depended on WriteState's emission order and was already
+// wrong once (it read the duration off the event's own compound rather than the field).
+const Save::AstNode *GetField(const Save::AstNode *node, const char *name, Save::NodeType type) {
+	const auto *f = node->FindChildByName(name);
+	return (f && f->type == type) ? f : nullptr;
+}
+}  // anonymous namespace
+
 bool Event::RestoreState(const Save::AstNode *node) {
-	const auto *ddNode = node->FindChildByName("determined_duration");
-	if (!ddNode || ddNode->type != Save::NT_INT) return false;
-	// `ddNode`, not `node`: the latter is the event's own compound, whose `sv` union holds its
-	// child list rather than an integer -- so reading `.Int` off it reinterpreted a pointer as
-	// the duration, quietly corrupting it on every single restore.
-	duration.RestoreState(ddNode->sv.Int);
-	const auto *sNode = ddNode->nextSibling;
-	if (!sNode || sNode->type != Save::NT_STRING) return false;
-	auto tmpState = magic_enum::enum_cast<State>(sNode->Str);
+	const auto *n = GetField(node, "determined_duration", Save::NT_INT);
+	if (!n) return false;
+	duration.RestoreState(n->sv.Int);
+	if (!(n = GetField(node, "determined_start_delay", Save::NT_INT))) return false;
+	startDelay.RestoreState(n->sv.Int);
+
+	if (!(n = GetField(node, "start_type", Save::NT_STRING))) return false;
+	auto tmpStartType = magic_enum::enum_cast<StartType>(n->Str);
+	if (!tmpStartType.has_value()) return false;
+	startType = tmpStartType.value();
+
+	if (!(n = GetField(node, "state", Save::NT_STRING))) return false;
+	auto tmpState = magic_enum::enum_cast<State>(n->Str);
 	if (!tmpState.has_value()) return false;
 	state = tmpState.value();
-	const auto *tssNode = sNode->nextSibling;
-	if (!tssNode || tssNode->type != Save::NT_INT) return false;
-	timeSinceStart = (int32_t) tssNode->sv.Int;
+
+	if (!(n = GetField(node, "next_command", Save::NT_STRING))) return false;
+	auto tmpCmd = magic_enum::enum_cast<Command>(n->Str);
+	if (!tmpCmd.has_value()) return false;
+	nextCommand = tmpCmd.value();
+
+	if (!(n = GetField(node, "time_since_start", Save::NT_INT))) return false;
+	timeSinceStart = (int32_t) n->sv.Int;
+	if (!(n = GetField(node, "just_started", Save::NT_BOOL))) return false;
+	justStarted = n->sv.Bool;
+	if (!(n = GetField(node, "last_subevent", Save::NT_INT))) return false;
+	lastSubEventIndex = (int32_t) n->sv.Int;
+	if (!(n = GetField(node, "last_subevent_time", Save::NT_INT))) return false;
+	lastSubEventTime = (int32_t) n->sv.Int;
+
+	if (!(n = GetField(node, "subevent_whens", Save::NT_INTLIST)) &&
+			!(n = GetField(node, "subevent_whens", Save::NT_EMPTY)))
+		return false;
+	size_t i = 0;
+	ITERATE_CHILDREN(n, w) {
+		// A different number of subevents than we have means this file isn't describing this
+		// game, whatever its header claimed.
+		if (i >= subevents.size()) return false;
+		subevents[i++].when.RestoreState((uint32_t) w->sv.Int);
+	}
+	if (i != subevents.size()) return false;
 	return true;
 }
 

@@ -161,7 +161,7 @@ Event::StartType Event::ParseStartType(const char *txt) {
 	if (STREQ(txt, "Immediately"))
 		return StartType::Immediately;
 	if (STREQ(txt, "BetweenXandYTurns"))
-		return StartType::TimeBased;
+		return StartType::AfterDelay;
 	if (STREQ(txt, "AfterATask"))
 		return StartType::TaskBased;
 	// In the ADRIFT source code, this enum starts with 1, yet somehow '0' appears

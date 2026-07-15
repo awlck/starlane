@@ -21,7 +21,10 @@ public:
 	enum class StartType {
 		Invalid,
 		Immediately,
-		TimeBased,
+		// "Between X and Y turns": waits out `startDelay` before it begins. Named for what it
+		// does rather than for ADRIFT's "BetweenXandYTurns", and deliberately not "TimeBased",
+		// which would read as the opposite of TimeType::Turns -- a different axis entirely.
+		AfterDelay,
 		TaskBased
 	};
 	static StartType ParseStartType(const char *txt);
@@ -60,9 +63,30 @@ public:
 	};
 
 	void ReceiveTaskNotification(Util::Control::Condition ctrl, const std::string &taskKey);
-	void Start();
+
+	// Start/stop/pause/resume this event at a task's request.
+	//
+	// Whether that happens now or on this event's next tick depends on where the asking task was
+	// run from. A task run by another event's subevent -- i.e. from inside the event loop -- gets
+	// its way immediately, because the events around it are being ticked right now and would
+	// otherwise see a stale picture. A task the player typed does not: it waits, so that an event
+	// started by this turn's command doesn't also get this turn's progress out of it. ADRIFT
+	// draws the same line, and puts it plainly: "If an event runs a task and that task
+	// starts/stops an event, do it immediately."
+	//
+	// `force` starts an event regardless, for the one caller with no event loop to be inside of:
+	// Game::Begin.
+	void Start(bool force = false);
+	void Stop();
 	void Pause();
 	void Resume();
+
+	// Put this event into the state Game::Begin's start-up pass calls for. Separate from Start()
+	// because neither of these is a request from a task: they set up the event's initial state
+	// rather than asking it to do anything.
+	void SetNotYetStarted() { state = State::NotYetStarted; }
+	// Begin waiting out `startDelay` before starting, for an event that starts after a delay.
+	void BeginCountdown();
 
 	// Whether this event is driven by the wall clock rather than by turns. The only thing that
 	// tells the two populations of events apart; both tick through IncrementTimer.
@@ -81,26 +105,74 @@ public:
 
 private:
 	Event() = default;
-	void Stop();
 
 	enum class State {
-		NotOngoing,
+		NotYetStarted,
+		CountingDownToStart,
 		Running,
-		Paused
+		Paused,
+		Finished
 	};
+	// A start/stop/pause/resume asked for by a task run outside the event loop, remembered until
+	// this event's next tick. See Start().
+	enum class Command {
+		None,
+		Start,
+		Stop,
+		Pause,
+		Resume
+	};
+
+	// The bodies behind Start/Stop/Pause/Resume, run once the deferral above has been settled.
+	void StartImpl(bool restart);
+	void StopImpl(bool runSubEvents);
+	void PauseImpl();
+	void ResumeImpl();
+	// Move the clock, and act on where it lands: reaching the start of a countdown starts the
+	// event, and running out of time ends it. Every write to timeSinceStart goes through here --
+	// ADRIFT hangs the same two transitions off assignment to its own counter.
+	void SetTimeSinceStart(int32_t t);
+	// Run whichever subevents this tick calls for. Does nothing unless the event is running.
+	void DoAnySubEvents();
+	void RunSubEvent(int32_t idx);
+
+	// Ticks remaining before this event ends. ADRIFT stores this and derives the elapsed time; we
+	// do it the other way round, because the elapsed time is what the `Position` expression
+	// function reports and what a save file already carries.
+	// CurrentState() rather than Value(): the latter settles the roll, and so is not const. Every
+	// path that puts this event on the clock (StartImpl, BeginCountdown) settles `duration` first,
+	// so by the time anything asks how long is left, there is a real answer to give.
+	int32_t TimeToEnd() const { return (int32_t) duration.CurrentState() - timeSinceStart; }
+	// Ticks since the last subevent ran (or since the event started, if none has).
+	int32_t TimeSinceLastSubEvent() const { return timeSinceStart - lastSubEventTime; }
 
 	std::string key;
 	std::vector<Util::Control> controls;
 	std::vector<Subevent> subevents;
+	// Mutable at runtime, and saved: StartImpl rewrites Immediately into AfterDelay and keeps it.
 	StartType startType;
 	TimeType timeType;
 	Util::Range duration;
+	// <StartDelay>, which ADRIFT only writes for an event that starts after one. No test game
+	// has one, but a repeating event that counts down again between runs reads it too.
+	Util::Range startDelay{(uint32_t) 0};
 	bool repeating;
 	bool repeatCountdown;
-	State state = State::NotOngoing;
+	State state = State::NotYetStarted;
+	// Ticks since this event started, and negative while counting down to one: -3 means "starts
+	// in three ticks". ADRIFT counts the same span from the other end.
 	int32_t timeSinceStart = 0;
 	// An event that started on this very tick does not also age on it.
 	bool justStarted = false;
+	Command nextCommand = Command::None;
+	// Which subevent ran most recently, or -1 if none has since this event last started. An index
+	// rather than a pointer because Game clones every Event wholesale for each undo state, with
+	// the compiler's own copy constructor -- a pointer would survive that copy aimed squarely at
+	// the previous Game's subevent.
+	int32_t lastSubEventIndex = -1;
+	// timeSinceStart as of that subevent, which is what "N turns after the last subevent" counts
+	// from.
+	int32_t lastSubEventTime = 0;
 };
 
 }
