@@ -207,35 +207,6 @@ void Game::Begin() {
 	taskCompletedStorage.reserve(staticData->tasks.size());
 	for (const auto &it : staticData->tasks)
 		taskCompletedStorage[it.first] = false;
-	// Must come after taskCompletedStorage is populated above: an immediate, zero-length event
-	// fires its subevents from inside Start(), those run tasks, and a task asking whether it has
-	// already been completed would find nothing to read.
-	for (const auto &key : staticData->eventLoadOrder) {
-		Event *evt = events.at(key);
-		switch (evt->GetStartType()) {
-			case Event::StartType::TaskBased:
-				evt->SetNotYetStarted();
-				break;
-			case Event::StartType::AfterDelay:
-				evt->BeginCountdown();
-				break;
-			case Event::StartType::Immediately:
-				// Forced: there is no event loop to be inside of yet, and an event told to start
-				// immediately should not have to wait a turn for it.
-				evt->Start(/*force =*/ true);
-				break;
-			case Event::StartType::Invalid:
-				// "<WhenStart>0</WhenStart>", which ADRIFT's own enum has no value for and which
-				// 36 events across the test games nonetheless carry. Taken to mean the event
-				// never runs.
-				break;
-		}
-	}
-	// Deliberately a second pass, as in ADRIFT. Start() leaves the "started on this tick" flag
-	// set so that an event doesn't also age on the tick it started; carried out of load and into
-	// the first real tick, that would have every immediate event sit out turn one.
-	for (const auto &key : staticData->eventLoadOrder)
-		events.at(key)->ClearJustStarted();
 	// Every character has "seen" their initial surroundings.
 	for (const auto &it : objects) {
 		if (auto *c = dynamic_cast<Character *>(it.second))
@@ -244,7 +215,8 @@ void Game::Begin() {
 	gameHasBegun = true;
 	// System tasks set to run as the game starts do so now: the game is up, but nothing has been
 	// played yet. Directly rather than through the arrival queue -- nobody has arrived anywhere,
-	// and these run whatever location the player begins in. Before the intro, as in ADRIFT.
+	// and these run whatever location the player begins in. Before the intro and before events
+	// start, as in ADRIFT.
 	for (Task *t : staticData->runImmediatelyTasks)
 		ExecuteTaskByKey(t->Key());
 	// ...and if one of those moved the player, whatever waits where they landed runs here rather
@@ -271,6 +243,43 @@ void Game::Begin() {
 	}
 	if (staticData->gameIntro != 0)
 		frontend->OutputText(GetDescription(staticData->gameIntro)->Build().c_str());
+	// As in ADRIFT: the initial room description, if the game asks for one, follows the intro
+	// rather than being left for the player's first LOOK.
+	if (staticData->showFirstLocation) {
+		if (auto *loc = dynamic_cast<Location *>(GetObject(GetPlayerLocationKey())))
+			frontend->OutputText(("\n" + loc->GetDescription()).c_str());
+	}
+	// Must come after taskCompletedStorage is populated above: an immediate, zero-length event
+	// fires its subevents from inside Start(), those run tasks, and a task asking whether it has
+	// already been completed would find nothing to read. After the intro and initial room
+	// description too, as in ADRIFT -- an event started immediately runs, and can print, only
+	// once the game has finished introducing itself.
+	for (const auto &key : staticData->eventLoadOrder) {
+		Event *evt = events.at(key);
+		switch (evt->GetStartType()) {
+			case Event::StartType::TaskBased:
+				evt->SetNotYetStarted();
+				break;
+			case Event::StartType::AfterDelay:
+				evt->BeginCountdown();
+				break;
+			case Event::StartType::Immediately:
+				// Forced: there is no event loop to be inside of yet, and an event told to start
+				// immediately should not have to wait a turn for it.
+				evt->Start(/*force =*/ true);
+				break;
+			case Event::StartType::Invalid:
+				// "<WhenStart>0</WhenStart>", which ADRIFT's own enum has no value for and which
+				// 36 events across the test games nonetheless carry. Taken to mean the event
+				// never runs.
+				break;
+		}
+	}
+	// Deliberately a second pass, as in ADRIFT. Start() leaves the "started on this tick" flag
+	// set so that an event doesn't also age on the tick it started; carried out of load and into
+	// the first real tick, that would have every immediate event sit out turn one.
+	for (const auto &key : staticData->eventLoadOrder)
+		events.at(key)->ClearJustStarted();
 }
 
 void Game::TurnTick() {
