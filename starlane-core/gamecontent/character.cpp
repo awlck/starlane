@@ -24,6 +24,9 @@ Character *Character::CreateFromXML(const pugi::xml_node &xmlNode) {
 	if (result->relation != GameObj::HoldingType::Hidden) {
         result->parent = result->GetStrProp(nextProp);
         result->ErasePropValue(nextProp);
+        // Resolve a "%Player%" container reference to the player's key up front, as GameObj does.
+        if (Util::IsReference(result->parent))
+            result->parent = Game::Get()->GetReference(result->parent);
     }
 
 	// TODO: Walks

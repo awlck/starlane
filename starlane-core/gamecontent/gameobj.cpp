@@ -46,6 +46,12 @@ GameObj *GameObj::CreateFromXML(const pugi::xml_node &xmlNode) {
     if (!nextProp.empty()) {
         result->parent = result->GetStrProp(nextProp);
         result->ErasePropValue(nextProp);
+        // An object that starts out held by the player stores its container as the reference
+        // "%Player%" rather than the player's key; resolve it now so the rest of the engine only
+        // ever sees a concrete key in `parent`. (The player key is known by this point -- it is
+        // determined before objects load.)
+        if (Util::IsReference(result->parent))
+            result->parent = Game::Get()->GetReference(result->parent);
     }
 
 	result->MakeMatchExpr();

@@ -68,6 +68,17 @@ Game *Game::LoadFromXML(const std::string &gameTxt) {
 	// Game::Get() to store them -- which is still null until this assignment. (Jacaranda Jim has
 	// exactly such a segment in its intro; most games don't, which is why this stayed latent.)
 	Game::theGame = result;
+
+	// Determine who is the initial player character (can this even be changed?), set by the special
+	// element 'Type' on a Character entity. Done up front, before objects load, because an object or
+	// character that starts out held by the player stores its container as the reference "%Player%"
+	// and needs the player key to resolve it (see GameObj/Character CreateFromXML).
+	auto playerNode = doc.select_node(R"(//Character[Type="Player"]/Key)");
+	if (playerNode.node().type() != pugi::node_null)
+		result->playerKey = playerNode.node().child_value();
+	else  // fallback
+		result->playerKey = "Player";
+
 	rStatic->gameIntro = result->CreateDescFromXML(gameNode.child("Introduction"));
 
 	{
@@ -150,15 +161,6 @@ Game *Game::LoadFromXML(const std::string &gameTxt) {
 	auto perspectiveNode = doc.select_node(R"(//Character[Key="Player"]/Perspective)");
 	if (perspectiveNode.node().type() != pugi::node_null)
 		rStatic->pcReferralPerson = ParseReferralPerson(perspectiveNode.node().child_value());
-
-	// determine who is the initial player character (can this even be changed?).
-	// set by the special element 'Type' on a Character entity.
-	auto playerNode = doc.select_node(R"(//Character[Type="Player"]/Key)");
-	if (playerNode.node().type() != pugi::node_null)
-		result->playerKey = playerNode.node().child_value();
-	else  // fallback
-		result->playerKey = "Player";
-
 
 	LOAD_STAGE("Figuring Out Text");
 	// Finally, pre-split all descriptions into runs of plain text and expressions.
