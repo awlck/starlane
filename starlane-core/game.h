@@ -131,7 +131,7 @@ public:
 	const Property *GetPropMeta(const std::string &key) const { return SafeMapGet(staticData->properties, key); }
 	const Restriction *GetRestriction(RestrRef key) const { return staticData->restrictions.at(key); }
 	Variable *GetVariable(const std::string &key) { return SafeMapGet(variables, key); }
-	Variable *GetVarByName(const std::string &name) { const auto f = staticData->varNames.find(name); return f == staticData->varNames.end() ? nullptr : variables.at(f->second); }
+	Variable *GetVarByName(const std::string &name) { const auto f = staticData->varNames.find(Util::ToLower(name)); return f == staticData->varNames.end() ? nullptr : variables.at(f->second); }
 	const UserFunction *GetUserFunction(const std::string &key) const { return SafeMapGet(staticData->userFunctions, key); }
 	const UserFunction *GetUserFuncByName(const std::string &name) const { const auto f = staticData->userFuncNames.find(name); return f == staticData->userFuncNames.end() ? nullptr : staticData->userFunctions.at(f->second); }
 	Expression *GetExpression(ExprRef ref) { return staticData->expressions.at(ref); }
@@ -145,7 +145,7 @@ public:
 	bool GroupExists(const std::string &key) const { return groups.find(key) != groups.end(); }
 	bool ObjectExists(const std::string &key) const { return objects.find(key) != objects.end(); }
 	bool PropExists(const std::string &key) const { return staticData->properties.find(key) != staticData->properties.end(); }
-	bool VarOfNameExists(const std::string &name) const { return staticData->varNames.find(name) != staticData->varNames.end(); }
+	bool VarOfNameExists(const std::string &name) const { return staticData->varNames.find(Util::ToLower(name)) != staticData->varNames.end(); }
 	const std::unordered_map<std::string, GameObj *> &GetAllObjects() const { return objects; }
 	// All object keys, in the order the objects appear in the game file.
 	const std::vector<std::string> &GetObjectLoadOrder() const { return staticData->objectLoadOrder; }

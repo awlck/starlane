@@ -229,7 +229,10 @@ void Game::CreateVariableFromXML(const pugi::xml_node &varNode) {
 	assert(result);
 	variables[result->Key()] = result;
 	auto s = const_cast<GameStatic *>(staticData);
-	s->varNames[result->Name()] = result->Key();
+	// Keyed by the lowercased name: ADRIFT matches a %name% reference against a variable's name
+	// case-insensitively (ReplaceFunctions uses CompareMethod.Text), and games rely on it -- one
+	// variable is named "seabonus" but referenced as "%Seabonus%".
+	s->varNames[Util::ToLower(result->Name())] = result->Key();
 }
 
 void Game::CreateGroupFromXML(const pugi::xml_node &grpNode) {
