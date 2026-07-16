@@ -12,6 +12,7 @@
 #include "../gamecontent/character.h"
 #include "../gamecontent/description.h"
 #include "../gamecontent/event.h"
+#include "../gamecontent/group.h"
 #include "../gamecontent/location.h"
 #include "../gamecontent/property.h"
 #include "../gamecontent/userfunc.h"
@@ -599,124 +600,125 @@ Expr::Value Expression::EvalItemfunc(Expr::Value obj, const ast_node_tag *toCall
 	}
 	EnsureString(toCall_);
 	auto *g = Game::Get();
-	// Figure out what sort of function we're dealing with, and call it.
-	if (Expr::IsListedIn(listOfObjectFunctions, toCall_.Str.c_str())) {
-		const auto *theObj = g->GetObject(obj.Str);
-		if (toCall_.Str == "Children")
-			return ObjChildrenImpl(theObj, args);
-		if (toCall_.Str == "Contents")
-			return ObjContentsImpl(theObj, args);
-		if (toCall_.Str == "Name")
-			return theObj->GetDisplayName();
-		if (toCall_.Str == "Description")
-			return theObj->GetDescription();
-		if (toCall_.Str == "Location")
-			return theObj->GetLocationKey();
-		if (toCall_.Str == "Parent")
-			return theObj->GetParentKey();
+	// A group on the left of a '.' stands in for its members: expand it to the pipe-joined member
+	// list so the function or property is applied to each and the results joined, as ADRIFT's
+	// ReplaceOOProperty does. A plain key, or a value already carrying '|'-joined keys, is left as-is.
+	std::string subject = obj.Str;
+	if (const Group *grp = g->GetGroup(subject)) {
+		subject.clear();
+		for (const auto &m : grp->GetAllMembers()) {
+			if (!subject.empty()) subject += '|';
+			subject += m;
+		}
 	}
-	if (Expr::IsListedIn(listOfLocationFunctions, toCall_.Str.c_str())) {
-		const auto *theObj = dynamic_cast<Location *>(g->GetObject(obj.Str));
-		if (!theObj) throw std::runtime_error("Item function on locations applied to non-location: " + obj.Str);
-		if (toCall_.Str == "Objects")
-			return theObj->GetListOfChildren(GameObj::ChildFilter::Objects, GameObj::ChildRelFilter::In);
-		if (toCall_.Str == "Exits")
-			return theObj->GetListOfExits();
-	}
-	if (Expr::IsListedIn(listOfCharacterFunctions, toCall_.Str.c_str())) {
-		const auto *theObj = dynamic_cast<Character *>(g->GetObject(obj.Str));
-		if (!theObj) throw std::runtime_error("Item function on characters applied to non-character: " + obj.Str);
-		if (toCall_.Str == "Descriptor")
-			return theObj->GetDescriptor();
-		if (toCall_.Str == "ProperName")
-			return theObj->GetProperName();
-		if (toCall_.Str == "Held")
-			return CharHeldImpl(theObj, args);
-		if (toCall_.Str == "Worn")
-			return CharWornImpl(theObj, args);
-		if (toCall_.Str == "WornAndHeld")
-			return CharWornAndHeldImpl(theObj, args);
-	}
-	if (Expr::IsListedIn(listOfEventFunctions, toCall_.Str.c_str())) {
-		auto *theEvt = g->GetEvent(obj.Str);
-		if (!theEvt) throw std::runtime_error("Item function on events applied to non-event: " + obj.Str);
-		if (toCall_.Str == "Length")
-			return theEvt->GetDuration().Value();
-		if (toCall_.Str == "Position")
-			return theEvt->GetTimeSinceStart();
-	}
+
+	// The aggregate functions look at the list as a whole rather than at each member.
 	if (toCall_.Str == "Count") {
-		if (obj.Str.empty()) return 0;
-		return std::count(obj.Str.begin(), obj.Str.end(), '|') + 1;
+		if (subject.empty()) return 0;
+		return std::count(subject.begin(), subject.end(), '|') + 1;
 	}
 	if (toCall_.Str == "List") {
-		if (obj.Str.empty()) return std::string();
-		return WriteListImpl(obj.Str, args);
+		if (subject.empty()) return std::string();
+		return WriteListImpl(subject, args);
 	}
 	if (toCall_.Str == "Sum") {
-		if (obj.Str.empty()) return 0;
+		if (subject.empty()) return 0;
 		int64_t result = 0;
-		std::vector<std::string> nums = Util::SplitList(obj.Str);
-		for (const auto &n : nums) {
-			if (IsDigits(n.c_str()) || (n.size() >= 2 && n[0] == '-' && IsDigits(n.c_str()+1))) {
+		for (const auto &n : Util::SplitList(subject)) {
+			if (IsDigits(n.c_str()) || (n.size() >= 2 && n[0] == '-' && IsDigits(n.c_str()+1)))
 				result += ParseInt(n.c_str());
-			} else throw std::runtime_error("Attempted to calculate the Sum of a list that isn't all numbers.");
+			else throw std::runtime_error("Attempted to calculate the Sum of a list that isn't all numbers.");
 		}
 		return result;
 	}
 
+	// Everything else is per-member. A single subject keeps the function's typed result (so
+	// arithmetic on %obj%.Weight still sees an integer); a genuine list is mapped and pipe-joined.
+	std::vector<std::string> items = Util::SplitList(subject);
+	if (items.empty())
+		return std::string();
+	if (items.size() == 1)
+		return EvalItemfuncSingle(items[0], toCall_, args);
+
+	// A bool property over a list filters it -- keeping the members it holds for -- rather than
+	// mapping to a list of 0/1, which is what the old single-list property path did.
+	const Property *meta = g->GetPropMeta(toCall_.Str);
+	const bool boolFilter = meta && meta->Type() == Property::ValueType::Bool;
+	std::string result;
+	size_t cnt = 0;
+	for (const auto &item : items) {
+		Expr::Value v = EvalItemfuncSingle(item, toCall_, args);
+		if (boolFilter) {
+			const bool keep = (v.ty == Expr::ValueType::Integer) ? v.Int != 0 : !v.Str.empty();
+			if (keep) {
+				if (cnt++) result += '|';
+				result += item;
+			}
+		} else {
+			if (cnt++) result += '|';
+			result += (v.ty == Expr::ValueType::Integer) ? std::to_string(v.Int) : v.Str;
+		}
+	}
+	return result;
+}
+
+Expr::Value Expression::EvalItemfuncSingle(const std::string &key, const Expr::Value &toCall_, const ast_node_tag *args) const {
+	auto *g = Game::Get();
+	// A key that names nothing of the kind a function wants yields the empty string rather than
+	// throwing, so the group/list mapping above can drop members the function doesn't apply to.
+	if (Expr::IsListedIn(listOfObjectFunctions, toCall_.Str.c_str())) {
+		const auto *theObj = g->GetObject(key);
+		if (!theObj) return std::string();
+		if (toCall_.Str == "Children") return ObjChildrenImpl(theObj, args);
+		if (toCall_.Str == "Contents") return ObjContentsImpl(theObj, args);
+		if (toCall_.Str == "Name") return theObj->GetDisplayName();
+		if (toCall_.Str == "Description") return theObj->GetDescription();
+		if (toCall_.Str == "Location") return theObj->GetLocationKey();
+		if (toCall_.Str == "Parent") return theObj->GetParentKey();
+	}
+	if (Expr::IsListedIn(listOfLocationFunctions, toCall_.Str.c_str())) {
+		const auto *theObj = dynamic_cast<Location *>(g->GetObject(key));
+		if (!theObj) return std::string();
+		if (toCall_.Str == "Objects")
+			return theObj->GetListOfChildren(GameObj::ChildFilter::Objects, GameObj::ChildRelFilter::In);
+		if (toCall_.Str == "Exits") return theObj->GetListOfExits();
+	}
+	if (Expr::IsListedIn(listOfCharacterFunctions, toCall_.Str.c_str())) {
+		const auto *theObj = dynamic_cast<Character *>(g->GetObject(key));
+		if (!theObj) return std::string();
+		if (toCall_.Str == "Descriptor") return theObj->GetDescriptor();
+		if (toCall_.Str == "ProperName") return theObj->GetProperName();
+		if (toCall_.Str == "Held") return CharHeldImpl(theObj, args);
+		if (toCall_.Str == "Worn") return CharWornImpl(theObj, args);
+		if (toCall_.Str == "WornAndHeld") return CharWornAndHeldImpl(theObj, args);
+	}
+	if (Expr::IsListedIn(listOfEventFunctions, toCall_.Str.c_str())) {
+		auto *theEvt = g->GetEvent(key);
+		if (!theEvt) return std::string();
+		if (toCall_.Str == "Length") return theEvt->GetDuration().Value();
+		if (toCall_.Str == "Position") return theEvt->GetTimeSinceStart();
+	}
+
 	// now for properties and stuff
 	auto meta = g->GetPropMeta(toCall_.Str);
-	if (!meta) {
+	if (!meta)
 		throw std::runtime_error("Not a property or built-in item function: " + toCall_.Str);
+	const auto *theObj = g->GetObject(key);
+	if (!theObj) return std::string();
+	switch (meta->Type()) {
+		case Property::ValueType::ErrorType:
+			return Expr::Value();
+		case Property::ValueType::Map:
+		case Property::ValueType::Int:
+		case Property::ValueType::Bool:
+			return theObj->GetIntProp(toCall_.Str);
+		case Property::ValueType::Enum:
+		case Property::ValueType::Object:
+			return theObj->GetStrProp(toCall_.Str);
+		case Property::ValueType::Text:
+			return g->GetDescription(theObj->GetIntProp(toCall_.Str))->Build();
 	}
-	std::vector objsToConsider = Util::SplitList(obj.Str);
-	if (objsToConsider.size() > 1) {
-		std::string result;
-		size_t cnt = 0;
-		for (const auto &o: objsToConsider) {
-			if (cnt > 0) result += '|';
-			switch (meta->Type()) {
-				case Property::ValueType::ErrorType:
-					return Expr::Value();
-				case Property::ValueType::Map:
-				case Property::ValueType::Int:
-					result += std::to_string(g->GetObject(o)->GetIntProp(toCall_.Str));
-					break;
-				case Property::ValueType::Enum:
-				case Property::ValueType::Object:
-					result += g->GetObject(o)->GetStrProp(toCall_.Str);
-					break;
-				case Property::ValueType::Text:
-					result += g->GetDescription(g->GetObject(o)->GetIntProp(toCall_.Str))->Build();
-					break;
-				case Property::ValueType::Bool:  // bool properties act as filters rather than transforms, but only when operating on lists
-					if (g->GetObject(o)->GetBoolProp(toCall_.Str)) result += o;
-					else continue;
-					break;
-			}
-			++cnt;
-		}
-		return result;
-	} else {
-		const auto &o = objsToConsider[0];
-		switch (meta->Type()) {
-			case Property::ValueType::ErrorType:
-				return Expr::Value();
-			case Property::ValueType::Map:
-			case Property::ValueType::Int:
-			case Property::ValueType::Bool:
-				return g->GetObject(o)->GetIntProp(toCall_.Str);
-				break;
-			case Property::ValueType::Enum:
-			case Property::ValueType::Object:
-				return g->GetObject(o)->GetStrProp(toCall_.Str);
-				break;
-			case Property::ValueType::Text:
-				return g->GetDescription(g->GetObject(o)->GetIntProp(toCall_.Str))->Build();
-				break;
-		}
-	}
+	return Expr::Value();
 }
 //NOLINTEND(misc-no-recursion)
 

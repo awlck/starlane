@@ -119,6 +119,10 @@ private:
 	Expr::Value EvalAnyNode(const ast_node_tag *node) const;
 	Expr::Value EvalFunccall(Expr::Value toCall, const ast_node_tag *args) const;
 	Expr::Value EvalItemfunc(Expr::Value obj, const ast_node_tag *toCall) const;
+	// Apply an item-function or property (already reduced to `func`) to a single key, returning its
+	// typed value. A key that names nothing of the required kind yields the empty string, so that a
+	// group/list expansion can map this over members and quietly drop the ones that don't apply.
+	Expr::Value EvalItemfuncSingle(const std::string &key, const Expr::Value &func, const ast_node_tag *args) const;
 	// Resolve a bare name -- a captured reference (%object2%, ReferencedNumber, %Player%) or a
 	// game variable -- to its value. Throws if the name is neither. Shared by the VARIABLE node
 	// and by reference interpolation within string literals.
