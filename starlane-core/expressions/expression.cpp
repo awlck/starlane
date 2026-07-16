@@ -613,36 +613,52 @@ Expr::Value Expression::EvalItemfunc(Expr::Value obj, const ast_node_tag *toCall
 		throw std::runtime_error("Not a property or built-in item function: " + toCall_.Str);
 	}
 	std::vector objsToConsider = Util::SplitList(obj.Str);
-	std::string result;
-	size_t cnt = 0;
-	for (const auto &o: objsToConsider) {
-		if (cnt > 0) result += '|';
-		switch (meta->Type()) {
-		case Property::ValueType::ErrorType:
-			return Expr::Value();
-		case Property::ValueType::Map:
-		case Property::ValueType::Int:
-			result += std::to_string(g->GetObject(o)->GetIntProp(toCall_.Str));
-			break;
-		case Property::ValueType::Enum:
-		case Property::ValueType::Object:
-			result += g->GetObject(o)->GetStrProp(toCall_.Str);
-			break;
-		case Property::ValueType::Text:
-			result += g->GetDescription(g->GetObject(o)->GetIntProp(toCall_.Str))->Build();
-			break;
-		case Property::ValueType::Bool:  // bool properties act as filters rather than transforms, but only when operating on lists
-			if (objsToConsider.size() == 1) {
-				result = std::to_string(g->GetObject(o)->GetBoolProp(toCall_.Str));
-				break;
+	if (objsToConsider.size() > 1) {
+		std::string result;
+		size_t cnt = 0;
+		for (const auto &o: objsToConsider) {
+			if (cnt > 0) result += '|';
+			switch (meta->Type()) {
+				case Property::ValueType::ErrorType:
+					return Expr::Value();
+				case Property::ValueType::Map:
+				case Property::ValueType::Int:
+					result += std::to_string(g->GetObject(o)->GetIntProp(toCall_.Str));
+					break;
+				case Property::ValueType::Enum:
+				case Property::ValueType::Object:
+					result += g->GetObject(o)->GetStrProp(toCall_.Str);
+					break;
+				case Property::ValueType::Text:
+					result += g->GetDescription(g->GetObject(o)->GetIntProp(toCall_.Str))->Build();
+					break;
+				case Property::ValueType::Bool:  // bool properties act as filters rather than transforms, but only when operating on lists
+					if (g->GetObject(o)->GetBoolProp(toCall_.Str)) result += o;
+					else continue;
+					break;
 			}
-			if (g->GetObject(o)->GetBoolProp(toCall_.Str)) result += o;
-			else continue;
-			break;
+			++cnt;
 		}
-		++cnt;
+		return result;
+	} else {
+		const auto &o = objsToConsider[0];
+		switch (meta->Type()) {
+			case Property::ValueType::ErrorType:
+				return Expr::Value();
+			case Property::ValueType::Map:
+			case Property::ValueType::Int:
+			case Property::ValueType::Bool:
+				return g->GetObject(o)->GetIntProp(toCall_.Str);
+				break;
+			case Property::ValueType::Enum:
+			case Property::ValueType::Object:
+				return g->GetObject(o)->GetStrProp(toCall_.Str);
+				break;
+			case Property::ValueType::Text:
+				return g->GetDescription(g->GetObject(o)->GetIntProp(toCall_.Str))->Build();
+				break;
+		}
 	}
-	return result;
 }
 //NOLINTEND(misc-no-recursion)
 

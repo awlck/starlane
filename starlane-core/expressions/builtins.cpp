@@ -101,6 +101,8 @@ std::string LanguageNumber(int64_t num, bool f = false) {
 // NOLINTNEXTLINE(misc-no-recursion)
 [[nodiscard]] std::string WriteListFrom(const std::string &lst, ListTransformType transform,
 										ListJoinType join, bool recurse) {
+	if (Util::StringIsNullOrWhitespace(lst))
+		return "";
 	std::string result;
 	std::vector<std::string> entries(Util::SplitList(lst));
 
@@ -253,7 +255,7 @@ void EnsureInt(Value &v, bool allowSigned) {
 			v.Int = ParseInt(v.Str.c_str() + pos);
 			if (neg) v.Int *= -1;
 		} else {
-			throw std::runtime_error("Got a string where a number was expected.");
+			throw std::runtime_error("Got a string where a number was expected: \"" + v.Str + "\"");
 		}
 	} else if (v.ty == ValueType::Invalid) {
 		throw std::runtime_error("Invalid value.");
