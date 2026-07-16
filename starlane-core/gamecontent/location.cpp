@@ -160,7 +160,13 @@ bool Location::IsCharVisibleHere(const Character *ch) const {
 
 std::string Location::GetDescription(bool forDisplay) const {
 	auto *theGame = Game::Get();
-	std::string result = GameObj::GetDescription(forDisplay);
+
+	// The ADRIFT Runner gives the player (not the author!) the ability to
+	// disable showing the location name before the description. I don't feel
+	// that feature is worth wiring an entire user settings mechanism into the
+	// interpreter core, so I'm just not going to bother and always display them:
+	std::string result = "<b>" + GetDisplayName() + "</b>\n";
+	result += GameObj::GetDescription(forDisplay);
 
 	// Visible objects are listed after the description proper, mirroring what
 	// clsLocation.ViewLocation does in the original implementation: dynamic objects

@@ -14,7 +14,7 @@
 [ ] implement Character walks (they tick alongside events, see `Game::RunEventTick`)
 [ ] implement disambiguation ("TAKE BALL" -- "Which do you mean, the red ball or the green ball?")
 [x] print the initial room description if the game asks for it
-[ ] add short location description (aka location name) to location descriptions
+[x] add short location description (aka location name) to location descriptions
 [ ] implement subevents that override the room description (`SetLook`)
 [ ] implement tasks that use a loop
 [ ] implement the conversation system (or refuse to load games using it because it isn't very widely used)
