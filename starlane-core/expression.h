@@ -119,6 +119,15 @@ private:
 	Expr::Value EvalAnyNode(const ast_node_tag *node) const;
 	Expr::Value EvalFunccall(Expr::Value toCall, const ast_node_tag *args) const;
 	Expr::Value EvalItemfunc(Expr::Value obj, const ast_node_tag *toCall) const;
+	// Resolve a bare name -- a captured reference (%object2%, ReferencedNumber, %Player%) or a
+	// game variable -- to its value. Throws if the name is neither. Shared by the VARIABLE node
+	// and by reference interpolation within string literals.
+	Expr::Value ResolveNameToValue(const std::string &name) const;
+	// Replace every %reference% in a string literal with its value, as ADRIFT does by running its
+	// whole expression text through ReplaceFunctions before evaluating -- which reaches inside
+	// quotes, so 'x < %difficulty1%' compares against the variable, not the literal text. A
+	// %...% span that names nothing resolvable (e.g. a stray "100%") is left untouched.
+	std::string InterpolateRefs(const std::string &text) const;
 
 	// built-in functions
 	// general functions

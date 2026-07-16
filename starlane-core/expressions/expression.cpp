@@ -299,37 +299,77 @@ std::string Expression::EvaluateStr(const UserFuncContext *context) {
 	throw std::runtime_error("Invalid expression result");
 }
 
+Expr::Value Expression::ResolveNameToValue(const std::string &nt) const {
+	if (currentContext) {
+		if (auto f = currentContext->find(nt); f != currentContext->end())
+			return f->second;
+	}
+	if (Util::IsReference(nt)) {
+		return Game::Get()->GetReference(nt);
+	} else if (Util::IsReference('%' + nt + '%')) {
+		return Game::Get()->GetReference('%' + nt + '%');
+	}
+	auto theVar = Game::Get()->GetVarByName(nt);
+	// A name that is neither a reference nor a variable is nothing we can evaluate. Say so
+	// rather than dereferencing the null we just got back: callers that can carry on without
+	// this value (a task call's argument, say) are able to catch this, and the ones that
+	// can't get a diagnosis naming the culprit instead of a segfault.
+	if (!theVar)
+		throw std::runtime_error("Not a known variable or reference: " + nt);
+	auto theType = theVar->GetType();
+	if (theType == Variable::Type::String)
+		return theVar->GetValue<std::string>();
+	else if (theType == Variable::Type::Int)
+		return theVar->GetValue<int64_t>();
+	else throw std::logic_error("Wrong type of variable (presumed impossible).");
+}
+
+std::string Expression::InterpolateRefs(const std::string &text) const {
+	// Nothing to do -- and nothing to pay -- for the overwhelmingly common literal with no '%'.
+	if (text.find('%') == std::string::npos)
+		return text;
+	std::string result;
+	size_t i = 0;
+	while (i < text.size()) {
+		if (text[i] != '%') {
+			result += text[i++];
+			continue;
+		}
+		// A %reference% is %, then a name (letters, digits and the trailing punctuation ADRIFT
+		// permits in variable names), then a closing %. The name is resolved exactly as a bare
+		// %var% elsewhere in the expression would be.
+		size_t close = text.find('%', i + 1);
+		if (close != std::string::npos && close > i + 1) {
+			const std::string name = text.substr(i + 1, close - (i + 1));
+			try {
+				// ResolveNameToValue takes the bare name, as a %var% elsewhere would after the
+				// grammar strips its delimiters; it re-adds them itself for command/player refs.
+				const Expr::Value v = ResolveNameToValue(name);
+				result += v.ty == Expr::ValueType::Integer ? std::to_string(v.Int) : v.Str;
+				i = close + 1;
+				continue;
+			} catch (const std::runtime_error &) {
+				// Not a reference or variable after all (a literal "100%", say): leave the '%'
+				// as written and carry on from just past it.
+			}
+		}
+		result += text[i++];
+	}
+	return result;
+}
+
 //NOLINTBEGIN(misc-no-recursion)
 Expr::Value Expression::EvalAnyNode(const ast_node_tag *node) const {
 	switch (node->type) {
 	case AST_NODE_TYPE_IDENTIFIER:
-	case AST_NODE_TYPE_STRING:
 		return std::string(GetNodeText(node));
-	case AST_NODE_TYPE_VARIABLE: {
-		std::string nt(GetNodeText(node));
-		if (currentContext) {
-			if (auto f = currentContext->find(nt); f != currentContext->end())
-				return f->second;
-		}
-		if (Util::IsReference(nt)) {
-			return Game::Get()->GetReference(nt);
-		} else if (Util::IsReference('%' + nt + '%')) {
-			return Game::Get()->GetReference('%' + nt + '%');
-		}
-		auto theVar = Game::Get()->GetVarByName(nt);
-		// A name that is neither a reference nor a variable is nothing we can evaluate. Say so
-		// rather than dereferencing the null we just got back: callers that can carry on without
-		// this value (a task call's argument, say) are able to catch this, and the ones that
-		// can't get a diagnosis naming the culprit instead of a segfault.
-		if (!theVar)
-			throw std::runtime_error("Not a known variable or reference: " + nt);
-		auto theType = theVar->GetType();
-		if (theType == Variable::Type::String)
-			return theVar->GetValue<std::string>();
-		else if (theType == Variable::Type::Int)
-			return theVar->GetValue<int64_t>();
-		else throw std::logic_error("Wrong type of variable (presumed impossible).");
-	}
+	case AST_NODE_TYPE_STRING:
+		// A string literal can carry %reference%s that ADRIFT would have substituted before ever
+		// parsing the expression (see InterpolateRefs); do the same now so a quoted reference
+		// resolves rather than comparing as its own literal text.
+		return InterpolateRefs(std::string(GetNodeText(node)));
+	case AST_NODE_TYPE_VARIABLE:
+		return ResolveNameToValue(std::string(GetNodeText(node)));
 	case AST_NODE_TYPE_INTEGER:
 		return node->intVal;
 	case AST_NODE_TYPE_OPERATOR_PLUS: {
