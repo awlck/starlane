@@ -63,8 +63,12 @@ Game *Game::LoadFromXML(const std::string &gameTxt) {
 	// on the way in (a negative wait is meaningless, and would wrap around here).
 	if (gameNode.child("WaitTurns").type() != pugi::node_null)
 		rStatic->waitTurns = (uint32_t) std::max((int64_t) 0, ParseInt(gameNode.child_value("WaitTurns")));
-	rStatic->gameIntro = result->CreateDescFromXML(gameNode.child("Introduction"));
+	// Before parsing the intro (or anything else): an inline conditional segment inside the intro
+	// text carries its own <Restrictions>, and Description::Segment::CreateFromXML reaches for
+	// Game::Get() to store them -- which is still null until this assignment. (Jacaranda Jim has
+	// exactly such a segment in its intro; most games don't, which is why this stayed latent.)
 	Game::theGame = result;
+	rStatic->gameIntro = result->CreateDescFromXML(gameNode.child("Introduction"));
 
 	{
 		pugi::xml_node n;

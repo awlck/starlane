@@ -269,7 +269,13 @@ bool Restriction::Single::PassImpl(DescrRef *out, bool ignoreUnsetRefs) const {
 				throw std::runtime_error("Invalid int operation while evaluating restriction.");
 			}
 		} else {
-			std::string result = Game::Get()->GetExpression(exprContent)->EvaluateStr();
+			// An enum state name ("At Location") or an object-valued property's target is a
+			// literal held in `rhs`, not compiled into an expression; exprContent == 0 (never a
+			// real id, since CreateExpression only ever hands out negative ones) marks that case.
+			// Everything else -- variables, text properties -- is a genuine expression.
+			std::string result = exprContent != 0
+				? Game::Get()->GetExpression(exprContent)->EvaluateStr()
+				: rhs;
 			if (cond == ConditionType::EqualTo)
 				return strVal == result;
 			else if (cond == ConditionType::ContainText)
@@ -515,6 +521,12 @@ void Restriction::Single::Translate() {
 	else if (tok == "MustNot") positive = false;
 	else throw std::runtime_error("Unable to handle restriction text: " + restrText);
 
+	// The property's metadata, when this restriction targets one -- and null when `prop` names no
+	// registered property, which does happen: a restriction on a nonexistent property still loads
+	// (it just never passes), and games ship such dead restrictions inside never-run tasks. So
+	// every use below must guard against null rather than dereferencing blindly.
+	const Property *propMeta = targetType == TargetType::Property ? Game::Get()->GetPropMeta(prop) : nullptr;
+
 	// Figure out the condition we're dealing with.
 	bool reverseConditionSides = false;
 	GET_TOKEN;
@@ -599,7 +611,7 @@ void Restriction::Single::Translate() {
 		cond = ConditionType::WithinGroup;
 	} else if (tok == "BeComplete" || tok == "BeCompleted") {
 		cond = ConditionType::Complete;
-	} else if (targetType == TargetType::Property && Game::Get()->GetPropMeta(prop)->Type() == Property::ValueType::Object) {
+	} else if (propMeta && propMeta->Type() == Property::ValueType::Object) {
 		// Restrictions on object-valued properties are stored as "prop lhs Must/MustNot rhs", implying "must/must not be equal"
 		cond = ConditionType::EqualTo;
 		rhs = tok;
@@ -612,6 +624,19 @@ void Restriction::Single::Translate() {
 	// For conditions that don't have a right-hand side, we are done.
 	if (!ConditionHasRHS(cond))
 		return;
+
+	// An enum-valued (StateList) property is compared against a literal state name, which may
+	// contain spaces ("At Location", "Can be looked under") and is not an expression. Take the
+	// remaining text verbatim rather than handing it to the expression parser below. (Object-
+	// valued properties are already caught further up, before any condition keyword is matched;
+	// enum ones reach here because they carry an explicit "EqualTo".)
+	if (propMeta && propMeta->Type() == Property::ValueType::Enum) {
+		while (*x && isspace((unsigned char) *x)) x++;
+		rhs = x;
+		while (!rhs.empty() && isspace((unsigned char) rhs.back())) rhs.pop_back();
+		rhsIsRef = Util::IsReference(rhs);
+		return;
+	}
 
 	if (targetType == TargetType::Variable || targetType == TargetType::Property) {
 		try {
