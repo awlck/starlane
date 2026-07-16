@@ -191,7 +191,12 @@ static size_t SkipSingleOOExpression(std::string_view theText) {
 	bool openParens = false;
 	for (pos = 0; pos < theText.length(); pos++) {
 		char x = theText[pos];
-		if (x == '!' || x == '?' || x == '/' || x == '<' || x == '\n') break;
+		// Sentence and quote punctuation ends the property chain: property names are identifiers, so
+		// none of these can be part of one, and they are just text following the expression. Without
+		// them, "%object%.Name: ..." / "%object%.name."..." swallow the trailing punctuation into the
+		// expression, which is then handed to the parser and fails (Grandma's Flying Saucer).
+		if (x == '!' || x == '?' || x == '/' || x == '<' || x == '\n'
+				|| x == ':' || x == ';' || x == '"' || x == '\'') break;
 		if (x == '(') openParens = true;
 		if ((x == ',' || x == ' ') && !openParens) break;
 		if (x == ')') {
