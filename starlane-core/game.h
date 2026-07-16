@@ -14,6 +14,7 @@
 #include <vector>
 
 #include "gamecontent/task.h"
+#include "gamecontent/utility.h"
 
 namespace Starlane {
 
@@ -114,7 +115,11 @@ public:
 	// player command matching: check its restrictions, run its actions if they pass, mark it
 	// completed, and output its completion (or restriction failure) message. Does nothing if
 	// no task with that key exists.
-	void ExecuteTaskByKey(const std::string &key);
+	// `args`, if any, are the values the calling task supplies for the called task's own %ref%s
+	// (`Execute MoveOutObject (%Player%.Parent)`), bound positionally for the duration of the
+	// call. With none, the caller's own references stay visible, as they must for a task that
+	// simply hands off to another with the same references in play.
+	void ExecuteTaskByKey(const std::string &key, const std::vector<std::string> &args = {});
 	// Note that the player has arrived at the location with this key, so that any System task
 	// triggered by arriving there is lined up to run. Called by Character::MoveTo; does nothing
 	// for anyone but the player, or for a move that stays in the same location.
@@ -154,31 +159,34 @@ public:
 	// The key of the location the player is currently in. Out of line because it needs
 	// GameObj to be complete.
 	const std::string &GetPlayerLocationKey() const;
-	// Get an object referred to by the input.
+	// Get an object referred to by the input. Reference names are matched without regard to
+	// case, here as everywhere -- hence the canonicalized lookup (see Util::CanonicalizeRefName).
 	const std::string &GetReference(const std::string &rk) {
-		if (rk == "%Player%" || rk == "Player") return playerKey;
+		const std::string canon = Util::CanonicalizeRefName(rk);
+		if (canon == "%player%" || canon == "player") return playerKey;
 		// Not a captured reference but a pseudo-key the standard library uses to talk about
 		// wherever the player happens to be (e.g. "PlayerLocation MustNot BeInGroup DarkLocations").
-		if (rk == "PlayerLocation") return GetPlayerLocationKey();
+		if (canon == "playerlocation") return GetPlayerLocationKey();
 		// This will insert a new element into the map if there is no such entry.
 		// Not ideal, but there can only ever be twenty or so references, so I think it's OK.
-		return currentRefs[rk];
+		return currentRefs[canon];
 	}
 	// Determine if this reference holds anything.
 	bool RefExists(const std::string &rk) const {
-		if (rk == "%Player%") return true;
-		if (rk == "PlayerLocation") return !GetPlayerLocationKey().empty();
-		return currentRefs.count(rk) > 0;
+		const std::string canon = Util::CanonicalizeRefName(rk);
+		if (canon == "%player%") return true;
+		if (canon == "playerlocation") return !GetPlayerLocationKey().empty();
+		return currentRefs.count(canon) > 0;
 	}
 
 	// Some references are not part of the game, but are used internally to pass some extra
 	// context from one part of the engine to another.
 	void SetInternalReference(const std::string &ref, const std::string &val) {
-		currentRefs["<" + ref + ">"] = val;
+		currentRefs[Util::CanonicalizeRefName("<" + ref + ">")] = val;
 	}
 	// ...and those will need to be frequently cleared as well
 	void ClearInternalReference(const std::string &ref) {
-		currentRefs["<" + ref + ">"] = "";
+		currentRefs[Util::CanonicalizeRefName("<" + ref + ">")] = "";
 	}
 
 	// Save the current game state to the undo list, discarding the oldest state(s) if that

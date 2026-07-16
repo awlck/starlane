@@ -30,7 +30,7 @@ std::string RegexFragmentForRef(const std::string &token) {
 	std::string family = token.substr(1, token.size() - 2);  // strip surrounding '%'
 	if (!family.empty() && std::isdigit((unsigned char) family.back()))
 		family.pop_back();  // strip trailing 1-5, if any
-	for (auto &c : family) c = (char) std::tolower((unsigned char) c);
+	family = Util::ToLower(family);
 
 	if (family == "direction")
 		return "(" + Util::DirectionsRegexAlternation() + ")";
@@ -206,6 +206,29 @@ std::string ProcessBlock(std::string_view block) {  //NOLINT(misc-no-recursion)
  * disallow setting the location properties directly, meaning we reject all of the following as
  * errors, at least for now:
  */
+// The argument list of an `Execute <task> (<arg>|<arg>...)` action: everything between the
+// outermost parentheses, or "" if the action names a task without one. Taken as a substring
+// rather than from the space-split tokens, because an argument may contain spaces of its own.
+std::string_view TaskCallArgs(const std::string &actionText) {
+	size_t open = actionText.find('(');
+	size_t close = actionText.rfind(')');
+	if (open == std::string::npos || close == std::string::npos || close < open)
+		return {};
+	return std::string_view(actionText).substr(open + 1, close - open - 1);
+}
+
+std::string TrimWs(std::string_view s) {
+	size_t first = s.find_first_not_of(" \t\r\n");
+	if (first == std::string_view::npos) return "";
+	return std::string(s.substr(first, s.find_last_not_of(" \t\r\n") - first + 1));
+}
+
+// Whether a bare "%...%"/"Referenced..." argument just passes one of the caller's own references
+// straight through, as opposed to naming something we have to work out.
+bool IsPlainRefName(const std::string &param) {
+	return Util::IsReference(param);
+}
+
 void DisallowSettingLocationProperties(const std::string &prop) {
 	if (prop == "StaticLocation"
 		|| prop == "DynamicLocation"
@@ -432,6 +455,38 @@ Task::Action Task::Action::CreateFromXML(const pugi::xml_node &xmlNode) {
 		else result.type = ActionType::UnsetTask;
 		result.refType = ActionRefType::Task;
 		result.lhs = tokens[1];
+		// An Execute action may hand the called task the values for its own %ref%s, e.g.
+		// `Execute MoveOutObject (%Player%.Parent)`. Without these the called task's
+		// restrictions test references the player never named, and reject it.
+		if (result.type == ActionType::ExecTask) {
+			for (const auto &raw : Util::SplitList(std::string(TaskCallArgs(xmlNode.child_value())))) {
+				std::string param = TrimWs(raw);
+				if (param.empty()) continue;
+				TaskParam tp;
+				if (IsPlainRefName(param)) {
+					tp.kind = TaskParam::Kind::Ref;
+					tp.text = std::move(param);
+				} else if (param.front() == '%' || Game::Get()->ObjectExists(param.substr(0, param.find('.')))) {
+					// Either a reference/function to work out ("%ParentOf[%objects%]%") or an
+					// object key with properties hung off it ("cl_RelStatObj.StaticLocation").
+					// Anything else -- a bare "South", or a key this game doesn't have -- is
+					// deliberately not handed to the expression engine, which would try to read
+					// it as a variable name and not survive finding no such variable.
+					tp.kind = TaskParam::Kind::Expr;
+					tp.text = param;
+					try {
+						tp.expr = Game::Get()->CreateExpression(param);
+					} catch (const std::exception &) {
+						// Leave expr at 0: an argument we cannot compile resolves to nothing,
+						// which costs this one task call rather than the whole game's load.
+					}
+				} else {
+					tp.kind = TaskParam::Kind::Literal;
+					tp.text = std::move(param);
+				}
+				result.taskParams.push_back(std::move(tp));
+			}
+		}
 		return result;
 	} else if (name == "Time") {
 		// `Skip "<expr>" turns`. The expression sits between the leading "Skip" and the trailing
@@ -485,7 +540,7 @@ Task::Action Task::Action::CreateFromXML(const pugi::xml_node &xmlNode) {
 		return result;
 	} else if (name == "Conversation") {
 		result.refType = ActionRefType::None;
-		std::transform(tokens[0].begin(), tokens[0].end(), tokens[0].begin(), [](auto c) { return toupper(c); });
+		tokens[0] = Util::ToUpper(tokens[0]);
 		if (tokens[0] == "GREET" || tokens[0] == "FAREWELL" || tokens[0] == "ASK" || tokens[0] == "TELL") {
 			if (tokens[0] == "GREET") result.type = ActionType::ConvoGreet;
 			else if (tokens[0] == "FAREWELL") result.type = ActionType::ConvoFarewell;
@@ -631,6 +686,26 @@ void Task::SendUncompleteNotifications() const {
 	}
 }
 
+std::string Task::Action::ResolveParam(const TaskParam &p) {
+	switch (p.kind) {
+	case TaskParam::Kind::Ref:
+		return Game::Get()->GetReference(p.text);
+	case TaskParam::Kind::Expr:
+		if (p.expr == 0) return "";
+		try {
+			return Game::Get()->GetExpression(p.expr)->EvaluateStr();
+		} catch (const std::exception &) {
+			// An argument that cannot be worked out right now (an unimplemented function, a
+			// property the object turns out not to have) leaves the called task's reference
+			// empty, for its own restrictions to reject as they see fit.
+			return "";
+		}
+	case TaskParam::Kind::Literal:
+		break;
+	}
+	return p.text;
+}
+
 void Task::Action::Perform() const {
 	std::string lhs_ = Util::IsReference(lhs) ? Game::Get()->GetReference(lhs) : lhs;
 	std::string rhs_ = Util::IsReference(rhs) ? Game::Get()->GetReference(rhs) : rhs;
@@ -758,9 +833,15 @@ void Task::Action::PerformImpl() const {
 		break;
 	case ActionType::MoveToParent:  // moving a character "up" one level
 		{
-			const std::string &parent = g->GetObject(lhs)->GetParentKey();
-			if (!g->GetObject(parent)->GetParentKey().empty())
-				PerformMoveTo(g->GetObject(parent)->GetParentKey());
+			// Where it lands is one thing, but so is *how* it is held there, and that can only
+			// come from the parent: stepping out of a duct that sits in a room leaves you in the
+			// room, out of a duct inside a crate, inside the crate. PerformMoveTo can't help
+			// here -- it reads the relation off the action's own type, which for this action
+			// says nothing about where the object is coming from.
+			GameObj *self = g->GetObject(lhs);
+			GameObj *parent = self ? g->GetObject(self->GetParentKey()) : nullptr;
+			if (parent && !parent->GetParentKey().empty())
+				self->MoveTo(parent->GetParentKey(), parent->GetParentRelation());
 		}
 		break;
 	case Starlane::Task::ActionType::MoveToGroup:
@@ -1015,9 +1096,14 @@ void Task::Action::PerformImpl() const {
 		}
 	}
 		break;
-	case Starlane::Task::ActionType::ExecTask:
-		g->ExecuteTaskByKey(lhs);
+	case Starlane::Task::ActionType::ExecTask: {
+		std::vector<std::string> args;
+		args.reserve(taskParams.size());
+		for (const auto &p : taskParams)
+			args.push_back(ResolveParam(p));
+		g->ExecuteTaskByKey(lhs, args);
 		break;
+	}
 	case Starlane::Task::ActionType::UnsetTask:
 		if (Task *t = g->GetTask(lhs))
 			t->Uncomplete();

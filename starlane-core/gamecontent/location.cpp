@@ -77,15 +77,53 @@ static void ReplaceAll(std::string &str, const std::string &from, const std::str
 	}
 }
 
+// How many bytes the UTF-8 character starting with this byte occupies. Invalid input is taken a
+// byte at a time, which keeps us moving forward rather than reading off the end.
+static size_t Utf8CharLen(unsigned char c) {
+	if (c < 0x80) return 1;
+	if ((c & 0xE0) == 0xC0) return 2;
+	if ((c & 0xF0) == 0xE0) return 3;
+	if ((c & 0xF8) == 0xF0) return 4;
+	return 1;
+}
+
+// Lowercase `s` via the frontend, recording for each byte of the result the byte of `s` it came
+// from (plus a trailing entry for the end, so that a match reaching the end can be measured).
+// One character at a time, because a whole-string fold leaves no way back: case folding can
+// change a string's length, so an offset into the folded text locates nothing in the original.
+// The cost is the handful of foldings that depend on surrounding characters -- a Greek final
+// sigma -- which is a far smaller error than mangling the text.
+static std::string FoldRecordingOrigins(const std::string &s, std::vector<size_t> &origin) {
+	std::string folded;
+	origin.clear();
+	for (size_t i = 0; i < s.size(); ) {
+		const size_t n = std::min(Utf8CharLen((unsigned char) s[i]), s.size() - i);
+		const std::string one = frontend->StrToLowerCase(s.substr(i, n));
+		folded += one;
+		origin.insert(origin.end(), one.size(), i);
+		i += n;
+	}
+	origin.push_back(s.size());
+	return folded;
+}
+
 // Replace only the first case-insensitive occurrence of `from`, matched literally.
 // (The original's ReplaceIgnoreCase escapes the needle's regex metacharacters and caps
 //  its replacement count at one, so a name recurring later in the text is left alone.)
 static void ReplaceFirstIgnoreCase(std::string &str, const std::string &from, const std::string &to) {
 	if (from.empty()) return;
-	auto found = std::search(str.begin(), str.end(), from.begin(), from.end(),
-		[](char a, char b) { return std::tolower((unsigned char) a) == std::tolower((unsigned char) b); });
-	if (found == str.end()) return;
-	str.replace((size_t) (found - str.begin()), from.size(), to);
+	// Both sides are the game's own text -- a character's name, and their description -- so
+	// neither is necessarily English, and the comparison is the frontend's to make.
+	std::vector<size_t> origin;
+	const std::string haystack = FoldRecordingOrigins(str, origin);
+	const std::string needle = frontend->StrToLowerCase(from);
+	const size_t at = haystack.find(needle);
+	if (at == std::string::npos) return;
+	// Back to where that was in the untouched string. The match's length there is its own: the
+	// name as written may take a different number of bytes than the name folded.
+	const size_t begin = origin[at];
+	const size_t end = origin[at + needle.size()];
+	str.replace(begin, end - begin, to);
 }
 
 // Stands in for a character's own name while grouping characters that share a

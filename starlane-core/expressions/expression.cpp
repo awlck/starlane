@@ -317,6 +317,12 @@ Expr::Value Expression::EvalAnyNode(const ast_node_tag *node) const {
 			return Game::Get()->GetReference('%' + nt + '%');
 		}
 		auto theVar = Game::Get()->GetVarByName(nt);
+		// A name that is neither a reference nor a variable is nothing we can evaluate. Say so
+		// rather than dereferencing the null we just got back: callers that can carry on without
+		// this value (a task call's argument, say) are able to catch this, and the ones that
+		// can't get a diagnosis naming the culprit instead of a segfault.
+		if (!theVar)
+			throw std::runtime_error("Not a known variable or reference: " + nt);
 		auto theType = theVar->GetType();
 		if (theType == Variable::Type::String)
 			return theVar->GetValue<std::string>();

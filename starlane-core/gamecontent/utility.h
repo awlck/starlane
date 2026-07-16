@@ -69,50 +69,80 @@ private:
 };
 
 
-// Determine whether a word is the literal name of a command reference, as it appears
-// in a task's Command pattern: "%object%", "%object2%", "%text%", and so on. Captured
-// references are stored under exactly this spelling, so restrictions and description
-// text can refer to them by it as well.
-static inline bool IsCommandRefName(const std::string &o) {
-	if (o.size() < 3 || o.front() != '%' || o.back() != '%') return false;
-	std::string family = o.substr(1, o.size() - 2);
-	if (family.back() >= '0' && family.back() <= '9') {
-		// only the suffixes 1-5 are valid for disambiguating multiple references
-		if (family.back() < '1' || family.back() > '5') return false;
-		family.pop_back();
-	}
+// Case folding for ADRIFT's fixed English names -- "%object%", "ReferencedObject", "north".
+// Deliberately ASCII-only and locale-independent rather than std::tolower, on two counts. Those
+// names have to fold identically on every machine, and std::tolower does not promise that: it
+// answers to the locale, and the Qt frontend sets one (see starlane-qt/starlane.cpp), so on a
+// Turkish-language system 'I' would not fold to 'i' and "ReferencedItem" would stop resolving.
+// It is also the only safe thing to do byte-by-byte to text that may be UTF-8: in a single-byte
+// locale std::tolower would happily rewrite the bytes of a multi-byte character into something
+// else. Bytes outside ASCII are left exactly as they are, which is what every caller wants --
+// none of them are folding prose, only names that were English identifiers to begin with.
+inline std::string ToLower(std::string s) {
+	for (auto &c : s)
+		if (c >= 'A' && c <= 'Z') c += 'a' - 'A';
+	return s;
+}
+
+// The same, the other way, for the keywords ADRIFT writes into a game file ("GREET", "ASK").
+// Text the player sees or types is not this function's business -- that goes to the frontend.
+inline std::string ToUpper(std::string s) {
+	for (auto &c : s)
+		if (c >= 'a' && c <= 'z') c -= 'a' - 'A';
+	return s;
+}
+
+// The form of a reference name used as a key into the game's table of captured references.
+// Reference names are matched case-insensitively -- games spell them "%Player%", "%player%",
+// "ReferencedObject" and "referencedobject" interchangeably -- so every name goes through here
+// before being stored or looked up, leaving one spelling in the table whichever the game used.
+inline std::string CanonicalizeRefName(const std::string &o) { return ToLower(o); }
+
+// Whether `family` -- already case-folded, and already stripped of any 1-5 suffix -- names one
+// of the kinds of thing a task's Command can refer to.
+inline bool IsRefFamily(const std::string &family) {
 	return family == "object" || family == "objects" || family == "character" ||
 		family == "direction" || family == "location" || family == "item" ||
 		family == "number" || family == "text";
 }
 
-// Determine whether a word is a reference. I'm not sure why five was chosen as the limit
-// for each type of reference, but here we are.
-// (We can optimize this some more later by using a map or strcmp if it turns out to be necessary.)
+// Determine whether a word is the literal name of a command reference, as it appears
+// in a task's Command pattern: "%object%", "%object2%", "%text%", and so on. Captured
+// references are stored under this name, so restrictions and description text can refer
+// to them by it as well.
+inline bool IsCommandRefName(const std::string &o) {
+	if (o.size() < 3 || o.front() != '%' || o.back() != '%') return false;
+	std::string family = ToLower(o.substr(1, o.size() - 2));
+	if (family.back() >= '0' && family.back() <= '9') {
+		// only the suffixes 1-5 are valid for disambiguating multiple references
+		if (family.back() < '1' || family.back() > '5') return false;
+		family.pop_back();
+	}
+	return IsRefFamily(family);
+}
+
+// Determine whether a word is a reference: a command reference as spelled in a task's own
+// Command ("%object2%"), one of ADRIFT's generic position-based names that library restrictions
+// use instead ("ReferencedObject2"), or one of the two standing references to the player.
+// I'm not sure why five was chosen as the limit for each type of reference, but here we are.
 static inline bool IsReference(const std::string &o) {
 	if (IsCommandRefName(o)) return true;
-	// put the most likely ones at the top
-	return
-		o == "%Player%" || o == "PlayerLocation" ||
-		o == "ReferencedObject" || o == "ReferencedObjects" ||
-		o == "ReferencedDirection" || o == "ReferencedCharacter" || o == "ReferencedLocation" ||
-		o == "ReferencedItem" || o == "ReferencedNumber" || o == "ReferencedText" ||
-		// and now the whole deluge of numbered possibilities
-		o == "ReferencedObject1" || o == "ReferencedObject2" || o == "ReferencedObject3" ||
-		o == "ReferencedObject4" || o == "ReferencedObject5" || o == "%direction%" ||
-		o == "ReferencedDirection1" || o == "ReferencedDirection2" || o == "ReferencedDirection3" ||
-		o == "ReferencedDirection4" || o == "ReferencedDirection5" ||
-		o == "ReferencedCharacter1" || o == "ReferencedCharacter2" || o == "ReferencedCharacter3" ||
-		o == "ReferencedCharacter4" || o == "ReferencedCharacter5" ||
-		o == "ReferencedLocation1" || o == "ReferencedLocation2" || o == "ReferencedLocation3" ||
-		o == "ReferencedLocation4" || o == "ReferencedLocation5" ||
-		o == "ReferencedItem1" || o == "ReferencedItem2" || o == "ReferencedItem3" ||
-		o == "ReferencedItem4" || o == "ReferencedItem5" ||
-		o == "ReferencedNumber1" || o == "ReferencedNumber2" || o == "ReferencedNumber3" ||
-		o == "ReferencedNumber4" || o == "ReferencedNumber5" ||
-		o == "ReferencedText1" || o == "ReferencedText2" || o == "ReferencedText3" ||
-		o == "ReferencedText4" || o == "ReferencedText5"
-		;
+	const std::string l = ToLower(o);
+	if (l == "%player%" || l == "playerlocation") return true;
+	static constexpr char kGeneric[] = "referenced";
+	constexpr size_t kGenericLen = sizeof(kGeneric) - 1;
+	if (l.compare(0, kGenericLen, kGeneric) != 0) return false;
+	std::string family = l.substr(kGenericLen);
+	if (family.empty()) return false;
+	if (family.back() >= '0' && family.back() <= '9') {
+		// only the suffixes 1-5 are valid for disambiguating multiple references
+		if (family.back() < '1' || family.back() > '5') return false;
+		family.pop_back();
+		// "ReferencedObjects" is the one plural, and has no numbered variants: a command that
+		// refers to several objects at once only ever does so the once.
+		if (family == "objects") return false;
+	}
+	return IsRefFamily(family);
 }
 
 static inline bool IsList(const std::string &o) {

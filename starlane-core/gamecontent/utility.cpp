@@ -35,12 +35,6 @@ const DirectionEntry kDirections[] = {
 	{ "Down",      { "down", "d", nullptr } },
 };
 
-std::string ToLower(const std::string &s) {
-	std::string result = s;
-	for (auto &c : result) c = (char) std::tolower((unsigned char) c);
-	return result;
-}
-
 }  // anonymous namespace
 
 const std::string &DirectionsRegexAlternation() {

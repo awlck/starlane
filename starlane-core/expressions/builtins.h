@@ -24,8 +24,11 @@ enum class ListJoinType {
 	Rows
 };
 // Takes a list in ADRIFT Expression list format (e.g., "foo|bar|baz") and returns
-// a textual description, e.g., "foo, bar and baz"
-std::string WriteListFrom(const std::string &lst, ListTransformType transform = ListTransformType::None, ListJoinType join = ListJoinType::And, bool recurse = true);
+// a textual description, e.g., "foo, bar and baz".
+// `recurse` additionally recites what each entry holds ("the table (on which is a book)"), and
+// is off unless asked for -- as it is in ADRIFT, whose equivalent takes bIncludeSubObjects=False
+// by default. Naming a thing is the common case; describing its contents is the exception.
+std::string WriteListFrom(const std::string &lst, ListTransformType transform = ListTransformType::None, ListJoinType join = ListJoinType::And, bool recurse = false);
 
 template<size_t N> inline bool IsListedIn(const char *(&arr)[N], const char *val) {
 	for (size_t i = 0; i < N; i++)

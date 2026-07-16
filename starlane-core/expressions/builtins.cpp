@@ -358,7 +358,11 @@ Expr::Value Expression::LocationNameImpl(const ast_node_tag *args) const {
 Expr::Value Expression::TheObjectImpl(const ast_node_tag *args) const {
 	CHECK_ARGCOUNT("TheObject(s)", 1);
 	EXTRACT_FIRST_ARG_STR(args, theArg);
-	return Expr::WriteListFrom(theArg.Str, Expr::ListTransformType::DefName);
+	// Names the object and stops there: this is the function messages use to refer to a thing
+	// mid-sentence ("%CharacterName% get[//s] out of %TheObject[%object%]%."), where reciting
+	// what happens to be sitting in it -- "the duct (in which is Player)" -- is nonsense.
+	// Listing contents is the business of `lst.List`, which asks for it explicitly.
+	return Expr::WriteListFrom(theArg.Str, Expr::ListTransformType::DefName, Expr::ListJoinType::And, false);
 }
 
 Expr::Value Expression::CharacterNameImpl(const ast_node_tag *args) const {

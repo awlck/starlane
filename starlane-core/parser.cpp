@@ -38,7 +38,7 @@ RefNameParts SplitRefName(const std::string &refName) {
 		result.suffix = result.family.substr(result.family.size() - 1);
 		result.family.pop_back();
 	}
-	for (auto &c : result.family) c = (char) std::tolower((unsigned char) c);
+	result.family = Util::ToLower(result.family);
 	return result;
 }
 
@@ -66,15 +66,18 @@ std::string NormalizeSystemCommand(const std::string &s) {
 	size_t first = s.find_first_not_of(kBlank);
 	if (first == std::string::npos) return "";
 	std::string result = s.substr(first, s.find_last_not_of(kBlank) - first + 1);
-	for (auto &c : result) c = (char) std::tolower((unsigned char) c);
-	return result;
+	// Folded by the frontend rather than here: this is the player's own typing, which is not
+	// necessarily English, and case is a question only something that knows about languages can
+	// answer (Qt hands it to QString; a Glk frontend will hand it to its host).
+	return frontend->StrToLowerCase(result);
 }
 
+// Whether two pieces of text are the same but for case. Both sides go through the frontend for
+// the same reason as above -- one of them is what the player typed, the other is the game's own
+// text -- so no assumption is made about either being ASCII. Notably that rules out comparing
+// lengths first: folding can change a string's length ("SS" folds to a single "ß" and back).
 bool CaseInsensitiveEq(const std::string &a, const std::string &b) {
-	if (a.size() != b.size()) return false;
-	for (size_t i = 0; i < a.size(); i++)
-		if (std::tolower((unsigned char) a[i]) != std::tolower((unsigned char) b[i])) return false;
-	return true;
+	return frontend->StrToLowerCase(a) == frontend->StrToLowerCase(b);
 }
 }  // anonymous namespace
 
@@ -153,14 +156,14 @@ bool Game::CaptureReferences(const std::vector<std::string> &refSpecs, const std
 			resolved = matchList.front();
 		}
 
-		// Store under the literal name from this task's own Command pattern (e.g. "%object1%"),
+		// Store under the name from this task's own Command pattern (e.g. "%object1%"),
 		// which is what that task's own restriction/message text will refer to it as...
-		currentRefs[ref] = resolved;
+		currentRefs[Util::CanonicalizeRefName(ref)] = resolved;
 		// ...as well as under ADRIFT's generic, position-based name (e.g. "ReferencedObject1"),
 		// which is what library restrictions shared across many tasks use instead.
 		std::string alias = GenericAliasFamily(family);
 		if (!alias.empty())
-			currentRefs[alias + suffix] = resolved;
+			currentRefs[Util::CanonicalizeRefName(alias + suffix)] = resolved;
 	}
 	return true;
 }
@@ -236,7 +239,7 @@ bool Game::SpecificTaskMatches(const Task *specific, const std::vector<std::stri
 		const auto &spec = specifics[i];
 		if (spec.key.empty()) continue;  // wildcard: matches any value for this reference
 
-		auto it = currentRefs.find(refTokens[i]);
+		auto it = currentRefs.find(Util::CanonicalizeRefName(refTokens[i]));
 		if (it == currentRefs.end()) return false;
 
 		if (spec.type == Task::SpType::Text) {
@@ -262,9 +265,40 @@ void Game::RunTaskAndCapture(Task *task, bool showText, bool runActions) {
 		OutputFiltered(GetDescription(task->GetCompletionMsg())->Build());
 }
 
-void Game::ExecuteTaskByKey(const std::string &key) {
+void Game::ExecuteTaskByKey(const std::string &key, const std::vector<std::string> &args) {
 	Task *task = GetTask(key);
 	if (!task) return;  // unknown task key: nothing to do
+
+	// TODO: a task with several alternate Command lines only ever gets its first one's
+	// references considered here.
+	static const std::vector<std::string> kNoRefs;
+	const auto &coding = task->GetGroupCoding();
+	const std::vector<std::string> &refTokens = coding.empty() ? kNoRefs : coding.front();
+
+	// An Execute action that supplies arguments is naming the objects the called task is to act
+	// on, in place of anything the player's own command referred to. Bind them to that task's
+	// %ref%s for the duration of the call and put the caller's references back afterwards --
+	// including if the call throws, since the turn may still be reported on.
+	struct RefGuard {
+		Game *g;
+		bool active;
+		std::unordered_map<std::string, std::string> saved;
+		~RefGuard() { if (active) g->currentRefs = std::move(saved); }
+	} guard{this, !args.empty(), {}};
+
+	if (!args.empty()) {
+		guard.saved = currentRefs;
+		currentRefs.clear();
+		for (size_t i = 0; i < args.size() && i < refTokens.size(); i++) {
+			auto [family, suffix] = SplitRefName(refTokens[i]);
+			currentRefs[Util::CanonicalizeRefName(refTokens[i])] = args[i];
+			// Library restrictions address references generically, so the called task's own
+			// restrictions are as likely to say "ReferencedObject" as "%object%".
+			std::string alias = GenericAliasFamily(family);
+			if (!alias.empty())
+				currentRefs[Util::CanonicalizeRefName(alias + suffix)] = args[i];
+		}
+	}
 
 	auto result = task->CheckRestrictions();
 	if (!result.first) {
@@ -274,14 +308,7 @@ void Game::ExecuteTaskByKey(const std::string &key) {
 	}
 	// A task reached through an "Execute" action still gets its Specific overrides applied,
 	// exactly as a task the player typed does; ADRIFT runs both through the same path.
-	// No command was matched here, so a child's constraints are checked against the references
-	// this task's own Command declares -- which still hold whatever the turn's original command
-	// captured, since an Execute action passes no references of its own.
-	// TODO: a task with several alternate Command lines only ever gets its first one's
-	// references considered this way.
-	static const std::vector<std::string> kNoRefs;
-	const auto &coding = task->GetGroupCoding();
-	RunTaskWithSpecifics(task, coding.empty() ? kNoRefs : coding.front());
+	RunTaskWithSpecifics(task, refTokens);
 }
 
 void Game::NotePlayerArrived(const std::string &locationKey) {

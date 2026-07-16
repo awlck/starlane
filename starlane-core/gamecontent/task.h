@@ -169,6 +169,26 @@ private:
 		// if lhs or rhs hold references to multiple objects.
 		void Perform() const;
 	private:
+		// One argument of an `Execute <task> (<arg>|<arg>...)` action, bound positionally to the
+		// called task's own %ref% tokens. Which of the three forms it takes is settled at load
+		// time, because the alternative -- working it out on the fly -- would mean building
+		// expressions at runtime, and those live in the GameStatic shared between undo states.
+		struct TaskParam {
+			enum class Kind {
+				Ref,      // a bare "%object%"/"%Player%": pass the caller's reference straight through
+				Expr,     // "%Player%.Parent", "cl_Foo.SomeProp": evaluate to get the key
+				Literal   // "South", "cl_Lamp1": already the value the called task wants
+			};
+			Kind kind = Kind::Literal;
+			// For Ref, the canonical reference name to look up; for Literal, the value itself.
+			std::string text;
+			// For Expr, the expression to evaluate; 0 for the other kinds, and also for an Expr
+			// whose text wouldn't compile (which then resolves to nothing rather than throwing).
+			ExprRef expr = 0;
+		};
+		// Resolve this argument against the game as it stands right now.
+		static std::string ResolveParam(const TaskParam &p);
+
 		ActionRefType refType;
 		ActionType type;
 		// for simple moves, the object on the left-hand side (e.g. object to move, object whose children to move)
@@ -184,6 +204,10 @@ private:
 		// (for moves based on properties where the property can hold arbitrary strings or integers,
 		//  an expression producing a string or integer to check against.)
 		ExprRef expr = 0;
+
+		// For ExecTask, the arguments the calling task supplies for the called task's %ref%s
+		// (empty when the action names a task without a parenthesised argument list).
+		std::vector<TaskParam> taskParams;
 
 		// Actually perform the action for concrete objects/values.
 		void PerformImpl() const;

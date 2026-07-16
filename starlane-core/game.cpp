@@ -1,6 +1,7 @@
 #include "game.h"
 
 #include <algorithm>
+#include <regex>
 
 #include "starlane-core.h"
 #include "gamecontent/character.h"
@@ -22,6 +23,43 @@
 #include "valueparsers.h"
 
 namespace Starlane {
+
+namespace {
+// Raise the lowercase letter starting each sentence, so that games can write their messages
+// without worrying where the text will end up ("%CharacterName% get[//s] out of
+// %TheObject[%object%]%." is meant to read "You get out of the cell air duct.", and
+// %CharacterName% has no way of knowing it came first).
+//
+// A transcription of ADRIFT's own rule (Global.vb, in ReplaceALRs), quirks included, since the
+// point is to produce the text the ADRIFT runner produces:
+//   ^(?<cap>[a-z])|\n(?<cap>[a-z])|[a-z][\.\!\?] ( )?(?<cap>[a-z])
+// Note what it does *not* do. It only ever touches a letter, so a message opening with a tag
+// ("<c>(out of a cell air duct)</c>") is left exactly as the author wrote it. And the
+// sentence-boundary case insists on a *lowercase* letter before the punctuation, so "You have
+// 5. he waves." leaves "he" alone. Both are ADRIFT's behaviour, not oversights here.
+//
+// [a-z] is ASCII in .NET too -- a character range, not a Unicode category -- so ADRIFT does not
+// capitalise a sentence opening with 'é' either, and neither do we. That also means no byte this
+// touches is ever part of a multi-byte UTF-8 character, since a continuation byte cannot match
+// [a-z]: prose in any language passes through intact.
+// Returns whether anything was raised.
+bool AutoCapitalize(std::string &s) {
+	static const std::regex kSentenceStart(R"(^([a-z])|\n([a-z])|[a-z][.!?] {1,2}([a-z]))");
+	bool changed = false;
+	std::smatch m;
+	// Rescanning from the start each time, as ADRIFT does. It terminates because every
+	// alternative ends on the lowercase letter it raises, so a given match never matches twice.
+	while (std::regex_search(s, m, kSentenceStart)) {
+		const size_t group = m[1].matched ? 1 : (m[2].matched ? 2 : 3);
+		const auto at = (size_t) m.position(group);
+		// The match guarantees an ASCII 'a'-'z', so raise it directly. std::toupper would ask
+		// the locale, which the Qt frontend sets -- and a Turkish one does not raise 'i' to 'I'.
+		s[at] = (char) (s[at] - 'a' + 'A');
+		changed = true;
+	}
+	return changed;
+}
+}  // anonymous namespace
 
 Game *Game::theGame = nullptr;
 std::deque<Game *> Game::undoStates;
@@ -513,18 +551,28 @@ bool Game::RollbackRestore() {
 }
 
 void Game::OutputFiltered(std::string s) const {
-	std::string initialText;
-	do {
-		initialText = s;
-		for (const auto &it: staticData->textOverrides) {
-			const auto &f = it.second->GetFrom();
-			size_t pos;
-			while ((pos = s.find(f)) != std::string::npos) {
-				std::string replacement(GetDescription(it.second->GetReplacement())->Build());
-				s.replace(pos, f.size(), replacement);
+	auto applyOverrides = [this](std::string &t) {
+		std::string initialText;
+		do {
+			initialText = t;
+			for (const auto &it: staticData->textOverrides) {
+				const auto &f = it.second->GetFrom();
+				size_t pos;
+				while ((pos = t.find(f)) != std::string::npos) {
+					std::string replacement(GetDescription(it.second->GetReplacement())->Build());
+					t.replace(pos, f.size(), replacement);
+				}
 			}
-		}
-	} while (initialText != s);
+		} while (initialText != t);
+	};
+
+	applyOverrides(s);
+	// Capitalise only now, after the overrides: a replacement can land mid-sentence in one message
+	// and start a sentence in the next, and only the finished text knows which. ADRIFT is explicit
+	// about the ordering, and about looking again afterwards -- an author may well have written an
+	// override to match text as the player finally sees it, capital and all.
+	if (AutoCapitalize(s))
+		applyOverrides(s);
 	frontend->OutputText(s.c_str());
 }
 

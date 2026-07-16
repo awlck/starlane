@@ -41,7 +41,8 @@ The code is structured as follows:
   * The UI is built using Qt6
   * The interpreter core uses `pugixml`, `packcc`, `miniz`, and `magic_enum`.
 * For reference, the original VB.NET implementation of ADRIFT 5 can be
-  found in the `reference/ADRIFT-5/ADRIFT` directory.
+  found in the `reference/ADRIFT-5/ADRIFT` directory. (Beware that some files here use
+  encodings other than UTF-8; use `grep -a` when searching here.)
 * We are only dealing with ADRIFT 5 TAF files (game files without bundled multimedia
   assets) for now.
   * TAS files (save files produced by the original ADRIFT 5 runner) are not supported.
