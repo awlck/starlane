@@ -236,6 +236,9 @@ std::string Location::GetDescription(bool forDisplay) const {
 		result += desc;
 	}
 
+	// Fallback in case there is nothing to show
+	if (Util::StringIsNullOrWhitespace(result))
+		return "There is nothing of interest here.";
 	return result;
 }
 
