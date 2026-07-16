@@ -47,6 +47,7 @@ private:
 	DescrRef locationName;
 	std::unordered_map<std::string, ExitSpec> exits;
 
+protected:
 	// Locations can never be matched.
 	void MakeMatchExpr() override;
 };
