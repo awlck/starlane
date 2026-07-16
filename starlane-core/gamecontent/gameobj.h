@@ -5,6 +5,7 @@
 
 #include "../slc_private.h"
 
+#include <optional>
 #include <regex>
 #include <string>
 #include <unordered_set>
@@ -127,6 +128,14 @@ protected:
 	virtual void MakeMatchExpr();
 
 	const Group *GetGroupWithProp(const std::string &k) const;
+
+	// ADRIFT keeps an object's (or character's) whereabouts in a family of properties -- the
+	// StateList DynamicLocation/StaticLocation/CharacterLocation naming the relationship, plus a
+	// dependent key property (HeldByWho, InsideWhat, ...) holding the thing it relates to. We
+	// consume those into `relation`/`parent`/`dynamic` at load and erase the strings; this
+	// reconstructs one of them on demand, so restrictions and expressions that read it still work.
+	// Returns nullopt for any property name that isn't one of those.
+	std::optional<std::string> SynthesizeLocationProp(const std::string &k) const;
 
 	mutable std::unordered_map<std::string, std::string> hackyStrPropCache;
 	mutable std::unordered_map<std::string, int64_t> hackyIntPropCache;

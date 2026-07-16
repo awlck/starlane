@@ -227,12 +227,76 @@ const Group *GameObj::GetGroupWithProp(const std::string &k) const {
 	return nullptr;
 }
 
+std::optional<std::string> GameObj::SynthesizeLocationProp(const std::string &k) const {
+	// Only meaningful once `relation`/`parent` have been derived. During loading the real property
+	// still exists and wins (GetStrProp gates this on !HasProp), so we are never asked mid-load.
+	const bool parentIsChar = !parent.empty()
+		&& dynamic_cast<const Character *>(Game::Get()->GetObject(parent)) != nullptr;
+
+	if (dynamic_cast<const Character *>(this)) {
+		// A character's location: the CharacterLocation StateList and its dependent keys.
+		if (k == "CharacterLocation") {
+			switch (relation) {
+				case HoldingType::AtLocation: return "At Location";
+				case HoldingType::InObject:   return "In Object";
+				case HoldingType::OnObject:   return parentIsChar ? "On Character" : "On Object";
+				default:                      return "Hidden";
+			}
+		}
+		if (k == "CharacterAtLocation") return relation == HoldingType::AtLocation ? parent : "";
+		if (k == "CharInsideWhat")      return relation == HoldingType::InObject ? parent : "";
+		if (k == "CharOnWhat")          return (relation == HoldingType::OnObject && !parentIsChar) ? parent : "";
+		if (k == "CharOnWho")           return (relation == HoldingType::OnObject && parentIsChar) ? parent : "";
+		return std::nullopt;
+	}
+
+	// An object's location. DynamicLocation applies to dynamic objects, StaticLocation to static;
+	// asking for the other one gets nothing, as in ADRIFT (it only stores the applicable one).
+	if (k == "DynamicLocation") {
+		if (!dynamic) return std::nullopt;
+		switch (relation) {
+			case HoldingType::InObject: return parentIsChar ? "Held By Character" : "Inside Object";
+			case HoldingType::OnObject: return "On Object";
+			case HoldingType::Worn:     return "Worn By Character";
+			case HoldingType::AtLocation: return "In Location";
+			default:                    return "Hidden";
+		}
+	}
+	if (k == "StaticLocation") {
+		if (dynamic) return std::nullopt;
+		switch (relation) {
+			case HoldingType::AtLocation:      return "Single Location";
+			case HoldingType::AtLocationGroup: return "Location Group";
+			case HoldingType::Everywhere:      return "Everywhere";
+			case HoldingType::PartOf:          return parentIsChar ? "Part of Character" : "Part of Object";
+			default:                           return "Hidden";
+		}
+	}
+	// The dependent key properties: each holds `parent`, but only while the current relation is the
+	// one it belongs to. Asked for in any other state it is not set (we do not keep the stale value
+	// ADRIFT would carry over from a previous location).
+	if (k == "InLocation")      return (relation == HoldingType::AtLocation && dynamic) ? parent : "";
+	if (k == "AtLocation")      return (relation == HoldingType::AtLocation && !dynamic) ? parent : "";
+	if (k == "AtLocationGroup") return relation == HoldingType::AtLocationGroup ? parent : "";
+	if (k == "HeldByWho")       return (relation == HoldingType::InObject && parentIsChar) ? parent : "";
+	if (k == "InsideWhat")      return (relation == HoldingType::InObject && !parentIsChar) ? parent : "";
+	if (k == "OnWhat")          return relation == HoldingType::OnObject ? parent : "";
+	if (k == "WornByWho")       return relation == HoldingType::Worn ? parent : "";
+	if (k == "PartOfWho")       return (relation == HoldingType::PartOf && parentIsChar) ? parent : "";
+	if (k == "PartOfWhat")      return (relation == HoldingType::PartOf && !parentIsChar) ? parent : "";
+	return std::nullopt;
+}
+
 std::string GameObj::GetStrProp(const std::string &k) const {
-	// This property is consumed into the `dynamic` flag at load time, but restrictions
-	// and expressions may still consult it afterwards; synthesize it from the flag.
-	// (During loading itself the real property still exists and must win, since the
-	//  flag has not been derived from it yet.)
-	if (k == "StaticOrDynamic" && !HasProp(k)) return dynamic ? "Dynamic" : "Static";
+	// A handful of properties are consumed into `dynamic`/`relation`/`parent` at load time and then
+	// erased, but restrictions and expressions may still consult them; synthesize them back rather
+	// than storing the redundant strings. Only when the object carries no real value -- during
+	// loading itself the real property still exists and must win, since the state it feeds has not
+	// been derived from it yet.
+	if (!HasProp(k)) {
+		if (k == "StaticOrDynamic") return dynamic ? "Dynamic" : "Static";
+		if (auto syn = SynthesizeLocationProp(k)) return *syn;
+	}
 	const Group *grp = GetGroupWithProp(k);
 	if (grp != nullptr)
 		return grp->GetStrProp(k);
