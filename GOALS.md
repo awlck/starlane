@@ -11,6 +11,7 @@
 [x] implement event execution
 [x] run System tasks that trigger themselves (on arriving somewhere, and at the start of the game)
 [x] implement subevents measured in seconds on turn-based events
+[x] implement missing built-in functions (LocationOf, DisplayLocation, ParentOf)
 [ ] implement Character walks (they tick alongside events, see `Game::RunEventTick`)
 [ ] implement disambiguation ("TAKE BALL" -- "Which do you mean, the red ball or the green ball?")
 [x] print the initial room description if the game asks for it

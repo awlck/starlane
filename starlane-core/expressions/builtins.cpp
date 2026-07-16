@@ -400,6 +400,18 @@ Expr::Value Expression::CharacterNameImpl(const ast_node_tag *args) const {
 	}
 }
 
+Expr::Value Expression::LocationOfImpl(const ast_node_tag *args) const {
+	CHECK_ARGCOUNT("LocationOfImpl", 1);
+	EXTRACT_FIRST_ARG_STR(args, theArg);
+	return Game::Get()->GetObject(theArg.Str)->GetLocationKey();
+}
+
+Expr::Value Expression::ParentOfImpl(const ast_node_tag *args) const {
+	CHECK_ARGCOUNT("ParentOfImpl", 1);
+	EXTRACT_FIRST_ARG_STR(args, theArg);
+	return Game::Get()->GetObject(theArg.Str)->GetParentKey();
+}
+
 Expr::Value Expression::AbsImpl(const ast_node_tag *args) const {
 	CHECK_ARGCOUNT("Abs", 1);
 	auto theArg = EvalAnyNode(args->child.first);
@@ -651,6 +663,7 @@ Expr::Value Expression::CharWornAndHeldImpl(const Starlane::Character *obj, cons
 	}
 	return obj->GetPossessionsList(Character::PossessionFilter::WornAndHeld, recurse);
 }
+
 
 static const char *true_terms[] = { "True", "true", "TRUE", "Yes", "yes", "YES", "1" };
 static const char *false_terms[] = { "False", "false", "FALSE", "No", "no", "NO", "0"};

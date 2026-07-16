@@ -143,6 +143,8 @@ private:
 	Expr::Value LocationNameImpl(const ast_node_tag *args) const;
 	Expr::Value TheObjectImpl(const ast_node_tag *args) const;
 	Expr::Value CharacterNameImpl(const ast_node_tag *args) const;
+	Expr::Value LocationOfImpl(const ast_node_tag *args) const;
+	Expr::Value ParentOfImpl(const ast_node_tag *args) const;
 	// expression functions
 	Expr::Value AbsImpl(const ast_node_tag *args) const;
 	//Expr::Value EitherImpl(const ast_node_tag *args) const;
