@@ -5,3 +5,4 @@ project(miniz C)
 
 add_library(miniz STATIC "miniz.c" "miniz.h")
 target_compile_definitions(miniz INTERFACE MINIZ_NO_ARCHIVE_APIS)
+target_compile_options(miniz PRIVATE "-Wno-unused-function")
