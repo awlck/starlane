@@ -13,6 +13,7 @@
 #include "../valueparsers.h"
 #include "character.h"
 #include "description.h"
+#include "group.h"
 #include "location.h"
 #include "property.h"
 #include "utility.h"
@@ -377,7 +378,23 @@ bool Restriction::Single::PassObjectCond(const std::string &lhs, const std::stri
 	case ConditionType::AtLocation:
 		return g->GetObject(lhs)->GetLocationKey() == rhs;
 	case ConditionType::InSameLocationAs:
-		return g->GetObject(lhs)->GetLocationKey() == g->GetObject(rhs)->GetLocationKey();
+	{
+		const std::string &here = g->GetObject(lhs)->GetLocationKey();
+		// The thing compared against may be a group standing in for its members, as ADRIFT's
+		// CanSeeObject expands one: "in the same location as <group>" holds when lhs shares a
+		// location with any member. (Jacaranda Jim tests the player against a "LightSources"
+		// group of objects.)
+		if (const Group *grp = g->GetGroup(rhs)) {
+			for (const auto &member: grp->GetAllMembers()) {
+				const GameObj *m = g->GetObject(member);
+				if (m && m->GetLocationKey() == here)
+					return true;
+			}
+			return false;
+		}
+		const GameObj *r = g->GetObject(rhs);
+		return r && r->GetLocationKey() == here;
+	}
 	case ConditionType::InObject:
 	case ConditionType::HeldBy:  // Starlane treats `held by` simply as `in`.
 	{
