@@ -572,10 +572,20 @@ void Game::OutputFiltered(std::string s) const {
 			initialText = t;
 			for (const auto &it: staticData->textOverrides) {
 				const auto &f = it.second->GetFrom();
-				size_t pos;
-				while ((pos = t.find(f)) != std::string::npos) {
+				// An empty needle would match at every position forever; nothing sensible to do.
+				if (f.empty())
+					continue;
+				// Resume the search past each insertion rather than restarting from the front, as
+				// .NET's String.Replace (which ADRIFT uses) does: every original occurrence is
+				// replaced once, left to right, and the inserted text is not itself rescanned.
+				// Restarting from zero hangs the moment a replacement contains its own from-text --
+				// and games ship overrides that map a string to itself ("~~~~" -> "~~~~", a colour
+				// tag to the same tag), which would otherwise loop forever.
+				size_t pos = 0;
+				while ((pos = t.find(f, pos)) != std::string::npos) {
 					std::string replacement(GetDescription(it.second->GetReplacement())->Build());
 					t.replace(pos, f.size(), replacement);
+					pos += replacement.size();
 				}
 			}
 		} while (initialText != t);
