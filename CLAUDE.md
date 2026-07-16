@@ -49,6 +49,8 @@ The code is structured as follows:
   * BLORB files (the de facto standard way in the Interactive Fiction world to bundle
     multimedia assets with a game) will be handled through the frontend, not the core
     interpreter library.
+* Use negative numbers for the savefile versions while we are still undergoing major
+  development. You will be told when it is time to transition to v1.
 
 ## Development Goals
 
