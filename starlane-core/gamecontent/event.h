@@ -60,6 +60,13 @@ public:
 		std::string actionTask;
 		DescrRef actionDescr;
 		std::string onlyAtLocation;
+
+		// Seconds left before this subevent fires, counted down by TickRealTimeSubEvents. Only
+		// meaningful for a seconds-measured subevent belonging to a turn-based event -- such a
+		// subevent needs a clock of its own, since the event it belongs to only advances once a
+		// player turn. -1 means "not currently counting down" (not due to start yet, or the event
+		// isn't running).
+		int32_t secondsRemaining = -1;
 	};
 
 	void ReceiveTaskNotification(Util::Control::Condition ctrl, const std::string &taskKey);
@@ -93,6 +100,15 @@ public:
 	bool IsRealTime() const { return timeType == TimeType::RealTime; }
 	// Advance this event by one tick of whichever clock it runs on.
 	void IncrementTimer();
+	// Advance the private clocks of any seconds-measured subevents this (turn-based) event has.
+	// Called on every wall-clock tick regardless of what this event's own clock runs on, since a
+	// subevent counted in seconds rides the wall clock even when its event doesn't. A no-op for a
+	// real-time event, whose seconds-measured subevents ride the event's own clock instead (see
+	// DoAnySubEvents), and for one with none of its own.
+	void TickRealTimeSubEvents();
+	// Whether any subevent here is measured in seconds. Used to warn about a turn-based event
+	// whose subevents still need a wall clock this interpreter might not have.
+	bool HasRealTimeSubEvents() const;
 	// Clear the "started on this very tick" flag. Done in a pass of its own once every event has
 	// ticked, rather than by the event itself -- see Game::RunEventTick.
 	void ClearJustStarted() { justStarted = false; }
@@ -135,6 +151,15 @@ private:
 	// Run whichever subevents this tick calls for. Does nothing unless the event is running.
 	void DoAnySubEvents();
 	void RunSubEvent(int32_t idx);
+	// (Re)start the private clocks of this event's seconds-measured subevents, called whenever
+	// this (turn-based) event starts or restarts. Only the subevents that are due to start right
+	// away do so here -- FromStartOfEvent ones, and the first FromLastSubEvent one, if any; a
+	// later FromLastSubEvent one starts its own clock only once the one before it in the list has
+	// run, from RunSubEvent.
+	void StartRealTimeSubEvents();
+	// Settle subevents[idx]'s roll and start its clock, or run it right away if that roll comes up
+	// zero -- the seconds equivalent of a "0 turns from the start" subevent firing inline.
+	void BeginSubEventCountdown(int32_t idx);
 
 	// Ticks remaining before this event ends. ADRIFT stores this and derives the elapsed time; we
 	// do it the other way round, because the elapsed time is what the `Position` expression

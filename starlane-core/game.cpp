@@ -260,7 +260,9 @@ void Game::Begin() {
 	// a different game, not a lesser one. Said again on RESTART, which is right -- it is still true.
 	if (!frontend->timersAvailable) {
 		for (const auto &key : staticData->eventLoadOrder) {
-			if (events.at(key)->IsRealTime()) {
+			// Also true of a turn-based event with a seconds-measured subevent: that subevent
+			// still needs a wall clock, even though the event around it doesn't.
+			if (events.at(key)->IsRealTime() || events.at(key)->HasRealTimeSubEvents()) {
 				frontend->OutputText("<i>This game uses real-time events, which this interpreter "
 				                     "cannot run. Parts of it will not happen.</i>\n");
 				break;
@@ -321,6 +323,10 @@ void Game::RunEventTick(bool realTime) {
 		if (!gameHasBegun) break;
 		Event *evt = events.at(key);
 		if (evt->IsRealTime() == realTime) evt->IncrementTimer();
+		// A turn-based event's seconds-measured subevents ride the wall clock on their own,
+		// independently of the turn clock the rest of the event runs on -- so they get serviced
+		// on the real-time pass even though the event itself doesn't tick there.
+		else if (realTime) evt->TickRealTimeSubEvents();
 	}
 	// Deliberately a second pass over the same events, as in ADRIFT. An event late in the order
 	// can run a task that starts one earlier in the order, which has already had its tick; if the

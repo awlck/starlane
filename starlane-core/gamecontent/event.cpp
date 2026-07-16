@@ -183,6 +183,9 @@ void Event::StartImpl(bool restart) {
 	// Plain assignment, purely so the trace below reports the clock we are starting from; the
 	// line after puts the same value through the transitions.
 	timeSinceStart = 0;
+	// After timeSinceStart settles to 0, not before: a subevent whose roll comes up zero runs
+	// inline from within here, and records timeSinceStart as when it ran.
+	StartRealTimeSubEvents();
 	EVENT_TRACE((restart ? "restart" : "start"));
 	// May end the event here and now: an event with no length has no time left the instant it
 	// starts, so this trips the "run out of time" arm above, which runs the 0-turn subevents and
@@ -273,10 +276,9 @@ void Event::DoAnySubEvents() {
 	if (state != State::Running) return;
 	for (int32_t i = 0; i < (int32_t) subevents.size(); i++) {
 		auto &se = subevents[i];
-		// A subevent counted in seconds only rides along with the event on a real-time event; on
-		// a turn-based one ADRIFT gives it a timer of its own.
-		// TODO: real-time subevents on turn-based events. (Every subevent in every test game is
-		// counted in turns, so there is nothing here to check such a thing against.)
+		// A subevent counted in seconds only rides along with the event's own clock on a
+		// real-time event; on a turn-based one it runs off its own clock instead, driven by
+		// StartRealTimeSubEvents/TickRealTimeSubEvents rather than by this loop.
 		if (!(se.timeType == TimeType::Turns || timeType == TimeType::RealTime)) continue;
 		// Read afresh each time round rather than hoisted out of the loop: an earlier subevent
 		// can run a task that reaches back and restarts this very event -- and immediately, since
@@ -343,6 +345,62 @@ void Event::RunSubEvent(int32_t idx) {
 	}
 	lastSubEventTime = timeSinceStart;
 	lastSubEventIndex = idx;
+	// A seconds-measured subevent chained onto the one that just ran needs its own clock started
+	// now: DoAnySubEvents only drives turn-measured subevents, so nothing else will ever start it.
+	// EventBegin- and the chain's own first subevent already had their clocks started back in
+	// StartRealTimeSubEvents; this is what carries the chain past that point.
+	if (idx + 1 < (int32_t) subevents.size()) {
+		auto &next = subevents[idx + 1];
+		if (timeType == TimeType::Turns && next.timeType == TimeType::RealTime &&
+				next.whenRefType == SERefType::LastSubEvent)
+			BeginSubEventCountdown(idx + 1);
+	}
+}
+
+void Event::StartRealTimeSubEvents() {
+	for (int32_t i = 0; i < (int32_t) subevents.size(); i++) {
+		auto &se = subevents[i];
+		se.secondsRemaining = -1;
+		if (timeType != TimeType::Turns || se.timeType != TimeType::RealTime) continue;
+		// "N seconds before the end" has no fixed answer when the event's own length is counted
+		// in turns, whose real-time length isn't defined -- so this combination, like the
+		// equivalent one ADRIFT leaves out of its own start-up loop, never gets a clock.
+		if (se.whenRefType == SERefType::EventEnd) continue;
+		// A FromLastSubEvent subevent past the first only starts once the one before it in the
+		// list has run -- see the chaining logic at the end of RunSubEvent.
+		if (se.whenRefType == SERefType::LastSubEvent && i != 0) continue;
+		BeginSubEventCountdown(i);
+	}
+}
+
+void Event::BeginSubEventCountdown(int32_t idx) {
+	auto &se = subevents[idx];
+	int32_t delay = (int32_t) se.when.Value();
+	if (delay <= 0) RunSubEvent(idx);
+	else se.secondsRemaining = delay;
+}
+
+void Event::TickRealTimeSubEvents() {
+	if (state != State::Running) return;
+	for (int32_t i = 0; i < (int32_t) subevents.size(); i++) {
+		// Read fresh each time round: running a subevent can run a task that restarts this very
+		// event, re-rolling every clock here out from under the rest of this loop -- same reason
+		// DoAnySubEvents rereads its own state on every iteration.
+		auto &se = subevents[i];
+		if (se.secondsRemaining < 0) continue;
+		if (--se.secondsRemaining <= 0) {
+			// Settled before RunSubEvent, not after: leaving it at 0 (or below) would read as
+			// still counting down and fire this same subevent again on the very next tick.
+			se.secondsRemaining = -1;
+			RunSubEvent(i);
+		}
+	}
+}
+
+bool Event::HasRealTimeSubEvents() const {
+	for (const auto &se : subevents)
+		if (se.timeType == TimeType::RealTime) return true;
+	return false;
 }
 
 void Event::ReceiveTaskNotification(Util::Control::Condition cond, const std::string &taskKey) {
@@ -393,6 +451,13 @@ void Event::WriteState(Save::Writer &writer) const {
 	for (const auto &se : subevents)
 		whens.push_back(se.when.CurrentState());
 	writer.WriteKV("subevent_whens", whens);
+	// A seconds-measured subevent's own private clock, for the one case it can be mid-countdown
+	// on: a turn-based event, whose own tick a save doesn't happen to land on.
+	std::vector<int32_t> secondsRemaining;
+	secondsRemaining.reserve(subevents.size());
+	for (const auto &se : subevents)
+		secondsRemaining.push_back(se.secondsRemaining);
+	writer.WriteKV("subevent_seconds_remaining", secondsRemaining);
 }
 
 namespace {
@@ -445,6 +510,16 @@ bool Event::RestoreState(const Save::AstNode *node) {
 		// game, whatever its header claimed.
 		if (i >= subevents.size()) return false;
 		subevents[i++].when.RestoreState((uint32_t) w->sv.Int);
+	}
+	if (i != subevents.size()) return false;
+
+	if (!(n = GetField(node, "subevent_seconds_remaining", Save::NT_INTLIST)) &&
+			!(n = GetField(node, "subevent_seconds_remaining", Save::NT_EMPTY)))
+		return false;
+	i = 0;
+	ITERATE_CHILDREN(n, s) {
+		if (i >= subevents.size()) return false;
+		subevents[i++].secondsRemaining = (int32_t) s->sv.Int;
 	}
 	if (i != subevents.size()) return false;
 	return true;

@@ -18,7 +18,9 @@ namespace Starlane::Save {
 // per-event scheduling state, and Event's saved status names changed outright. A version 1 file
 // would fail deep inside the restore with a misleading "this file is invalid"; the version check
 // turns that into an honest answer.
-constexpr int currentSaveFileVer = 2;
+// Bumped to 3 when events learned to run seconds-measured subevents on a turn-based clock: each
+// subevent gained a private countdown of its own that a save now has to carry.
+constexpr int currentSaveFileVer = 3;
 
 namespace {
 // Helper to determine whether there's a const_iterator for T.

@@ -10,7 +10,7 @@
 [x] make WAIT actually let `WaitTurns` turns pass
 [x] implement event execution
 [x] run System tasks that trigger themselves (on arriving somewhere, and at the start of the game)
-[ ] implement subevents measured in seconds on turn-based events
+[x] implement subevents measured in seconds on turn-based events
 [ ] implement Character walks (they tick alongside events, see `Game::RunEventTick`)
 [ ] implement disambiguation ("TAKE BALL" -- "Which do you mean, the red ball or the green ball?")
 [ ] print the initial room description if the game asks for it
