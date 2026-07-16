@@ -172,6 +172,11 @@ Event::StartType Event::ParseStartType(const char *txt) {
 }
 
 Event::TimeType Event::ParseTimeType(const char *txt) {
+	// A missing element (empty here) means turn-based, as in ADRIFT: both an event's EventType and
+	// a subevent's Measure default to their first enum value -- TurnBased / Turns -- and are only
+	// set when the element is actually present. Older games (e.g. Jacaranda Jim) omit it entirely.
+	if (!txt || !*txt)
+		return TimeType::Turns;
 	if (STREQ(txt, "TurnBased") || STREQ(txt, "Turns"))
 		return TimeType::Turns;
 	if (STREQ(txt, "TimeBased") || STREQ(txt, "Seconds"))
