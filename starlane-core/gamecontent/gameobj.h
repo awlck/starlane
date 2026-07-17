@@ -28,6 +28,13 @@ public:
 	const std::unordered_map<std::string, std::string> &GetAllStrProps() const override;
 	const std::unordered_map<std::string, int64_t> &GetAllIntProps() const override;
 	virtual const std::regex &GetMatchExpr() const { return matchRegex; }
+	// Whether `word` (matched case-insensitively) is one of this object's naming words for
+	// disambiguation purposes: its article, one of its prefix (adjective) words, or one of its
+	// nouns. Deliberately distinct from GetMatchExpr(), whose pattern requires a noun and so
+	// cannot match a bare adjective like "red" -- which is exactly what a player types when
+	// answering "Which ball? The red ball or the green ball." Characters also match a known
+	// proper name (see Character::MatchesNameWord).
+	virtual bool MatchesNameWord(const std::string &word) const;
 	static GameObj *CreateFromXML(const pugi::xml_node &xmlNode);
 	virtual GameObj *Clone() const;  // sort of a copy constructor that respects subclassing.
     virtual ~GameObj() = default;
@@ -95,6 +102,14 @@ public:
 	// Move this object so that it has this parent and relation.
 	// Any character that can see the object at its new position will note it as "seen".
 	virtual void MoveTo(const std::string &newParent, HoldingType newRelation);
+
+	// Place this object directly at the given location, as though the game file had specified it
+	// there: sets containment without the arrival bookkeeping (and system-task triggering) that
+	// MoveTo performs. Intended for load-time fixups only -- see LoadFromXML's hidden-player default.
+	void SetInitialLocation(const std::string &locationKey) {
+		parent = locationKey;
+		relation = HoldingType::AtLocation;
+	}
 
 	// Set the `dynamic` state, because of course you can change that through property assignments.
 	void SetDynamic(bool dynamic) { this->dynamic = dynamic; }

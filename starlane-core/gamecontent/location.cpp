@@ -166,7 +166,17 @@ std::string Location::GetDescription(bool forDisplay) const {
 	// that feature is worth wiring an entire user settings mechanism into the
 	// interpreter core, so I'm just not going to bother and always display them:
 	std::string result = "<b>" + GetDisplayName() + "</b>\n";
-	result += GameObj::GetDescription(forDisplay);
+	std::string ownDescription = GameObj::GetDescription(forDisplay);
+	result += ownDescription;
+
+	// Whether any descriptive content precedes the general object list: the location's own
+	// description, or an explicitly-list-described object appended below. This drives the
+	// "There is ... here." vs "Also here is ..." choice, mirroring clsLocation.ViewLocation --
+	// whose running text starts as the long description, *not* the location name. So a general
+	// list that is the first mention of anything at all reads "There is X here."; once any prose
+	// has come before it, the same list is folded in as "Also here is X." (The location name
+	// header we prepend above is not part of this and must not tip the scales.)
+	bool anyPrecedingContent = !ownDescription.empty();
 
 	// Visible objects are listed after the description proper, mirroring what
 	// clsLocation.ViewLocation does in the original implementation: dynamic objects
@@ -192,17 +202,15 @@ std::string Location::GetDescription(bool forDisplay) const {
 		} else {
 			PadForAppend(result);
 			result += listDesc;
+			anyPrecedingContent = true;
 		}
 	}
 
 	if (!generalListed.empty()) {
 		std::string list = JoinNames(generalListed);
-		if (result.empty()) {
-			result = "There is " + list + " here.";
-		} else {
-			PadForAppend(result);
-			result += "Also here is " + list + ".";
-		}
+		PadForAppend(result);
+		result += anyPrecedingContent ? ("Also here is " + list + ".")
+		                              : ("There is " + list + " here.");
 	}
 
 	// Characters visible here are listed after the objects. Each contributes its

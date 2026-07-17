@@ -34,6 +34,9 @@ public:
 	std::string GetDescriptor() const { return GameObj::GetDisplayName(); }
 	std::string GetDescription(bool forDisplay = true) const override;
 	const std::regex &GetMatchExpr() const override { return GetBoolProp("Known") ? matchWhenKnownRegex : matchRegex; };
+	// Besides the article/prefix/nouns the base class checks, a character also answers to its
+	// proper name when disambiguating (e.g. "Which guard? George or the other guard.").
+	bool MatchesNameWord(const std::string &word) const override;
 	// Intervene on setting string properties so that we can capture changes to the ProperName property.
 	void SetPropValue(const std::string &key, const std::string &value) override;
 

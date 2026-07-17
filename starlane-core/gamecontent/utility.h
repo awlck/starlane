@@ -154,6 +154,18 @@ static inline bool IsList(const std::string &o) {
 // Split a string with the specified delimiter:
 std::vector<std::string> SplitString(const std::string &s, const std::string &delimRegex);
 
+// Whether `word` appears as a whole space-delimited token within `phrase`, compared
+// case-insensitively (ASCII fold, as ToLower). Both an object's prefix and its individual
+// nouns may be multi-word ("old rusty", "oil lamp"), so a plain equality test won't do.
+// Used to test a disambiguation answer word against an object's naming words.
+inline bool ContainsWholeWord(const std::string &phrase, const std::string &word) {
+	std::string w = ToLower(word);
+	if (w.empty()) return false;
+	for (const auto &tok : SplitString(phrase, " "))
+		if (ToLower(tok) == w) return true;
+	return false;
+}
+
 // A regex alternation (e.g. "north|n|northeast|ne|...") of every direction word and
 // abbreviation ADRIFT recognizes, suitable for embedding in a capturing group.
 const std::string &DirectionsRegexAlternation();

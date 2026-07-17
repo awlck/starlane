@@ -43,6 +43,11 @@ std::string Character::GetDisplayName(bool defArt) const {
 	return GameObj::GetDisplayName(defArt);
 }
 
+bool Character::MatchesNameWord(const std::string &word) const {
+	if (GameObj::MatchesNameWord(word)) return true;
+	return Util::ContainsWholeWord(properName, word);
+}
+
 std::string Character::GetDescription(bool forDisplay) const {
 	Game::Get()->SetInternalReference("referral-character", key);
 	auto result = GameObj::GetDescription(forDisplay);

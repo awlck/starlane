@@ -18,7 +18,14 @@ public:
 	}
 
 	virtual int64_t GetIntProp(const std::string &key) const {
-		return intValuedProps.at(key);
+		// A property the holder never had set reads as 0, rather than throwing: ADRIFT gives
+		// objects a default for every applicable property (an unset Weight/Size still has a
+		// value), and games lean on that -- e.g. taking an object whose Weight was left default
+		// evaluates "%object%.Weight" against MaxWeight. We don't store per-property defaults, so
+		// 0 stands in; it matches the lenient GetBoolProp above, and callers needing to tell
+		// "unset" from "zero" have HasProp for it.
+		auto it = intValuedProps.find(key);
+		return it == intValuedProps.end() ? 0 : it->second;
 	}
 
 	virtual bool GetBoolProp(const std::string &key) const {
