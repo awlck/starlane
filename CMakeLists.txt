@@ -8,6 +8,7 @@ option(SL_BUILD_QT "Build the Starlane Qt frontend" ON)
 option(SL_BUILD_CONSOLE "Build the Starlane console frontend" ON)
 option(SL_BUILD_TOOLS "Build command-line utilities" ON)
 option(SL_BUILD_C_WRAPPER "Build C-style API wrapper" ON)
+option(SL_BUILD_GLK "Build the Starlane Glk frontend" ON)
 
 # Global compiler options: warnings, security, optimizations
 if(MSVC)
@@ -59,4 +60,8 @@ endif()
 
 if(SL_BUILD_C_WRAPPER)
 	add_subdirectory("slc-capi")
+endif()
+
+if(SL_BUILD_GLK)
+	add_subdirectory("starlane-glk")
 endif()

@@ -31,8 +31,17 @@ The code is structured as follows:
 * `starlane-utils/`: a collection of small utilities that I found
   occasionally useful during development. Not terribly important.
 * `slc-capi/`: A plain C wrapper over starlane-core's C++ API.
-* (prospectively) `starlane-glk´. Plans for a future interface targetting
-  the Glk API commonly used by interactive fiction interpreters.
+* `starlane-glk/`. Draft of an interface targeting the Glk API commonly used by
+  interactive fiction interpreters.
+
+The following references are available:
+
+* `reference/ADRIFT-5/ADRIFT`: original VB.NET implementation of ADRIFT 5. (Beware that
+  some files here use encodings other than UTF-8; use `grep -a` when searching here.)
+* `reference/ifarchive-if-specs/Glk-Spec.md`: reference for the Glk API
+* `reference/cheapglk`: a very basic Glk library implementation
+* `reference/frankendrift/FrankenDrift.GlkRunner/FrankenDrift.GlkRunner`: an adapter connecting
+  the ADRIFT 5 code to a Glk library via .NET P/Invoke with working HTML parsing and all. 
 
 ## Basic Instructions
 

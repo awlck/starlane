@@ -7,3 +7,12 @@
 [submodule "reference/ADRIFT-5"]
 	path = reference/ADRIFT-5
 	url = git@github.com:jcwild/ADRIFT-5
+[submodule "reference/frankendrift"]
+	path = reference/frankendrift
+	url = https://github.com/awlck/frankendrift.git
+[submodule "reference/ifarchive-if-specs"]
+	path = reference/ifarchive-if-specs
+	url = https://github.com/iftechfoundation/ifarchive-if-specs.git
+[submodule "reference/cheapglk"]
+	path = reference/cheapglk
+	url = https://github.com/erkyrath/cheapglk.git
