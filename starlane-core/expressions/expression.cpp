@@ -671,7 +671,21 @@ Expr::Value Expression::EvalItemfuncSingle(const std::string &key, const Expr::V
 		if (!theObj) return std::string();
 		if (toCall_.Str == "Children") return ObjChildrenImpl(theObj, args);
 		if (toCall_.Str == "Contents") return ObjContentsImpl(theObj, args);
-		if (toCall_.Str == "Name") return theObj->GetDisplayName();
+		if (toCall_.Str == "Name") {
+			// ADRIFT's %object%.Name defaults to the *definite* article ("the red ball"); an
+			// explicit "(indefinite)" argument switches to "a/an" (see Global.vb, Case "Name" ->
+			// clsObject.FullName). We long defaulted to the indefinite form, the opposite of ADRIFT.
+			// Other arguments (e.g. the character-only "(Force)" pronoun form) fall through to the
+			// definite default, which is what the standard library's bare "%object%.Name" wants.
+			bool definite = true;
+			if (args != nullptr && args->arity >= 1) {
+				auto arg = EvalAnyNode(args->child.first);
+				Expr::EnsureString(arg);
+				if (Util::ToLower(arg.Str).find("indefinite") != std::string::npos)
+					definite = false;
+			}
+			return theObj->GetDisplayName(definite);
+		}
 		if (toCall_.Str == "Description") return theObj->GetDescription();
 		if (toCall_.Str == "Location") return theObj->GetLocationKey();
 		if (toCall_.Str == "Parent") return theObj->GetParentKey();
