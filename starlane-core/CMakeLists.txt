@@ -57,6 +57,7 @@ add_library(starlane-core
 	"gamecontent/propholder.cpp" "gamecontent/propholder.h"
 	"gamecontent/variable.cpp" "gamecontent/variable.h"
 	"gamecontent/event.cpp" "gamecontent/event.h"
+	"gamecontent/walk.cpp" "gamecontent/walk.h"
 	"gamecontent/userfunc.cpp" "gamecontent/userfunc.h"
 	"gamecontent/utility.h" "gamecontent/utility.cpp"
 	gamecontent/synonym.cpp gamecontent/synonym.h

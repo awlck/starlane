@@ -5,8 +5,10 @@
 
 #include "../slc_private.h"
 
+#include <cstdint>
 #include <regex>
 #include <string>
+#include <utility>
 #include <vector>
 
 #include "utility.h"
@@ -97,6 +99,9 @@ public:
 	const std::vector<std::vector<std::string>> &GetGroupCoding() const { return groupNumToRef; }
 
 	void RegisterNotification(const std::string &evtKey, Util::Control::Condition cond);
+	// The walk equivalent: a walk is addressed by its owning character's key and its index in that
+	// character's list, since walks -- unlike events -- carry no key of their own.
+	void RegisterWalkNotification(const std::string &charKey, int32_t walkIdx, Util::Control::Condition cond);
 
 	enum class ActionType {
 		MoveToLocation,
@@ -244,6 +249,9 @@ private:
 	std::vector<std::string> completeSubs;
 	// Events subscribed to this task being uncompleted.
 	std::vector<std::string> uncompleteSubs;
+	// The same for walks, keyed by (owning character, walk index) rather than by a walk key.
+	std::vector<std::pair<std::string, int32_t>> walkCompleteSubs;
+	std::vector<std::pair<std::string, int32_t>> walkUncompleteSubs;
 
 	friend struct TaskPrioLess;
 };

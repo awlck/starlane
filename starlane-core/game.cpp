@@ -280,6 +280,11 @@ void Game::Begin() {
 	// the first real tick, that would have every immediate event sit out turn one.
 	for (const auto &key : staticData->eventLoadOrder)
 		events.at(key)->ClearJustStarted();
+	// Walks that begin active start now, after the events, as in ADRIFT. Starting one moves its
+	// character to the walk's first step and may run its opening sub-walks.
+	for (const auto &key : staticData->objectLoadOrder)
+		if (auto *c = dynamic_cast<Character *>(objects.at(key)))
+			c->StartActiveWalks();
 }
 
 void Game::TurnTick() {
@@ -317,7 +322,16 @@ void Game::RunEventTick(bool realTime) {
 	// The game can end part-way through a tick -- an event runs a task that wins or loses it --
 	// and the rest of that tick's events then don't happen. ADRIFT bails the same way.
 	if (!gameHasBegun) return;
-	// TODO: character walks advance here, ahead of the events.
+	// Character walks advance here, ahead of the events and before the events-running flag goes up --
+	// exactly where ADRIFT drives them. Only on the turn clock: walks have no real-time variety. In
+	// object load order so two ticks of the same state move the same characters in the same sequence.
+	if (!realTime) {
+		for (const auto &key : staticData->objectLoadOrder) {
+			if (!gameHasBegun) return;
+			if (auto *c = dynamic_cast<Character *>(objects.at(key)))
+				c->TickWalks();
+		}
+	}
 	// A "skip N turns" action can land us back in here while an outer tick is still going, so
 	// remember rather than assume what to put back -- and put it back from a destructor, since a
 	// task action that throws unwinds past this frame while the frontend carries on playing.

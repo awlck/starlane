@@ -651,6 +651,17 @@ void Task::RegisterNotification(const std::string &evtKey, Util::Control::Condit
 	}
 }
 
+void Task::RegisterWalkNotification(const std::string &charKey, int32_t walkIdx, Util::Control::Condition cond) {
+	switch (cond) {
+		case Util::Control::Condition::Completion:
+			walkCompleteSubs.emplace_back(charKey, walkIdx);
+			break;
+		case Util::Control::Condition::Uncompletion:
+			walkUncompleteSubs.emplace_back(charKey, walkIdx);
+			break;
+	}
+}
+
 void Task::Uncomplete() {
 	if (Completed()) {
 		// Clear the flag before telling anyone, the way MarkCompleted does: an event woken by
@@ -677,12 +688,22 @@ void Task::SendCompleteNotifications() const {
 		if (auto *evt = Game::Get()->GetEvent(it))
 			evt->ReceiveTaskNotification(Util::Control::Condition::Completion, key);
 	}
+	// Walks resolve the same way, and for the same reason: they belong to a Game instance that gets
+	// cloned for undo, so the character is looked up afresh through the live Game each time.
+	for (const auto &it: walkCompleteSubs) {
+		if (auto *c = dynamic_cast<Character *>(Game::Get()->GetObject(it.first)))
+			c->NotifyWalk(it.second, Util::Control::Condition::Completion, key);
+	}
 }
 
 void Task::SendUncompleteNotifications() const {
 	for (const auto &it: uncompleteSubs) {
 		if (auto *evt = Game::Get()->GetEvent(it))
 			evt->ReceiveTaskNotification(Util::Control::Condition::Uncompletion, key);
+	}
+	for (const auto &it: walkUncompleteSubs) {
+		if (auto *c = dynamic_cast<Character *>(Game::Get()->GetObject(it.first)))
+			c->NotifyWalk(it.second, Util::Control::Condition::Uncompletion, key);
 	}
 }
 

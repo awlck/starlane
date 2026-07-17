@@ -68,7 +68,11 @@ Event *Event::CreateFromXML(const pugi::xml_node &xmlNode) {
 			const char *y;
 			if ((y = SkipText(x, "Completion "))) {
 				c.condition = Util::Control::Condition::Completion;
-			} else if ((y = SkipText(x, "Uncompletion "))) {
+			} else if ((y = SkipText(x, "UnCompletion "))) {
+				// ADRIFT's own spelling, capital C and all -- it writes the enum name verbatim. (The
+				// old "Uncompletion" never matched; no event control in any test game is an
+				// uncompletion, so it stayed latent -- but the walk equivalent does have one, which is
+				// how the miscased needle came to light.)
 				c.condition = Util::Control::Condition::Uncompletion;
 			} else throw std::runtime_error(std::string("Invalid control condition text: ") + ctrlTxt);
 			c.taskName = y;

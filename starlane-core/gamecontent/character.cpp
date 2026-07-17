@@ -29,7 +29,8 @@ Character *Character::CreateFromXML(const pugi::xml_node &xmlNode) {
             result->parent = Game::Get()->GetReference(result->parent);
     }
 
-	// TODO: Walks
+	for (const auto &w : xmlNode.children("Walk"))
+		result->walks.push_back(Walk::CreateFromXML(w, result->key));
     // TODO: Conversation
 
 	result->MakeMatchExpr();
@@ -156,9 +157,43 @@ std::string Character::GetPossessionsList(Starlane::Character::PossessionFilter 
 	return result;
 }
 
+void Character::RegisterWalkNotifications() const {
+	for (int32_t i = 0; i < (int32_t) walks.size(); i++)
+		walks[i].RegisterNotifications(i);
+}
+
+void Character::TickWalks() {
+	// A walk's sub-walk can run a task that ends the game; stop ticking the moment it does, as the
+	// event loop and ADRIFT's own walk loop both do.
+	for (auto &w : walks) {
+		if (!Game::Get()->IsGameOngoing()) return;
+		w.IncrementTimer();
+	}
+}
+
+void Character::StartActiveWalks() {
+	// Forced: this is game start-up placing the walk into its running state, not a task asking it to
+	// begin, so there is no tick to defer to.
+	for (auto &w : walks)
+		if (w.IsStartActive())
+			w.Start(/*force =*/ true);
+}
+
+void Character::NotifyWalk(int32_t idx, Util::Control::Condition cond, const std::string &taskKey) {
+	if (idx >= 0 && idx < (int32_t) walks.size())
+		walks[idx].ReceiveTaskNotification(cond, taskKey);
+}
+
 void Character::WriteState(Save::Writer &writer) const {
 	GameObj::WriteState(writer);
 	writer.WriteKV("seen", seenStorage);
+	writer.BeginNamedCompound("walks");
+	for (size_t i = 0; i < walks.size(); i++) {
+		writer.BeginNamedCompound(std::to_string(i).c_str());
+		walks[i].WriteState(writer);
+		writer.EndCompound();
+	}
+	writer.EndCompound();
 }
 
 bool Character::RestoreState(const Save::AstNode *node) {
@@ -168,6 +203,12 @@ bool Character::RestoreState(const Save::AstNode *node) {
 	seenStorage.clear();
 	ITERATE_CHILDREN(seenNode, s) {
 		seenStorage.insert(s->Str);
+	}
+	const auto *walksNode = node->FindChildByName("walks");
+	if (!walksNode) return false;
+	for (int32_t i = 0; i < (int32_t) walks.size(); i++) {
+		const auto *w = walksNode->FindChildByName(std::to_string(i).c_str());
+		if (!w || !walks[i].RestoreState(w)) return false;
 	}
 	return true;
 }
