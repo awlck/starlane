@@ -21,7 +21,8 @@ namespace Starlane::Save {
 // subevent gained a private countdown of its own that a save now has to carry.
 // Bumped to -996 when characters learned to walk: each character now saves the scheduling state of
 // every walk it has (status, countdown, sub-walk bookkeeping, and settled step/when rolls).
-constexpr int currentSaveFileVer = -996;
+// Bumped to -995 when a game checksum was added to the savefile.
+constexpr int currentSaveFileVer = -995;
 
 namespace {
 // Helper to determine whether there's a const_iterator for T.
