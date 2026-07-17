@@ -20,7 +20,7 @@ Writer::Writer(void *target, const Starlane::Game *game)
 	stream->next_in = textbuf;
 	stream->next_out = zbuf;
 	stream->avail_out = WRITER_BUFSIZE;
-	mz_deflateInit(stream, Z_DEFAULT_COMPRESSION);
+	mz_deflateInit(stream, MZ_DEFAULT_COMPRESSION);
 	BeginNamedCompound("meta");
 	WriteKV("type", "starlane_save");
 	WriteKV("version", currentSaveFileVer);
@@ -140,7 +140,7 @@ void Writer::RunCompressor(bool finish) {
 	do {
 		stream->avail_out = WRITER_BUFSIZE;
 		stream->next_out = zbuf;
-		[[maybe_unused]] int status = mz_deflate(stream, finish ? Z_FINISH : Z_NO_FLUSH);
+		[[maybe_unused]] int status = mz_deflate(stream, finish ? MZ_FINISH : MZ_NO_FLUSH);
 		// TODO: error handling
 		mz_ulong toWrite = WRITER_BUFSIZE - stream->avail_out;
 		frontend->WriteFile(hFile, zbuf, toWrite);
