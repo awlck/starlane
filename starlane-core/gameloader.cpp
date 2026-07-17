@@ -33,7 +33,7 @@
 
 namespace Starlane {
 
-Game *Game::LoadFromXML(const std::string &gameTxt) {
+Game *Game::LoadFromXML(const std::string &gameTxt, uint32_t gameCrc32) {
 	// If a game is already ongoing, delete it.
 	// Assume that, if we get here, the user has already consented to this.
 	// TODO: deal with `startupState` and the undo history.
@@ -52,6 +52,7 @@ Game *Game::LoadFromXML(const std::string &gameTxt) {
 	auto result = new Game;
 	auto rStatic = new GameStatic;
 	result->staticData = rStatic;
+	rStatic->gameCrc32 = gameCrc32;
 	rStatic->gameTitle = gameNode.child_value("Title");
 	rStatic->gameAuthor = gameNode.child_value("Author");
 	rStatic->gameLastUpdated = gameNode.child_value("LastUpdated");

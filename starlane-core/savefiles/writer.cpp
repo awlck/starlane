@@ -27,6 +27,7 @@ Writer::Writer(void *target, const Starlane::Game *game)
 	WriteKV("game_title", game->GetTitle());
 	WriteKV("game_author", game->GetAuthor());
 	WriteKV("game_revision", game->GetLastUpdated());
+	WriteKV("game_checksum", game->GetChecksum());
 	EndCompound();
 }
 

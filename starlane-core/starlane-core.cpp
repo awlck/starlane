@@ -1,5 +1,7 @@
 #include "starlane-core.h"
 
+#include "miniz.h"
+
 #include "game.h"
 #include "random.h"
 
@@ -13,8 +15,10 @@ void InitBackend(const Frontend *fe) {
 }
 
 void CreateGame(const uint8_t *tafBytes, size_t tafLength) {
+	auto crc32Baseval = mz_crc32(0, NULL, 0);
+	auto gameCrc32 = mz_crc32(crc32Baseval, tafBytes, tafLength);
 	auto content = ExtractTaf(tafBytes, tafLength);
-	Game::LoadFromXML(content);
+	Game::LoadFromXML(content, (uint32_t) gameCrc32);
 }
 
 void BeginGame() {

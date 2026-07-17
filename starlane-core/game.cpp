@@ -453,8 +453,9 @@ bool Game::Restore() {
 			return false;
 		}
 		auto *gameRevNode = metaNode->FindChildByName("game_revision");
-		if (!gameRevNode) return false;
-		if (gameRevNode->Str != staticData->gameLastUpdated) {
+		auto *gameChecksumNode = metaNode->FindChildByName("game_checksum");
+		if (!gameRevNode || gameChecksumNode) return false;
+		if (gameRevNode->Str != staticData->gameLastUpdated || gameChecksumNode->sv.Int != staticData->gameCrc32) {
 			// todo: offer player the option to attempt restore anyways.
 			frontend->OutputText("<i>Restore failed: selected save file appears to belong to a different revision of this game.</i>");
 			return false;

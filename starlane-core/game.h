@@ -42,6 +42,7 @@ class GameStatic {
 	std::string gameAuthor;
 	std::string gameAdriftVersion;
 	std::string gameLastUpdated;
+	uint32_t gameCrc32;
 	std::string gameStatusLine;
 	bool showFirstLocation = true;
 	bool showExits = true;
@@ -99,7 +100,7 @@ public:
 	// Gets the current game instance
 	static inline Game *Get() { return theGame; }
 
-	static Game *LoadFromXML(const std::string &gameTxt);
+	static Game *LoadFromXML(const std::string &gameTxt, uint32_t crc32);
 	DescrRef CreateDescFromXML(const pugi::xml_node &descNode);
 	RestrRef CreateRestrictionsFromXML(const pugi::xml_node &restrNode);
 	PlainTextRef StorePlainTextSnippet(const std::string &snip);
@@ -233,6 +234,7 @@ public:
 	const std::string &GetTitle() const { return staticData->gameTitle; }
 	const std::string &GetAuthor() const { return staticData->gameAuthor; }
 	const std::string &GetLastUpdated() const { return staticData->gameLastUpdated; }
+	uint32_t GetChecksum() const { return staticData->gameCrc32; }
 
 	bool IsGameOngoing() const { return gameHasBegun; }
 	uint32_t GetBlorbResource(const std::string &path) const {
