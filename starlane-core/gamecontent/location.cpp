@@ -270,6 +270,31 @@ std::string Location::GetListOfExits() const {
 	return result;
 }
 
+bool Location::IsAdjacent(const std::string &locKey) const {
+	for (const auto &e : exits)
+		if (e.second.destination == locKey)
+			return true;
+	return false;
+}
+
+std::string Location::DirectionTo(const std::string &locKey) const {
+	if (locKey == key) return "not moved";
+	// ADRIFT's compass order, so that a location reachable two ways is reported by the first of
+	// them. Paired with the phrasing ADRIFT slots into "<name> exits to <...>" / "enters from <...>".
+	static const std::pair<const char *, const char *> kDirs[] = {
+		{"North", "the north"}, {"East", "the east"}, {"South", "the south"}, {"West", "the west"},
+		{"Up", "above"}, {"Down", "below"}, {"In", "inside"}, {"Out", "outside"},
+		{"NorthEast", "the north-east"}, {"SouthEast", "the south-east"},
+		{"SouthWest", "the south-west"}, {"NorthWest", "the north-west"},
+	};
+	for (const auto &d : kDirs) {
+		auto it = exits.find(d.first);
+		if (it != exits.end() && it->second.destination == locKey)
+			return d.second;
+	}
+	return "nowhere";
+}
+
 void Location::MakeMatchExpr() {
 	// This expression requires a string to both begin and not begin with the letter x,
 	// thus it can never match.

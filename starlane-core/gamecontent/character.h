@@ -5,10 +5,14 @@
 
 #include "gameobj.h"
 
+#include <cstdint>
 #include <string>
 #include <unordered_set>
+#include <vector>
 
 #include "../slc_private.h"
+#include "utility.h"
+#include "walk.h"
 
 namespace Starlane {
 
@@ -59,6 +63,19 @@ public:
 	};
 	std::string GetPossessionsList(PossessionFilter pf = PossessionFilter::WornAndHeld, bool recurse = true) const;
 
+	// Wire each of this character's walks up to the tasks that control them. Deferred to a load pass
+	// of its own: characters load before tasks, so the tasks a walk's controls name don't exist yet
+	// while the character is being built.
+	void RegisterWalkNotifications() const;
+	// Advance every walk this character has by one turn. Called from the turn tick, ahead of events.
+	void TickWalks();
+	// Start any of this character's walks that are marked to begin active. Called once, as the game
+	// begins.
+	void StartActiveWalks();
+	// A task that controls this character's walk number `idx` has completed or uncompleted; hand the
+	// notification to that walk.
+	void NotifyWalk(int32_t idx, Util::Control::Condition cond, const std::string &taskKey);
+
 	void WriteState(Save::Writer &writer) const override;
 	bool RestoreState(const Save::AstNode *node) override;
 private:
@@ -66,6 +83,7 @@ private:
 
 	std::string properName;
 	std::unordered_set<std::string> seenStorage;
+	std::vector<Walk> walks;
 
 	void MakeMatchExpr() override;
 	std::regex matchWhenKnownRegex;

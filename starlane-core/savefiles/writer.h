@@ -19,7 +19,9 @@ namespace Starlane::Save {
 // per-event scheduling state, and Event's saved status names changed outright.
 // Bumped to -997 when events learned to run seconds-measured subevents on a turn-based clock: each
 // subevent gained a private countdown of its own that a save now has to carry.
-constexpr int currentSaveFileVer = -997;
+// Bumped to -996 when characters learned to walk: each character now saves the scheduling state of
+// every walk it has (status, countdown, sub-walk bookkeeping, and settled step/when rolls).
+constexpr int currentSaveFileVer = -996;
 
 namespace {
 // Helper to determine whether there's a const_iterator for T.

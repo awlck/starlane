@@ -9,6 +9,7 @@
 #include "starlane-core.h"
 #include "expression.h"
 #include "valueparsers.h"
+#include "gamecontent/character.h"
 #include "gamecontent/description.h"
 #include "gamecontent/event.h"
 #include "gamecontent/gameobj.h"
@@ -125,6 +126,13 @@ Game *Game::LoadFromXML(const std::string &gameTxt) {
 				rStatic->runImmediatelyTasks.push_back(t);
 		}
 	}
+
+	// Character walks name the tasks that start and stop them; those tasks have just finished
+	// loading, so wire each walk up to them now. The characters themselves loaded earlier, before any
+	// task existed, which is why this can't happen while a character is being built.
+	for (const auto &key : rStatic->objectLoadOrder)
+		if (auto *c = dynamic_cast<Character *>(result->GetObject(key)))
+			c->RegisterWalkNotifications();
 
 	LOAD_STAGE("Loading Events");
 	for (const auto &it : gameNode.children("Event"))
