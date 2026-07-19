@@ -14,6 +14,7 @@ endif()
 add_library(starlane-glk-base STATIC
     starlane-glk.cpp
         glkextstubs.c
+        glkext.h
 )
 target_link_libraries(starlane-glk-base starlane-core)
 target_include_directories(starlane-glk-base PRIVATE "../starlane-core")

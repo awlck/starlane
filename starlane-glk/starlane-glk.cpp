@@ -48,7 +48,7 @@ std::string GetLineInput();
 void WaitForKeypress();
 
 extern "C" {
-#include "glk.h"
+#include "glkext.h"
 #include "gi_blorb.h"
 #include "glkstart.h"
 
@@ -64,9 +64,9 @@ static winid_t gStatusWin;
 static strid_t gMainStream;
 
 /* locate_gamefile:
-   Given that gamefile contains a Glk stream, which may be a Glulx
+   Given that gamefile contains a Glk stream, which may be a TAF
    file or a Blorb archive containing one, locate the beginning and
-   end of the Glulx data.
+   end of the TAF data.
 */
 int locate_gamefile(int isblorb)
 {
@@ -175,6 +175,8 @@ void glk_main() {
 		.CloseFile = &CloseFile
 	};
 	Starlane::InitBackend(&fe);
+
+	garglk_set_program_name("Starlane");
 
 	// Style hints must be set before the windows they apply to are opened. We repurpose
 	// BlockQuote for centered text, mirroring FrankenDrift's GlkRunner -- it's the closest
