@@ -17,6 +17,11 @@ endif()
 
 add_library(starlane-glk-base STATIC
     starlane-glk.cpp
+    starlane-glk-internal.h
+    strutils.cpp
+    output.cpp
+    multimedia.cpp
+    savefile.cpp
         glkext.h
 )
 target_link_libraries(starlane-glk-base starlane-core)
