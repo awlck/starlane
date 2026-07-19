@@ -5,8 +5,12 @@
 #include <stdint.h>
 #include <string.h>
 
+#include <algorithm>
 #include <cctype>
+#include <cstdlib>
 #include <string>
+#include <unordered_map>
+#include <unordered_set>
 #include <vector>
 
 static constexpr uint8_t V5ident[] = { 60, 66, 63, 201, 106, 135, 194, 207, 146, 69, 62, 97 };
@@ -34,18 +38,25 @@ enum TextStyleFlags : uint32_t {
 	kStyleItalic   = 1u << 1,
 	kStyleCentered = 1u << 2,
 	kStyleInput    = 1u << 3,  // `<c>...</c>`: text that reads like a command the player could type
+	kStyleMonospace = 1u << 4,  // `<font face="...">` naming one of the known monospace fonts
 };
 
 // Parses a string that may contain ADRIFT's HTML-like output markup (`<b>`, `<i>`, `<c>`,
 // `<center>`, `<font ...>`, `<br>`, `<cls>`, `<waitkey>`, `<del>`, ...; see clsUserSession.vb's
 // bHasOutput for the canonical tag list) and writes styled text to the main window.
 void AppendHtml(const std::string &html);
-// Writes `text` to the main window using the closest available Glk style for `styleFlags`.
-void OutputStyled(const std::string &text, uint32_t styleFlags);
+// Writes `text` to the main window using the closest available Glk style for `styleFlags`, and
+// (via the garglk zcolor extension, where available) the given 24-bit RGB foreground color.
+// 0xffffffff mirrors glkext.h's zcolor_Default, which isn't in scope yet at this point in the
+// file -- glk.h (via glkext.h) must be included inside the extern "C" block below.
+void OutputStyled(const std::string &text, uint32_t styleFlags, uint32_t color = 0xffffffff);
 // Blocks until the player has entered a line of input on the main window, returning it as UTF-8.
 std::string GetLineInput();
 // Blocks until the player has pressed a key on the main window (for the `<waitkey>` tag).
 void WaitForKeypress();
+// Attempts to erase the last character of the most recently *flushed* output (for `<del>`, once
+// there's nothing left in the current run to remove without having committed it to the window).
+void UnputLastChar();
 
 extern "C" {
 #include "glkext.h"
@@ -318,6 +329,79 @@ bool IsAsciiSpace(uint32_t cp) {
 	return cp < 128 && std::isspace((int) cp);
 }
 
+// The Unicode text of the most recently *flushed* OutputStyled() call, tracked so that `<del>`
+// has something to try to unput once the current (not-yet-flushed) run is already empty.
+std::vector<uint32_t> gMostRecentOutput;
+
+// Extracts the value of `attr="..."` or `attr=...` (unquoted, delimited by whitespace/end) from
+// `tagLower`, a lowercased tag body. Returns false if the attribute isn't present.
+bool ExtractAttribute(const std::string &tagLower, const std::string &attr, std::string &valueOut) {
+	size_t pos = tagLower.find(attr);
+	if (pos == std::string::npos) return false;
+	pos += attr.size();
+	while (pos < tagLower.size() && std::isspace((unsigned char) tagLower[pos])) pos++;
+	if (pos >= tagLower.size() || tagLower[pos] != '=') return false;
+	pos++;
+	while (pos < tagLower.size() && std::isspace((unsigned char) tagLower[pos])) pos++;
+	if (pos < tagLower.size() && (tagLower[pos] == '"' || tagLower[pos] == '\'')) {
+		char quote = tagLower[pos++];
+		size_t end = tagLower.find(quote, pos);
+		if (end == std::string::npos) end = tagLower.size();
+		valueOut = tagLower.substr(pos, end - pos);
+	} else {
+		size_t end = pos;
+		while (end < tagLower.size() && !std::isspace((unsigned char) tagLower[end]) && tagLower[end] != '>') end++;
+		valueOut = tagLower.substr(pos, end - pos);
+	}
+	return true;
+}
+
+// Parses a `<font color="...">` attribute, either a `#`-optional hex triplet (e.g. the game data
+// seen in the wild uses both `color = red` and `color = FDD017`) or one of the named colors
+// ADRIFT's own runner recognizes (per FrankenDrift's GlkHtmlWin.cs, cross-referenced against the
+// original VB source).
+bool ParseFontColor(const std::string &tagLower, uint32_t &colorOut) {
+	std::string value;
+	if (!ExtractAttribute(tagLower, "color", value)) return false;
+	if (!value.empty() && value[0] == '#') value = value.substr(1);
+	bool isHex = value.size() == 6 && std::all_of(value.begin(), value.end(), [](char c) {
+		return std::isxdigit((unsigned char) c) != 0;
+	});
+	if (isHex) {
+		colorOut = (uint32_t) std::strtoul(value.c_str(), nullptr, 16);
+		return true;
+	}
+	static const std::unordered_map<std::string, uint32_t> kNamedColors = {
+		{ "black", 0x000000 }, { "blue", 0x0000ff }, { "gray", 0x808080 }, { "grey", 0x808080 },
+		{ "darkgreen", 0x006400 }, { "green", 0x008000 }, { "lime", 0x00ff00 }, { "magenta", 0xff00ff },
+		{ "maroon", 0x800000 }, { "navy", 0x000080 }, { "olive", 0x808000 }, { "orange", 0xffa500 },
+		{ "pink", 0xffc0cb }, { "purple", 0x800080 }, { "red", 0xff0000 }, { "silver", 0xc0c0c0 },
+		{ "teal", 0x008080 }, { "white", 0xffffff }, { "yellow", 0xffff00 }, { "cyan", 0x00ffff },
+		{ "darkolive", 0x556b2f }, { "tan", 0xd2b48c },
+	};
+	auto it = kNamedColors.find(value);
+	if (it == kNamedColors.end()) return false;
+	colorOut = it->second;
+	return true;
+}
+
+// Whether `face` (already lowercased) names one of the fonts commonly used to ask for a
+// fixed-width look, so a `<font face="...">` without an explicit `<tt>`-like tag still gets
+// mapped onto style_Preformatted. List cross-referenced from FrankenDrift's GlkHtmlWin.cs.
+bool IsMonospaceFace(const std::string &face) {
+	static const std::unordered_set<std::string> kMonospaceFaces = {
+		"andale mono", "cascadia code", "century schoolbook monospace", "consolas", "courier",
+		"courier new", "liberation mono", "ubuntu mono", "dejavu sans mono", "droid sans mono",
+		"lucida console", "menlo", "ocr-a", "ocr-a extended", "overpass mono", "oxygen mono",
+		"roboto mono", "source code pro", "everson mono", "fira mono", "fixed", "fixedsys",
+		"freemono", "go mono", "hyperfont", "ibm mda", "ibm plex mono", "inconsolata", "iosevka",
+		"letter gothic", "monaco", "monofur", "monospace", "monospace (unicode)", "nimbus mono l",
+		"noto mono", "nk57 monospace", "ocr-b", "pragmatapro", "prestige elite", "profont",
+		"pt mono", "spleen", "terminus", "tex gyre cursor", "american typewriter", "tads-monospace",
+	};
+	return kMonospaceFaces.count(face) > 0;
+}
+
 }  // namespace
 
 std::string StrToUpperCase(const std::string &str) {
@@ -356,19 +440,31 @@ bool AskYesNoQuestion(const char *question) {
 	}
 }
 
-void OutputStyled(const std::string &text, uint32_t styleFlags) {
+void OutputStyled(const std::string &text, uint32_t styleFlags, uint32_t color) {
 	if (text.empty()) return;
 	glui32 style;
-	if ((styleFlags & kStyleBold) && (styleFlags & kStyleItalic)) style = style_Alert;
+	if (styleFlags & kStyleMonospace) style = style_Preformatted;
+	else if (styleFlags & kStyleCentered) style = style_BlockQuote;
+	else if ((styleFlags & kStyleBold) && (styleFlags & kStyleItalic)) style = style_Alert;
 	else if (styleFlags & kStyleItalic) style = style_Emphasized;
 	else if (styleFlags & kStyleBold) style = style_Subheader;
-	else if (styleFlags & kStyleCentered) style = style_BlockQuote;
 	else if (styleFlags & kStyleInput) style = style_Input;
 	else style = style_Normal;
 
+	// Harmless no-op if the underlying Glk library doesn't support the garglk color extension.
+	garglk_set_zcolors_stream(gMainStream, color, zcolor_Default);
 	glk_set_style_stream(gMainStream, style);
 	auto codepoints = Utf8ToUtf32(text);
 	glk_put_buffer_stream_uni(gMainStream, (glui32 *) codepoints.data(), (glui32) codepoints.size());
+	gMostRecentOutput = std::move(codepoints);
+}
+
+void UnputLastChar() {
+	if (gMostRecentOutput.empty()) return;
+	glui32 buf[2] = { gMostRecentOutput.back(), 0 };
+	glk_set_window(gMainWin);
+	if (garglk_unput_string_count_uni(buf) > 0)
+		gMostRecentOutput.pop_back();
 }
 
 void WaitForKeypress() {
@@ -400,10 +496,11 @@ void AppendHtml(const std::string &html) {
 
 	struct StyleFrame {
 		uint32_t flags;
+		uint32_t color;
 		std::string tag;
 	};
 	std::vector<StyleFrame> styleStack;
-	styleStack.push_back({ kStyleNormal, "<base>" });
+	styleStack.push_back({ kStyleNormal, zcolor_Default, "<base>" });
 
 	std::string current;
 	bool inTag = false;
@@ -411,7 +508,7 @@ void AppendHtml(const std::string &html) {
 
 	auto flush = [&]() {
 		if (!current.empty()) {
-			OutputStyled(current, styleStack.back().flags);
+			OutputStyled(current, styleStack.back().flags, styleStack.back().color);
 			current.clear();
 		}
 	};
@@ -429,38 +526,48 @@ void AppendHtml(const std::string &html) {
 			std::string tagWord = tagLower.substr(0, tagLower.find_first_of(" \t"));
 
 			if (tagWord == "del") {
-				// We can only recall text that hasn't been flushed to the window yet -- unlike
-				// Gargoyle-based frontends, we have no way to un-print already-committed output.
-				Utf8PopBack(current);
+				// Prefer removing from the not-yet-flushed run; only fall back to trying to
+				// unput already-committed output (via the garglk extension) once that's empty.
+				if (!current.empty()) Utf8PopBack(current);
+				else UnputLastChar();
 				continue;
 			}
 
 			flush();
 			uint32_t curFlags = styleStack.back().flags;
+			uint32_t curColor = styleStack.back().color;
 			if (tagWord == "br") {
-				OutputStyled("\n", curFlags);
+				OutputStyled("\n", curFlags, curColor);
 			} else if (tagWord == "cls") {
-				styleStack.assign(1, StyleFrame{ kStyleNormal, "<base>" });
+				styleStack.assign(1, StyleFrame{ kStyleNormal, zcolor_Default, "<base>" });
 				glk_window_clear(gMainWin);
 			} else if (tagWord == "waitkey") {
 				WaitForKeypress();
 			} else if (tagWord == "b") {
-				styleStack.push_back({ curFlags | kStyleBold, "b" });
+				styleStack.push_back({ curFlags | kStyleBold, curColor, "b" });
 			} else if (tagWord == "i") {
-				styleStack.push_back({ curFlags | kStyleItalic, "i" });
+				styleStack.push_back({ curFlags | kStyleItalic, curColor, "i" });
 			} else if (tagWord == "u") {
 				// Glk has no underline style; tracked only so `</u>` balances the stack.
-				styleStack.push_back({ curFlags, "u" });
+				styleStack.push_back({ curFlags, curColor, "u" });
 			} else if (tagWord == "c") {
-				styleStack.push_back({ curFlags | kStyleInput, "c" });
+				styleStack.push_back({ curFlags | kStyleInput, curColor, "c" });
 			} else if (tagWord == "center" || tagWord == "centre") {
-				styleStack.push_back({ curFlags | kStyleCentered, "center" });
+				styleStack.push_back({ curFlags | kStyleCentered, curColor, "center" });
 			} else if (tagWord == "left" || tagWord == "right") {
 				// No distinct Glk alignment for these; tracked only so the closing tag balances.
-				styleStack.push_back({ curFlags, tagWord });
+				styleStack.push_back({ curFlags, curColor, tagWord });
 			} else if (tagWord == "font") {
-				// TODO: no color/face support yet (would need the garglk zcolor extension).
-				styleStack.push_back({ curFlags, "font" });
+				// A `<font>` tag without a `color` attribute (e.g. one that only sets `size`)
+				// keeps whatever color is already in effect, rather than resetting to default.
+				uint32_t newFlags = curFlags;
+				uint32_t newColor = curColor;
+				uint32_t parsedColor;
+				if (ParseFontColor(tagLower, parsedColor)) newColor = parsedColor;
+				std::string face;
+				if (ExtractAttribute(tagLower, "face", face) && IsMonospaceFace(face))
+					newFlags |= kStyleMonospace;
+				styleStack.push_back({ newFlags, newColor, "font" });
 			} else if (!tagWord.empty() && tagWord[0] == '/') {
 				std::string closeName = tagWord.substr(1);
 				if (closeName == "centre") closeName = "center";

@@ -15,7 +15,7 @@
 void garglk_set_zcolors(glui32 fg, glui32 bg);
 void garglk_set_zcolors_stream(strid_t str, glui32 fg, glui32 bg);
 
-glui32 garglk_unput_string_count_uni(glui32* str);
+glui32 garglk_unput_string_count_uni(const glui32* str);
 
 void garglk_set_story_title(const char *title);
 void garglk_set_program_name(const char *name);
