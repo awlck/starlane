@@ -31,8 +31,8 @@
 [ ] implement sound support in the Qt frontend
 [ ] ensure the Qt frontend can be compiled for the web (WASM)
 [x] begin work on a Glk frontend (can probably rip off most of the implementation from FrankenDrift)
-[ ] implement image support in Glk frontend
-[ ] implement font color support in Glk frontend
-[ ] implement sound support in Glk frontend
+[x] implement image support in Glk frontend
+[x] implement font color support in Glk frontend
+[x] implement sound support in Glk frontend
 [ ] implement status bar support in Glk frontend
 [ ] think about implementing an automap (then probably decide against it)
