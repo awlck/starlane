@@ -13,13 +13,14 @@
 [x] implement subevents measured in seconds on turn-based events
 [x] implement missing built-in functions (LocationOf, DisplayLocation, ParentOf)
 [x] implement Character walks (they tick alongside events, see `Game::RunEventTick`)
-[ ] implement disambiguation ("TAKE BALL" -- "Which do you mean, the red ball or the green ball?")
+[x] implement disambiguation ("TAKE BALL" -- "Which do you mean, the red ball or the green ball?")
 [x] print the initial room description if the game asks for it
 [x] add short location description (aka location name) to location descriptions
 [ ] implement subevents that override the room description (`SetLook`)
 [ ] implement tasks that use a loop
 [ ] implement the conversation system (or refuse to load games using it because it isn't very widely used)
 [ ] come up with a better error-handling mechanism than crashing the entire interpreter on load issues
+[ ] implement status bar support into the backend
 [ ] resolve outstanding TODO markers within starlane-core
 [ ] implement the status bar in the Qt frontend
 [ ] fix and fully implement text formatting in the Qt frontend (including default colors and fonts)
@@ -29,5 +30,9 @@
 [ ] implement graphics support in the Qt frontend
 [ ] implement sound support in the Qt frontend
 [ ] ensure the Qt frontend can be compiled for the web (WASM)
-[ ] begin work on a Glk frontend (can probably rip off most of the implementation from FrankenDrift)
+[x] begin work on a Glk frontend (can probably rip off most of the implementation from FrankenDrift)
+[ ] implement image support in Glk frontend
+[ ] implement font color support in Glk frontend
+[ ] implement sound support in Glk frontend
+[ ] implement status bar support in Glk frontend
 [ ] think about implementing an automap (then probably decide against it)
