@@ -410,7 +410,7 @@ void Game::ProcessInput(const std::string &s) {
 		~InputGuard() { inputInFlight = false; }
 	} guard;
 
-	currentCommand = ApplySynonyms(s);
+	currentCommand = ApplySynonyms(frontend->StrToLowerCase(s));
 
 	Task *chosenTask = FindMatchingTask();
 
