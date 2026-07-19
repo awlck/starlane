@@ -277,6 +277,10 @@ bool Restriction::Single::PassImpl(DescrRef *out, bool ignoreUnsetRefs) const {
 			std::string result = exprContent != 0
 				? Game::Get()->GetExpression(exprContent)->EvaluateStr()
 				: rhs;
+			// Guard against doubly-quoted strings which would never match otherwise:
+			if (result.size() > 2 && result[0] == '\'' && result[result.size() - 1] == '\'') {
+				result = result.substr(1, result.size() - 2);
+			}
 			if (cond == ConditionType::EqualTo)
 				return strVal == result;
 			else if (cond == ConditionType::ContainText)
