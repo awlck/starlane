@@ -30,11 +30,19 @@
 void garglk_set_zcolors(glui32 fg, glui32 bg) {}
 void garglk_set_zcolors_stream(strid_t str, glui32 fg, glui32 bg) {}
 glui32 garglk_unput_string_count_uni(const glui32* str) { return 0; }
+void garglk_window_get_size_pixels(winid_t win, glui32 *width, glui32 *height) {
+	if (width) *width = 0;
+	if (height) *height = 0;
+}
 #else
 __attribute__((weak)) void garglk_set_story_title(const char *title) {}
 __attribute__((weak)) void garglk_set_program_name(const char *name) {}
 __attribute__((weak)) void garglk_set_zcolors(glui32 fg, glui32 bg) {}
 __attribute__((weak)) void garglk_set_zcolors_stream(strid_t str, glui32 fg, glui32 bg) {}
 __attribute__((weak)) glui32 garglk_unput_string_count_uni(const glui32* str) { return 0; }
+__attribute__((weak)) void garglk_window_get_size_pixels(winid_t win, glui32 *width, glui32 *height) {
+	if (width) *width = 0;
+	if (height) *height = 0;
+}
 #endif
 

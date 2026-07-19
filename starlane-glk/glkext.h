@@ -20,6 +20,10 @@ glui32 garglk_unput_string_count_uni(const glui32* str);
 void garglk_set_story_title(const char *title);
 void garglk_set_program_name(const char *name);
 
+// Pixel dimensions of a window, needed to scale images to fit -- glk_window_get_size() reports
+// character-cell/row counts for a text buffer window, not pixels.
+void garglk_window_get_size_pixels(winid_t win, glui32 *width, glui32 *height);
+
 #define zcolor_Transparent   ((glui32)0xfffffffc)
 #define zcolor_Cursor        ((glui32)0xfffffffd)
 #define zcolor_Current       ((glui32)0xfffffffe)

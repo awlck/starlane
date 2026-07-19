@@ -74,6 +74,22 @@ static winid_t gMainWin;
 static winid_t gStatusWin;
 static strid_t gMainStream;
 
+// Whether images can be drawn in the main window, and whether sound is available at all --
+// checked once at startup so <img>/<audio> handling can bail out early instead of going through
+// a blorb lookup for nothing.
+static bool gImagesSupported;
+static bool gSoundSupported;
+// ADRIFT supports 8 parallel audio channels, numbered 1-8; index 0 is unused.
+static schanid_t gSoundChannels[9];
+// The path most recently (successfully) started on each channel, so replaying the exact same
+// sound that's merely paused resumes it instead of restarting it from the top.
+static std::string gRecentlyPlayedSound[9];
+
+// Holds a corrected copy of a Blorb game's bytes (see locate_gamefile() below). Kept alive for
+// the whole program: the Glk library retains the memory stream opened on it as the backing store
+// for the Blorb resource map, calling back into it whenever the game asks for an image or sound.
+static std::vector<uint8_t> gBlorbData;
+
 /* locate_gamefile:
    Given that gamefile contains a Glk stream, which may be a TAF
    file or a Blorb archive containing one, locate the beginning and
@@ -90,13 +106,36 @@ int locate_gamefile(int isblorb)
 		return TRUE;
 	}
 	else {
-		/* A Blorb file. We now have to open it and find the Adrift chunk. */
-		// TODO: Adrift blorb files are subtly invalid and will fail in most blorb loaders.
+		/* A Blorb file. ADRIFT 5's own Blorb writer gets the FORM chunk's declared size
+		   wrong -- it should be the file length minus the 8-byte "FORM"+size header,
+		   stored big-endian per the IFF convention Blorb uses, but ADRIFT leaves it
+		   incorrect -- which makes any spec-compliant Blorb reader, including our own
+		   gi_blorb.c, refuse to load the file at all. FrankenDrift's GlkRunner works
+		   around this by patching that one field in a copy of the file and handing the
+		   fix to Glk via a temporary file stream (see MainSession.cs's constructor); we
+		   do the same patch but via a Glk memory stream instead, since a modern Glk
+		   library supports one and it avoids touching the filesystem. */
+		glk_stream_set_position(gamefile, 0, seekmode_End);
+		glui32 fileLen = glk_stream_get_position(gamefile);
+		gBlorbData.resize(fileLen);
+		glk_stream_set_position(gamefile, 0, seekmode_Start);
+		glk_get_buffer_stream(gamefile, reinterpret_cast<char *>(gBlorbData.data()), fileLen);
+		glk_stream_close(gamefile, nullptr);
+
+		glui32 correctSize = fileLen - 8;
+		gBlorbData[4] = (uint8_t) (correctSize >> 24);
+		gBlorbData[5] = (uint8_t) (correctSize >> 16);
+		gBlorbData[6] = (uint8_t) (correctSize >> 8);
+		gBlorbData[7] = (uint8_t) correctSize;
+
+		strid_t blorbStream = glk_stream_open_memory(
+		  reinterpret_cast<char *>(gBlorbData.data()), fileLen, filemode_Read, 0);
+
 		giblorb_err_t err;
 		giblorb_result_t blorbres;
 		giblorb_map_t *map;
 
-		err = giblorb_set_resource_map(gamefile);
+		err = giblorb_set_resource_map(blorbStream);
 		if (err) {
 			init_err = "This Blorb file seems to be invalid.";
 			return FALSE;
@@ -108,6 +147,7 @@ int locate_gamefile(int isblorb)
 			init_err = "This Blorb file does not contain an executable Glulx chunk.";
 			return FALSE;
 		}
+		gamefile = blorbStream;
 		gamefile_start = blorbres.data.startpos;
 		gamefile_len = blorbres.length;
 		return TRUE;
@@ -201,6 +241,12 @@ void glk_main() {
 
 	if (fe.timersAvailable) glk_request_timer_events(1000);
 
+	gImagesSupported = glk_gestalt(gestalt_Graphics, 0) != 0 && glk_gestalt(gestalt_DrawImage, wintype_TextBuffer) != 0;
+	gSoundSupported = glk_gestalt(gestalt_Sound2, 0) != 0;
+	if (gSoundSupported) {
+		for (int i = 1; i <= 8; i++) gSoundChannels[i] = glk_schannel_create((glui32) i);
+	}
+
 	if (init_err) {
 		OutputStyled(init_err, kStyleBold);
 		WaitForKeypress();
@@ -210,7 +256,11 @@ void glk_main() {
 	glk_stream_set_position(gamefile, gamefile_start, seekmode_Start);
 	std::vector<uint8_t> tafData(gamefile_len);
 	glk_get_buffer_stream(gamefile, reinterpret_cast<char *>(tafData.data()), gamefile_len);
-	glk_stream_close(gamefile, nullptr);
+	// For a Blorb game, `gamefile` is the memory stream backing the Blorb resource map (see
+	// locate_gamefile()) -- it needs to stay open for the whole session, since the Glk library
+	// reads from it on demand whenever the game asks for an image or sound.
+	if (!giblorb_get_resource_map())
+		glk_stream_close(gamefile, nullptr);
 
 	Starlane::CreateGame(tafData.data(), tafData.size());
 	Starlane::BeginGame();
@@ -333,9 +383,11 @@ bool IsAsciiSpace(uint32_t cp) {
 // has something to try to unput once the current (not-yet-flushed) run is already empty.
 std::vector<uint32_t> gMostRecentOutput;
 
-// Extracts the value of `attr="..."` or `attr=...` (unquoted, delimited by whitespace/end) from
-// `tagLower`, a lowercased tag body. Returns false if the attribute isn't present.
-bool ExtractAttribute(const std::string &tagLower, const std::string &attr, std::string &valueOut) {
+// Locates the [start, end) byte range of `attr`'s value within `tagLower` (a lowercased tag
+// body), handling both `attr="quoted value"` and `attr=unquoted` forms. Returns false if the
+// attribute isn't present. ASCII case-folding never changes a string's length, so the range
+// found here can be sliced out of either the lowercased tag body or the original one.
+bool FindAttributeRange(const std::string &tagLower, const std::string &attr, size_t &start, size_t &end) {
 	size_t pos = tagLower.find(attr);
 	if (pos == std::string::npos) return false;
 	pos += attr.size();
@@ -345,14 +397,36 @@ bool ExtractAttribute(const std::string &tagLower, const std::string &attr, std:
 	while (pos < tagLower.size() && std::isspace((unsigned char) tagLower[pos])) pos++;
 	if (pos < tagLower.size() && (tagLower[pos] == '"' || tagLower[pos] == '\'')) {
 		char quote = tagLower[pos++];
-		size_t end = tagLower.find(quote, pos);
-		if (end == std::string::npos) end = tagLower.size();
-		valueOut = tagLower.substr(pos, end - pos);
+		size_t e = tagLower.find(quote, pos);
+		if (e == std::string::npos) e = tagLower.size();
+		start = pos;
+		end = e;
 	} else {
-		size_t end = pos;
-		while (end < tagLower.size() && !std::isspace((unsigned char) tagLower[end]) && tagLower[end] != '>') end++;
-		valueOut = tagLower.substr(pos, end - pos);
+		size_t e = pos;
+		while (e < tagLower.size() && !std::isspace((unsigned char) tagLower[e]) && tagLower[e] != '>') e++;
+		start = pos;
+		end = e;
 	}
+	return true;
+}
+
+// Extracts the value of `attr="..."` or `attr=...` from `tagLower`, a lowercased tag body.
+// Returns false if the attribute isn't present.
+bool ExtractAttribute(const std::string &tagLower, const std::string &attr, std::string &valueOut) {
+	size_t start, end;
+	if (!FindAttributeRange(tagLower, attr, start, end)) return false;
+	valueOut = tagLower.substr(start, end - start);
+	return true;
+}
+
+// Same as ExtractAttribute(), but returns the value with its original casing preserved (from
+// `tagOriginal`, the same tag body before lowercasing) -- needed for `src` paths, which have to
+// match ADRIFT's file-mapping keys exactly as the author wrote them.
+bool ExtractAttributeOriginalCase(const std::string &tagLower, const std::string &tagOriginal,
+                                   const std::string &attr, std::string &valueOut) {
+	size_t start, end;
+	if (!FindAttributeRange(tagLower, attr, start, end)) return false;
+	valueOut = tagOriginal.substr(start, end - start);
 	return true;
 }
 
@@ -400,6 +474,59 @@ bool IsMonospaceFace(const std::string &face) {
 		"pt mono", "spleen", "terminus", "tex gyre cursor", "american typewriter", "tads-monospace",
 	};
 	return kMonospaceFaces.count(face) > 0;
+}
+
+// Draws the image at `path` (an author-side file path, resolved through starlane-core's blorb
+// file mapping) scaled to fill 100% of either the window's width or height, whichever is the
+// smaller scale factor -- i.e. as large as possible without spilling outside either dimension.
+void DrawImageFitted(const std::string &path) {
+	if (!gImagesSupported) return;
+	uint32_t resourceId = Starlane::GetBlorbResourceForPath(path);
+	if (resourceId == (uint32_t) -1) return;
+
+	glui32 imgWidth = 0, imgHeight = 0;
+	if (!glk_image_get_info(resourceId, &imgWidth, &imgHeight) || imgWidth == 0 || imgHeight == 0)
+		return;
+
+	glui32 winWidth = 0, winHeight = 0;
+	garglk_window_get_size_pixels(gMainWin, &winWidth, &winHeight);
+	if (winWidth == 0 || winHeight == 0) {
+		// No pixel-size extension available (e.g. the built-in cheapglk); fall back to drawing
+		// at the image's native size rather than not scaling it at all.
+		glk_image_draw(gMainWin, resourceId, imagealign_InlineCenter, 0);
+	} else {
+		double scale = std::min((double) winWidth / imgWidth, (double) winHeight / imgHeight);
+		glk_image_draw_scaled(gMainWin, resourceId, imagealign_InlineCenter, 0,
+		                       (glui32) (imgWidth * scale), (glui32) (imgHeight * scale));
+	}
+	glk_window_flow_break(gMainWin);
+}
+
+// `channel` is assumed already validated to be within [1, 8] -- AppendHtml, the only caller, is
+// the boundary where that untrusted tag content gets checked.
+
+void PlaySound(const std::string &path, int channel, bool loop) {
+	if (!gSoundSupported) return;
+	if (gRecentlyPlayedSound[channel] == path) {
+		// Already the current sound on this channel: resume rather than restart from the top.
+		glk_schannel_unpause(gSoundChannels[channel]);
+		return;
+	}
+	uint32_t resourceId = Starlane::GetBlorbResourceForPath(path);
+	if (resourceId == (uint32_t) -1) return;
+	gRecentlyPlayedSound[channel] = path;
+	glk_schannel_play_ext(gSoundChannels[channel], resourceId, loop ? 0xFFFFFFFFu : 1u, 0);
+}
+
+void PauseSound(int channel) {
+	if (!gSoundSupported) return;
+	glk_schannel_pause(gSoundChannels[channel]);
+}
+
+void StopSound(int channel) {
+	if (!gSoundSupported) return;
+	glk_schannel_stop(gSoundChannels[channel]);
+	gRecentlyPlayedSound[channel].clear();
 }
 
 }  // namespace
@@ -573,8 +700,34 @@ void AppendHtml(const std::string &html) {
 				if (closeName == "centre") closeName = "center";
 				if (styleStack.size() > 1 && styleStack.back().tag == closeName)
 					styleStack.pop_back();
+			} else if (tagWord == "img") {
+				std::string src;
+				if (ExtractAttributeOriginalCase(tagLower, tagBuf, "src", src) && !src.empty())
+					DrawImageFitted(src);
+			} else if (tagLower.rfind("audio play", 0) == 0) {
+				std::string src;
+				if (ExtractAttributeOriginalCase(tagLower, tagBuf, "src", src) && !src.empty()) {
+					int channel = 1;
+					std::string channelStr;
+					if (ExtractAttribute(tagLower, "channel", channelStr))
+						channel = std::atoi(channelStr.c_str());
+					if (channel >= 1 && channel <= 8)
+						PlaySound(src, channel, tagLower.find("loop=y") != std::string::npos);
+				}
+			} else if (tagLower.rfind("audio pause", 0) == 0) {
+				int channel = 1;
+				std::string channelStr;
+				if (ExtractAttribute(tagLower, "channel", channelStr))
+					channel = std::atoi(channelStr.c_str());
+				if (channel >= 1 && channel <= 8) PauseSound(channel);
+			} else if (tagLower.rfind("audio stop", 0) == 0) {
+				int channel = 1;
+				std::string channelStr;
+				if (ExtractAttribute(tagLower, "channel", channelStr))
+					channel = std::atoi(channelStr.c_str());
+				if (channel >= 1 && channel <= 8) StopSound(channel);
 			}
-			// Anything else (e.g. `<img ...>`) isn't supported yet and is silently dropped.
+			// Anything else is not (yet) recognized and is silently dropped.
 		} else {
 			current += c;
 		}
