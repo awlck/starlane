@@ -372,6 +372,12 @@ private:
 
 	bool gameHasBegun = false;
 
+	// Output separation within a turn: whether anything has been printed yet, and whether it ended
+	// a line. See OutputFiltered -- two messages in the same turn are separated by two spaces
+	// unless the earlier one already broke the line. Mutable because OutputFiltered is const.
+	mutable bool turnHasOutput = false;
+	mutable bool endsWithNewline = false;
+
 	size_t descriptionsSoFar = 0;
 	size_t restrictionsSoFar = 0;
 	ptrdiff_t textSnippetsSoFar = 0;

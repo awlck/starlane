@@ -66,6 +66,12 @@ private:
 		bool onceOnly;
 		bool returnToDefault;
 		bool shown = false;
+		// ADRIFT decides whether to put a space between one description part and the next by
+		// looking at the *unevaluated* text so far -- which, once it contains an expression or an
+		// "obj.Prop" chain, essentially always says yes. We evaluate as we resolve, so the answer
+		// has to be worked out at load time and remembered. See Description::Build.
+		bool rawEndsWithFunc = false;
+		bool rawHasPropChain = false;
 
 		// Borrowed from the owning Description for the duration of resolution; null otherwise.
 		const std::vector<std::string> *udfArgNames = nullptr;

@@ -106,11 +106,26 @@ std::string Description::Build(bool commit, const UserFuncContext *context) {
 		}
 	}
 
+	// Whether anything shown so far would make ADRIFT's AddSpace say yes on grounds the finished
+	// text no longer shows -- see Description::Segment.
 	std::string result(segments.at(beginning).Build(context));
+	bool rawWantsSpace = segments.at(beginning).rawEndsWithFunc || segments.at(beginning).rawHasPropChain;
+	auto joinSpace = [&](const Segment &s, bool mark) {
+		if (NeedSpace(result) || (rawWantsSpace && !result.empty()
+				&& result.back() != ' ' && result.back() != '\n'))
+			result += ' ';
+		// ADRIFT marks the seam before an *appended* part with an empty tag. The frontend drops it,
+		// but while it is there it keeps auto-capitalisation from treating the appended part as the
+		// start of a new sentence -- "...to the south.  an airlock." stays lowercase. A part that
+		// continues the default description gets no such marker, and does get capitalised.
+		if (mark) result += "<>";
+		rawWantsSpace = rawWantsSpace || s.rawEndsWithFunc || s.rawHasPropChain;
+	};
+
 	if (commit) HandleSegmentShown(beginning);
 	size_t nextSegment = beginning + 1;
 	if (continuation != NPOS) {
-		if (NeedSpace(result)) result += ' ';
+		joinSpace(segments.at(continuation), false);
 		result.append(segments.at(continuation).Build(context));
 		if (commit) HandleSegmentShown(continuation);
 		nextSegment = continuation + 1;
@@ -118,7 +133,7 @@ std::string Description::Build(bool commit, const UserFuncContext *context) {
 	for (size_t i = nextSegment; i < segments.size(); i++) {
 		const auto &s = segments.at(i);
 		if (s.displayWhen == Display::Append && SEGMENT_ELIGIBLE(s)) {
-			if (NeedSpace(result)) result += ' ';
+			joinSpace(s, true);
 			result.append(s.Build(context));
 			if (commit) HandleSegmentShown(i);
 		}
@@ -234,6 +249,21 @@ static size_t SkipSingleOOExpression(std::string_view theText) {
 }
 
 void Description::Segment::ResolveText() {
+	// Mirrors ADRIFT's AddSpace, which runs over the raw description text (see description.h).
+	// ADRIFT uses a regex for this; a scan for "<identifier>.<identifier>" accepts the same texts
+	// without the pathological backtracking that regex shows on long prose.
+	auto isIdent = [](unsigned char c) { return isalnum(c) || c == '_' || c == '-' || c == '%' || c == '|'; };
+	rawEndsWithFunc = !text.empty() && text.back() == '%';
+	rawHasPropChain = false;
+	for (size_t i = 1; i + 1 < text.size(); i++) {
+		if (text[i] != '.') continue;
+		if (!isIdent((unsigned char) text[i - 1])) continue;
+		const unsigned char next = (unsigned char) text[i + 1];
+		if (isalpha(next) || next == '%') {
+			rawHasPropChain = true;
+			break;
+		}
+	}
 	ResolveText(text);
 	initialTextLength = text.length();
 	// `content` now holds references to everything we need to display,
