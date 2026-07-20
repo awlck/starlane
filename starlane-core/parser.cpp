@@ -411,6 +411,8 @@ void Game::ProcessInput(const std::string &s) {
 	} guard;
 
 	currentCommand = ApplySynonyms(frontend->StrToLowerCase(s));
+	// A fresh turn starts a fresh block of output; nothing to separate the first message from.
+	turnHasOutput = false;
 
 	Task *chosenTask = FindMatchingTask();
 
