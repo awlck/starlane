@@ -109,6 +109,26 @@ std::map<std::string, decltype(&Expression::LCaseImpl)> Expression::tableOfBuilt
 	{ "Theobjects", &Expression::TheObjectImpl },
 	{ "theobjects", &Expression::TheObjectImpl },
 	{ "THEOBJECTS", &Expression::TheObjectImpl },
+	{ "ListHeld", &Expression::ListHeldImpl },
+	{ "Listheld", &Expression::ListHeldImpl },
+	{ "listheld", &Expression::ListHeldImpl },
+	{ "LISTHELD", &Expression::ListHeldImpl },
+	{ "ListWorn", &Expression::ListWornImpl },
+	{ "Listworn", &Expression::ListWornImpl },
+	{ "listworn", &Expression::ListWornImpl },
+	{ "LISTWORN", &Expression::ListWornImpl },
+	{ "ListObjectsIn", &Expression::ListObjectsInImpl },
+	{ "Listobjectsin", &Expression::ListObjectsInImpl },
+	{ "listobjectsin", &Expression::ListObjectsInImpl },
+	{ "LISTOBJECTSIN", &Expression::ListObjectsInImpl },
+	{ "ListObjectsOnAndIn", &Expression::ListObjectsOnAndInImpl },
+	{ "Listobjectsonandin", &Expression::ListObjectsOnAndInImpl },
+	{ "listobjectsonandin", &Expression::ListObjectsOnAndInImpl },
+	{ "LISTOBJECTSONANDIN", &Expression::ListObjectsOnAndInImpl },
+	{ "ListCharactersOnAndIn", &Expression::ListCharactersOnAndInImpl },
+	{ "Listcharactersonandin", &Expression::ListCharactersOnAndInImpl },
+	{ "listcharactersonandin", &Expression::ListCharactersOnAndInImpl },
+	{ "LISTCHARACTERSONANDIN", &Expression::ListCharactersOnAndInImpl },
 	{ "CharacterName", &Expression::CharacterNameImpl },
 	{ "Charactername", &Expression::CharacterNameImpl },
 	{ "charactername", &Expression::CharacterNameImpl },
@@ -624,7 +644,8 @@ Expr::Value Expression::EvalItemfunc(Expr::Value obj, const ast_node_tag *toCall
 		return std::count(subject.begin(), subject.end(), '|') + 1;
 	}
 	if (toCall_.Str == "List") {
-		if (subject.empty()) return std::string();
+		// An empty list still has a name: ADRIFT writes it out as "nothing".
+		if (subject.empty()) return std::string("nothing");
 		return WriteListImpl(subject, args);
 	}
 	if (toCall_.Str == "Sum") {
@@ -677,7 +698,7 @@ Expr::Value Expression::EvalItemfuncSingle(const std::string &key, const Expr::V
 		if (!theObj) return std::string();
 		if (toCall_.Str == "Children") return ObjChildrenImpl(theObj, args);
 		if (toCall_.Str == "Contents") return ObjContentsImpl(theObj, args);
-		if (toCall_.Str == "Name") return theObj->GetDisplayName();
+		if (toCall_.Str == "Name") return ObjNameImpl(theObj, args);
 		if (toCall_.Str == "Description") return theObj->GetDescription();
 		if (toCall_.Str == "Location") return theObj->GetLocationKey();
 		if (toCall_.Str == "Parent") return theObj->GetParentKey();
