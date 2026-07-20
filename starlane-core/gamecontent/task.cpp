@@ -766,6 +766,7 @@ void Task::Action::Perform() const {
 static inline constexpr GameObj::HoldingType ActionTypeToHoldingType(Task::ActionType t) {
 	switch (t) {
 	case Task::ActionType::MoveToLocation:
+	case Task::ActionType::MoveToLocationOf:
 		return GameObj::HoldingType::AtLocation;
 	case Task::ActionType::MoveInsideObj:
 	case Task::ActionType::MakeCarriedBy:
@@ -850,7 +851,10 @@ void Task::Action::PerformImpl() const {
 		PerformMoveTo(rhs);
 		break;
 	case ActionType::MoveToLocationOf:
-		PerformMoveTo(g->GetObject(rhs)->GetParentKey());
+		// "to the same location as X": the room X is ultimately in, not whatever immediately holds
+		// it -- a thing in someone's pocket still puts you in the room, not the pocket.
+		if (const GameObj *other = g->GetObject(rhs))
+			PerformMoveTo(other->GetLocationKey());
 		break;
 	case ActionType::MoveToParent:  // moving a character "up" one level
 		{
@@ -903,7 +907,7 @@ void Task::Action::PerformImpl() const {
 		auto grp = g->GetGroup(rhs);
 		switch (refType) {
 		case ActionRefType::SingleObj:
-			g->GetObject(lhs)->MoveTo(rhs, ActionTypeToHoldingType(type));
+			if (auto *o = g->GetObject(lhs)) (grp->*addOrRemove)(o);
 			break;
 		case ActionRefType::ObjsHeldBy:
 		case ActionRefType::ObjsInside:
