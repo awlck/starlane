@@ -301,6 +301,26 @@ void Game::Begin() {
 			c->StartActiveWalks();
 }
 
+void Game::EndGame(Ending how) {
+	if (!gameHasBegun) return;  // already over; the first ending is the one that counts
+	switch (how) {
+	case Ending::Win:
+		OutputFiltered("<center><c><b>*** You have won ***</b></c></center>\n");
+		break;
+	case Ending::Lose:
+		OutputFiltered("<center><c><b>*** You have lost ***</b></c></center>\n");
+		break;
+	case Ending::Neutral:
+		// A neutral ending announces itself only through whatever the task itself said.
+		break;
+	}
+	// TODO: ADRIFT goes on taking input at this point, accepting exactly these four commands.
+	OutputFiltered("Would you like to <c>restart</c>, <c>restore</c> a saved game, <c>quit</c> or "
+	               "<c>undo</c> the last command?\n\n");
+	// Everything else keys off this: no more turns, no more events, no more input.
+	gameHasBegun = false;
+}
+
 void Game::TurnTick() {
 	// An event's subevent can run a task, and that task can carry a "skip N turns" action, which
 	// ticks straight back through here. Depth-limited rather than trusted: a game that manages to

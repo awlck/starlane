@@ -1159,10 +1159,13 @@ void Task::Action::PerformImpl() const {
 	case Starlane::Task::ActionType::ConvoLeave:
 		break;
 	case Starlane::Task::ActionType::GameWin:
+		g->EndGame(Game::Ending::Win);
 		break;
 	case Starlane::Task::ActionType::GameLose:
+		g->EndGame(Game::Ending::Lose);
 		break;
 	case Starlane::Task::ActionType::GameEndNeutral:
+		g->EndGame(Game::Ending::Neutral);
 		break;
 	case Starlane::Task::ActionType::GameContinue:
 		break;

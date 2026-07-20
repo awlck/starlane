@@ -238,6 +238,15 @@ public:
 	uint32_t GetChecksum() const { return staticData->gameCrc32; }
 
 	bool IsGameOngoing() const { return gameHasBegun; }
+
+	// How a game can stop. A task's "end the game" action says which; the player is told, and no
+	// further input is taken (the frontend's own loop notices via GameIsOngoing).
+	enum class Ending {
+		Win,
+		Lose,
+		Neutral
+	};
+	void EndGame(Ending how);
 	uint32_t GetBlorbResource(const std::string &path) const {
 		auto f = staticData->blorbResMap.find(path);
 		if (f == staticData->blorbResMap.cend()) return -1;
