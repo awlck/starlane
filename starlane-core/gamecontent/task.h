@@ -83,6 +83,11 @@ public:
 	};
 	[[nodiscard]] MessagePlacement GetMessagePlacement() const { return messagePlacement; }
 
+	// Whether lower-priority tasks matching the same command should still be considered after this
+	// one has run ("multiple matches" in the editor). Without it, running a task that produced any
+	// output ends the search.
+	[[nodiscard]] bool AlwaysContinues() const { return alwaysContinue; }
+
 	// For Specific tasks: the key of the General task this one overrides, and the per-reference
 	// constraints that must hold for it to apply. Empty/default for General and System tasks.
 	[[nodiscard]] const std::string &OverridesTask() const { return overridesTask; }
@@ -229,6 +234,7 @@ private:
 	RestrRef restrictions;
 	std::vector<Action> actions;
 	MessagePlacement messagePlacement = MessagePlacement::Before;
+	bool alwaysContinue = false;
 
 	// Is this a general, specific, or system task?
 	Type type;

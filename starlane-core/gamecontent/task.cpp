@@ -303,6 +303,10 @@ Task *Task::CreateFromXML(Game *g, const pugi::xml_node &xmlNode) {
 	// means "Before" -- not the "After" that the in-editor default suggests.
 	if (STREQ(xmlNode.child_value("MessageBeforeOrAfter"), "After"))
 		result->messagePlacement = MessagePlacement::After;
+	// In ADRIFT 5 this is a plain boolean ("keep looking at lower-priority tasks even though this
+	// one ran"), despite the enum-looking values it carries over from version 4: only
+	// "ContinueAlways" means anything, and the tag is only written out in that case.
+	result->alwaysContinue = STREQ(xmlNode.child_value("Continue"), "ContinueAlways");
 	if (result->type == Type::System) {
 		// Both are only written out when set, and only mean anything on a System task -- which is
 		// the one kind with no command of its own to be matched against.
@@ -333,7 +337,8 @@ Task *Task::CreateFromXML(Game *g, const pugi::xml_node &xmlNode) {
 		}
 		result->commandRegexes.reserve(commandStrs.size());
 		for (const auto &cmd: commandStrs) {
-			auto transformed = ProcessBlock(cmd);
+			auto transformed = ProcessBlock(ExpandWildcards(cmd));
+			RestoreWildcards(transformed);
 #ifndef NDEBUG
 			std::cout << "Converted \"" << cmd << "\" to \"" << transformed << "\".\n";
 #endif

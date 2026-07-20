@@ -321,7 +321,9 @@ private:
 	// executions triggered by this task's own actions (e.g. a chained "Execute" action).
 	// `showText`/`runActions` let a Specific task's OverrideType selectively suppress either
 	// half of its General parent's own execution.
-	void RunTaskAndCapture(Task *task, bool showText = true, bool runActions = true);
+	// Run a task's message and actions. Returns whether it actually printed anything, which decides
+	// whether lower-priority tasks matching the same command still get a look in.
+	bool RunTaskAndCapture(Task *task, bool showText = true, bool runActions = true);
 	// Give every event of the matching kind (real-time or turn-based) one tick. Both TurnTick
 	// and Tick come through here; `realTime` is what tells the two populations apart.
 	// (A bool rather than an Event::TimeType because game.h only forward-declares Event.)

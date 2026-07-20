@@ -298,17 +298,23 @@ bool Game::SpecificTaskMatches(const Task *specific, const std::vector<std::stri
 	return true;
 }
 
-void Game::RunTaskAndCapture(Task *task, bool showText, bool runActions) {
+bool Game::RunTaskAndCapture(Task *task, bool showText, bool runActions) {
 	task->MarkCompleted();
 	bool msgFirst = task->GetMessagePlacement() == Task::MessagePlacement::Before;
-	if (msgFirst && showText && task->GetCompletionMsg() != 0)
-		OutputFiltered(GetDescription(task->GetCompletionMsg())->Build());
+	bool anyText = false;
+	auto emit = [&] {
+		if (!showText || task->GetCompletionMsg() == 0) return;
+		std::string text = GetDescription(task->GetCompletionMsg())->Build();
+		if (!text.empty()) anyText = true;
+		OutputFiltered(std::move(text));
+	};
+	if (msgFirst) emit();
 	// Actions run between (or after/before) the message output points above/below, so that a
 	// nested "Execute" action's own output interleaves in true chronological order rather than
 	// being buffered and flushed out of order relative to this task's own message.
 	if (runActions) task->RunActions();
-	if (!msgFirst && showText && task->GetCompletionMsg() != 0)
-		OutputFiltered(GetDescription(task->GetCompletionMsg())->Build());
+	if (!msgFirst) emit();
+	return anyText;
 }
 
 void Game::ExecuteTaskByKey(const std::string &key, const std::vector<std::string> &args) {
@@ -386,62 +392,91 @@ void Game::RunTriggeredTasks() {
 }
 
 void Game::ExecuteMatchedTask(Task *general) {
-	auto parentResult = general->CheckRestrictions();
-	if (!parentResult.first) {
-		OutputFiltered(parentResult.second != 0 ? GetDescription(parentResult.second)->Build() : "You can't do that right now.\n");
-		return;
+	// "Take the plates and the ration bar" is two takes: ADRIFT runs the whole task once per thing
+	// a plural reference named, so each gets its own restrictions checked and its own Specific
+	// overrides applied. The references are bound to one combination at a time, cycling through
+	// every combination when a command carries more than one plural reference.
+	std::vector<size_t> indices(currentRefLists.size(), 0);
+	for (;;) {
+		for (size_t i = 0; i < currentRefLists.size(); i++)
+			BindReference(currentRefLists[i].first, currentRefLists[i].second[indices[i]]);
+
+		auto parentResult = general->CheckRestrictions();
+		if (!parentResult.first)
+			OutputFiltered(parentResult.second != 0 ? GetDescription(parentResult.second)->Build() : "You can't do that right now.\n");
+		else
+			RunTaskWithSpecifics(general, currentMatchedRefTokens);
+
+		// Advance to the next combination, odometer-style; stop once they have all been run.
+		size_t pos = currentRefLists.size();
+		while (pos > 0) {
+			--pos;
+			if (++indices[pos] < currentRefLists[pos].second.size()) break;
+			indices[pos] = 0;
+			if (pos == 0) return;
+		}
+		if (currentRefLists.empty()) return;
 	}
-	RunTaskWithSpecifics(general, currentMatchedRefTokens);
 }
 
 void Game::RunTaskWithSpecifics(Task *general, const std::vector<std::string> &refTokens) {
 	// The general task's restrictions have passed; see whether any of its Specific children apply.
-	// At most one "before/override" child and one "after" child are ever considered -- the
-	// first (highest-priority) one, in each group, whose per-reference constraints match.
-	Task *beforeChild = nullptr;
-	Task *afterChild = nullptr;
-	for (Task *child : GetSpecificChildren(general->Key())) {
-		if (!SpecificTaskMatches(child, refTokens)) continue;
-		if (child->GetOverrideType().Has(Task::OverrideType::AfterParent)) {
-			if (!afterChild) afterChild = child;
-		} else {
-			if (!beforeChild) beforeChild = child;
-		}
-		if (beforeChild && afterChild) break;
-	}
+	// Children are visited in priority order and, in ADRIFT, more than one may run: the chain
+	// stops at the first child that both ran (or spoke up about failing) and had something to
+	// say, unless that child is explicitly marked "continue to execute lower priority tasks".
+	// So "before crawl through duct" (which just moves the player in) runs, and then the real
+	// "crawl through duct" below it still gets its turn.
+	std::vector<Task *> afterChildren;
 
 	bool showParentText = true;
 	bool runParentActions = true;
 
-	if (beforeChild) {
-		auto overrideType = beforeChild->GetOverrideType();
-		auto childResult = beforeChild->CheckRestrictions();
-		bool childHadSomethingToSay = childResult.first;
+	for (Task *child : GetSpecificChildren(general->Key())) {
+		if (!SpecificTaskMatches(child, refTokens)) continue;
+		auto overrideType = child->GetOverrideType();
+		if (overrideType.Has(Task::OverrideType::AfterParent)) {
+			afterChildren.push_back(child);
+			continue;
+		}
+		auto childResult = child->CheckRestrictions();
+		bool childHadSomethingToSay = false;
 		if (childResult.first) {
-			RunTaskAndCapture(beforeChild);
+			childHadSomethingToSay = RunTaskAndCapture(child);
+			// A child that ran suppresses whichever parts of the parent it says it replaces,
+			// whether or not it printed anything.
+			if (!overrideType.Has(Task::OverrideType::ParentText)) showParentText = false;
+			if (!overrideType.Has(Task::OverrideType::ParentActions)) runParentActions = false;
 		} else if (childResult.second != 0) {
 			// The child failed, but produced restriction-failure text of its own: that takes
 			// precedence over the parent, same as if the child had passed.
-			OutputFiltered(GetDescription(childResult.second)->Build());
-			childHadSomethingToSay = true;
+			std::string text = GetDescription(childResult.second)->Build();
+			childHadSomethingToSay = !text.empty();
+			OutputFiltered(std::move(text));
+			if (childHadSomethingToSay) {
+				if (!overrideType.Has(Task::OverrideType::ParentText)) showParentText = false;
+				if (!overrideType.Has(Task::OverrideType::ParentActions)) runParentActions = false;
+			}
 		}
-		// A child that neither ran nor produced any message is treated as if it hadn't
-		// matched at all, and the parent proceeds completely normally.
-		if (childHadSomethingToSay) {
-			if (!overrideType.Has(Task::OverrideType::ParentText)) showParentText = false;
-			if (!overrideType.Has(Task::OverrideType::ParentActions)) runParentActions = false;
-		}
+		// A child that neither ran nor produced any message is treated as if it hadn't matched at
+		// all, and we keep looking; so is one that ran silently.
+		if (childHadSomethingToSay && !child->AlwaysContinues())
+			break;
 	}
 
 	RunTaskAndCapture(general, showParentText, runParentActions);
 
-	if (afterChild) {
-		auto childResult = afterChild->CheckRestrictions();
+	for (Task *child : afterChildren) {
+		auto childResult = child->CheckRestrictions();
+		bool childHadSomethingToSay = false;
 		if (childResult.first) {
-			RunTaskAndCapture(afterChild);
+			childHadSomethingToSay = RunTaskAndCapture(child);
 		} else if (childResult.second != 0) {
-			OutputFiltered(GetDescription(childResult.second)->Build());
+			std::string text = GetDescription(childResult.second)->Build();
+			childHadSomethingToSay = !text.empty();
+			OutputFiltered(std::move(text));
 		}
+		if (childHadSomethingToSay && !child->AlwaysContinues())
+			break;
 	}
 }
 
