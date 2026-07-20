@@ -102,6 +102,7 @@ public:
 
 	static Game *LoadFromXML(const std::string &gameTxt, uint32_t crc32);
 	DescrRef CreateDescFromXML(const pugi::xml_node &descNode);
+	DescrRef CreateDescFromText(const std::string &text);
 	RestrRef CreateRestrictionsFromXML(const pugi::xml_node &restrNode);
 	PlainTextRef StorePlainTextSnippet(const std::string &snip);
 	PlainTextRef StorePlainTextSnippet(std::string_view snip);

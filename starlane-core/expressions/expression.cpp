@@ -322,6 +322,12 @@ Expr::Value Expression::ResolveNameToValue(const std::string &nt) const {
 	} else if (Util::IsReference('%' + nt + '%')) {
 		return Game::Get()->GetReference('%' + nt + '%');
 	}
+	// A user-defined function that takes no arguments is written as a bare "%name%", which reads
+	// as a name rather than as a call. (Return to the Stars names its rifle "%riflename%".)
+	if (const UserFunction *udf = Game::Get()->GetUserFuncByName(nt)) {
+		if (udf->Signature().empty())
+			return udf->Evaluate({});
+	}
 	auto theVar = Game::Get()->GetVarByName(nt);
 	// A name that is neither a reference nor a variable is nothing we can evaluate. Say so
 	// rather than dereferencing the null we just got back: callers that can carry on without

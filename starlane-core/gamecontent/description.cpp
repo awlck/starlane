@@ -28,6 +28,17 @@ Description *Description::CreateFromXML(const pugi::xml_node &xmlNode) {
 	return result;
 }
 
+Description *Description::CreateFromText(const std::string &text) {
+	auto result = new Description;
+	Segment s;
+	s.text = text;
+	s.displayWhen = Display::BeginHere;
+	s.onceOnly = false;
+	s.returnToDefault = false;
+	result->segments.push_back(std::move(s));
+	return result;
+}
+
 static bool NeedSpace(std::string_view textSoFar) {
 	if (textSoFar.empty()) return false;
 	size_t lastChar = textSoFar.length() - 1;
@@ -118,8 +129,17 @@ std::string Description::Build(bool commit, const UserFuncContext *context) {
 
 void Description::ResolveText() {
 	for (auto &sd : segments) {
+		sd.udfArgNames = udfArgNames.empty() ? nullptr : &udfArgNames;
 		sd.ResolveText();
+		sd.udfArgNames = nullptr;
 	}
+}
+
+bool Description::Segment::IsUserFuncArgName(const std::string &name) const {
+	if (!udfArgNames) return false;
+	return std::any_of(udfArgNames->cbegin(), udfArgNames->cend(), [&](const std::string &a) {
+		return Util::ToLower(a) == Util::ToLower(name);
+	});
 }
 
 Description::Segment Description::Segment::CreateFromXML(const pugi::xml_node &xmlNode) {
@@ -283,7 +303,8 @@ ResolveText_FakeTailcall:
 				// gibberish that prints as-is into a zero-argument call that throws.
 				if (!Game::Get()->VarOfNameExists(vname) && vname != "AloneWithChar" && vname != "ConvCharacter" && vname != "Player" && vname != "CharacterName"
 						&& vname != "Turns" && vname != "turns" && vname != "TURNS"
-						&& !Util::IsCommandRefName('%' + vname + '%')) {
+						&& !Util::IsCommandRefName('%' + vname + '%') && !IsUserFuncArgName(vname)
+					&& !Game::Get()->GetUserFuncByName(vname)) {
 					// no known name: just some gibberish and not a function/variable after all
 					ResolveExpressions(theText.substr(0, pos+1));
 					//return ResolveText(theText.substr(pos+1));
