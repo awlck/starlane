@@ -124,6 +124,38 @@ bool ContainsMandatoryText(const std::string_view &block) {
 	return false;
 }
 
+// Sentinel characters standing in for regex fragments that a wildcard expands to. They survive
+// EscapeForRegex untouched (unlike the fragments themselves), and are swapped back in afterwards.
+constexpr char kWcOpen = '\x01';   // "(?:"
+constexpr char kWcClose = '\x02';  // ")?"
+constexpr char kWcAny = '\x03';    // ".*?"
+
+void ReplaceAll(std::string &s, const std::string &from, const std::string &to) {
+	for (size_t pos = 0; (pos = s.find(from, pos)) != std::string::npos; pos += to.size())
+		s.replace(pos, from.size(), to);
+}
+
+// Expand ADRIFT's command wildcards (`*`, matching any run of words, and `_`, an explicit space)
+// the way ConvertToRE does: as a plain textual substitution over the whole command, before it is
+// broken into blocks. A wildcard next to a space swallows that space when it matches nothing, so
+// "listen *" accepts a bare "listen".
+std::string ExpandWildcards(const std::string &cmd) {
+	std::string s = cmd;
+	const std::string open(1, kWcOpen), close(1, kWcClose), any(1, kWcAny);
+	ReplaceAll(s, " * ", " " + open + any + " " + close);
+	ReplaceAll(s, "* ", open + any + " " + close);
+	ReplaceAll(s, " *", open + " " + any + close);
+	ReplaceAll(s, "*", any);
+	ReplaceAll(s, "_", " ");
+	return s;
+}
+
+void RestoreWildcards(std::string &s) {
+	ReplaceAll(s, std::string(1, kWcOpen), "(?:");
+	ReplaceAll(s, std::string(1, kWcClose), ")?");
+	ReplaceAll(s, std::string(1, kWcAny), ".*?");
+}
+
 std::string ProcessBlock(std::string_view block) {  //NOLINT(misc-no-recursion)
 	std::string_view nextBlock;
 	std::string result;

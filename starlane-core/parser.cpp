@@ -132,7 +132,29 @@ std::vector<std::string> Game::MatchListForReference(const std::string &from, co
 	return result;
 }
 
+void Game::BindReference(const std::string &ref, const std::string &value) {
+	auto [family, suffix] = SplitRefName(ref);
+	// Store under the name from this task's own Command pattern (e.g. "%object1%"),
+	// which is what that task's own restriction/message text will refer to it as...
+	currentRefs[Util::CanonicalizeRefName(ref)] = value;
+	// ...as well as under ADRIFT's generic, position-based name (e.g. "ReferencedObject1"),
+	// which is what library restrictions shared across many tasks use instead.
+	std::string alias = GenericAliasFamily(family);
+	if (!alias.empty())
+		currentRefs[Util::CanonicalizeRefName(alias + suffix)] = value;
+	// "%object%" and "%object1%" name the same, first reference, and a task is free to use one
+	// in its Command and the other in its messages -- the library's "open objects" task does
+	// exactly that. Register both spellings, generic name included.
+	if (suffix.empty() || suffix == "1") {
+		const std::string other = suffix.empty() ? "1" : "";
+		currentRefs[Util::CanonicalizeRefName('%' + family + other + '%')] = value;
+		if (!alias.empty())
+			currentRefs[Util::CanonicalizeRefName(alias + other)] = value;
+	}
+}
+
 bool Game::CaptureReferences(const std::vector<std::string> &refSpecs, const std::smatch &matches) {
+	currentRefLists.clear();
 	for (size_t i = 0; i < refSpecs.size(); i++) {
 		const std::string &ref = refSpecs[i];
 		std::string raw = matches[i + 1].str();
@@ -146,24 +168,30 @@ bool Game::CaptureReferences(const std::vector<std::string> &refSpecs, const std
 			// May resolve to "" if somehow not a recognized direction word; that's fine,
 			// restrictions/messages relying on it will simply see an empty reference.
 			resolved = Util::CanonicalizeDirection(raw);
+		} else if (family == "objects" || family == "characters") {
+			// A plural reference can name several things at once ("take the plates and the ration
+			// bar"). Each one is resolved separately, and the task runs once per thing; see
+			// ExecuteMatchedTask. The reference itself starts out bound to the first of them.
+			std::vector<std::string> items;
+			for (const auto &piece : Util::SplitObjectList(raw)) {
+				auto matchList = MatchListForReference(piece, family);
+				if (matchList.empty()) return false;
+				// TODO: proper disambiguation when multiple objects match (ADRIFT prompts the
+				// player to clarify); for now, just take the first match.
+				items.push_back(matchList.front());
+			}
+			if (items.empty()) return false;
+			resolved = items.front();
+			if (items.size() > 1)
+				currentRefLists.emplace_back(ref, std::move(items));
 		} else {
-			// Objects, characters, locations, items, and their plurals: resolve the raw text
-			// to an actual game object.
+			// Objects, characters, locations, items: resolve the raw text to an actual game object.
 			auto matchList = MatchListForReference(raw, family);
 			if (matchList.empty()) return false;
-			// TODO: proper disambiguation when multiple objects match (ADRIFT prompts the
-			// player to clarify); for now, just take the first match.
 			resolved = matchList.front();
 		}
 
-		// Store under the name from this task's own Command pattern (e.g. "%object1%"),
-		// which is what that task's own restriction/message text will refer to it as...
-		currentRefs[Util::CanonicalizeRefName(ref)] = resolved;
-		// ...as well as under ADRIFT's generic, position-based name (e.g. "ReferencedObject1"),
-		// which is what library restrictions shared across many tasks use instead.
-		std::string alias = GenericAliasFamily(family);
-		if (!alias.empty())
-			currentRefs[Util::CanonicalizeRefName(alias + suffix)] = resolved;
+		BindReference(ref, resolved);
 	}
 	return true;
 }
@@ -174,6 +202,12 @@ Task *Game::FindMatchingTask() {
 	Task *fallback = nullptr;
 	std::vector<std::string> fallbackRefTokens;
 	std::unordered_map<std::string, std::string> fallbackRefs;
+	// The highest-priority task whose command matched but whose %ref%s named nothing the game
+	// knows. If nothing better turns up, ADRIFT runs this one anyway (its sNoRefTask) so that its
+	// own "must exist" restriction can say something useful -- "Launch what?" beats "I didn't
+	// understand that sentence."
+	Task *noRefTask = nullptr;
+	std::vector<std::string> noRefTokens;
 
 	for (Task *task : staticData->prioOrderedTasks) {
 		if (task->GetType() != Task::Type::General) continue;
@@ -190,7 +224,13 @@ Task *Game::FindMatchingTask() {
 			// (e.g. "must have a route in %direction%") need to see the values the player
 			// actually typed.
 			currentRefs.clear();
-			if (!CaptureReferences(groupCoding[cmdIdx], matches)) continue;
+			if (!CaptureReferences(groupCoding[cmdIdx], matches)) {
+				if (!noRefTask) {
+					noRefTask = task;
+					noRefTokens = groupCoding[cmdIdx];
+				}
+				continue;
+			}
 
 			auto result = task->Eligible();
 			// A task that fails restrictions with no message at all isn't a real candidate
@@ -217,8 +257,14 @@ Task *Game::FindMatchingTask() {
 	if (fallback) {
 		currentRefs = std::move(fallbackRefs);
 		currentMatchedRefTokens = std::move(fallbackRefTokens);
+		return fallback;
 	}
-	return fallback;
+	if (noRefTask) {
+		currentRefs.clear();
+		currentRefLists.clear();
+		currentMatchedRefTokens = std::move(noRefTokens);
+	}
+	return noRefTask;
 }
 
 const std::vector<Task *> &Game::GetSpecificChildren(const std::string &generalKey) const {

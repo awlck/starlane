@@ -300,6 +300,8 @@ private:
 	// Returns false if some reference could not be resolved to anything (e.g. an %object%
 	// referring to an object that doesn't exist), meaning the task cannot apply after all.
 	bool CaptureReferences(const std::vector<std::string> &refSpecs, const std::smatch &matches);
+	// Bind one %ref% (and its equivalent spellings) to a resolved key.
+	void BindReference(const std::string &ref, const std::string &value);
 	// The Specific tasks (if any) that override the General task with this key, in priority order.
 	const std::vector<Task *> &GetSpecificChildren(const std::string &generalKey) const;
 	// Whether a Specific task's per-reference constraints are satisfied by the references
@@ -362,6 +364,9 @@ private:
 	// by the most recent successful match in FindMatchingTask -- needed to test the matched
 	// task's Specific children against currentRefs positionally.
 	std::vector<std::string> currentMatchedRefTokens;
+	// Plural references ("%objects%") that the player's command bound to more than one thing, as
+	// (reference name, resolved keys). ExecuteMatchedTask runs the task once per combination.
+	std::vector<std::pair<std::string, std::vector<std::string>>> currentRefLists;
 
 	// used at load-time to prevent duplicating expressions too much
 	std::unordered_map<std::string, ExprRef> knownExprs;
