@@ -72,6 +72,14 @@ std::string GameObj::GetDisplayName(bool defArt) const {
 	return result;
 }
 
+bool GameObj::MatchesNameWord(const std::string &word) const {
+	if (Util::ContainsWholeWord(article, word)) return true;
+	if (Util::ContainsWholeWord(prefix, word)) return true;
+	for (const auto &n : nouns)
+		if (Util::ContainsWholeWord(n, word)) return true;
+	return false;
+}
+
 const std::string &GameObj::GetLocationKey() const {
 	if (parent.empty()) return parent;
 	const GameObj *o = this;

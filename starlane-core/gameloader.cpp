@@ -14,6 +14,7 @@
 #include "gamecontent/event.h"
 #include "gamecontent/gameobj.h"
 #include "gamecontent/group.h"
+#include "gamecontent/location.h"
 #include "gamecontent/property.h"
 #include "gamecontent/restriction.h"
 #include "gamecontent/synonym.h"
@@ -108,6 +109,20 @@ Game *Game::LoadFromXML(const std::string &gameTxt, uint32_t gameCrc32) {
 		result->CreateObjFromXML(it);
 	for (const auto &it: gameNode.children("Object"))
 		result->CreateObjFromXML(it);
+
+	// A Player left "Hidden" (with no location of its own) begins in the first-defined location,
+	// as the ADRIFT Runner does -- otherwise the player would start nowhere, seeing nothing and
+	// unable to act on anything. Done here, once, so every later snapshot (startup state, undo
+	// history) inherits the placement rather than each having to rediscover it.
+	if (auto *player = dynamic_cast<Character *>(result->GetObject(result->playerKey));
+	    player && player->GetLocationKey().empty()) {
+		for (const auto &key : rStatic->objectLoadOrder) {
+			if (dynamic_cast<Location *>(result->GetObject(key))) {
+				player->SetInitialLocation(key);
+				break;
+			}
+		}
+	}
 
 	LOAD_STAGE("Loading Tasks");
 	for (const auto &it: gameNode.children("Task")) {

@@ -6,6 +6,7 @@
 #include "slc_private.h"
 
 #include <deque>
+#include <optional>
 #include <set>
 #include <string>
 #include <unordered_map>
@@ -290,6 +291,28 @@ private:
 	// Returns false if some reference could not be resolved to anything (e.g. an %object%
 	// referring to an object that doesn't exist), meaning the task cannot apply after all.
 	bool CaptureReferences(const std::vector<std::string> &refSpecs, const std::smatch &matches);
+	// For each object/character %ref% captured, the raw text the player typed for it and the full
+	// list of object keys that text could refer to (see currentRefMatches / pendingDisambig).
+	struct RefMatchInfo {
+		std::string raw;
+		std::vector<std::string> candidates;
+	};
+	// Having chosen a task, check whether any of its object/character references matched more than
+	// one thing (per currentRefMatches). If so, stash a PendingDisambig, ask the player about the
+	// first such reference, and return true -- the command does not run and the world does not
+	// advance until they answer. Returns false (and does nothing) when every reference is unambiguous.
+	bool BeginDisambiguationIfNeeded(Task *chosen);
+	// Route a line of input that answers a pending disambiguation question. Narrows the current
+	// ambiguous reference by the answer; on full resolution it runs the held command, otherwise it
+	// asks about the next ambiguity, re-asks, or -- when the answer names no candidate but is itself
+	// a command the game understands -- abandons the disambiguation and runs that command instead.
+	// Caution: like ProcessInput, this can delete `this` (a fallen-through UNDO/RESTART).
+	void ResolveDisambiguation(const std::string &answer);
+	// Emit "Which <word>? The red ball or the green ball." for one ambiguous reference.
+	void DisplayAmbiguityQuestion(const RefMatchInfo &info);
+	// The subset of `candidates` every word of `answer` matches (per GameObj::MatchesNameWord, with
+	// a literal "the" always accepted) -- the player's clarifying answer applied to the candidates.
+	std::vector<std::string> NarrowByAnswer(const std::vector<std::string> &candidates, const std::string &answer);
 	// The Specific tasks (if any) that override the General task with this key, in priority order.
 	const std::vector<Task *> &GetSpecificChildren(const std::string &generalKey) const;
 	// Whether a Specific task's per-reference constraints are satisfied by the references
@@ -352,6 +375,26 @@ private:
 	// by the most recent successful match in FindMatchingTask -- needed to test the matched
 	// task's Specific children against currentRefs positionally.
 	std::vector<std::string> currentMatchedRefTokens;
+
+	// For each object/character %ref% captured, the raw text the player typed for it and the full
+	// list of object keys that text could refer to. currentRefs keeps only the first of those (the
+	// provisional resolution); this keeps the rest, so that once a task is chosen we can tell an
+	// ambiguous reference from an unambiguous one and ask the player to clarify. Same lifecycle as
+	// currentRefs: transient, cleared and repopulated per match, never saved or undone.
+	// (RefMatchInfo is defined up with the parser internals, where its first user is.)
+	std::unordered_map<std::string, RefMatchInfo> currentRefMatches;
+
+	// A command that matched a task but left one or more of its references ambiguous, held while we
+	// ask the player which object they meant. Their next line of input is routed to the resolver
+	// (see ProcessInput) rather than parsed as a fresh command. Transient by nature -- asking is
+	// not a turn, so nothing here is ever saved or undone.
+	struct PendingDisambig {
+		Task *task;                                             // the chosen general task (stable staticData pointer)
+		std::vector<std::string> refTokens;                     // = currentMatchedRefTokens at the time
+		std::unordered_map<std::string, std::string> refs;      // resolutions so far (provisional for the ambiguous ones)
+		std::unordered_map<std::string, RefMatchInfo> refMatches; // raw text + remaining candidates, keyed like currentRefMatches
+	};
+	std::optional<PendingDisambig> pendingDisambig;
 
 	// used at load-time to prevent duplicating expressions too much
 	std::unordered_map<std::string, ExprRef> knownExprs;

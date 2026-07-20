@@ -99,18 +99,23 @@ std::vector<std::string> Game::MatchListForReference(const std::string &from, co
 	else if (refFamily.substr(0, sizeof("character")-1) == "character"s) rt = ReferenceType::Character;
 	else throw std::runtime_error("Unknown reference type in task: " + refFamily);
 
+	// Iterate in load order (not the objects hash map's arbitrary order) so that both the
+	// provisional pick and any disambiguation prompt list candidates as the game defines them --
+	// "the red ball or the green ball", the order the author wrote them, as ADRIFT does.
 	std::vector<std::string> result;
-	for (const auto &it : objects) {
+	for (const auto &key : staticData->objectLoadOrder) {
+		auto it = objects.find(key);
+		if (it == objects.end()) continue;
 		switch (rt) {
 			case ReferenceType::Object:
-				if (dynamic_cast<Character *>(it.second)) continue;
+				if (dynamic_cast<Character *>(it->second)) continue;
 				break;
 			case ReferenceType::Character:
-				if (!dynamic_cast<Character *>(it.second)) continue;
+				if (!dynamic_cast<Character *>(it->second)) continue;
 				break;
 		}
-		if (std::regex_match(from, it.second->GetMatchExpr()))
-			result.push_back(it.first);
+		if (std::regex_match(from, it->second->GetMatchExpr()))
+			result.push_back(key);
 	}
 
 	// Narrow the name matches down by scope, preferring the narrowest scope that still
@@ -151,9 +156,12 @@ bool Game::CaptureReferences(const std::vector<std::string> &refSpecs, const std
 			// to an actual game object.
 			auto matchList = MatchListForReference(raw, family);
 			if (matchList.empty()) return false;
-			// TODO: proper disambiguation when multiple objects match (ADRIFT prompts the
-			// player to clarify); for now, just take the first match.
+			// Take the first match as the provisional resolution so restrictions can be checked,
+			// but keep the whole list (and the raw text the player typed): should this reference
+			// belong to the task we end up running and have matched more than one thing,
+			// BeginDisambiguationIfNeeded will ask the player which they meant.
 			resolved = matchList.front();
+			currentRefMatches[Util::CanonicalizeRefName(ref)] = {raw, std::move(matchList)};
 		}
 
 		// Store under the name from this task's own Command pattern (e.g. "%object1%"),
@@ -174,6 +182,7 @@ Task *Game::FindMatchingTask() {
 	Task *fallback = nullptr;
 	std::vector<std::string> fallbackRefTokens;
 	std::unordered_map<std::string, std::string> fallbackRefs;
+	std::unordered_map<std::string, RefMatchInfo> fallbackRefMatches;
 
 	for (Task *task : staticData->prioOrderedTasks) {
 		if (task->GetType() != Task::Type::General) continue;
@@ -190,6 +199,7 @@ Task *Game::FindMatchingTask() {
 			// (e.g. "must have a route in %direction%") need to see the values the player
 			// actually typed.
 			currentRefs.clear();
+			currentRefMatches.clear();
 			if (!CaptureReferences(groupCoding[cmdIdx], matches)) continue;
 
 			auto result = task->Eligible();
@@ -210,6 +220,7 @@ Task *Game::FindMatchingTask() {
 				fallback = task;
 				fallbackRefTokens = groupCoding[cmdIdx];
 				fallbackRefs = currentRefs;
+				fallbackRefMatches = currentRefMatches;
 			}
 		}
 	}
@@ -217,6 +228,7 @@ Task *Game::FindMatchingTask() {
 	if (fallback) {
 		currentRefs = std::move(fallbackRefs);
 		currentMatchedRefTokens = std::move(fallbackRefTokens);
+		currentRefMatches = std::move(fallbackRefMatches);
 	}
 	return fallback;
 }
@@ -399,6 +411,137 @@ void Game::RunTaskWithSpecifics(Task *general, const std::vector<std::string> &r
 	}
 }
 
+std::vector<std::string> Game::NarrowByAnswer(const std::vector<std::string> &candidates, const std::string &answer) {
+	auto answerWords = Util::SplitString(frontend->StrToLowerCase(answer), " ");
+	std::vector<std::string> result;
+	for (const auto &key : candidates) {
+		GameObj *ob = GetObject(key);
+		if (!ob) continue;
+		bool matchesAll = true;
+		for (const auto &word : answerWords) {
+			// Blank tokens (double spaces) and a literal "the" never count against a candidate --
+			// the same leniency the reference PossibleKeys affords; every other word must name it.
+			if (word.empty() || word == "the") continue;
+			if (!ob->MatchesNameWord(word)) { matchesAll = false; break; }
+		}
+		if (matchesAll) result.push_back(key);
+	}
+	return result;
+}
+
+void Game::DisplayAmbiguityQuestion(const RefMatchInfo &info) {
+	// "Which <word>?" -- the noun the candidates share. Prefer the first word of the player's own
+	// phrasing that every candidate answers to; fall back to the raw text if none qualifies.
+	std::string word = info.raw;
+	for (const auto &w : Util::SplitString(frontend->StrToLowerCase(info.raw), " ")) {
+		if (w.empty()) continue;
+		bool inAll = true;
+		for (const auto &key : info.candidates) {
+			GameObj *ob = GetObject(key);
+			if (!ob || !ob->MatchesNameWord(w)) { inAll = false; break; }
+		}
+		if (inAll) { word = w; break; }
+	}
+	// "The red ball or the green ball." -- GetDisplayName(true) yields the lowercase definite form;
+	// OutputFiltered's AutoCapitalize raises the leading article, it following the "? " above.
+	std::string list;
+	for (size_t i = 0; i < info.candidates.size(); i++) {
+		if (i != 0) list += (i + 1 == info.candidates.size()) ? " or " : ", ";
+		GameObj *ob = GetObject(info.candidates[i]);
+		list += ob ? ob->GetDisplayName(true) : info.candidates[i];
+	}
+	OutputFiltered("Which " + word + "? " + list + ".\n");
+}
+
+bool Game::BeginDisambiguationIfNeeded(Task *chosen) {
+	for (const auto &token : currentMatchedRefTokens) {
+		auto it = currentRefMatches.find(Util::CanonicalizeRefName(token));
+		if (it == currentRefMatches.end() || it->second.candidates.size() <= 1) continue;
+		// This reference matched several objects: hold the whole command, ask about this one, and
+		// let the player's next line resolve it (see ResolveDisambiguation).
+		pendingDisambig = PendingDisambig{chosen, currentMatchedRefTokens, currentRefs, currentRefMatches};
+		DisplayAmbiguityQuestion(it->second);
+		return true;
+	}
+	return false;
+}
+
+void Game::ResolveDisambiguation(const std::string &answer) {
+	PendingDisambig &pd = *pendingDisambig;
+
+	// The reference we are currently asking about is the first one still matching several objects.
+	std::string ambToken;
+	RefMatchInfo *ambInfo = nullptr;
+	for (const auto &token : pd.refTokens) {
+		auto it = pd.refMatches.find(Util::CanonicalizeRefName(token));
+		if (it != pd.refMatches.end() && it->second.candidates.size() > 1) {
+			ambToken = token;
+			ambInfo = &it->second;
+			break;
+		}
+	}
+	if (!ambInfo) { pendingDisambig.reset(); return; }  // nothing left to ask; shouldn't happen
+
+	auto narrowed = NarrowByAnswer(ambInfo->candidates, answer);
+	if (!narrowed.empty()) {
+		// The answer picked out one or more of the candidates: adopt it as this reference's value.
+		ambInfo->candidates = std::move(narrowed);
+		std::string canon = Util::CanonicalizeRefName(ambToken);
+		pd.refs[canon] = ambInfo->candidates.front();
+		auto [family, suffix] = SplitRefName(ambToken);
+		std::string alias = GenericAliasFamily(family);
+		if (!alias.empty())
+			pd.refs[Util::CanonicalizeRefName(alias + suffix)] = ambInfo->candidates.front();
+
+		// Still ambiguous (the answer narrowed but didn't settle it)? Keep asking about this one.
+		if (ambInfo->candidates.size() > 1) {
+			DisplayAmbiguityQuestion(*ambInfo);
+			return;
+		}
+		// Settled -- but another reference of the same command may still be ambiguous.
+		for (const auto &token : pd.refTokens) {
+			auto it = pd.refMatches.find(Util::CanonicalizeRefName(token));
+			if (it != pd.refMatches.end() && it->second.candidates.size() > 1) {
+				DisplayAmbiguityQuestion(it->second);
+				return;
+			}
+		}
+		// Everything resolved: run the held command, now as a real turn.
+		Task *task = pd.task;
+		currentRefs = std::move(pd.refs);
+		currentMatchedRefTokens = std::move(pd.refTokens);
+		pendingDisambig.reset();
+		SaveUndo();
+		ExecuteMatchedTask(task);
+		RunTriggeredTasks();
+		TurnTick();
+		return;
+	}
+
+	// The answer named none of the candidates. Per the hybrid rule: if it is itself a command the
+	// game understands, abandon the disambiguation and run it; otherwise (mere gibberish) re-ask.
+	RefMatchInfo askAgain = *ambInfo;  // the re-ask path clears nothing, but copy to be safe
+	currentCommand = ApplySynonyms(answer);
+	Task *chosen = FindMatchingTask();
+	if (chosen) {
+		pendingDisambig.reset();
+		if (BeginDisambiguationIfNeeded(chosen)) return;  // the replacement command is itself ambiguous
+		SaveUndo();
+		ExecuteMatchedTask(chosen);
+		RunTriggeredTasks();
+		TurnTick();
+		return;
+	}
+	// A system command both tests and runs in one call, and some of them (UNDO/RESTART) replace
+	// `this` outright -- after which its members must not be touched. So clear the pending state
+	// first; if it turns out not to be a system command after all, put it back and re-ask.
+	auto savedPending = std::move(pendingDisambig);
+	pendingDisambig.reset();
+	if (AttemptMatchSystemCommand()) return;  // matched and ran (abandoning the disambiguation); `this` may be gone
+	pendingDisambig = std::move(savedPending);
+	DisplayAmbiguityQuestion(askAgain);
+}
+
 void Game::ProcessInput(const std::string &s) {
 	// Hold off any real-time tick until this command is finished with. A frontend that stops to
 	// ask the player something (a modal question, a file dialog) will keep servicing its timer
@@ -409,6 +552,15 @@ void Game::ProcessInput(const std::string &s) {
 		InputGuard() { inputInFlight = true; }
 		~InputGuard() { inputInFlight = false; }
 	} guard;
+
+	// A question we asked the player ("Which ball?") is still open: this line is their answer, not
+	// a fresh command. Route it to the resolver, which runs the held command once the reference is
+	// pinned down (or, if the answer is really a different command, runs that instead).
+	// (Careful: like the system-command path below, this can delete `this`.)
+	if (pendingDisambig) {
+		ResolveDisambiguation(s);
+		return;
+	}
 
 	currentCommand = ApplySynonyms(frontend->StrToLowerCase(s));
 
@@ -422,6 +574,11 @@ void Game::ProcessInput(const std::string &s) {
 		OutputFiltered("I didn't understand that sentence.\n");
 		return;
 	}
+
+	// The command may refer to an object ambiguously ("take ball" with a red and a green ball both
+	// present). If so, ask the player which they mean and hold the command until their next line
+	// answers -- asking is not a turn, so no undo state is recorded and the world does not move on.
+	if (BeginDisambiguationIfNeeded(chosenTask)) return;
 
 	// Whatever changes the game world counts as a turn and gets a state recorded for UNDO to
 	// return to. That is every task, and -- among the system commands -- WAIT alone, which
