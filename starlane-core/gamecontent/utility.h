@@ -173,6 +173,11 @@ const std::string &DirectionsRegexAlternation();
 // used as a Location's exit key (e.g. "North", "NorthEast"). Returns "" if not recognized.
 std::string CanonicalizeDirection(const std::string &raw);
 
+// Split the text captured by a plural reference ("the plates and a ration bar") into the
+// individual things it names. Entries keep their articles; it is the object-matching regexes'
+// job to cope with those.
+std::vector<std::string> SplitObjectList(const std::string &s);
+
 // Take an ADRIFT-style textual list (e.g., "foo|bar|baz") and turn it into a vector of strings.
 inline std::vector<std::string> SplitList(const std::string &lst) { return SplitString(lst, "\\|"); }
 // and the same for splitting a string at each newline:

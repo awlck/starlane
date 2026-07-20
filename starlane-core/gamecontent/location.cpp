@@ -38,6 +38,12 @@ Location *Location::CreateFromXML(const pugi::xml_node &xmlNode) {
 }
 
 std::string Location::GetDisplayName([[maybe_unused]] bool defArt) const {
+	// A location's name is ADRIFT's "ShortLocationDescription" property, so a location group can
+	// supply one for all its members ("At the Bottom of the Ocean" for four ocean locations that
+	// each carry only a bookkeeping name of their own). A group's value wins, as it does for
+	// every other property.
+	if (const Group *grp = GetGroupWithProp("ShortLocationDescription"))
+		return Game::Get()->GetDescription((DescrRef) grp->GetIntProp("ShortLocationDescription"))->Build();
 	if (locationName == (DescrRef) 0)
 		return "(BUG: Location without a name.)";
 	return Game::Get()->GetDescription(locationName)->Build();

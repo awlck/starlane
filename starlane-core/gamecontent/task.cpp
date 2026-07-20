@@ -124,6 +124,38 @@ bool ContainsMandatoryText(const std::string_view &block) {
 	return false;
 }
 
+// Sentinel characters standing in for regex fragments that a wildcard expands to. They survive
+// EscapeForRegex untouched (unlike the fragments themselves), and are swapped back in afterwards.
+constexpr char kWcOpen = '\x01';   // "(?:"
+constexpr char kWcClose = '\x02';  // ")?"
+constexpr char kWcAny = '\x03';    // ".*?"
+
+void ReplaceAll(std::string &s, const std::string &from, const std::string &to) {
+	for (size_t pos = 0; (pos = s.find(from, pos)) != std::string::npos; pos += to.size())
+		s.replace(pos, from.size(), to);
+}
+
+// Expand ADRIFT's command wildcards (`*`, matching any run of words, and `_`, an explicit space)
+// the way ConvertToRE does: as a plain textual substitution over the whole command, before it is
+// broken into blocks. A wildcard next to a space swallows that space when it matches nothing, so
+// "listen *" accepts a bare "listen".
+std::string ExpandWildcards(const std::string &cmd) {
+	std::string s = cmd;
+	const std::string open(1, kWcOpen), close(1, kWcClose), any(1, kWcAny);
+	ReplaceAll(s, " * ", " " + open + any + " " + close);
+	ReplaceAll(s, "* ", open + any + " " + close);
+	ReplaceAll(s, " *", open + " " + any + close);
+	ReplaceAll(s, "*", any);
+	ReplaceAll(s, "_", " ");
+	return s;
+}
+
+void RestoreWildcards(std::string &s) {
+	ReplaceAll(s, std::string(1, kWcOpen), "(?:");
+	ReplaceAll(s, std::string(1, kWcClose), ")?");
+	ReplaceAll(s, std::string(1, kWcAny), ".*?");
+}
+
 std::string ProcessBlock(std::string_view block) {  //NOLINT(misc-no-recursion)
 	std::string_view nextBlock;
 	std::string result;
@@ -271,6 +303,10 @@ Task *Task::CreateFromXML(Game *g, const pugi::xml_node &xmlNode) {
 	// means "Before" -- not the "After" that the in-editor default suggests.
 	if (STREQ(xmlNode.child_value("MessageBeforeOrAfter"), "After"))
 		result->messagePlacement = MessagePlacement::After;
+	// In ADRIFT 5 this is a plain boolean ("keep looking at lower-priority tasks even though this
+	// one ran"), despite the enum-looking values it carries over from version 4: only
+	// "ContinueAlways" means anything, and the tag is only written out in that case.
+	result->alwaysContinue = STREQ(xmlNode.child_value("Continue"), "ContinueAlways");
 	if (result->type == Type::System) {
 		// Both are only written out when set, and only mean anything on a System task -- which is
 		// the one kind with no command of its own to be matched against.
@@ -301,7 +337,8 @@ Task *Task::CreateFromXML(Game *g, const pugi::xml_node &xmlNode) {
 		}
 		result->commandRegexes.reserve(commandStrs.size());
 		for (const auto &cmd: commandStrs) {
-			auto transformed = ProcessBlock(cmd);
+			auto transformed = ProcessBlock(ExpandWildcards(cmd));
+			RestoreWildcards(transformed);
 #ifndef NDEBUG
 			std::cout << "Converted \"" << cmd << "\" to \"" << transformed << "\".\n";
 #endif
@@ -766,6 +803,7 @@ void Task::Action::Perform() const {
 static inline constexpr GameObj::HoldingType ActionTypeToHoldingType(Task::ActionType t) {
 	switch (t) {
 	case Task::ActionType::MoveToLocation:
+	case Task::ActionType::MoveToLocationOf:
 		return GameObj::HoldingType::AtLocation;
 	case Task::ActionType::MoveInsideObj:
 	case Task::ActionType::MakeCarriedBy:
@@ -850,7 +888,10 @@ void Task::Action::PerformImpl() const {
 		PerformMoveTo(rhs);
 		break;
 	case ActionType::MoveToLocationOf:
-		PerformMoveTo(g->GetObject(rhs)->GetParentKey());
+		// "to the same location as X": the room X is ultimately in, not whatever immediately holds
+		// it -- a thing in someone's pocket still puts you in the room, not the pocket.
+		if (const GameObj *other = g->GetObject(rhs))
+			PerformMoveTo(other->GetLocationKey());
 		break;
 	case ActionType::MoveToParent:  // moving a character "up" one level
 		{
@@ -903,7 +944,7 @@ void Task::Action::PerformImpl() const {
 		auto grp = g->GetGroup(rhs);
 		switch (refType) {
 		case ActionRefType::SingleObj:
-			g->GetObject(lhs)->MoveTo(rhs, ActionTypeToHoldingType(type));
+			if (auto *o = g->GetObject(lhs)) (grp->*addOrRemove)(o);
 			break;
 		case ActionRefType::ObjsHeldBy:
 		case ActionRefType::ObjsInside:
@@ -1155,10 +1196,13 @@ void Task::Action::PerformImpl() const {
 	case Starlane::Task::ActionType::ConvoLeave:
 		break;
 	case Starlane::Task::ActionType::GameWin:
+		g->EndGame(Game::Ending::Win);
 		break;
 	case Starlane::Task::ActionType::GameLose:
+		g->EndGame(Game::Ending::Lose);
 		break;
 	case Starlane::Task::ActionType::GameEndNeutral:
+		g->EndGame(Game::Ending::Neutral);
 		break;
 	case Starlane::Task::ActionType::GameContinue:
 		break;

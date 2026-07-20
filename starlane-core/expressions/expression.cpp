@@ -109,6 +109,26 @@ std::map<std::string, decltype(&Expression::LCaseImpl)> Expression::tableOfBuilt
 	{ "Theobjects", &Expression::TheObjectImpl },
 	{ "theobjects", &Expression::TheObjectImpl },
 	{ "THEOBJECTS", &Expression::TheObjectImpl },
+	{ "ListHeld", &Expression::ListHeldImpl },
+	{ "Listheld", &Expression::ListHeldImpl },
+	{ "listheld", &Expression::ListHeldImpl },
+	{ "LISTHELD", &Expression::ListHeldImpl },
+	{ "ListWorn", &Expression::ListWornImpl },
+	{ "Listworn", &Expression::ListWornImpl },
+	{ "listworn", &Expression::ListWornImpl },
+	{ "LISTWORN", &Expression::ListWornImpl },
+	{ "ListObjectsIn", &Expression::ListObjectsInImpl },
+	{ "Listobjectsin", &Expression::ListObjectsInImpl },
+	{ "listobjectsin", &Expression::ListObjectsInImpl },
+	{ "LISTOBJECTSIN", &Expression::ListObjectsInImpl },
+	{ "ListObjectsOnAndIn", &Expression::ListObjectsOnAndInImpl },
+	{ "Listobjectsonandin", &Expression::ListObjectsOnAndInImpl },
+	{ "listobjectsonandin", &Expression::ListObjectsOnAndInImpl },
+	{ "LISTOBJECTSONANDIN", &Expression::ListObjectsOnAndInImpl },
+	{ "ListCharactersOnAndIn", &Expression::ListCharactersOnAndInImpl },
+	{ "Listcharactersonandin", &Expression::ListCharactersOnAndInImpl },
+	{ "listcharactersonandin", &Expression::ListCharactersOnAndInImpl },
+	{ "LISTCHARACTERSONANDIN", &Expression::ListCharactersOnAndInImpl },
 	{ "CharacterName", &Expression::CharacterNameImpl },
 	{ "Charactername", &Expression::CharacterNameImpl },
 	{ "charactername", &Expression::CharacterNameImpl },
@@ -321,6 +341,12 @@ Expr::Value Expression::ResolveNameToValue(const std::string &nt) const {
 		return Game::Get()->GetReference(nt);
 	} else if (Util::IsReference('%' + nt + '%')) {
 		return Game::Get()->GetReference('%' + nt + '%');
+	}
+	// A user-defined function that takes no arguments is written as a bare "%name%", which reads
+	// as a name rather than as a call. (Return to the Stars names its rifle "%riflename%".)
+	if (const UserFunction *udf = Game::Get()->GetUserFuncByName(nt)) {
+		if (udf->Signature().empty())
+			return udf->Evaluate({});
 	}
 	auto theVar = Game::Get()->GetVarByName(nt);
 	// A name that is neither a reference nor a variable is nothing we can evaluate. Say so
@@ -618,7 +644,8 @@ Expr::Value Expression::EvalItemfunc(Expr::Value obj, const ast_node_tag *toCall
 		return std::count(subject.begin(), subject.end(), '|') + 1;
 	}
 	if (toCall_.Str == "List") {
-		if (subject.empty()) return std::string();
+		// An empty list still has a name: ADRIFT writes it out as "nothing".
+		if (subject.empty()) return std::string("nothing");
 		return WriteListImpl(subject, args);
 	}
 	if (toCall_.Str == "Sum") {
@@ -671,21 +698,7 @@ Expr::Value Expression::EvalItemfuncSingle(const std::string &key, const Expr::V
 		if (!theObj) return std::string();
 		if (toCall_.Str == "Children") return ObjChildrenImpl(theObj, args);
 		if (toCall_.Str == "Contents") return ObjContentsImpl(theObj, args);
-		if (toCall_.Str == "Name") {
-			// ADRIFT's %object%.Name defaults to the *definite* article ("the red ball"); an
-			// explicit "(indefinite)" argument switches to "a/an" (see Global.vb, Case "Name" ->
-			// clsObject.FullName). We long defaulted to the indefinite form, the opposite of ADRIFT.
-			// Other arguments (e.g. the character-only "(Force)" pronoun form) fall through to the
-			// definite default, which is what the standard library's bare "%object%.Name" wants.
-			bool definite = true;
-			if (args != nullptr && args->arity >= 1) {
-				auto arg = EvalAnyNode(args->child.first);
-				Expr::EnsureString(arg);
-				if (Util::ToLower(arg.Str).find("indefinite") != std::string::npos)
-					definite = false;
-			}
-			return theObj->GetDisplayName(definite);
-		}
+		if (toCall_.Str == "Name") return ObjNameImpl(theObj, args);
 		if (toCall_.Str == "Description") return theObj->GetDescription();
 		if (toCall_.Str == "Location") return theObj->GetLocationKey();
 		if (toCall_.Str == "Parent") return theObj->GetParentKey();

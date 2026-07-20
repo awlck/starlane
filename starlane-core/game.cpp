@@ -25,6 +25,14 @@
 namespace Starlane {
 
 namespace {
+// Drop the marker Description::Build puts at the seam between description parts. It exists only to
+// keep auto-capitalisation from treating an appended part as a new sentence; it is not text, and no
+// game text reaches a frontend with it still in.
+void StripSeamMarkers(std::string &s) {
+	for (size_t pos = 0; (pos = s.find("<>", pos)) != std::string::npos; )
+		s.erase(pos, 2);
+}
+
 // Raise the lowercase letter starting each sentence, so that games can write their messages
 // without worrying where the text will end up ("%CharacterName% get[//s] out of
 // %TheObject[%object%]%." is meant to read "You get out of the cell air duct.", and
@@ -241,13 +249,19 @@ void Game::Begin() {
 			}
 		}
 	}
-	if (staticData->gameIntro != 0)
-		frontend->OutputText(GetDescription(staticData->gameIntro)->Build().c_str());
+	if (staticData->gameIntro != 0) {
+		std::string intro = GetDescription(staticData->gameIntro)->Build();
+		StripSeamMarkers(intro);
+		frontend->OutputText(intro.c_str());
+	}
 	// As in ADRIFT: the initial room description, if the game asks for one, follows the intro
 	// rather than being left for the player's first LOOK.
 	if (staticData->showFirstLocation) {
-		if (auto *loc = dynamic_cast<Location *>(GetObject(GetPlayerLocationKey())))
-			frontend->OutputText(("\n" + loc->GetDescription()).c_str());
+		if (auto *loc = dynamic_cast<Location *>(GetObject(GetPlayerLocationKey()))) {
+			std::string desc = "\n" + loc->GetDescription();
+			StripSeamMarkers(desc);
+			frontend->OutputText(desc.c_str());
+		}
 	}
 	// Must come after taskCompletedStorage is populated above: an immediate, zero-length event
 	// fires its subevents from inside Start(), those run tasks, and a task asking whether it has
@@ -285,6 +299,26 @@ void Game::Begin() {
 	for (const auto &key : staticData->objectLoadOrder)
 		if (auto *c = dynamic_cast<Character *>(objects.at(key)))
 			c->StartActiveWalks();
+}
+
+void Game::EndGame(Ending how) {
+	if (!gameHasBegun) return;  // already over; the first ending is the one that counts
+	switch (how) {
+	case Ending::Win:
+		OutputFiltered("<center><c><b>*** You have won ***</b></c></center>\n");
+		break;
+	case Ending::Lose:
+		OutputFiltered("<center><c><b>*** You have lost ***</b></c></center>\n");
+		break;
+	case Ending::Neutral:
+		// A neutral ending announces itself only through whatever the task itself said.
+		break;
+	}
+	// TODO: ADRIFT goes on taking input at this point, accepting exactly these four commands.
+	OutputFiltered("Would you like to <c>restart</c>, <c>restore</c> a saved game, <c>quit</c> or "
+	               "<c>undo</c> the last command?\n\n");
+	// Everything else keys off this: no more turns, no more events, no more input.
+	gameHasBegun = false;
 }
 
 void Game::TurnTick() {
@@ -613,7 +647,15 @@ void Game::OutputFiltered(std::string s) const {
 	// override to match text as the player finally sees it, capital and all.
 	if (AutoCapitalize(s))
 		applyOverrides(s);
+	StripSeamMarkers(s);
+	if (s.empty()) return;
+	// Successive messages within one turn run together otherwise: ADRIFT's Display() puts two
+	// spaces between them unless what came before already ended a line (see pSpace).
+	if (turnHasOutput && !endsWithNewline)
+		frontend->OutputText("  ");
 	frontend->OutputText(s.c_str());
+	turnHasOutput = true;
+	endsWithNewline = s.back() == '\n';
 }
 
 }

@@ -137,7 +137,30 @@ std::vector<std::string> Game::MatchListForReference(const std::string &from, co
 	return result;
 }
 
+void Game::BindReference(std::unordered_map<std::string, std::string> &refs,
+                         const std::string &ref, const std::string &value) {
+	auto [family, suffix] = SplitRefName(ref);
+	// Store under the name from this task's own Command pattern (e.g. "%object1%"),
+	// which is what that task's own restriction/message text will refer to it as...
+	refs[Util::CanonicalizeRefName(ref)] = value;
+	// ...as well as under ADRIFT's generic, position-based name (e.g. "ReferencedObject1"),
+	// which is what library restrictions shared across many tasks use instead.
+	std::string alias = GenericAliasFamily(family);
+	if (!alias.empty())
+		refs[Util::CanonicalizeRefName(alias + suffix)] = value;
+	// "%object%" and "%object1%" name the same, first reference, and a task is free to use one
+	// in its Command and the other in its messages -- the library's "open objects" task does
+	// exactly that. Register both spellings, generic name included.
+	if (suffix.empty() || suffix == "1") {
+		const std::string other = suffix.empty() ? "1" : "";
+		refs[Util::CanonicalizeRefName('%' + family + other + '%')] = value;
+		if (!alias.empty())
+			refs[Util::CanonicalizeRefName(alias + other)] = value;
+	}
+}
+
 bool Game::CaptureReferences(const std::vector<std::string> &refSpecs, const std::smatch &matches) {
+	currentRefLists.clear();
 	for (size_t i = 0; i < refSpecs.size(); i++) {
 		const std::string &ref = refSpecs[i];
 		std::string raw = matches[i + 1].str();
@@ -151,9 +174,33 @@ bool Game::CaptureReferences(const std::vector<std::string> &refSpecs, const std
 			// May resolve to "" if somehow not a recognized direction word; that's fine,
 			// restrictions/messages relying on it will simply see an empty reference.
 			resolved = Util::CanonicalizeDirection(raw);
+		} else if (family == "objects" || family == "characters") {
+			// A plural reference can name several things at once ("take the plates and the ration
+			// bar"). Each one is resolved separately, and the task runs once per thing; see
+			// ExecuteMatchedTask. The reference itself starts out bound to the first of them.
+			const auto pieces = Util::SplitObjectList(raw);
+			if (pieces.empty()) return false;
+			std::vector<std::string> items;
+			for (const auto &piece : pieces) {
+				auto matchList = MatchListForReference(piece, family);
+				if (matchList.empty()) return false;
+				if (pieces.size() == 1) {
+					// The ordinary case: one thing named, which may still be named ambiguously.
+					// Record it exactly as a singular reference does, so that "take ball" with two
+					// balls present asks rather than silently picking one -- "take" is spelled
+					// %objects% in the standard library, so this is the path it goes down.
+					currentRefMatches[Util::CanonicalizeRefName(ref)] = {raw, matchList};
+				}
+				items.push_back(matchList.front());
+			}
+			resolved = items.front();
+			// TODO: when the player really does name several things, each is resolved to its first
+			// match without asking. Disambiguation is per-reference, and one plural reference can
+			// be ambiguous in more than one of its items at once, which it has no way to hold.
+			if (items.size() > 1)
+				currentRefLists.emplace_back(ref, std::move(items));
 		} else {
-			// Objects, characters, locations, items, and their plurals: resolve the raw text
-			// to an actual game object.
+			// Objects, characters, locations, items: resolve the raw text to an actual game object.
 			auto matchList = MatchListForReference(raw, family);
 			if (matchList.empty()) return false;
 			// Take the first match as the provisional resolution so restrictions can be checked,
@@ -164,14 +211,7 @@ bool Game::CaptureReferences(const std::vector<std::string> &refSpecs, const std
 			currentRefMatches[Util::CanonicalizeRefName(ref)] = {raw, std::move(matchList)};
 		}
 
-		// Store under the name from this task's own Command pattern (e.g. "%object1%"),
-		// which is what that task's own restriction/message text will refer to it as...
-		currentRefs[Util::CanonicalizeRefName(ref)] = resolved;
-		// ...as well as under ADRIFT's generic, position-based name (e.g. "ReferencedObject1"),
-		// which is what library restrictions shared across many tasks use instead.
-		std::string alias = GenericAliasFamily(family);
-		if (!alias.empty())
-			currentRefs[Util::CanonicalizeRefName(alias + suffix)] = resolved;
+		BindReference(currentRefs, ref, resolved);
 	}
 	return true;
 }
@@ -183,6 +223,13 @@ Task *Game::FindMatchingTask() {
 	std::vector<std::string> fallbackRefTokens;
 	std::unordered_map<std::string, std::string> fallbackRefs;
 	std::unordered_map<std::string, RefMatchInfo> fallbackRefMatches;
+	std::vector<std::pair<std::string, std::vector<std::string>>> fallbackRefLists;
+	// The highest-priority task whose command matched but whose %ref%s named nothing the game
+	// knows. If nothing better turns up, ADRIFT runs this one anyway (its sNoRefTask) so that its
+	// own "must exist" restriction can say something useful -- "Launch what?" beats "I didn't
+	// understand that sentence."
+	Task *noRefTask = nullptr;
+	std::vector<std::string> noRefTokens;
 
 	for (Task *task : staticData->prioOrderedTasks) {
 		if (task->GetType() != Task::Type::General) continue;
@@ -200,7 +247,13 @@ Task *Game::FindMatchingTask() {
 			// actually typed.
 			currentRefs.clear();
 			currentRefMatches.clear();
-			if (!CaptureReferences(groupCoding[cmdIdx], matches)) continue;
+			if (!CaptureReferences(groupCoding[cmdIdx], matches)) {
+				if (!noRefTask) {
+					noRefTask = task;
+					noRefTokens = groupCoding[cmdIdx];
+				}
+				continue;
+			}
 
 			auto result = task->Eligible();
 			// A task that fails restrictions with no message at all isn't a real candidate
@@ -221,6 +274,7 @@ Task *Game::FindMatchingTask() {
 				fallbackRefTokens = groupCoding[cmdIdx];
 				fallbackRefs = currentRefs;
 				fallbackRefMatches = currentRefMatches;
+				fallbackRefLists = currentRefLists;
 			}
 		}
 	}
@@ -229,8 +283,18 @@ Task *Game::FindMatchingTask() {
 		currentRefs = std::move(fallbackRefs);
 		currentMatchedRefTokens = std::move(fallbackRefTokens);
 		currentRefMatches = std::move(fallbackRefMatches);
+		currentRefLists = std::move(fallbackRefLists);
+		return fallback;
 	}
-	return fallback;
+	if (noRefTask) {
+		// Nothing was resolved, so nothing is ambiguous either: run the task on empty references
+		// and let its own restrictions do the talking.
+		currentRefs.clear();
+		currentRefMatches.clear();
+		currentRefLists.clear();
+		currentMatchedRefTokens = std::move(noRefTokens);
+	}
+	return noRefTask;
 }
 
 const std::vector<Task *> &Game::GetSpecificChildren(const std::string &generalKey) const {
@@ -264,17 +328,23 @@ bool Game::SpecificTaskMatches(const Task *specific, const std::vector<std::stri
 	return true;
 }
 
-void Game::RunTaskAndCapture(Task *task, bool showText, bool runActions) {
+bool Game::RunTaskAndCapture(Task *task, bool showText, bool runActions) {
 	task->MarkCompleted();
 	bool msgFirst = task->GetMessagePlacement() == Task::MessagePlacement::Before;
-	if (msgFirst && showText && task->GetCompletionMsg() != 0)
-		OutputFiltered(GetDescription(task->GetCompletionMsg())->Build());
+	bool anyText = false;
+	auto emit = [&] {
+		if (!showText || task->GetCompletionMsg() == 0) return;
+		std::string text = GetDescription(task->GetCompletionMsg())->Build();
+		if (!text.empty()) anyText = true;
+		OutputFiltered(std::move(text));
+	};
+	if (msgFirst) emit();
 	// Actions run between (or after/before) the message output points above/below, so that a
 	// nested "Execute" action's own output interleaves in true chronological order rather than
 	// being buffered and flushed out of order relative to this task's own message.
 	if (runActions) task->RunActions();
-	if (!msgFirst && showText && task->GetCompletionMsg() != 0)
-		OutputFiltered(GetDescription(task->GetCompletionMsg())->Build());
+	if (!msgFirst) emit();
+	return anyText;
 }
 
 void Game::ExecuteTaskByKey(const std::string &key, const std::vector<std::string> &args) {
@@ -352,62 +422,91 @@ void Game::RunTriggeredTasks() {
 }
 
 void Game::ExecuteMatchedTask(Task *general) {
-	auto parentResult = general->CheckRestrictions();
-	if (!parentResult.first) {
-		OutputFiltered(parentResult.second != 0 ? GetDescription(parentResult.second)->Build() : "You can't do that right now.\n");
-		return;
+	// "Take the plates and the ration bar" is two takes: ADRIFT runs the whole task once per thing
+	// a plural reference named, so each gets its own restrictions checked and its own Specific
+	// overrides applied. The references are bound to one combination at a time, cycling through
+	// every combination when a command carries more than one plural reference.
+	std::vector<size_t> indices(currentRefLists.size(), 0);
+	for (;;) {
+		for (size_t i = 0; i < currentRefLists.size(); i++)
+			BindReference(currentRefs, currentRefLists[i].first, currentRefLists[i].second[indices[i]]);
+
+		auto parentResult = general->CheckRestrictions();
+		if (!parentResult.first)
+			OutputFiltered(parentResult.second != 0 ? GetDescription(parentResult.second)->Build() : "You can't do that right now.\n");
+		else
+			RunTaskWithSpecifics(general, currentMatchedRefTokens);
+
+		// Advance to the next combination, odometer-style; stop once they have all been run.
+		size_t pos = currentRefLists.size();
+		while (pos > 0) {
+			--pos;
+			if (++indices[pos] < currentRefLists[pos].second.size()) break;
+			indices[pos] = 0;
+			if (pos == 0) return;
+		}
+		if (currentRefLists.empty()) return;
 	}
-	RunTaskWithSpecifics(general, currentMatchedRefTokens);
 }
 
 void Game::RunTaskWithSpecifics(Task *general, const std::vector<std::string> &refTokens) {
 	// The general task's restrictions have passed; see whether any of its Specific children apply.
-	// At most one "before/override" child and one "after" child are ever considered -- the
-	// first (highest-priority) one, in each group, whose per-reference constraints match.
-	Task *beforeChild = nullptr;
-	Task *afterChild = nullptr;
-	for (Task *child : GetSpecificChildren(general->Key())) {
-		if (!SpecificTaskMatches(child, refTokens)) continue;
-		if (child->GetOverrideType().Has(Task::OverrideType::AfterParent)) {
-			if (!afterChild) afterChild = child;
-		} else {
-			if (!beforeChild) beforeChild = child;
-		}
-		if (beforeChild && afterChild) break;
-	}
+	// Children are visited in priority order and, in ADRIFT, more than one may run: the chain
+	// stops at the first child that both ran (or spoke up about failing) and had something to
+	// say, unless that child is explicitly marked "continue to execute lower priority tasks".
+	// So "before crawl through duct" (which just moves the player in) runs, and then the real
+	// "crawl through duct" below it still gets its turn.
+	std::vector<Task *> afterChildren;
 
 	bool showParentText = true;
 	bool runParentActions = true;
 
-	if (beforeChild) {
-		auto overrideType = beforeChild->GetOverrideType();
-		auto childResult = beforeChild->CheckRestrictions();
-		bool childHadSomethingToSay = childResult.first;
+	for (Task *child : GetSpecificChildren(general->Key())) {
+		if (!SpecificTaskMatches(child, refTokens)) continue;
+		auto overrideType = child->GetOverrideType();
+		if (overrideType.Has(Task::OverrideType::AfterParent)) {
+			afterChildren.push_back(child);
+			continue;
+		}
+		auto childResult = child->CheckRestrictions();
+		bool childHadSomethingToSay = false;
 		if (childResult.first) {
-			RunTaskAndCapture(beforeChild);
+			childHadSomethingToSay = RunTaskAndCapture(child);
+			// A child that ran suppresses whichever parts of the parent it says it replaces,
+			// whether or not it printed anything.
+			if (!overrideType.Has(Task::OverrideType::ParentText)) showParentText = false;
+			if (!overrideType.Has(Task::OverrideType::ParentActions)) runParentActions = false;
 		} else if (childResult.second != 0) {
 			// The child failed, but produced restriction-failure text of its own: that takes
 			// precedence over the parent, same as if the child had passed.
-			OutputFiltered(GetDescription(childResult.second)->Build());
-			childHadSomethingToSay = true;
+			std::string text = GetDescription(childResult.second)->Build();
+			childHadSomethingToSay = !text.empty();
+			OutputFiltered(std::move(text));
+			if (childHadSomethingToSay) {
+				if (!overrideType.Has(Task::OverrideType::ParentText)) showParentText = false;
+				if (!overrideType.Has(Task::OverrideType::ParentActions)) runParentActions = false;
+			}
 		}
-		// A child that neither ran nor produced any message is treated as if it hadn't
-		// matched at all, and the parent proceeds completely normally.
-		if (childHadSomethingToSay) {
-			if (!overrideType.Has(Task::OverrideType::ParentText)) showParentText = false;
-			if (!overrideType.Has(Task::OverrideType::ParentActions)) runParentActions = false;
-		}
+		// A child that neither ran nor produced any message is treated as if it hadn't matched at
+		// all, and we keep looking; so is one that ran silently.
+		if (childHadSomethingToSay && !child->AlwaysContinues())
+			break;
 	}
 
 	RunTaskAndCapture(general, showParentText, runParentActions);
 
-	if (afterChild) {
-		auto childResult = afterChild->CheckRestrictions();
+	for (Task *child : afterChildren) {
+		auto childResult = child->CheckRestrictions();
+		bool childHadSomethingToSay = false;
 		if (childResult.first) {
-			RunTaskAndCapture(afterChild);
+			childHadSomethingToSay = RunTaskAndCapture(child);
 		} else if (childResult.second != 0) {
-			OutputFiltered(GetDescription(childResult.second)->Build());
+			std::string text = GetDescription(childResult.second)->Build();
+			childHadSomethingToSay = !text.empty();
+			OutputFiltered(std::move(text));
 		}
+		if (childHadSomethingToSay && !child->AlwaysContinues())
+			break;
 	}
 }
 
@@ -459,7 +558,8 @@ bool Game::BeginDisambiguationIfNeeded(Task *chosen) {
 		if (it == currentRefMatches.end() || it->second.candidates.size() <= 1) continue;
 		// This reference matched several objects: hold the whole command, ask about this one, and
 		// let the player's next line resolve it (see ResolveDisambiguation).
-		pendingDisambig = PendingDisambig{chosen, currentMatchedRefTokens, currentRefs, currentRefMatches};
+		pendingDisambig = PendingDisambig{chosen, currentMatchedRefTokens, currentRefs,
+		                                 currentRefMatches, currentRefLists};
 		DisplayAmbiguityQuestion(it->second);
 		return true;
 	}
@@ -486,12 +586,7 @@ void Game::ResolveDisambiguation(const std::string &answer) {
 	if (!narrowed.empty()) {
 		// The answer picked out one or more of the candidates: adopt it as this reference's value.
 		ambInfo->candidates = std::move(narrowed);
-		std::string canon = Util::CanonicalizeRefName(ambToken);
-		pd.refs[canon] = ambInfo->candidates.front();
-		auto [family, suffix] = SplitRefName(ambToken);
-		std::string alias = GenericAliasFamily(family);
-		if (!alias.empty())
-			pd.refs[Util::CanonicalizeRefName(alias + suffix)] = ambInfo->candidates.front();
+		BindReference(pd.refs, ambToken, ambInfo->candidates.front());
 
 		// Still ambiguous (the answer narrowed but didn't settle it)? Keep asking about this one.
 		if (ambInfo->candidates.size() > 1) {
@@ -510,6 +605,9 @@ void Game::ResolveDisambiguation(const std::string &answer) {
 		Task *task = pd.task;
 		currentRefs = std::move(pd.refs);
 		currentMatchedRefTokens = std::move(pd.refTokens);
+		// Restored along with the references: answering may have run FindMatchingTask (when an
+		// earlier answer turned out to name no candidate), which repopulates the live list.
+		currentRefLists = std::move(pd.refLists);
 		pendingDisambig.reset();
 		SaveUndo();
 		ExecuteMatchedTask(task);
@@ -552,6 +650,11 @@ void Game::ProcessInput(const std::string &s) {
 		InputGuard() { inputInFlight = true; }
 		~InputGuard() { inputInFlight = false; }
 	} guard;
+
+	// Every line the player types starts a fresh block of output, whether it turns out to be a
+	// command or the answer to a question we asked; there is nothing to separate its first
+	// message from.
+	turnHasOutput = false;
 
 	// A question we asked the player ("Which ball?") is still open: this line is their answer, not
 	// a fresh command. Route it to the resolver, which runs the held command once the reference is

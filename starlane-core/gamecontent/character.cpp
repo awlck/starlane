@@ -15,6 +15,10 @@ Character *Character::CreateFromXML(const pugi::xml_node &xmlNode) {
 	auto result = new Character;
 	result->MakeCommonValues(xmlNode);
 	result->properName = xmlNode.child_value("Name");
+	// A character's parser nouns are its descriptors ("me", "myself", "guard"); unlike an object,
+	// its <Name> is the proper name, handled separately.
+	for (const auto &it : xmlNode.children("Descriptor"))
+		result->nouns.emplace_back(it.child_value());
 	result->description = Game::Get()->CreateDescFromXML(xmlNode.child("Description"));
 
 	auto ht = ParseHoldingType(result->GetStrProp("CharacterLocation").c_str());
@@ -33,6 +37,7 @@ Character *Character::CreateFromXML(const pugi::xml_node &xmlNode) {
 		result->walks.push_back(Walk::CreateFromXML(w, result->key));
     // TODO: Conversation
 
+	result->CompileNameExpressions();
 	result->MakeMatchExpr();
 	return result;
 }
@@ -141,18 +146,20 @@ std::string Character::GetPossessionsList(Starlane::Character::PossessionFilter 
 	std::string result;
 	size_t count = 0;
 	auto *g = Game::Get();
-	for (const auto &obj: g->GetAllObjects()) {
-		if (obj.second->GetParentKey() != key) continue;
-		if (pf == PossessionFilter::Worn && obj.second->GetParentRelation() != GameObj::HoldingType::Worn)
+	// Load order, not hash order: this list is shown to the player. See GetListOfChildren.
+	for (const auto &objKey: g->GetObjectLoadOrder()) {
+		GameObj *obj = g->GetObject(objKey);
+		if (!obj || obj->GetParentKey() != key) continue;
+		if (pf == PossessionFilter::Worn && obj->GetParentRelation() != GameObj::HoldingType::Worn)
 			continue;
-		if (pf == PossessionFilter::Held && obj.second->GetParentRelation() != GameObj::HoldingType::InObject)
+		if (pf == PossessionFilter::Held && obj->GetParentRelation() != GameObj::HoldingType::InObject)
 			continue;
 		if (count++ > 0)
 			result += '|';
-		result += obj.first;
+		result += objKey;
 
 		if (recurse) {
-			auto tmp = obj.second->GetListOfChildren(GameObj::ChildFilter::All, GameObj::ChildRelFilter::OnAndIn, true);
+			auto tmp = obj->GetListOfChildren(GameObj::ChildFilter::All, GameObj::ChildRelFilter::OnAndIn, true);
 			if (!tmp.empty()) {
 				result += '|';
 				result += tmp;
@@ -219,43 +226,34 @@ bool Character::RestoreState(const Save::AstNode *node) {
 }
 
 void Character::MakeMatchExpr() {
-	std::string baseExpr("(?:");
-	baseExpr += article;
-	baseExpr += " )?";
-	if (!prefix.empty()) {
-		baseExpr += "(?:";
-		auto prefixes = Util::SplitString(prefix, " ");
+	std::string baseExpr(ArticleRegexFragment(article));
+	baseExpr += PrefixRegexFragment(prefix);
+
+	// A character answers to its descriptors ("me", "myself", "old man") whether or not it is
+	// known; being known only adds the proper name on top. A character with no descriptors at all
+	// answers to its proper name regardless, or it could not be referred to.
+	auto buildExpr = [&](const std::vector<std::string> &names) {
+		std::string expr(baseExpr);
+		expr += "(?:(?:";
 		size_t count = 0;
-		for (const auto &pref : prefixes) {
+		for (const auto &n : names) {
 			if (++count != 1)
-				baseExpr += "|";
-			baseExpr += pref;
+				expr += "|";
+			expr += n;
 		}
-		baseExpr += " )*";
-	}
+		expr += ") ?)+";
+		return std::regex(expr, std::regex_constants::icase);
+	};
 
-	std::string unknownExpr(baseExpr);
-	unknownExpr += "(?:(?:";
-	size_t count = 0;
-	for (const auto &n : nouns) {
-		if (++count != 1)
-			unknownExpr += "|";
-		unknownExpr += n;
-	}
-	unknownExpr += ") ?)+";
-	matchRegex = std::regex(unknownExpr, std::regex_constants::icase);
-
-	std::string knownExpr(baseExpr);
-	knownExpr += "(?:(?:";
-	count = 0;
 	auto properNameComponents = Util::SplitString(properName, " ");
-	for (const auto &n : properNameComponents) {
-		if (++count != 1)
-			knownExpr += "|";
-		knownExpr += n;
-	}
-	knownExpr += ") ?)+";
-	matchWhenKnownRegex = std::regex(knownExpr, std::regex_constants::icase);
+	std::vector<std::string> unknownNames(nouns);
+	if (unknownNames.empty())
+		unknownNames = properNameComponents;
+	matchRegex = buildExpr(unknownNames);
+
+	std::vector<std::string> knownNames(nouns);
+	knownNames.insert(knownNames.end(), properNameComponents.begin(), properNameComponents.end());
+	matchWhenKnownRegex = buildExpr(knownNames);
 }
 
 }

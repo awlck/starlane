@@ -10,6 +10,17 @@ std::vector<std::string> Starlane::Util::SplitString(const std::string &s, const
 	return { first, last };
 }
 
+std::vector<std::string> Starlane::Util::SplitObjectList(const std::string &s) {
+	std::vector<std::string> result;
+	for (auto &piece : SplitString(s, R"(\s*,\s*|\s+and\s+)")) {
+		// A trailing "," before "and" ("a, b, and c") leaves an empty piece behind.
+		size_t first = piece.find_first_not_of(" \t");
+		if (first == std::string::npos) continue;
+		result.push_back(piece.substr(first, piece.find_last_not_of(" \t") - first + 1));
+	}
+	return result;
+}
+
 namespace Starlane::Util {
 namespace {
 

@@ -29,6 +29,10 @@ public:
 
 	[[nodiscard]] ValueType Type() const { return type; }
 	[[nodiscard]] const std::string &Key() const { return key; }
+	// The property whose state list this one's states are folded into, if any: "LockStatus" only
+	// adds a "Locked" state to "OpenStatus" rather than standing on its own. Such a property is
+	// never the answer to "is this object in state X?" -- the property it appends to is.
+	[[nodiscard]] const std::string &AppendsTo() const { return appendTo; }
 
 private:
 	Property() = default;
@@ -36,6 +40,7 @@ private:
 	ValueType type = ValueType::ErrorType;
 	std::string key;
 	std::string desc;
+	std::string appendTo;
 
 	std::vector<std::string> enumValues;
 	std::unordered_map<int32_t, std::string> mapValues;

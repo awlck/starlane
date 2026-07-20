@@ -134,22 +134,30 @@ std::string LanguageNumber(int64_t num, bool f = false) {
 			}
 		}
 
+		// Not every list holds object keys: a location's Exits, for one, is a list of direction
+		// names, which have no object to look up and are simply written out as they stand.
+		const auto *obj = Game::Get()->GetObject(entries[i]);
+
 		switch (transform) {
 		case ListTransformType::IndefName:
 		case ListTransformType::DefName:
-			result += Game::Get()->GetObject(entries[i])->GetDisplayName(transform == ListTransformType::DefName);
-			// Displaying a thing's name to the player means the player has now seen it.
-			// (This is how, e.g., the contents of a just-opened container become "seen".)
-			if (auto *pc = dynamic_cast<Character *>(Game::Get()->GetPlayerChar()))
-				pc->MarkSeen(entries[i]);
+			if (obj) {
+				result += obj->GetDisplayName(transform == ListTransformType::DefName);
+				// Displaying a thing's name to the player means the player has now seen it.
+				// (This is how, e.g., the contents of a just-opened container become "seen".)
+				if (auto *pc = dynamic_cast<Character *>(Game::Get()->GetPlayerChar()))
+					pc->MarkSeen(entries[i]);
+				break;
+			}
+			// A direction name is written in lower case, as ADRIFT's own direction-list branch does.
+			result += Util::ToLower(entries[i]);
 			break;
 		case ListTransformType::None:
 			result += entries[i];
 			break;
 		}
 
-		if (recurse) {
-			const auto *obj = Game::Get()->GetObject(entries[i]);
+		if (recurse && obj) {
 			auto on = obj->GetListOfChildren(GameObj::ChildFilter::All, GameObj::ChildRelFilter::On, false);
 			auto in = obj->GetListOfChildren(GameObj::ChildFilter::All, GameObj::ChildRelFilter::In, false);
 
@@ -365,6 +373,60 @@ Expr::Value Expression::TheObjectImpl(const ast_node_tag *args) const {
 	return Expr::WriteListFrom(theArg.Str, Expr::ListTransformType::DefName, Expr::ListJoinType::And, false);
 }
 
+// The %List...[key]% family: each names a thing and writes out some set of objects related to it,
+// with indefinite articles and joined by "and" -- or the word "nothing" when the set is empty.
+Expr::Value Expression::ListRelatedImpl(const ast_node_tag *args, ListRelation rel) const {
+	CHECK_ARGCOUNT("List...", 1);
+	EXTRACT_FIRST_ARG_STR(args, theArg);
+	auto *g = Game::Get();
+	std::string keys;
+	switch (rel) {
+	case ListRelation::Held:
+	case ListRelation::Worn: {
+		const auto *ch = dynamic_cast<const Character *>(g->GetObject(theArg.Str));
+		if (!ch) return std::string("nothing");
+		keys = ch->GetPossessionsList(rel == ListRelation::Worn ? Character::PossessionFilter::Worn
+		                                                        : Character::PossessionFilter::Held,
+		                              false);
+		break;
+	}
+	case ListRelation::ObjectsIn:
+	case ListRelation::ObjectsOnAndIn:
+	case ListRelation::CharactersOnAndIn: {
+		const auto *obj = g->GetObject(theArg.Str);
+		if (!obj) return std::string("nothing");
+		auto filter = rel == ListRelation::CharactersOnAndIn ? GameObj::ChildFilter::Characters
+		                                                     : GameObj::ChildFilter::Objects;
+		auto relFilter = rel == ListRelation::ObjectsIn ? GameObj::ChildRelFilter::In
+		                                                : GameObj::ChildRelFilter::OnAndIn;
+		keys = obj->GetListOfChildren(filter, relFilter, false);
+		break;
+	}
+	}
+	if (keys.empty()) return std::string("nothing");
+	return Expr::WriteListFrom(keys, Expr::ListTransformType::IndefName, Expr::ListJoinType::And, false);
+}
+
+Expr::Value Expression::ListHeldImpl(const ast_node_tag *args) const {
+	return ListRelatedImpl(args, ListRelation::Held);
+}
+
+Expr::Value Expression::ListWornImpl(const ast_node_tag *args) const {
+	return ListRelatedImpl(args, ListRelation::Worn);
+}
+
+Expr::Value Expression::ListObjectsInImpl(const ast_node_tag *args) const {
+	return ListRelatedImpl(args, ListRelation::ObjectsIn);
+}
+
+Expr::Value Expression::ListObjectsOnAndInImpl(const ast_node_tag *args) const {
+	return ListRelatedImpl(args, ListRelation::ObjectsOnAndIn);
+}
+
+Expr::Value Expression::ListCharactersOnAndInImpl(const ast_node_tag *args) const {
+	return ListRelatedImpl(args, ListRelation::CharactersOnAndIn);
+}
+
 Expr::Value Expression::CharacterNameImpl(const ast_node_tag *args) const {
 	CHECK_ARGCOUNT_V("CharacterName", 0, 2);
 	auto g = Game::Get();
@@ -566,6 +628,25 @@ Expr::Value Expression::ValImpl(const ast_node_tag *args) const {
 	}
 }
 
+// `obj.Name` -- and, optionally, `obj.Name(indefinite)` / `obj.Name(none)`. ADRIFT's default here
+// is the *definite* article ("the cell air duct"), not the indefinite one the object carries.
+Expr::Value Expression::ObjNameImpl(const GameObj *obj, const ast_node_tag *args) const {
+	if (args == nullptr || args->arity == 0)
+		return obj->GetDisplayName(true);
+	CHECK_ARGCOUNT_V("object.Name", 0, 3);
+	// The arguments may come in any order, and only the article ones mean anything here.
+	std::string txt;
+	for (const ast_node_tag *arg = args->child.first; arg; arg = arg->sibling.next) {
+		auto tmp = EvalAnyNode(arg);
+		Expr::EnsureString(tmp);
+		txt += Util::ToLower(tmp.Str);
+		txt += ' ';
+	}
+	if (txt.find("indefinite") != std::string::npos) return obj->GetDisplayName(false);
+	if (txt.find("none") != std::string::npos) return obj->GetBareName();
+	return obj->GetDisplayName(true);
+}
+
 Expr::Value Expression::ObjChildrenImpl(const GameObj *obj, const ast_node_tag *args) const {
 	if (args == nullptr || args->arity == 0)
 		return obj->GetListOfChildren();
@@ -706,7 +787,11 @@ Expr::Value Expression::WriteListImpl(const std::string &lst, const ast_node_tag
 		}
 	}
 
-	return Expr::WriteListFrom(lst, transformType, joinType, recurse);
+	std::string result = Expr::WriteListFrom(lst, transformType, joinType, recurse);
+	// ADRIFT's `.List` never comes out blank: an empty list reads as "nothing", so that
+	// "...and are carrying %Player%.Held.List." is a sentence either way.
+	if (result.empty()) return std::string("nothing");
+	return result;
 }
 
 }

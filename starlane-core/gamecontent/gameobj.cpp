@@ -54,8 +54,30 @@ GameObj *GameObj::CreateFromXML(const pugi::xml_node &xmlNode) {
             result->parent = Game::Get()->GetReference(result->parent);
     }
 
+	result->CompileNameExpressions();
 	result->MakeMatchExpr();
 	return result;
+}
+
+void GameObj::CompileNameExpressions() {
+	auto *g = Game::Get();
+	// A name component is ordinary text that may have %function% calls embedded in it, exactly
+	// like a description -- so let the description machinery deal with it.
+	if (prefix.find('%') != std::string::npos)
+		prefixExpr = g->CreateDescFromText(prefix);
+	if (!nouns.empty() && nouns[0].find('%') != std::string::npos)
+		nameExpr = g->CreateDescFromText(nouns[0]);
+}
+
+std::string GameObj::DisplayPrefix() const {
+	if (prefixExpr == 0) return prefix;
+	return Game::Get()->GetDescription(prefixExpr)->Build(false);
+}
+
+std::string GameObj::DisplayNoun() const {
+	if (nouns.empty()) return "";
+	if (nameExpr == 0) return nouns[0];
+	return Game::Get()->GetDescription(nameExpr)->Build(false);
 }
 
 std::string GameObj::GetDisplayName(bool defArt) const {
@@ -64,11 +86,18 @@ std::string GameObj::GetDisplayName(bool defArt) const {
 		result = defArt ? "the" : article;
 		result += ' ';
 	}
-	if (!prefix.empty()) {
-		result += prefix;
+	result += GetBareName();
+	return result;
+}
+
+std::string GameObj::GetBareName() const {
+	std::string result;
+	std::string pfx = DisplayPrefix();
+	if (!pfx.empty()) {
+		result += pfx;
 		result += ' ';
 	}
-	result += nouns[0];
+	result += DisplayNoun();
 	return result;
 }
 
@@ -147,32 +176,35 @@ std::string GameObj::GetListOfChildren(GameObj::ChildFilter f1, GameObj::ChildRe
 	std::string result;
 	size_t count = 0;
 	auto *g = Game::Get();
-	for (const auto &obj: g->GetAllObjects()) {
-		if (obj.second->GetParentKey() != key) continue;
-		if (f1 == ChildFilter::Objects && dynamic_cast<Character *>(obj.second))
+	// In the order the game file lists them: that is the order ADRIFT itself writes lists in, and
+	// the player sees it ("a set of fatigues and a pair of boots", not the other way around).
+	for (const auto &childKey: g->GetObjectLoadOrder()) {
+		GameObj *child = g->GetObject(childKey);
+		if (!child || child->GetParentKey() != key) continue;
+		if (f1 == ChildFilter::Objects && dynamic_cast<Character *>(child))
 			continue;
-		if (f1 == ChildFilter::Characters && !dynamic_cast<Character *>(obj.second))
+		if (f1 == ChildFilter::Characters && !dynamic_cast<Character *>(child))
 			continue;
 		switch (f2) {
 			case ChildRelFilter::On:
-				if (obj.second->relation != HoldingType::OnObject)
+				if (child->relation != HoldingType::OnObject)
 					continue;
 				break;
 			case ChildRelFilter::In:
-				if (obj.second->relation != HoldingType::InObject)
+				if (child->relation != HoldingType::InObject)
 					continue;
 				break;
 			case ChildRelFilter::OnAndIn:
-				if (obj.second->relation != HoldingType::InObject && obj.second->relation != HoldingType::OnObject)
+				if (child->relation != HoldingType::InObject && child->relation != HoldingType::OnObject)
 					continue;
 				break;
 		}
 		if (count++ > 0)
 			result += '|';
-		result += obj.first;
+		result += childKey;
 
 		if (recurse) {
-			std::string tmp = obj.second->GetListOfChildren(f1, f2, true);
+			std::string tmp = child->GetListOfChildren(f1, f2, true);
 			if (!tmp.empty()) {
 				result += '|';
 				result += tmp;
@@ -349,21 +381,33 @@ const std::unordered_map<std::string, int64_t> &GameObj::GetAllIntProps() const 
 	return hackyIntPropCache;
 }
 
-void GameObj::MakeMatchExpr() {
-	std::string expr("(?:");
-	expr += article;
-	expr += " )?";
-	if (!prefix.empty()) {
-		expr += "(?:";
-		auto prefixes = Util::SplitString(prefix, " ");
-		size_t count = 0;
-		for (const auto &pref : prefixes) {
-			if (++count != 1)
-				expr += "|";
-			expr += pref;
-		}
-		expr += " )*";
+// Mirrors ADRIFT's sRegularExpressionString.
+std::string ArticleRegexFragment(const std::string &article) {
+	std::string result("(?:");
+	if (!article.empty() && Util::ToLower(article) != "the") {
+		result += article;
+		result += " |";
 	}
+	result += "the )?";
+	return result;
+}
+
+std::string PrefixRegexFragment(const std::string &prefix) {
+	// Each word of the prefix is separately optional, so "the larger alien's corpse" and the
+	// shorter "the larger corpse" both name the same thing. (ADRIFT builds it the same way.)
+	std::string result;
+	for (const auto &word : Util::SplitString(prefix, " ")) {
+		if (word.empty()) continue;
+		result += "(?:";
+		result += word;
+		result += " )?";
+	}
+	return result;
+}
+
+void GameObj::MakeMatchExpr() {
+	std::string expr(ArticleRegexFragment(article));
+	expr += PrefixRegexFragment(prefix);
 	expr += "(?:(?:";
 	size_t count = 0;
 	for (const auto &n : nouns) {

@@ -213,6 +213,11 @@ size_t Game::CreateDescFromXML(const pugi::xml_node &descNode) {
 	return descriptionsSoFar;
 }
 
+size_t Game::CreateDescFromText(const std::string &text) {
+	descriptions[++descriptionsSoFar] = Description::CreateFromText(text);
+	return descriptionsSoFar;
+}
+
 void Game::CreateObjFromXML(const pugi::xml_node &objNode) {
 	auto result = GameObj::CreateFromXML(objNode);
 	assert(result);

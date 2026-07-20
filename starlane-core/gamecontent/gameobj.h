@@ -20,6 +20,12 @@ class Location;
 
 // GameObj is the base for everything that exists within the game world
 // (physical or otherwise).
+// The optional article a player's command may put in front of a thing's name: the thing's own
+// ("a rifle") or the definite one, which fits anything ("the rifle").
+std::string ArticleRegexFragment(const std::string &article);
+// The optional prefix words ("larger alien's"), each one skippable on its own.
+std::string PrefixRegexFragment(const std::string &prefix);
+
 class GameObj: public PropHolder {
 public:
 	std::string GetStrProp(const std::string &key) const override;
@@ -43,6 +49,8 @@ public:
 	const std::string &GetParentKey() const { return parent; }
 
 	virtual std::string GetDisplayName(bool defArt = false) const;
+	// The same name with no article at all ("cell air duct"), as `obj.Name(none)` asks for.
+	[[nodiscard]] std::string GetBareName() const;
 	virtual std::string GetDescription(bool forDisplay = true) const;
 
 	// Note that this object is becoming a member of the given group.
@@ -141,6 +149,16 @@ protected:
 	// A regular expression that matches this object's name.
 	std::regex matchRegex;
 	virtual void MakeMatchExpr();
+
+	// A name component can itself hold a %function% call -- Return to the Stars names its rifle
+	// "%riflename%" so that the name can carry an "(unloaded)" suffix. Compiled once at load and
+	// evaluated whenever the name is shown; 0 when the component is plain text.
+	DescrRef prefixExpr = 0;
+	DescrRef nameExpr = 0;
+	void CompileNameExpressions();
+	// The prefix and first noun as the player should see them, with any such call resolved.
+	[[nodiscard]] std::string DisplayPrefix() const;
+	[[nodiscard]] std::string DisplayNoun() const;
 
 	const Group *GetGroupWithProp(const std::string &k) const;
 

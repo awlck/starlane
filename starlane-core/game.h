@@ -103,6 +103,7 @@ public:
 
 	static Game *LoadFromXML(const std::string &gameTxt, uint32_t crc32);
 	DescrRef CreateDescFromXML(const pugi::xml_node &descNode);
+	DescrRef CreateDescFromText(const std::string &text);
 	RestrRef CreateRestrictionsFromXML(const pugi::xml_node &restrNode);
 	PlainTextRef StorePlainTextSnippet(const std::string &snip);
 	PlainTextRef StorePlainTextSnippet(std::string_view snip);
@@ -238,6 +239,15 @@ public:
 	uint32_t GetChecksum() const { return staticData->gameCrc32; }
 
 	bool IsGameOngoing() const { return gameHasBegun; }
+
+	// How a game can stop. A task's "end the game" action says which; the player is told, and no
+	// further input is taken (the frontend's own loop notices via GameIsOngoing).
+	enum class Ending {
+		Win,
+		Lose,
+		Neutral
+	};
+	void EndGame(Ending how);
 	uint32_t GetBlorbResource(const std::string &path) const {
 		auto f = staticData->blorbResMap.find(path);
 		if (f == staticData->blorbResMap.cend()) return -1;
@@ -291,6 +301,11 @@ private:
 	// Returns false if some reference could not be resolved to anything (e.g. an %object%
 	// referring to an object that doesn't exist), meaning the task cannot apply after all.
 	bool CaptureReferences(const std::vector<std::string> &refSpecs, const std::smatch &matches);
+	// Bind one %ref% (and its equivalent spellings) to a resolved key, in the given table.
+	// Also used to apply a disambiguation answer, which resolves into a held table rather than
+	// into currentRefs.
+	static void BindReference(std::unordered_map<std::string, std::string> &refs,
+	                          const std::string &ref, const std::string &value);
 	// For each object/character %ref% captured, the raw text the player typed for it and the full
 	// list of object keys that text could refer to (see currentRefMatches / pendingDisambig).
 	struct RefMatchInfo {
@@ -332,7 +347,9 @@ private:
 	// executions triggered by this task's own actions (e.g. a chained "Execute" action).
 	// `showText`/`runActions` let a Specific task's OverrideType selectively suppress either
 	// half of its General parent's own execution.
-	void RunTaskAndCapture(Task *task, bool showText = true, bool runActions = true);
+	// Returns whether it actually printed anything, which decides whether lower-priority tasks
+	// matching the same command still get a look in.
+	bool RunTaskAndCapture(Task *task, bool showText = true, bool runActions = true);
 	// Give every event of the matching kind (real-time or turn-based) one tick. Both TurnTick
 	// and Tick come through here; `realTime` is what tells the two populations apart.
 	// (A bool rather than an Event::TimeType because game.h only forward-declares Event.)
@@ -375,6 +392,9 @@ private:
 	// by the most recent successful match in FindMatchingTask -- needed to test the matched
 	// task's Specific children against currentRefs positionally.
 	std::vector<std::string> currentMatchedRefTokens;
+	// Plural references ("%objects%") that the player's command bound to more than one thing, as
+	// (reference name, resolved keys). ExecuteMatchedTask runs the task once per combination.
+	std::vector<std::pair<std::string, std::vector<std::string>>> currentRefLists;
 
 	// For each object/character %ref% captured, the raw text the player typed for it and the full
 	// list of object keys that text could refer to. currentRefs keeps only the first of those (the
@@ -393,6 +413,9 @@ private:
 		std::vector<std::string> refTokens;                     // = currentMatchedRefTokens at the time
 		std::unordered_map<std::string, std::string> refs;      // resolutions so far (provisional for the ambiguous ones)
 		std::unordered_map<std::string, RefMatchInfo> refMatches; // raw text + remaining candidates, keyed like currentRefMatches
+		// = currentRefLists at the time. Held because answering can run FindMatchingTask (when the
+		// answer turns out to be a command of its own), which repopulates the live one.
+		std::vector<std::pair<std::string, std::vector<std::string>>> refLists;
 	};
 	std::optional<PendingDisambig> pendingDisambig;
 
@@ -413,6 +436,12 @@ private:
 	static bool inputInFlight;
 
 	bool gameHasBegun = false;
+
+	// Output separation within a turn: whether anything has been printed yet, and whether it ended
+	// a line. See OutputFiltered -- two messages in the same turn are separated by two spaces
+	// unless the earlier one already broke the line. Mutable because OutputFiltered is const.
+	mutable bool turnHasOutput = false;
+	mutable bool endsWithNewline = false;
 
 	size_t descriptionsSoFar = 0;
 	size_t restrictionsSoFar = 0;
