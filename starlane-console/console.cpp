@@ -49,11 +49,18 @@ std::string StrToSentenceCase(const std::string &s) {
 	return result;
 }
 
+// Read one line, dropping a trailing CR so that command files saved on Windows work as-is.
+std::istream &ReadLine(std::istream &in, std::string &line) {
+	if (std::getline(in, line) && !line.empty() && line.back() == '\r')
+		line.pop_back();
+	return in;
+}
+
 bool AskYesNo(const char *question) {
 	std::string answer;
 	for (;;) {
 		std::cout << question << " (y/n) " << std::flush;
-		if (!std::getline(*gInput, answer)) return false;  // no more input: assume "no"
+		if (!ReadLine(*gInput, answer)) return false;  // no more input: assume "no"
 		answer = StrToLowerCase(answer);
 		if (answer == "y" || answer == "yes") return true;
 		if (answer == "n" || answer == "no") return false;
@@ -67,14 +74,14 @@ void QuitGame() {
 void *CreateSaveFile() {
 	std::cout << "Save file name: " << std::flush;
 	std::string path;
-	if (!std::getline(*gInput, path) || path.empty()) return nullptr;
+	if (!ReadLine(*gInput, path) || path.empty()) return nullptr;
 	return std::fopen(path.c_str(), "wb");
 }
 
 void *OpenSaveFile() {
 	std::cout << "Restore from file: " << std::flush;
 	std::string path;
-	if (!std::getline(*gInput, path) || path.empty()) return nullptr;
+	if (!ReadLine(*gInput, path) || path.empty()) return nullptr;
 	return std::fopen(path.c_str(), "rb");
 }
 
@@ -173,8 +180,11 @@ int main(int argc, char **argv) {
 
 	std::string line;
 	while (Starlane::GameIsOngoing()) {
-		std::cout << "> " << std::flush;
-		if (!std::getline(*gInput, line)) break;
+		std::cout << "\n> " << std::flush;
+		if (!ReadLine(*gInput, line)) break;
+		// When input is scripted, echo it: the transcript is otherwise unreadable, since
+		// nothing else records which command produced which output.
+		if (gInput != &std::cin) std::cout << line << std::endl;
 		Starlane::ProcessInput(line);
 	}
 
