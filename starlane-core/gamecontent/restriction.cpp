@@ -1,7 +1,6 @@
 #include "restriction.h"
 
 #include <algorithm>
-#include <iostream>
 #include <iterator>
 #include <stdexcept>
 #include <string.h>
@@ -474,9 +473,17 @@ bool Restriction::Single::PassObjectCond(const std::string &lhs, const std::stri
 	}
 	case ConditionType::InState:
 	{	// This can be the value of any Enum property, without actually naming the property we need to check...
+		// ...except one that merely appends its states to another's: "LockStatus" holds "Locked"
+		// on every object that has it, whether or not the object is actually locked, because the
+		// state that matters lives in "OpenStatus". ADRIFT skips those here for the same reason.
 		GameObj *l = g->GetObject(lhs);
-		return std::any_of(l->GetAllStrProps().cbegin(), l->GetAllStrProps().cend(), [&](const auto &p) {
-			return Game::Get()->GetPropMeta(p.first)->Type() == Property::ValueType::Enum && p.second == rhs;
+		// One call, one reference: GetAllStrProps rebuilds the cache it hands back, so taking
+		// begin() and end() from separate calls would compare iterators into different containers.
+		const auto &props = l->GetAllStrProps();
+		return std::any_of(props.cbegin(), props.cend(), [&](const auto &p) {
+			const Property *meta = Game::Get()->GetPropMeta(p.first);
+			return meta && meta->Type() == Property::ValueType::Enum && meta->AppendsTo().empty()
+				&& p.second == rhs;
 		});
 	}
 	case ConditionType::PartOf:
@@ -550,6 +557,7 @@ void Restriction::Single::Translate() {
 
 	// Figure out the condition we're dealing with.
 	bool reverseConditionSides = false;
+	const char *condStart = x;
 	GET_TOKEN;
 	if (tok == "SeenByCharacter" || tok == "HaveBeenSeenByCharacter") {
 		cond = ConditionType::SeenByChar;
@@ -632,12 +640,12 @@ void Restriction::Single::Translate() {
 		cond = ConditionType::WithinGroup;
 	} else if (tok == "BeComplete" || tok == "BeCompleted") {
 		cond = ConditionType::Complete;
-	} else if (propMeta && propMeta->Type() == Property::ValueType::Object) {
-		// Restrictions on object-valued properties are stored as "prop lhs Must/MustNot rhs", implying "must/must not be equal"
+	} else if (targetType == TargetType::Property) {
+		// ADRIFT only writes an explicit comparison keyword for property restrictions when it is
+		// something other than "equals"; "prop lhs Must/MustNot rhs" implies "must/must not equal".
+		// Rewind so the value below sees the whole remaining text, not just its tail.
 		cond = ConditionType::EqualTo;
-		rhs = tok;
-		rhsIsRef = Util::IsReference(rhs);
-		return;
+		x = condStart;
 	} else {
 		throw std::runtime_error("Unable to handle restriction text: " + restrText);
 	}
@@ -651,7 +659,8 @@ void Restriction::Single::Translate() {
 	// remaining text verbatim rather than handing it to the expression parser below. (Object-
 	// valued properties are already caught further up, before any condition keyword is matched;
 	// enum ones reach here because they carry an explicit "EqualTo".)
-	if (propMeta && propMeta->Type() == Property::ValueType::Enum) {
+	// The same goes for an object-valued property, which is compared against an object key.
+	if (propMeta && (propMeta->Type() == Property::ValueType::Enum || propMeta->Type() == Property::ValueType::Object)) {
 		while (*x && isspace((unsigned char) *x)) x++;
 		rhs = x;
 		while (!rhs.empty() && isspace((unsigned char) rhs.back())) rhs.pop_back();

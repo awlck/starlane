@@ -10,6 +10,7 @@ Property *Property::CreateFromXML(const pugi::xml_node &xmlNode) {
 	result->key = xmlNode.child_value("Key");
 	result->desc = xmlNode.child_value("Description");
 	result->type = ParseValueType(xmlNode.child_value("Type"));
+	result->appendTo = xmlNode.child_value("AppendTo");
 
 	if (result->type == ValueType::Enum) {
 		for (const auto &it: xmlNode.children("State")) {
