@@ -1,0 +1,677 @@
+Return to the Stars
+
+With his back against the proverbial wall, your commander ordered a somewhat daring raid on a Shwabolian outpost to break out of the strategic stalemate. Naturally, things didn't quite go as planned. Several members of your platoon were killed, and you were separated, captured, sedated, and taken to this prison... somewhere.
+ 
+Initially, you settled into a sort of routine: sleep, shower, eat, reconsider your life choices, the occasional questioning impeded by language barriers, and back to sleep again. But it has been three days since your captors last fed you – or given you any attention, really. If you are to leave this planet alive, you better find a way before you starve...
+
+Return to the Stars
+An Interactive Escape by Adrian Welcker (ADRIFT 5 Edition)
+Release 1 / Serial number 260718 / ADRIFT 5.0.0.36.6
+Content Warning: descriptions of gore and violence.
+
+
+Your Cell
+This is the room you have spent most of your time in, ever since being taken captive. To be honest, you've kind of lost track of how long that has been.  A cot stands in one corner of the room.  A metal door lies to the north, keeping you securely in the cell.  A small camera hangs above the cot, keeping a watchful eye on you.  A sanitary station – a sort of hybrid toilet-shower-sink – is built into a corner of the room.  
+
+> inventory
+You are wearing a set of fatigues and a pair of black leather combat boots, and are carrying nothing.
+
+> kick door
+That was among the first things you tried when you got here. You've given up trying by now.
+
+> look through door
+You peek through the small, scuffed up duraplast window into the corridor outside. It is empty.
+
+> listen
+It has been eerily quiet for a few days now. Gone are the footsteps, the occasional shouting, the idle chit-chat of the guards. Now you hear nothing but the faint noise of the ventilation system.
+
+> break camera
+Needless violence won't get you off this rock any faster.
+
+> pull grate
+With a groan of exertion, you pull the grate with enough force for the old welds to give way. You set the grate down on the ground.
+
+> crawl through duct
+(first getting into the cell air duct)
+You get into the air duct.  You crawl though the piping, air rushing past your face.
+
+
+Prison Installations Room
+You are lying in the in the bottom of the air duct, peeking out into the room:This is where most of the installations and appliances keeping the cell complex running reside.   A stiff breeze blows through this room, from the large machine on one wall, to the air ducts on the opposite wall.  
+
+A ladder leads up.  On one of the walls is a panel with a number of large switches on it.
+
+> kick grate
+You kick the old grate, making a hole large enough for a person to squeeze through.
+
+> out
+(out of the bottom air duct)
+You get out of the bottom air duct.
+
+> x panel
+A number of large rotary switches are attached to this panel. One is labeled "YVTUGF", the next "ZNTYBPX", a third "ZNTYBPX", and one is labeled "PBAGEBYF".
+
+> up
+You move up.
+
+Prison Control Room
+The walls are plastered with screens showing video feeds from throughout the facility. This must be the place from which the prisoners are monitored.
+
+A ladder leads down into the installations room, and a corridor leads south.
+A control desk and some screens are installed on the wall.  Your helmet is sitting on a table in the middle of the room, with a number of wires attached to it.
+
+> take helmet
+(from the table)
+You carefully disconnect the wires that connect the helmet to the computer systems in the room. Hopefully, your captors haven't messed anything up.
+
+Ok, you take the helmet from the table.
+
+> look under desk
+Looking under the control panel, you find a purple card, which you pocket.
+
+> s
+You move south.
+
+Corridor
+The featureless white corridor runs east-to-west, bending around a corner and out of sight to each end.
+
+The metal door leading to your cell is south. The control room lies around the corner to the west.  The metal door leading to your cell is south.
+
+> e
+You move east.
+
+Front Office
+This room is the entrance to the facility. You have no doubt that there would normally be at least one guard posted here, but at the moment it is empty.
+
+You could go east, into a small storage area, or south, back into the corridor.  The way out of the building, to the north, leads through what appears to be an airlock.
+
+> e
+You move east.
+
+Storage Space
+This small storage closet seems to be the place where inmates' possessions are stored. Bare-metal shelves line the walls.
+
+The only way out is west.
+
+> take plates and ration bar from shelves
+(donning the now-complete suit)
+You slip into the undersuit and latch the armored plates into place. As you slide on your helmet, the internal systems start up, informing you that everything is still in working order.  Ok, you take the ration bar from the bare metal shelves.
+
+> x me
+In your armored suit you almost look soldierly again.  You are wearing your set of battle armor, a set of fatigues and a pair of black leather combat boots.
+
+> taste ration bar
+As most ration bars tend to do, it tasted mostly like sugar, with some indeterminable artificial fruit mixed in.
+
+> eat it
+(the ration bar)
+You eat the ration bar. Not bad!
+
+> w
+You move west.
+
+Front Office
+This room is the entrance to the facility. You have no doubt that there would normally be at least one guard posted here, but at the moment it is empty.
+
+You could go east, into a small storage area, or south, back into the corridor.  The way out of the building, to the north, leads through what appears to be an airlock.
+
+> s
+You move south.
+
+Corridor
+The featureless white corridor runs east-to-west, bending around a corner and out of sight to each end.
+
+The metal door leading to your cell is south. The control room lies around the corner to the west, and the entry area lies around the corner to the south.  The metal door leading to your cell is south.
+
+> w
+You move west.
+
+Prison Control Room
+The walls are plastered with screens showing video feeds from throughout the facility. This must be the place from which the prisoners are monitored.
+
+A ladder leads down into the installations room, and a corridor leads south.
+A control desk and some screens are installed on the wall.  A table is standing in the middle of the room.
+
+> d
+You move down.
+
+Prison Installations Room
+This is where most of the installations and appliances keeping the cell complex running reside.   A stiff breeze blows through this room, from the large machine on one wall, to the air ducts on the opposite wall.  
+
+A ladder leads up, the air duct to your cell is on the northern wall.  On one of the walls is a panel with a number of large switches on it.
+
+> x panel
+A number of large rotary switches are attached to this panel. One is labeled "LIGHTS", the next "MAGLOCK", a third "MAGLOCK", and one is labeled "CONTROLS".
+
+> turn maglock off
+You switch off the MAGLOCK switch.
+
+> up
+You move up.
+
+Prison Control Room
+The walls are plastered with screens showing video feeds from throughout the facility. This must be the place from which the prisoners are monitored.
+
+A ladder leads down into the installations room, and a corridor leads south.
+A control desk and some screens are installed on the wall.  A table is standing in the middle of the room.
+
+> s
+You move south.
+
+Corridor
+The featureless white corridor runs east-to-west, bending around a corner and out of sight to each end.
+
+The metal door leading to your cell is south. The control room lies around the corner to the west, and the entry area lies around the corner to the south.  The metal door leading to your cell is south.
+
+> e
+You move east.
+
+Front Office
+This room is the entrance to the facility. You have no doubt that there would normally be at least one guard posted here, but at the moment it is empty.
+
+You could go east, into a small storage area, or south, back into the corridor.  The way out of the building, to the north, leads through what appears to be an airlock.
+
+> open airlock
+You open the airlock.
+
+> n
+You move north.
+
+Prison Antecourt
+A small courtyard lies outside the prison, which appears to be built on a small island.
+
+The way back into the prison is south, through the airlock. You are otherwise surrounded by water, but there are some docks allowing easy access to the east.  The airlock leading into the cell complex lies to the south.  an airlock.
+
+> e
+You move east.
+
+Prison Docks
+The prison is built on a tiny island in the ocean – presumably to make escaping more difficult. A small dock extends into the water, away from the rocky shoreline.
+
+The shore, populated with buildings, lies a few hundred meters to the north. The prison antecourt is to your west.
+
+> d
+You move down.
+It is too dark to make anything out clearly.
+
+> turn helmet lamp on
+You switch on the helmet lamp.  
+
+At the Bottom of the Ocean
+You are standing knee-deep in the silt at the bottom of the ocean. The rocky cliffs of the prison island lie to the south, the military complex is due north.
+
+> n
+You slowly trudge northward.
+
+
+At the Bottom of the Ocean
+You are standing knee-deep in the silt at the bottom of the ocean. The military complex is due north.
+
+> n
+You slowly trudge northward.
+
+
+At the Bottom of the Ocean
+You are standing knee-deep in the silt at the bottom of the ocean. The military complex is due north.
+
+> n
+You slowly trudge northward.
+
+
+At the Bottom of the Ocean
+You are standing knee-deep in the silt at the bottom of the ocean. The ground is sloping upwards to the north.
+
+> n
+You slowly make your way up the muddy incline – half walking, half crawling – until you finally reach dry land again.
+
+
+Shore Docks
+The shoreline here seems more like an extension of the ocean floor you just walked: a gradual incline, rather than a sharp drop. A dock extends into the water to allow loading and unloading boats without needing to drive them up against the shore. (Although no boats are to be seen.)
+You vaguely recall coming through here, weeks ago, sedated, a breathing mask strapped to your face...
+
+The prison buildings lie to the south, down the muddy incline and across the water, and the military complex continues to the north.
+
+> n
+You move north.
+
+Military Complex Plaza
+This base must be the heart of the operations – in this area, at least.
+
+There are several places you could go from here. The shoreline and the docks lie to the south. What looks like a hangar lies to the east, blocked off by a force field. A smaller building,  labeled "Barracks",  lies to the west, and a larger building with a sign reading "Command Center"  , blocked off by a door, lies to the north.  
+
+The wind picks up some leaves and blows them through the force field to the east.[*]
+
+> e
+A mud-stained leg[*] passes through the force field, but not more.
+
+> s
+You move south.
+
+Shore Docks
+The shoreline here seems more like an extension of the ocean floor you just walked: a gradual incline, rather than a sharp drop. A dock extends into the water to allow loading and unloading boats without needing to drive them up against the shore. (Although no boats are to be seen.)
+You vaguely recall coming through here, weeks ago, sedated, a breathing mask strapped to your face...
+
+The prison buildings lie to the south, down the muddy incline and across the water, and the military complex continues to the north.
+
+> roll in mud
+You lie down in the mud, rolling back and forth until you are confident that you are covered helmet-to-boots in a thick layer of the greyish-brown goo.
+
+> eat it
+(the muddy incline)
+If your squadmates were here, you would probably challenge each other to try a faceful, but being silly just isn't the same when you're alone.
+
+> n
+You move north.
+
+Military Complex Plaza
+This base must be the heart of the operations – in this area, at least.
+
+There are several places you could go from here. The shoreline and the docks lie to the south. What looks like a hangar lies to the east, blocked off by a force field. A smaller building,  labeled "Barracks",  lies to the west, and a larger building with a sign reading "Command Center"  , blocked off by a door, lies to the north.  
+
+The force field to the east gives off a faint blue glow.[*]
+
+> e
+Your mud-covered body passes through the force field with little resistance.
+
+Hangar
+This large, cavernous space is where dropships and other small craft can be stored when not in use. It is currently empty, except for a messenger ship.  
+
+You could go north, through the launch doors and onto the landing pad,
+
+The launch doors leading north are closed. You can go west, through the force field and back to the plaza, or up to the control room.  
+
+A small bird flies through the force field and off to the west.[*]
+
+> up
+You move up.
+
+Control Tower
+You are standing in a room built into the wall near the ceiling of the cavernous hangar. Normally, no craft would enter or leave the airspace around the facility without the approval of the air-traffic controllers on duty here, but now it is deserted.
+
+The only way out is down, back into the hangar.  A desk festooned with screens and buttons is mounted below the window.
+
+> switch force field off
+You switch off the FORCE FIELD switch.
+
+> switch launch doors off
+You flip the switch, and the large doors separating the hangar from the launch pad slide open.
+
+> down
+You move down.
+
+Hangar
+This large, cavernous space is where dropships and other small craft can be stored when not in use. It is currently empty, except for a messenger ship.  
+
+You could go north, through the launch doors and onto the landing pad,
+
+The launch doors leading north are closed. You can go west, through the force field and back to the plaza, or up to the control room.  Also here is a force field.
+
+> w
+You move west.
+
+Military Complex Plaza
+This base must be the heart of the operations – in this area, at least.
+
+There are several places you could go from here. The shoreline and the docks lie to the south. The hangar lies to the east. A smaller building,  labeled "Barracks",  lies to the west, and a larger building with a sign reading "Command Center"  , blocked off by a door, lies to the north.  Also here is a force field.
+
+> w
+You move west.
+
+Mess Hall
+This is the entry area to what must be the barracks of this place. The area near the entrance is set up like a mess hall, with tables and counters, while the back of the room is set up more casually, with some pillows on the floor and even a couch. You've never seen a couch on a remote outpost like this in your life.
+
+You could go east, back outside, or west, further into the building.
+
+> x couch
+It's not a particularly nice couch – it looks rather old and worn – but still: it's a freakin' couch! How the hell did they get a couch out here?!
+
+> sit on couch
+You sit on the couch.
+
+> stand out of couch
+You are not inside the couch!
+
+> get up
+(the couch)
+You get off of the couch.
+
+> w
+You move west.
+
+Barracks
+You are standing in the sleeping area of the barracks. Like the entire facility so far, the room is designed in a very utilitarian manner, with no decoration or personal touches.
+
+You can go east, back to the mess hall, or south, further into the building.
+
+> s
+You move south.
+
+Communal Washroom
+This would be the place where the garrison force (if one can call it that, given the size of the facility) takes care of personal hygiene. It is a sterile-looking room, white tiles covering the floor and the walls all the way up to the ceiling. Four sinks and mirrors are installed on one wall, four toilets on another, the remaining two have two showers each. It doesn't seem like the Shwabolians care a whole lot about privacy, seeing as there are no dividers of any kind in the room.
+
+The only way out is north, back to the barracks.
+
+> shower
+You turn on one of the showers and let the water run over you. The mud slides off your gear and collects on the floor before finding its way down the drain.
+
+> n
+You move north.
+
+Barracks
+You are standing in the sleeping area of the barracks. Like the entire facility so far, the room is designed in a very utilitarian manner, with no decoration or personal touches.
+
+You can go east, back to the mess hall, or south, into the washroom.
+
+> e
+You move east.
+
+Mess Hall
+This is the entry area to what must be the barracks of this place. The area near the entrance is set up like a mess hall, with tables and counters, while the back of the room is set up more casually, with some pillows on the floor and even a couch. You've never seen a couch on a remote outpost like this in your life.
+
+You could go east, back outside, or west, further into the building.
+
+> e
+You move east.
+
+Military Complex Plaza
+This base must be the heart of the operations – in this area, at least.
+
+There are several places you could go from here. The shoreline and the docks lie to the south. The hangar lies to the east. A smaller building,  labeled "Barracks",  lies to the west, and a larger building with a sign reading "Command Center"  , blocked off by a door, lies to the north.  Also here is a force field.
+
+> n
+You move north.
+
+Entry Hallway
+This is the entry area into the base's command center, where those in charge would no doubt hold briefings, discuss command decisions, and do other important officer things. (In all your years of military service, you've never felt a desire to move up into the office ranks yourself, even though there were plenty of open spots in the newly-unified military.)
+
+A small armory is to the west, and the hallway continues to the north. The way out is south, through the door.
+
+> w
+You move west.
+
+Armory
+This "armory" is really more of a glorified storage closet: it is just large enough to hold a rather flimsy storage rack and an ammo crate.
+
+The only way out is east, back to the hallway.
+
+> take rifle and ammo clips
+(from the storage rack)
+Ok, you take the rifle from the storage rack.  (from the ammo crate)
+3 ammo clips: Taken.
+
+> load rifle
+You slide the clip into the rifle's magazine well and chamber a round.
+
+> e
+You move east.
+
+Entry Hallway
+This is the entry area into the base's command center, where those in charge would no doubt hold briefings, discuss command decisions, and do other important officer things. (In all your years of military service, you've never felt a desire to move up into the office ranks yourself, even though there were plenty of open spots in the newly-unified military.)
+
+A small armory is to the west, and the hallway continues to the north. The way out is south, through the door.
+
+> n
+You move north.
+
+Command Center Lobby
+You are standing in a sparsely furnished lobby. Some chairs are lined up on a wall, but that's about it.
+
+A briefing room is to the east, what appears to be the ops center lies to the north, and the hallway leading back to the entrance is south.  
+
+You can hear subdued talking coming from the room to the north.
+
+> n
+You move north.
+
+Ops Center
+This appears to be the nerve center of the operation – whatever that may be. The walls are lined with screens and control surfaces, but most of them seem to be inactive.
+
+The only way out is south, back into the lobby.  A larger alien and a smaller alien are here.  As you enter the room, the larger alien hastily pulls a small device out of the control panel and swallows it. Then, the two reach for their weapons!  The larger alien zeros in on you and discharges a volley in your direction!   His aim is way off and the shot embeds itself into the wall behind you.[*]
+
+[* Note: the entire combat segment is randomized and may need multiple attempts to get through, depending on the random seed.]
+
+> shoot larger alien
+I don't understand what you want to do with a larger alien.
+
+> shoot larger alien with rifle
+You fire a three-shot burst from the rifle at a larger alien,   dropping himself where he stands.  The smaller alien cocks his weapon and discharges a volley in your direction!   His aim is way off and the shot embeds itself into the wall behind you.[*]
+
+> shoot smaller alien with rifle
+You fire a three-shot burst from the rifle at a smaller alien,   dropping himself where he stands.
+
+> look
+
+Ops Center
+This appears to be the nerve center of the operation – whatever that may be. The walls are lined with screens and control surfaces, but most of them seem to be inactive.
+
+The only way out is south, back into the lobby.  Also here is the larger alien's body and the smaller alien's body.
+
+> s
+You move south.
+
+Command Center Lobby
+You are standing in a sparsely furnished lobby. Some chairs are lined up on a wall, but that's about it.
+
+A briefing room is to the east, the ops center lies to the north, and the hallway leading back to the entrance is south.
+
+> s
+You move south.
+
+Entry Hallway
+This is the entry area into the base's command center, where those in charge would no doubt hold briefings, discuss command decisions, and do other important officer things. (In all your years of military service, you've never felt a desire to move up into the office ranks yourself, even though there were plenty of open spots in the newly-unified military.)
+
+A small armory is to the west, and the hallway continues to the north. The way out is south, through the door.
+
+> w
+You move west.
+
+Armory
+This "armory" is really more of a glorified storage closet: it is just large enough to hold a rather flimsy storage rack and an ammo crate.
+
+The only way out is east, back to the hallway.
+
+> make a makeshift knife from the shelf
+You pull apart the frame of the shelf, giving you a piece of metal with a rather sharp edge.
+
+> e
+You move east.
+
+Entry Hallway
+This is the entry area into the base's command center, where those in charge would no doubt hold briefings, discuss command decisions, and do other important officer things. (In all your years of military service, you've never felt a desire to move up into the office ranks yourself, even though there were plenty of open spots in the newly-unified military.)
+
+A small armory is to the west, and the hallway continues to the north. The way out is south, through the door.
+
+> n
+You move north.
+
+Command Center Lobby
+You are standing in a sparsely furnished lobby. Some chairs are lined up on a wall, but that's about it.
+
+A briefing room is to the east, the ops center lies to the north, and the hallway leading back to the entrance is south.
+
+> n
+You move north.
+
+Ops Center
+This appears to be the nerve center of the operation – whatever that may be. The walls are lined with screens and control surfaces, but most of them seem to be inactive.
+
+The only way out is south, back into the lobby.  Also here is the larger alien's body and the smaller alien's body.
+
+> cut larger alien's corpse with knife
+You double-check inside the creature's mouth, but no dice. With a sigh, you kneel down in the puddle of blood now surrounding the body. You carefully position the makeshift knife, plunging it deep into the dead creature's abdominal area; guts, blood, and other bodily fluids spilling out and onto your armored legs as you cut.
+With the incision complete, you take a second to steel yourself before reaching into the abdominal cavity. After a minute or so of fishing around in the bloody soup, you find the object of your desire: a small data crypt, which the creature swallowed when you came into the room. It appears to be undamaged.
+
+You feel like throwing up.
+
+> x larger corpse
+A well and truly dead Shwabolian. Its lizard appendages lie splayed out in all directions. He is looking a bit worse for wear after you extracted the data crypt from inside him.
+
+> s
+You move south.
+
+Command Center Lobby
+You are standing in a sparsely furnished lobby. Some chairs are lined up on a wall, but that's about it.
+
+A briefing room is to the east, the ops center lies to the north, and the hallway leading back to the entrance is south.
+
+> s
+You move south.
+
+Entry Hallway
+This is the entry area into the base's command center, where those in charge would no doubt hold briefings, discuss command decisions, and do other important officer things. (In all your years of military service, you've never felt a desire to move up into the office ranks yourself, even though there were plenty of open spots in the newly-unified military.)
+
+A small armory is to the west, and the hallway continues to the north. The way out is south, through the door.
+
+> s
+You move south.
+
+Military Complex Plaza
+This base must be the heart of the operations – in this area, at least.
+
+There are several places you could go from here. The shoreline and the docks lie to the south. The hangar lies to the east. A smaller building,  labeled "Barracks",  lies to the west, and a larger building with a sign reading "Command Center"  , blocked off by a door, lies to the north.  Also here is a force field.
+
+> w
+You move west.
+
+Mess Hall
+This is the entry area to what must be the barracks of this place. The area near the entrance is set up like a mess hall, with tables and counters, while the back of the room is set up more casually, with some pillows on the floor and even a couch. You've never seen a couch on a remote outpost like this in your life.
+
+You could go east, back outside, or west, further into the building.
+
+> w
+You move west.
+
+Barracks
+You are standing in the sleeping area of the barracks. Like the entire facility so far, the room is designed in a very utilitarian manner, with no decoration or personal touches.
+
+You can go east, back to the mess hall, or south, into the washroom.
+
+> s
+You move south.
+
+Communal Washroom
+This would be the place where the garrison force (if one can call it that, given the size of the facility) takes care of personal hygiene. It is a sterile-looking room, white tiles covering the floor and the walls all the way up to the ceiling. Four sinks and mirrors are installed on one wall, four toilets on another, the remaining two have two showers each. It doesn't seem like the Shwabolians care a whole lot about privacy, seeing as there are no dividers of any kind in the room.
+
+The only way out is north, back to the barracks.
+
+> vomit
+You give in to the urge to empty your stomach and hurl into a corner of the room.  Raising your faceplate, you give in to the urge to empty your stomach and hurl into a corner of the room.
+
+> shower
+You turn on one of the showers and let the water run over you. The blood slides off your gear and collects on the floor before finding its way down the drain.
+
+> n
+You move north.
+
+Barracks
+You are standing in the sleeping area of the barracks. Like the entire facility so far, the room is designed in a very utilitarian manner, with no decoration or personal touches.
+
+You can go east, back to the mess hall, or south, into the washroom.
+
+> e
+You move east.
+
+Mess Hall
+This is the entry area to what must be the barracks of this place. The area near the entrance is set up like a mess hall, with tables and counters, while the back of the room is set up more casually, with some pillows on the floor and even a couch. You've never seen a couch on a remote outpost like this in your life.
+
+You could go east, back outside, or west, further into the building.
+
+> e
+You move east.
+
+Military Complex Plaza
+This base must be the heart of the operations – in this area, at least.
+
+There are several places you could go from here. The shoreline and the docks lie to the south. The hangar lies to the east. A smaller building,  labeled "Barracks",  lies to the west, and a larger building with a sign reading "Command Center"  , blocked off by a door, lies to the north.  Also here is a force field.
+
+> e
+You move east.
+
+Hangar
+This large, cavernous space is where dropships and other small craft can be stored when not in use. It is currently empty, except for a messenger ship.  
+
+You could go north, through the launch doors and onto the landing pad,
+
+The launch doors leading north are closed. You can go west, through the force field and back to the plaza, or up to the control room.  Also here is a force field.
+
+> up
+You move up.
+
+Control Tower
+You are standing in a room built into the wall near the ceiling of the cavernous hangar. Normally, no craft would enter or leave the airspace around the facility without the approval of the air-traffic controllers on duty here, but now it is deserted.
+
+The only way out is down, back into the hangar.  A desk festooned with screens and buttons is mounted below the window.
+
+> look through window
+You can see the empty landing pad outside.
+
+> push red button
+An alarm sounds, and the floor below the messenger ship begins to move: it is standing on a sort of conveyor belt, and is now moving outside and into position on the launch pad.
+
+> look through window
+You can see the messenger ship standing on the landing pad.
+
+> d
+You move down.
+
+Hangar
+This large, cavernous space is where dropships and other small craft can be stored when not in use. It is currently empty
+
+You could go north, through the launch doors and onto the landing pad,
+
+The launch doors leading north are closed. You can go west, through the force field and back to the plaza, or up to the control room.  Also here is a force field.
+
+> n
+You move north.
+
+Landing Strip
+You are standing on the tarmac of a small landing pad. It's not large enough for a fixed-wing atmospheric craft to take off, but perfectly adequate for the vertical take-off and landing operation of a space-capable vessel.
+
+You could go south, through the launch doors and back into the hangar.
+
+> enter ship
+You step inside the messenger ship.  
+
+Hangar (in the messenger ship)
+You are sitting in the cockpit of the messenger ship. The control panels are dark and blank.
+
+> put data crypt in notch
+You place the data crypt into the notch on the control panel. It fits perfectly.
+
+The ship beeps quietly.
+
+> start ship
+Luckily, Earth scientists were able to get their hands on a similar model of Shwabolian ship, so your suit is able to guide you through most of the pre-flight checks.
+
+You press the button that your suit indicates as being the main switch for the ship. One by one, the messenger ship's systems come alive around you. The ship is now ready for launch.
+
+> look through dome
+The ship is standing on the landing pad outside the hangar.  The ship is floating in space, several hundred kilometers above the planet's sickly yellowish surface.
+
+> launch
+Launch what?
+
+> look outside
+Sorry, I'm not sure which object you are trying to launch.
+
+> transition home
+Yes, that's the plan.[*]
+
+> launch ship
+You get into the pilot's seat and take a few seconds to collect your thoughts. While you didn't perform absolutely terribly on the simulator tryouts in bootcamp, there is certainly a reason why you were placed with the space-borne infantry rather than in a dropship wing.[line break]
+... no time for second thoughts. It's either this, or staying on this planet until you either starve or your captors return and discover what you did. After all, you (hopefully) won't need to fly any combat maneuvers, just take off and make orbit. You push your doubts aside and follow the pointers provided by you armor's computer system.
+
+Half an hour later, you have safely left the atmosphere and have settled into a stable low orbit.
+
+> look through dome
+The ship is floating in space, several hundred kilometers above the planet's sickly yellowish surface.
+
+> x transit node
+A yellow dot on the ship's map marks the spot at which you can transition to Earth – it is not actually visible out there.
+
+> transition home
+While your sudden appearance in the solar system caused some confusion and concern, the transmission of your identification codes – and showing your face on video comms – dissuaded the combined military forces in the area from blowing you to pieces. Against your own expectations, you manage to land the ship in the hangar of one of the fleet's large carriers. You finally get something proper to eat and a fresh set of fatigues, then settle in for what promises to be about three lifetimes' worth of debriefings...
+
+*** You have won ***
+Would you like to restart, restore a saved game, quit or undo the last command?
+

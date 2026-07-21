@@ -1,0 +1,8 @@
+<b>The Ball Trial</b>
+There is a red ball and a green ball here.
+
+> take ball
+Which ball? The red ball or the green ball.
+
+> red
+Ok, you pick up the red ball.

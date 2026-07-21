@@ -1,0 +1,13 @@
+# Most of the directories in here were pulled from https://www.adrift.co and
+# aren't ours to redistribute -- only source.txt (which says where to
+# download the game from) is tracked for those. cake/, starsreturn/, and
+# tests/ are the exceptions: original content written for this project, so
+# they're tracked in full.
+*/*
+!*/source.txt
+!cake/**
+!starsreturn/**
+!tests/**
+
+# Stray editor/tool backup copies, not meant to be tracked.
+starsreturn/*.bak

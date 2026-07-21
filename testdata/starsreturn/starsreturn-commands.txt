@@ -1,0 +1,110 @@
+inventory
+kick door
+look through door
+listen
+break camera
+pull grate
+crawl through duct
+kick grate
+out
+x panel
+up
+take helmet
+look under desk
+s
+e
+e
+take plates and ration bar from shelves
+x me
+taste ration bar
+eat it
+w
+s
+w
+d
+x panel
+turn maglock off
+up
+s
+e
+open airlock
+n
+e
+d
+turn helmet lamp on
+n
+n
+n
+n
+n
+e
+s
+roll in mud
+eat it
+n
+e
+up
+switch force field off
+switch launch doors off
+down
+w
+w
+x couch
+sit on couch
+stand out of couch
+get up
+w
+s
+shower
+n
+e
+e
+n
+w
+take rifle and ammo clips
+load rifle
+e
+n
+n
+shoot larger alien
+shoot larger alien with rifle
+shoot smaller alien with rifle
+look
+s
+s
+w
+make a makeshift knife from the shelf
+e
+n
+n
+cut larger alien's corpse with knife
+x larger corpse
+s
+s
+s
+w
+w
+s
+vomit
+shower
+n
+e
+e
+e
+up
+look through window
+push red button
+look through window
+d
+n
+enter ship
+put data crypt in notch
+start ship
+look through dome
+launch
+look outside
+transition home
+launch ship
+look through dome
+x transit node
+transition home

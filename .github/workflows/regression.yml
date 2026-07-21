@@ -1,0 +1,86 @@
+name: Regression
+
+on:
+  push:
+    branches: ["**"]
+  pull_request:
+
+jobs:
+  regression:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          submodules: true
+
+      # Most games under testdata/ are third-party ADRIFT games pulled from
+      # adrift.co (see testdata/*/source.txt) and aren't checked into the
+      # repo. Cache them across runs so we don't hit adrift.co on every
+      # build; restore-keys lets an unrelated source.txt change reuse
+      # everything else already cached, since fetch_testdata.py only
+      # (re-)downloads whatever's missing.
+      - name: Cache downloaded game files
+        uses: actions/cache@v4
+        with:
+          path: testdata
+          key: testdata-${{ hashFiles('testdata/**/source.txt') }}
+          restore-keys: |
+            testdata-
+
+      - name: Fetch game files referenced by source.txt
+        run: python3 scripts/fetch_testdata.py
+
+      - name: Install Ninja
+        run: sudo apt-get update && sudo apt-get install -y ninja-build
+
+      - name: Configure
+        run: >
+          cmake -S . -B build -GNinja
+          -DCMAKE_BUILD_TYPE=Release
+          -DSL_BUILD_QT=OFF
+
+      - name: Build starlane-console
+        run: ninja -C build starlane-console
+
+      # Restores the regression results from the most recent successful run
+      # on master, if any. The exact key never hits on purpose -- we always
+      # want the latest previous result via restore-keys, and we save under
+      # a fresh per-commit key below so old baselines are never overwritten.
+      - name: Restore previous regression baseline
+        id: restore-baseline
+        uses: actions/cache/restore@v4
+        with:
+          path: .ci-cache/baseline.txt
+          key: regression-result-${{ github.run_id }}
+          restore-keys: |
+            regression-result-
+
+      - name: Run regression suite
+        run: |
+          mkdir -p .ci-cache
+          python3 scripts/run_regression.py --output .ci-cache/current.txt
+
+      - name: Compare against baseline (fail only on newly-crashing games)
+        run: |
+          if [ -f .ci-cache/baseline.txt ]; then
+            python3 scripts/run_regression.py --diff .ci-cache/baseline.txt .ci-cache/current.txt --crashes-only
+          else
+            echo "No previous regression baseline cached yet (this looks like the first run) -- nothing to compare against."
+            echo "Current results:"
+            cat .ci-cache/current.txt
+          fi
+
+      # Only master's results become the new baseline, so a broken feature
+      # branch can't poison what future runs are compared against.
+      - name: Save regression baseline for future runs
+        if: github.ref == 'refs/heads/master' && success()
+        run: cp .ci-cache/current.txt .ci-cache/baseline.txt
+
+      - name: Save regression baseline for future runs (cache)
+        if: github.ref == 'refs/heads/master' && success()
+        uses: actions/cache/save@v4
+        with:
+          path: .ci-cache/baseline.txt
+          key: regression-result-${{ github.sha }}

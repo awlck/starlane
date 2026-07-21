@@ -1,0 +1,2 @@
+"GrandpaRanchV5.zip": https://www.adrift.co/cgi/download.cgi?1633
+extract file "GrandpaV5Sourcecode.taf"

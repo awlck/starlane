@@ -5,5 +5,5 @@ cmake-xcode/
 build/
 build-*/
 .idea/
-testdata/
 .DS_Store
+.ci-cache/

@@ -144,10 +144,43 @@ def parse_results_file(path: Path) -> dict:
     return entries
 
 
-def diff_results(before_path: Path, after_path: Path) -> bool:
+def is_healthy(result: tuple[str, str, str]) -> bool:
+    kind, code, _digest = result
+    return kind == "run" and code == "0"
+
+
+def diff_results(before_path: Path, after_path: Path, crashes_only: bool = False) -> bool:
     before = parse_results_file(before_path)
     after = parse_results_file(after_path)
     all_keys = sorted(set(before) | set(after))
+
+    if crashes_only:
+        # In-development mode: only newly-introduced crashes/timeouts/errors
+        # among games present in both runs count as a failure. New games
+        # (no prior baseline), removed games, and behavior changes that
+        # don't affect exit health (e.g. a transcript hash change) are
+        # reported but don't fail the check.
+        regressions = []
+        for rel in all_keys:
+            b = before.get(rel)
+            a = after.get(rel)
+            if b is None:
+                print(f"{rel}: new game, {label_for(a)}")
+            elif a is None:
+                print(f"{rel}: removed (was {label_for(b)})")
+            elif b != a:
+                note = " -- REGRESSION" if is_healthy(b) and not is_healthy(a) else ""
+                print(f"{rel}: before={label_for(b)} after={label_for(a)}{note}")
+                if note:
+                    regressions.append(rel)
+        if regressions:
+            print(f"\n{len(regressions)} game(s) newly crashing/failing vs baseline:")
+            for rel in regressions:
+                print(f"  {rel}")
+            return False
+        print(f"\nNo newly crashing games vs baseline ({len(all_keys)} game files compared)")
+        return True
+
     identical = True
     missing = ("missing", "", "")
     for rel in all_keys:
@@ -182,10 +215,15 @@ def main() -> int:
                          help="write results to this file instead of (or in addition to) stdout")
     parser.add_argument("--diff", nargs=2, metavar=("BEFORE", "AFTER"), type=Path,
                          help="skip running games; instead diff two previously written result files")
+    parser.add_argument("--crashes-only", action="store_true",
+                         help="with --diff, only fail on games that were passing in BEFORE and are now "
+                              "crashing/timing out/erroring in AFTER; report (but don't fail on) new "
+                              "games, removed games, or non-health-affecting changes (e.g. transcript "
+                              "hash changes)")
     args = parser.parse_args()
 
     if args.diff:
-        identical = diff_results(*args.diff)
+        identical = diff_results(*args.diff, crashes_only=args.crashes_only)
         return 0 if identical else 1
 
     if not args.binary.exists():
