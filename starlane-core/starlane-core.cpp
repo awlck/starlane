@@ -40,7 +40,10 @@ void ProcessInput(const std::string &cmd) {
 }
 
 bool GameIsOngoing() {
-	return (Game::Get() && Game::Get()->IsGameOngoing());
+	// "Ongoing" from the frontend's point of view: whether it's still worth reading input at all.
+	// Stays true across a Win/Lose/Neutral ending, since the player can still answer the final
+	// question (RESTART/RESTORE/QUIT/UNDO) through ProcessInput; only QUIT clears it.
+	return (Game::Get() && Game::Get()->IsSessionActive());
 }
 
 uint32_t GetBlorbResourceForPath(const std::string &path) {

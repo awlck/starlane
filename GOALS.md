@@ -20,8 +20,7 @@
     priority tasks")
 [x] handle commands that name several objects at once ("take the plates and the ration bar")
 [x] end the game when a task says to (win/lose/neutral)
-[ ] go on taking input after the game has ended, accepting restart/restore/quit/undo (right now
-    `EndGame` prints ADRIFT's prompt but stops the session)
+[x] go on taking input after the game has ended, accepting restart/restore/quit/undo
 [x] implement pronoun references in commands ("take the bar" ... "eat it")
 [x] implement the pronoun arguments to `character.Name`/`%CharacterName%` (`Force`, `Objective`,
     `Possessive`, ...), and only pronominalise a character already mentioned this turn

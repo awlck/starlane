@@ -78,7 +78,10 @@ SLC_API void ProcessInput(const std::string &cmd);
 // If you just need the unobfuscated XML representation of an ADRIFT game file,
 // this function produces it.
 SLC_API std::string ExtractTaf(const uint8_t *input, size_t size);
-// Whether a game has been loaded and begun
+// Whether the frontend should keep reading player input. Stays true once the game has ended (a
+// Win/Lose/Neutral ending, or a task's "end the game" action) -- the player can still answer the
+// resulting question with RESTART, RESTORE, QUIT, or UNDO, and ProcessInput accepts exactly those.
+// Only goes false once the player actually confirms QUIT.
 SLC_API bool GameIsOngoing();
 // Get blorb resource ID for a given file path, or (uint32_t) -1 if not found.
 SLC_API uint32_t GetBlorbResourceForPath(const std::string &path);

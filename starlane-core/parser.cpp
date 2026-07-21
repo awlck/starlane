@@ -739,6 +739,17 @@ void Game::ProcessInput(const std::string &s) {
 	// turn (see DisplayCharacterName) -- so that tracking resets here too.
 	charactersMentionedThisTurn.clear();
 
+	// The game has ended and is waiting on the final question: nothing else has any state left to
+	// act on, so skip straight past disambiguation and ordinary tasks and try only the four
+	// commands that question offers. (Careful: this can delete `this`, same as below.)
+	if (!gameHasBegun) {
+		currentCommand = frontend->StrToLowerCase(s);
+		if (AttemptMatchEndOfGameCommand()) return;
+		// Mirrors ADRIFT's own wording for the same situation.
+		OutputFiltered("Please give one of the answers above.\n");
+		return;
+	}
+
 	// A question we asked the player ("Which ball?") is still open: this line is their answer, not
 	// a fresh command. Route it to the resolver, which runs the held command once the reference is
 	// pinned down (or, if the answer is really a different command, runs that instead).
@@ -782,7 +793,7 @@ void Game::ProcessInput(const std::string &s) {
 	TurnTick();
 }
 
-bool Game::AttemptMatchSystemCommand() {
+bool Game::AttemptMatchEndOfGameCommand() {
 	const std::string cmd = NormalizeSystemCommand(currentCommand);
 
 	if (cmd == "restart") {
@@ -800,19 +811,15 @@ bool Game::AttemptMatchSystemCommand() {
 			Game::Get()->OutputFiltered("Restored.\n");
 		return true;
 	}
-	// ADRIFT remembers the file a game was last saved to and quietly overwrites it on every
-	// subsequent SAVE, reserving SAVE AS for choosing a new one. We always ask the player where
-	// the save should go, which leaves the two commands with nothing to tell them apart.
-	if (cmd == "save" || cmd == "save as" || cmd == "saveas") {
-		OutputFiltered(Save() ? "Saved.\n" : "Save cancelled.\n");
-		return true;
-	}
 	if (cmd == "quit") {
 		if (!frontend->AskYesNo("Are you sure you want to quit?"))
 			return true;
 		// Signal the end of play before handing over, so that a frontend asking GameIsOngoing()
-		// from within QuitGame() gets a truthful answer.
+		// or driving TimeTick() from within (or just after) QuitGame() gets a truthful answer and
+		// stops moving the world. Both flags: QUIT reaches here whether the game is still running
+		// (gameHasBegun) or already ended and waiting on this very question (sessionActive alone).
 		gameHasBegun = false;
+		sessionActive = false;
 		frontend->QuitGame();
 		return true;
 	}
@@ -824,6 +831,22 @@ bool Game::AttemptMatchSystemCommand() {
 		// As with RESTART, `this` is gone once RestoreUndo() has put the previous state back.
 		RestoreUndo();
 		Game::Get()->OutputFiltered("Undone.\n");
+		return true;
+	}
+	return false;
+}
+
+bool Game::AttemptMatchSystemCommand() {
+	// Caution: may `delete this` (RESTART, UNDO) or end the session (QUIT) -- see above.
+	if (AttemptMatchEndOfGameCommand()) return true;
+
+	const std::string cmd = NormalizeSystemCommand(currentCommand);
+
+	// ADRIFT remembers the file a game was last saved to and quietly overwrites it on every
+	// subsequent SAVE, reserving SAVE AS for choosing a new one. We always ask the player where
+	// the save should go, which leaves the two commands with nothing to tell them apart.
+	if (cmd == "save" || cmd == "save as" || cmd == "saveas") {
+		OutputFiltered(Save() ? "Saved.\n" : "Save cancelled.\n");
 		return true;
 	}
 	if (cmd == "wait" || cmd == "z") {
