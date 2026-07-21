@@ -427,39 +427,83 @@ Expr::Value Expression::ListCharactersOnAndInImpl(const ast_node_tag *args) cons
 	return ListRelatedImpl(args, ListRelation::CharactersOnAndIn);
 }
 
+void Expression::ApplyPronounKeyword(const std::string &kwRaw, Pronoun &pronoun, bool &force) const {
+	std::string kw = Util::ToLower(kwRaw);
+	if (kw == "force") force = true;
+	else if (kw == "objective" || kw == "object" || kw == "target") pronoun = Pronoun::Object;
+	else if (kw == "possessive" || kw == "possess") pronoun = Pronoun::Possessive;
+	else if (kw == "reflective" || kw == "reflect") pronoun = Pronoun::Reflective;
+	else if (kw == "subjective" || kw == "subject" || kw == "personal") pronoun = Pronoun::Subject;
+	else throw std::runtime_error("Unexpected argument to character.Name: " + kwRaw);
+}
+
+void Expression::ParseCharacterPronounArgs(const ast_node_tag *first, Pronoun &pronoun, bool &force) const {
+	for (const ast_node_tag *arg = first; arg; arg = arg->sibling.next) {
+		auto tmp = EvalAnyNode(arg);
+		Expr::EnsureString(tmp);
+		ApplyPronounKeyword(tmp.Str, pronoun, force);
+	}
+}
+
+Expr::Value Expression::DisplayCharacterName(const std::string &key, Pronoun pronoun, bool force) const {
+	auto *g = Game::Get();
+	bool usePronoun = force || key == g->GetReference("%Player%");
+	// Checked regardless of the above: a character already named as Subject earlier this turn
+	// upgrades a following Object request to Reflective ("he saw himself") whether or not `force`
+	// or player-ness already decided to pronominalise on its own.
+	if (auto prevPronoun = g->GetPronounMentionedThisTurn(key)) {
+		usePronoun = true;
+		if (*prevPronoun == Pronoun::Subject && pronoun == Pronoun::Object)
+			pronoun = Pronoun::Reflective;
+	}
+	g->MentionCharacter(key, pronoun);
+	if (usePronoun) return Expr::ShowPronounForChar(key, pronoun);
+	auto *obj = g->GetObject(key);
+	if (!obj) return Expr::Value();
+	return obj->GetDisplayName(true);
+}
+
+Expr::Value Expression::CharNameImpl(const Character *ch, const ast_node_tag *args) const {
+	CHECK_ARGCOUNT_V("character.Name", 0, 4);
+	Pronoun pronoun = Pronoun::Subject;
+	bool force = false;
+	ParseCharacterPronounArgs(args ? args->child.first : nullptr, pronoun, force);
+	return DisplayCharacterName(ch->Key(), pronoun, force);
+}
+
 Expr::Value Expression::CharacterNameImpl(const ast_node_tag *args) const {
-	CHECK_ARGCOUNT_V("CharacterName", 0, 2);
+	CHECK_ARGCOUNT_V("CharacterName", 0, 5);
 	auto g = Game::Get();
 	std::string toDisplay;
 	Pronoun pronoun = Pronoun::Subject;
-	const auto &mostRecent = g->GetMostRecentlyMentioned();
-	if (args->arity == 0) {
+	bool force = false;
+	auto useDefaultCharacter = [&] {
 		// if we are displaying a character's description, this reference will be set and we should
 		// use that character.
 		toDisplay = g->GetReference("<referral-character>");
 		if (toDisplay.empty())  // default to the player character
 			toDisplay = g->GetReference("%Player%");
-	} else if (args->arity == 1) {
-		EXTRACT_FIRST_ARG_STR(args, theArg);
-		toDisplay = theArg.Str;
-	} else if (args->arity == 2) {
-		EXTRACT_FIRST_ARG_STR(args, theChar);
-		toDisplay = theChar.Str;
-		auto thePronoun = EvalAnyNode(args->child.last);
-		Expr::EnsureString(thePronoun);
-		if (thePronoun.Str == "object" || thePronoun.Str == "objective" || thePronoun.Str == "target") {
-			if (mostRecent.first == toDisplay && mostRecent.second == Pronoun::Subject)
-				pronoun = Pronoun::Reflective;
-			else pronoun = Pronoun::Object;
-		} else if (thePronoun.Str == "possessive")
-			pronoun = Pronoun::Possessive;
-	}
-	g->MentionCharacter(toDisplay, pronoun);
-	if (toDisplay == mostRecent.first || toDisplay == g->GetReference("%Player%")) {
-		return Expr::ShowPronounForChar(toDisplay, pronoun);
+	};
+	if (args == nullptr || args->arity == 0) {
+		useDefaultCharacter();
 	} else {
-		return g->GetObject(toDisplay)->GetDisplayName();
+		EXTRACT_FIRST_ARG_STR(args, theArg);
+		// A lone argument naming a pronoun rather than a character key implicitly means whichever
+		// character %CharacterName% would default to -- ADRIFT itself rewrites, e.g.,
+		// "%CharacterName[objective]%" to "%CharacterName[%Player%, objective]%" for this reason,
+		// and several real games rely on the shorthand verbatim.
+		static const char *soloPronounWords[] = {
+			"subject", "subjective", "personal", "target", "object", "objective", "possessive"
+		};
+		if (args->arity == 1 && Expr::IsListedIn(soloPronounWords, Util::ToLower(theArg.Str).c_str())) {
+			useDefaultCharacter();
+			ApplyPronounKeyword(theArg.Str, pronoun, force);
+		} else {
+			toDisplay = theArg.Str;
+			ParseCharacterPronounArgs(args->child.first->sibling.next, pronoun, force);
+		}
 	}
+	return DisplayCharacterName(toDisplay, pronoun, force);
 }
 
 Expr::Value Expression::LocationOfImpl(const ast_node_tag *args) const {

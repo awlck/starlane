@@ -698,7 +698,13 @@ Expr::Value Expression::EvalItemfuncSingle(const std::string &key, const Expr::V
 		if (!theObj) return std::string();
 		if (toCall_.Str == "Children") return ObjChildrenImpl(theObj, args);
 		if (toCall_.Str == "Contents") return ObjContentsImpl(theObj, args);
-		if (toCall_.Str == "Name") return ObjNameImpl(theObj, args);
+		if (toCall_.Str == "Name") {
+			// A character's Name honors pronoun arguments (Force/Objective/Possessive/...) and only
+			// pronominalises if they've already been named this turn -- see DisplayCharacterName.
+			if (const auto *ch = dynamic_cast<const Character *>(theObj))
+				return CharNameImpl(ch, args);
+			return ObjNameImpl(theObj, args);
+		}
 		if (toCall_.Str == "Description") return theObj->GetDescription();
 		if (toCall_.Str == "Location") return theObj->GetLocationKey();
 		if (toCall_.Str == "Parent") return theObj->GetParentKey();

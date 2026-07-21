@@ -735,6 +735,9 @@ void Game::ProcessInput(const std::string &s) {
 	// command or the answer to a question we asked; there is nothing to separate its first
 	// message from.
 	turnHasOutput = false;
+	// A character is only pronominalised once the player has seen them named earlier in the same
+	// turn (see DisplayCharacterName) -- so that tracking resets here too.
+	charactersMentionedThisTurn.clear();
 
 	// A question we asked the player ("Which ball?") is still open: this line is their answer, not
 	// a fresh command. Route it to the resolver, which runs the held command once the reference is

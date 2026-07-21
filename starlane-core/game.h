@@ -231,7 +231,17 @@ public:
 	}
 	ReferralPerson GetPCReferralPerson() const { return staticData->pcReferralPerson; }
 	const std::pair<std::string, Pronoun> &GetMostRecentlyMentioned() const { return mostRecentlyMentioned; }
-	void MentionCharacter(const std::string &key, Pronoun p) { mostRecentlyMentioned = {key, p}; }
+	void MentionCharacter(const std::string &key, Pronoun p) {
+		mostRecentlyMentioned = {key, p};
+		charactersMentionedThisTurn[key] = p;
+	}
+	// The pronoun `key` was last shown as, if character.Name/%CharacterName% has already displayed
+	// them at some point this turn -- nullopt if they haven't been (yet).
+	std::optional<Pronoun> GetPronounMentionedThisTurn(const std::string &key) const {
+		auto it = charactersMentionedThisTurn.find(key);
+		if (it == charactersMentionedThisTurn.end()) return std::nullopt;
+		return it->second;
+	}
 
 	const std::string &GetTitle() const { return staticData->gameTitle; }
 	const std::string &GetAuthor() const { return staticData->gameAuthor; }
@@ -410,6 +420,13 @@ private:
 	// Plural references ("%objects%") that the player's command bound to more than one thing, as
 	// (reference name, resolved keys). ExecuteMatchedTask runs the task once per combination.
 	std::vector<std::pair<std::string, std::vector<std::string>>> currentRefLists;
+
+	// Characters named via character.Name/%CharacterName% so far this turn, and the pronoun they
+	// were last shown as -- consulted so a character is only pronominalised ("he"/"she"/"it") once
+	// the player has actually seen them named this turn, and so that an Object mention right after
+	// a Subject one upgrades to Reflective ("he saw himself" rather than "he saw him"). Reset at
+	// the start of every ProcessInput, like turnHasOutput below: transient, never saved or undone.
+	std::unordered_map<std::string, Pronoun> charactersMentionedThisTurn;
 
 	// For each object/character %ref% captured, the raw text the player typed for it and the full
 	// list of object keys that text could refer to. currentRefs keeps only the first of those (the

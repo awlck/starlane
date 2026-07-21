@@ -147,6 +147,23 @@ private:
 	Expr::Value LocationNameImpl(const ast_node_tag *args) const;
 	Expr::Value TheObjectImpl(const ast_node_tag *args) const;
 	Expr::Value CharacterNameImpl(const ast_node_tag *args) const;
+	// Parses the Force/Objective/Possessive/Reflective/Subjective keyword arguments shared by
+	// character.Name(...) and %CharacterName[key, ...]% -- `first` is the first such argument node
+	// (nullptr if there are none), walked via ->sibling.next the same way ObjNameImpl/WriteListImpl
+	// walk their own keyword arguments, so any number of them can be given in any order.
+	void ParseCharacterPronounArgs(const ast_node_tag *first, Pronoun &pronoun, bool &force) const;
+	// Applies a single already-evaluated keyword (e.g. "objective", "force") to `pronoun`/`force`,
+	// throwing if it isn't one of the recognized ones. The one-keyword step ParseCharacterPronounArgs
+	// repeats per argument node -- split out so CharacterNameImpl's solo-pronoun-word shorthand (see
+	// its own comment) can apply a keyword it already evaluated, without evaluating it a second time.
+	void ApplyPronounKeyword(const std::string &kw, Pronoun &pronoun, bool &force) const;
+	// Displays `key` per `pronoun`: a pronoun if the player character is being named (always, per
+	// ADRIFT), if `force` says to regardless of history, or if `key` has already been named (via
+	// character.Name/%CharacterName%) earlier this turn -- in which case an Object request right
+	// after a Subject one upgrades to Reflective ("he saw himself" rather than "he saw him").
+	// Otherwise the character's ordinary display name. Records the mention either way, both for
+	// those purposes next time and for verb-conjugation ([am/are/is]) besides.
+	Expr::Value DisplayCharacterName(const std::string &key, Pronoun pronoun, bool force) const;
 	Expr::Value LocationOfImpl(const ast_node_tag *args) const;
 	Expr::Value ParentOfImpl(const ast_node_tag *args) const;
 	// expression functions
@@ -179,6 +196,7 @@ private:
 	Expr::Value ObjNameImpl(const GameObj *obj, const ast_node_tag *args) const;
 	Expr::Value ObjChildrenImpl(const GameObj *obj, const ast_node_tag *args) const;
 	Expr::Value ObjContentsImpl(const GameObj *obj, const ast_node_tag *args) const;
+	Expr::Value CharNameImpl(const Character *obj, const ast_node_tag *args) const;
 	Expr::Value CharHeldImpl(const Character *obj, const ast_node_tag *args) const;
 	Expr::Value CharWornImpl(const Character *obj, const ast_node_tag *args) const;
 	Expr::Value CharWornAndHeldImpl(const Character *obj, const ast_node_tag *args) const;
