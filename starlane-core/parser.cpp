@@ -91,6 +91,17 @@ bool IsCharacterPronounFamily(const std::string &family) {
 	return family == "character" || family == "characters";
 }
 
+// The word a bare verb's missing reference gets asked about with ("Launch what?"/"who?"/
+// "where?"), for whichever of the three families PromptForIncompleteVerb recognizes -- or
+// nullptr for a family it doesn't (number, text, location: ADRIFT's NotUnderstood doesn't
+// prompt for those either).
+const char *MissingRefPromptWord(const std::string &family) {
+	if (IsObjectPronounFamily(family)) return "what";
+	if (IsCharacterPronounFamily(family)) return "who";
+	if (family == "direction") return "where";
+	return nullptr;
+}
+
 // Case-insensitive-by-construction (currentCommand is already folded to lower case by the time
 // this runs) whole-word replacement of one pronoun at a time, so that a phrase like "neither" or
 // "history" -- which merely contain "her"/"his" as a substring -- is left alone.
@@ -369,6 +380,57 @@ Task *Game::FindMatchingTask() {
 		currentMatchedRefTokens = std::move(noRefTokens);
 	}
 	return noRefTask;
+}
+
+bool Game::PromptForIncompleteVerb() {
+	// Only for a single bare word: "launch" with nothing after it. Multi-word input that still
+	// matched nothing falls to DescribeUnmatchedThing instead.
+	if (currentCommand.empty() || currentCommand.find(' ') != std::string::npos) return false;
+
+	// Deliberately not filtered by Completed()/IsRepeatable() here, unlike FindMatchingTask: a
+	// command whose only accepting task is used up still shaped the player's input, and ADRIFT's
+	// own NotUnderstood scans every task's command text regardless of completion for this check.
+	for (Task *task : staticData->prioOrderedTasks) {
+		if (task->GetType() != Task::Type::General) continue;
+		const auto &regexes = task->GetCmdRegexes();
+		const auto &groupCoding = task->GetGroupCoding();
+		for (size_t cmdIdx = 0; cmdIdx < regexes.size(); cmdIdx++) {
+			for (const auto &ref : groupCoding[cmdIdx]) {
+				const std::string family = SplitRefName(ref).family;
+				const char *word = MissingRefPromptWord(family);
+				if (!word) continue;
+				// A dummy value, appended to the bare verb, tests whether this command's shape
+				// accepts the verb plus *something* here -- without needing to actually resolve
+				// what that something refers to. An object/character reference's regex fragment
+				// accepts any text, so a nonsense word does the job; %direction%'s fragment only
+				// accepts real direction words, so it gets a real one instead. Mirrors ADRIFT's
+				// own NotUnderstood, which probes the same distinction the same way.
+				const std::string probe = currentCommand + " " +
+					(family == "direction" ? "north" : "zzyzx-nonsense-zzyzx");
+				if (!std::regex_match(probe, regexes[cmdIdx])) continue;
+				OutputFiltered(frontend->StrToSentenceCase(currentCommand) + " " + word + "?\n");
+				return true;
+			}
+		}
+	}
+	return false;
+}
+
+bool Game::DescribeUnmatchedThing() {
+	const auto *player = dynamic_cast<const Character *>(GetPlayerChar());
+	if (!player) return false;
+	// Load order, as everywhere else things are listed for the player -- and so that if the input
+	// somehow names more than one currently-visible thing, the one mentioned wins the same way it
+	// would in a disambiguation prompt.
+	for (const auto &key : staticData->objectLoadOrder) {
+		auto it = objects.find(key);
+		if (it == objects.end()) continue;
+		if (!player->CanSee(key)) continue;
+		if (!std::regex_match(currentCommand, it->second->GetMatchExpr())) continue;
+		OutputFiltered("I don't understand what you want to do with " + it->second->GetDisplayName(true) + ".\n");
+		return true;
+	}
+	return false;
 }
 
 const std::vector<Task *> &Game::GetSpecificChildren(const std::string &generalKey) const {
@@ -767,7 +829,12 @@ void Game::ProcessInput(const std::string &s) {
 		// No match, attempt to read this as a system command ...
 		// (Careful: a system command may well have deleted `this` by the time this returns.)
 		if (AttemptMatchSystemCommand()) return;
-		// ... and, failing that, reject the command as unknown.
+		// ... and, failing that, try ADRIFT's two more specific rejections -- a bare verb missing
+		// its object ("Launch what?") and input naming a visible thing no task's command matched
+		// ("I don't understand what you want to do with the rock.") -- before falling back to the
+		// generic one.
+		if (PromptForIncompleteVerb()) return;
+		if (DescribeUnmatchedThing()) return;
 		OutputFiltered("I didn't understand that sentence.\n");
 		return;
 	}

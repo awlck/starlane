@@ -24,9 +24,9 @@
 [x] implement pronoun references in commands ("take the bar" ... "eat it")
 [x] implement the pronoun arguments to `character.Name`/`%CharacterName%` (`Force`, `Objective`,
     `Possessive`, ...), and only pronominalise a character already mentioned this turn
-[ ] fall back to ADRIFT's "I don't understand what you want to do with <object>" when the input
+[x] fall back to ADRIFT's "I don't understand what you want to do with <object>" when the input
     names a known object but matches no task
-[ ] let a command's %object% match nothing at all, so that "launch" answers "Launch what?" rather
+[x] let a command's %object% match nothing at all, so that "launch" answers "Launch what?" rather
     than falling through to "I didn't understand that sentence"
 [ ] implement subevents that override the room description (`SetLook`)
 [ ] implement tasks that use a loop

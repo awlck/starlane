@@ -307,6 +307,16 @@ private:
 	// On return, currentRefs and currentMatchedRefTokens hold the references captured from the
 	// matched command (needed to test that task's Specific children for applicability).
 	Task *FindMatchingTask();
+	// FindMatchingTask found nothing at all: as ADRIFT's NotUnderstood does, check whether
+	// currentCommand is a single bare verb ("launch") that some task's command pattern would
+	// accept given an object/character/direction to go with it, and if so print a targeted
+	// "Launch what?"/"who?"/"where?" instead of the generic rejection. Returns whether it did.
+	bool PromptForIncompleteVerb();
+	// FindMatchingTask (and PromptForIncompleteVerb) found nothing at all: as ADRIFT's
+	// NotUnderstood does, check whether currentCommand names a thing the player can currently
+	// see, and if so print "I don't understand what you want to do with <thing>." instead of the
+	// generic rejection. Returns whether it did.
+	bool DescribeUnmatchedThing();
 	// Resolve a single reference's raw matched text (e.g. "the sword") to the keys of all
 	// currently known game objects of the given family ("object"/"character"/etc.) that it
 	// could refer to. Matches in the narrowest non-empty scope win: objects currently
