@@ -3,6 +3,7 @@
 #ifndef SLC_UTILITY_H
 #define SLC_UTILITY_H
 
+#include <algorithm>
 #include <string>
 #include <vector>
 
