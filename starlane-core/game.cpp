@@ -102,6 +102,10 @@ Game::Game(const Game &rhs) {
 	// Finally, the simple data copies.
 	playerKey = rhs.playerKey;
 	mostRecentlyMentioned = rhs.mostRecentlyMentioned;
+	pronounItText = rhs.pronounItText;
+	pronounThemText = rhs.pronounThemText;
+	pronounHimText = rhs.pronounHimText;
+	pronounHerText = rhs.pronounHerText;
 	turnCount = rhs.turnCount;
 	gameHasBegun = rhs.gameHasBegun;
 	descriptionsSoFar = rhs.descriptionsSoFar;

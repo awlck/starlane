@@ -301,6 +301,16 @@ private:
 	// Returns false if some reference could not be resolved to anything (e.g. an %object%
 	// referring to an object that doesn't exist), meaning the task cannot apply after all.
 	bool CaptureReferences(const std::vector<std::string> &refSpecs, const std::smatch &matches);
+	// Replace whole-word "it"/"them"/"him"/"her" in a line of player input with whatever they
+	// currently stand for (per pronounItText et al.), so "eat it" parses exactly as "eat the
+	// bar" would. A pronoun with no known antecedent yet is left as-is, which simply fails to
+	// match anything -- the same outcome as if the player had typed a nonsense noun.
+	std::string SubstitutePronouns(std::string s) const;
+	// After a command's references are fully resolved (past any disambiguation), note whichever
+	// object(s)/character(s) it named as the new antecedent for "it"/"them"/"him"/"her" in
+	// whatever the player types next. Reads currentMatchedRefTokens/currentRefs/currentRefLists,
+	// so it must run after those are settled -- see ExecuteMatchedTask, its only caller.
+	void UpdatePronounAntecedents();
 	// Bind one %ref% (and its equivalent spellings) to a resolved key, in the given table.
 	// Also used to apply a disambiguation answer, which resolves into a held table rather than
 	// into currentRefs.
@@ -374,6 +384,11 @@ private:
 	std::string playerKey;
 	// most recently mentioned character and pronoun
 	std::pair<std::string, Pronoun> mostRecentlyMentioned;
+	// The display text ("the bar", "the guard") currently standing in for "it"/"them"/"him"/"her"
+	// in the player's next command -- see SubstitutePronouns/UpdatePronounAntecedents. Empty means
+	// no antecedent has been established yet. Session state, like mostRecentlyMentioned above: not
+	// written to save files, but carried across UNDO by the copy constructor below.
+	std::string pronounItText, pronounThemText, pronounHimText, pronounHerText;
 	// Turns elapsed, as reported by the `Turns` expression function. Counted once per TurnTick,
 	// so a WAIT that lets three turns pass counts three of them. ADRIFT instead bumps its own
 	// counter once per typed command, from the frontend, which has a three-turn WAIT count as

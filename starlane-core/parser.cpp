@@ -4,6 +4,7 @@
 
 #include "game.h"
 
+#include <algorithm>
 #include <cctype>
 #include <regex>
 
@@ -79,7 +80,80 @@ std::string NormalizeSystemCommand(const std::string &s) {
 bool CaseInsensitiveEq(const std::string &a, const std::string &b) {
 	return frontend->StrToLowerCase(a) == frontend->StrToLowerCase(b);
 }
+
+// Whether a %ref% family names a physical thing that "it"/"them" could stand for -- as opposed
+// to a character (which gets "him"/"her"/"it" depending on Gender instead) or a family with no
+// sensible antecedent at all (direction, number, free text, ...).
+bool IsObjectPronounFamily(const std::string &family) {
+	return family == "object" || family == "objects" || family == "item";
+}
+bool IsCharacterPronounFamily(const std::string &family) {
+	return family == "character" || family == "characters";
+}
+
+// Case-insensitive-by-construction (currentCommand is already folded to lower case by the time
+// this runs) whole-word replacement of one pronoun at a time, so that a phrase like "neither" or
+// "history" -- which merely contain "her"/"his" as a substring -- is left alone.
+std::string ReplacePronounWord(std::string s, const std::regex &wordRe, const std::string &antecedent) {
+	if (antecedent.empty()) return s;
+	return std::regex_replace(s, wordRe, antecedent);
+}
 }  // anonymous namespace
+
+std::string Game::SubstitutePronouns(std::string s) const {
+	static const std::regex kItWord(R"(\bit\b)");
+	static const std::regex kThemWord(R"(\bthem\b)");
+	static const std::regex kHimWord(R"(\bhim\b)");
+	static const std::regex kHerWord(R"(\bher\b)");
+	// Order matches ADRIFT: an antecedent's own display name never itself contains one of these
+	// four words as a whole word, so one pass per pronoun (rather than a single combined regex)
+	// is enough, and keeps each replacement independent of the others.
+	s = ReplacePronounWord(std::move(s), kItWord, pronounItText);
+	s = ReplacePronounWord(std::move(s), kThemWord, pronounThemText);
+	s = ReplacePronounWord(std::move(s), kHimWord, pronounHimText);
+	s = ReplacePronounWord(std::move(s), kHerWord, pronounHerText);
+	return s;
+}
+
+void Game::UpdatePronounAntecedents() {
+	auto joinDefiniteNames = [this](const std::vector<std::string> &keys) {
+		std::string result;
+		for (size_t i = 0; i < keys.size(); i++) {
+			if (i != 0) result += (i + 1 == keys.size()) ? " and " : ", ";
+			GameObj *ob = GetObject(keys[i]);
+			result += ob ? ob->GetDisplayName(true) : keys[i];
+		}
+		return result;
+	};
+
+	for (const auto &token : currentMatchedRefTokens) {
+		const std::string &family = SplitRefName(token).family;
+		bool isObjFamily = IsObjectPronounFamily(family);
+		bool isCharFamily = IsCharacterPronounFamily(family);
+		if (!isObjFamily && !isCharFamily) continue;
+
+		// A plural reference that named several things at once ("take the plates and the ration
+		// bar") sets "them" to the whole group.
+		auto listIt = std::find_if(currentRefLists.begin(), currentRefLists.end(),
+		                            [&](const auto &p) { return p.first == token; });
+		if (listIt != currentRefLists.end()) {
+			pronounThemText = joinDefiniteNames(listIt->second);
+			continue;
+		}
+
+		auto refIt = currentRefs.find(Util::CanonicalizeRefName(token));
+		if (refIt == currentRefs.end() || refIt->second.empty()) continue;
+		GameObj *ob = GetObject(refIt->second);
+		if (!ob) continue;
+
+		if (isCharFamily && ob->HasProp("Gender")) {
+			const std::string gender = ob->GetStrProp("Gender");
+			if (gender == "Male") { pronounHimText = ob->GetDisplayName(true); continue; }
+			if (gender == "Female") { pronounHerText = ob->GetDisplayName(true); continue; }
+		}
+		pronounItText = ob->GetDisplayName(true);
+	}
+}
 
 std::string Game::ApplySynonyms(std::string s) {
 	for (const auto &[fst, snd]: staticData->synonyms) {
@@ -422,6 +496,12 @@ void Game::RunTriggeredTasks() {
 }
 
 void Game::ExecuteMatchedTask(Task *general) {
+	// Whatever this command named becomes the antecedent for "it"/"them"/"him"/"her" in whatever
+	// the player types next. Every caller reaches this point with currentMatchedRefTokens/
+	// currentRefs/currentRefLists fully resolved (past any disambiguation), so this is the one
+	// place that needs to do the noting.
+	UpdatePronounAntecedents();
+
 	// "Take the plates and the ration bar" is two takes: ADRIFT runs the whole task once per thing
 	// a plural reference named, so each gets its own restrictions checked and its own Specific
 	// overrides applied. The references are bound to one combination at a time, cycling through
@@ -619,7 +699,7 @@ void Game::ResolveDisambiguation(const std::string &answer) {
 	// The answer named none of the candidates. Per the hybrid rule: if it is itself a command the
 	// game understands, abandon the disambiguation and run it; otherwise (mere gibberish) re-ask.
 	RefMatchInfo askAgain = *ambInfo;  // the re-ask path clears nothing, but copy to be safe
-	currentCommand = ApplySynonyms(answer);
+	currentCommand = ApplySynonyms(SubstitutePronouns(answer));
 	Task *chosen = FindMatchingTask();
 	if (chosen) {
 		pendingDisambig.reset();
@@ -665,7 +745,7 @@ void Game::ProcessInput(const std::string &s) {
 		return;
 	}
 
-	currentCommand = ApplySynonyms(frontend->StrToLowerCase(s));
+	currentCommand = ApplySynonyms(SubstitutePronouns(frontend->StrToLowerCase(s)));
 
 	Task *chosenTask = FindMatchingTask();
 
