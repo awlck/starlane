@@ -11,7 +11,7 @@ jobs:
     timeout-minutes: 20
 
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v5
         with:
           submodules: true
 
@@ -22,7 +22,7 @@ jobs:
       # everything else already cached, since fetch_testdata.py only
       # (re-)downloads whatever's missing.
       - name: Cache downloaded game files
-        uses: actions/cache@v4
+        uses: actions/cache@v5
         with:
           path: testdata
           key: testdata-${{ hashFiles('testdata/**/source.txt') }}
@@ -50,7 +50,7 @@ jobs:
       # a fresh per-commit key below so old baselines are never overwritten.
       - name: Restore previous regression baseline
         id: restore-baseline
-        uses: actions/cache/restore@v4
+        uses: actions/cache/restore@v5
         with:
           path: .ci-cache/baseline.txt
           key: regression-result-${{ github.run_id }}
@@ -80,7 +80,7 @@ jobs:
 
       - name: Save regression baseline for future runs (cache)
         if: github.ref == 'refs/heads/master' && success()
-        uses: actions/cache/save@v4
+        uses: actions/cache/save@v5
         with:
           path: .ci-cache/baseline.txt
           key: regression-result-${{ github.sha }}
