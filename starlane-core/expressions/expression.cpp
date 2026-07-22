@@ -667,6 +667,29 @@ Expr::Value Expression::EvalItemfunc(Expr::Value obj, const ast_node_tag *toCall
 	if (items.size() == 1)
 		return EvalItemfuncSingle(items[0], toCall_, args);
 
+	// Mapping .Name over several objects yields prose meant for the player, so join it the way
+	// ADRIFT's list writer does ("the ball, the box and the key") rather than with the internal '|'
+	// separator. Without this a merged plural reference -- e.g. %objects%.Name after a multi-object
+	// command aggregates -- would read "the ball|the box". Every other property keeps '|' so its
+	// result can still feed a further list function. (.Name for characters routes through the same
+	// token; EvalItemfuncSingle dispatches to CharNameImpl internally.)
+	if (toCall_.Str == "Name") {
+		std::vector<std::string> names;
+		names.reserve(items.size());
+		for (const auto &item : items) {
+			Expr::Value v = EvalItemfuncSingle(item, toCall_, args);
+			std::string s = (v.ty == Expr::ValueType::Integer) ? std::to_string(v.Int) : v.Str;
+			if (!s.empty()) names.push_back(std::move(s));
+		}
+		std::string result;
+		for (size_t i = 0; i < names.size(); i++) {
+			if (i > 0)
+				result += (i + 1 == names.size()) ? " and " : ", ";
+			result += names[i];
+		}
+		return result;
+	}
+
 	// A bool property over a list filters it -- keeping the members it holds for -- rather than
 	// mapping to a list of 0/1, which is what the old single-list property path did.
 	const Property *meta = g->GetPropMeta(toCall_.Str);

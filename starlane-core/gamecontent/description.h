@@ -24,7 +24,17 @@ public:
 	// `commit` should be true when displaying, false when building the text for comparison purposes.
 	// `context` is only ever set to anything when this description is the output of a user-defined function,
 	// in which case it will hold the function's arguments.
-	[[nodiscard]] std::string Build(bool commit = true, const UserFuncContext *context = nullptr);
+	// `rawExpressions` leaves embedded expressions as their unevaluated source text (only %reference%s and
+	// the like symbolic) while still selecting segments by their restrictions -- used to build a stable
+	// aggregation key that collapses across differing reference bindings. See BuildRawKey.
+	[[nodiscard]] std::string Build(bool commit = true, const UserFuncContext *context = nullptr,
+	                                bool rawExpressions = false);
+
+	// Build the message with restrictions evaluated (segment selection) but embedded expressions left
+	// as raw source, without committing shown-state. This is the per-command deduplication key for a
+	// task whose "Aggregate output" flag is on: two runs that differ only in their bound references
+	// (e.g. "take the ball" vs "take the box") produce the same key and so collapse into one response.
+	[[nodiscard]] std::string BuildRawKey() { return Build(false, nullptr, true); }
 
 	void ResolveText();
 
@@ -76,7 +86,7 @@ private:
 		// Borrowed from the owning Description for the duration of resolution; null otherwise.
 		const std::vector<std::string> *udfArgNames = nullptr;
 
-		std::string Build(const UserFuncContext *context = nullptr) const;
+		std::string Build(const UserFuncContext *context = nullptr, bool rawExpressions = false) const;
 
 		void ResolveText();
 	private:

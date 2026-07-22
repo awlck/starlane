@@ -64,7 +64,7 @@ void Description::HandleSegmentShown(size_t idx) {
 	}
 }
 
-std::string Description::Build(bool commit, const UserFuncContext *context) {
+std::string Description::Build(bool commit, const UserFuncContext *context, bool rawExpressions) {
 	// The ADRIFT Runner's way of handling descriptions goes something like this:
 	// "Build the text. If some segment wants to be first and passes restrictions,
 	//  throw the already-built text away and start over."
@@ -108,7 +108,7 @@ std::string Description::Build(bool commit, const UserFuncContext *context) {
 
 	// Whether anything shown so far would make ADRIFT's AddSpace say yes on grounds the finished
 	// text no longer shows -- see Description::Segment.
-	std::string result(segments.at(beginning).Build(context));
+	std::string result(segments.at(beginning).Build(context, rawExpressions));
 	bool rawWantsSpace = segments.at(beginning).rawEndsWithFunc || segments.at(beginning).rawHasPropChain;
 	auto joinSpace = [&](const Segment &s, bool mark) {
 		if (NeedSpace(result) || (rawWantsSpace && !result.empty()
@@ -126,7 +126,7 @@ std::string Description::Build(bool commit, const UserFuncContext *context) {
 	size_t nextSegment = beginning + 1;
 	if (continuation != NPOS) {
 		joinSpace(segments.at(continuation), false);
-		result.append(segments.at(continuation).Build(context));
+		result.append(segments.at(continuation).Build(context, rawExpressions));
 		if (commit) HandleSegmentShown(continuation);
 		nextSegment = continuation + 1;
 	}
@@ -134,7 +134,7 @@ std::string Description::Build(bool commit, const UserFuncContext *context) {
 		const auto &s = segments.at(i);
 		if (s.displayWhen == Display::Append && SEGMENT_ELIGIBLE(s)) {
 			joinSpace(s, true);
-			result.append(s.Build(context));
+			result.append(s.Build(context, rawExpressions));
 			if (commit) HandleSegmentShown(i);
 		}
 	}
@@ -172,7 +172,7 @@ Description::Segment Description::Segment::CreateFromXML(const pugi::xml_node &x
 	return result;
 }
 
-std::string Description::Segment::Build(const UserFuncContext *context) const {
+std::string Description::Segment::Build(const UserFuncContext *context, bool rawExpressions) const {
 	// make a single string out of our contents again, consisting of the plain text snippets
 	// and expression evaluation results.
 
@@ -183,7 +183,12 @@ std::string Description::Segment::Build(const UserFuncContext *context) const {
 	result.reserve(initialTextLength);
 	for (auto ref : content) {
 		if (IS_EXPR(ref)) {  // an expression
-			result.append(Game::Get()->GetExpression(ref)->EvaluateStr(context));
+			// For an aggregation key we want the *unevaluated* source, so that two runs differing only
+			// in their reference bindings hash identically. Everything else evaluates as normal.
+			if (rawExpressions)
+				result.append(Game::Get()->GetExpression(ref)->exprStr);
+			else
+				result.append(Game::Get()->GetExpression(ref)->EvaluateStr(context));
 		} else {  // a plain text snippet
 			// We also need to deal with alternatives like '[am/are/is]' at this stage.
 			// Note that this is liable to break when the alternatives contain an expression,

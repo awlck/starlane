@@ -88,6 +88,13 @@ public:
 	// output ends the search.
 	[[nodiscard]] bool AlwaysContinues() const { return alwaysContinue; }
 
+	// ADRIFT's "Aggregate output" checkbox (on by default). When on, this task's completion message
+	// is deduplicated within a command on its *unevaluated* text, and the object/character references
+	// of the collapsed runs are merged so a multi-object command renders one combined sentence. When
+	// off, deduplication keys on the fully-evaluated text instead (so distinct objects stay separate
+	// lines). See Game::RunTaskAndCapture and the per-command response buffer.
+	[[nodiscard]] bool AggregatesOutput() const { return aggregateOutput; }
+
 	// For Specific tasks: the key of the General task this one overrides, and the per-reference
 	// constraints that must hold for it to apply. Empty/default for General and System tasks.
 	[[nodiscard]] const std::string &OverridesTask() const { return overridesTask; }
@@ -243,6 +250,9 @@ private:
 	std::vector<Action> actions;
 	MessagePlacement messagePlacement = MessagePlacement::Before;
 	bool alwaysContinue = false;
+	// ADRIFT's "Aggregate output" flag; defaults on and is only written to the XML when false
+	// (<Aggregate>0</Aggregate>), so an absent tag means true. See AggregatesOutput().
+	bool aggregateOutput = true;
 
 	// Is this a general, specific, or system task?
 	Type type;

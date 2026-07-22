@@ -307,6 +307,12 @@ Task *Task::CreateFromXML(Game *g, const pugi::xml_node &xmlNode) {
 	// one ran"), despite the enum-looking values it carries over from version 4: only
 	// "ContinueAlways" means anything, and the tag is only written out in that case.
 	result->alwaysContinue = STREQ(xmlNode.child_value("Continue"), "ContinueAlways");
+	// "Aggregate output" defaults on; ADRIFT only writes the tag for the non-default false case, so
+	// an absent tag means true (mirroring the DisplayOnce/ReturnToDefault handling in Description).
+	{
+		const auto &aggNode = xmlNode.child("Aggregate");
+		result->aggregateOutput = aggNode.type() == pugi::node_null || ParseBool(aggNode.child_value());
+	}
 	if (result->type == Type::System) {
 		// Both are only written out when set, and only mean anything on a System task -- which is
 		// the one kind with no command of its own to be matched against.

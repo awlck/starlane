@@ -375,7 +375,12 @@ private:
 	bool SpecificTaskMatches(const Task *specific, const std::vector<std::string> &refTokens) const;
 	// Run a matched General task to completion, applying any overriding/extending Specific
 	// tasks per their OverrideType, and output whatever text results.
+	struct ResponseBuffer;  // defined with the transient storage below
 	void ExecuteMatchedTask(Task *general);
+	// Emit every completion message a command collected, once, at end of command -- merging the
+	// object/character references of runs whose (aggregated) message coincided so a multi-object
+	// command renders one combined sentence. See RunTaskAndCapture and ADRIFT's "Aggregate output".
+	void FlushResponseBuffer(ResponseBuffer &buffer);
 	// Run `general` together with whichever of its Specific children currently apply, per their
 	// OverrideType. Assumes `general`'s own restrictions have already passed. `refTokens` names
 	// the references a child's positional constraints are checked against (see
@@ -446,6 +451,32 @@ private:
 	// (reference name, resolved keys). ExecuteMatchedTask runs the task once per combination.
 	std::vector<std::pair<std::string, std::vector<std::string>>> currentRefLists;
 
+	// One completion message collected during a command, awaiting the end-of-command flush that
+	// prints it. Mirrors an entry in ADRIFT's per-command response table. See RunTaskAndCapture.
+	struct AggregatedResponse {
+		DescrRef descr;                                             // the message to render at flush time
+		// The references in effect when this message was first recorded; the flush re-renders against
+		// these (plus any merged overrides below).
+		std::unordered_map<std::string, std::string> refSnapshot;
+		// Reference name -> the distinct keys it took across the runs that collapsed into this one
+		// message. Populated only for names whose value actually varied; at flush a name with more
+		// than one key is bound to the pipe-joined list, which %objects%.Name / %TheObject[...]%
+		// expand to "the ball and the box".
+		std::unordered_map<std::string, std::vector<std::string>> mergedRefs;
+	};
+	// The completion messages a single player command has produced so far, keyed by their dedup
+	// string (unevaluated text for an aggregating task, evaluated text otherwise), in insertion
+	// order. Opened for the duration of ExecuteMatchedTask; nested Execute actions (SetTasks FOR
+	// loops included) record into the same buffer, so their messages aggregate too.
+	struct ResponseBuffer {
+		std::vector<std::string> order;
+		std::unordered_map<std::string, AggregatedResponse> byKey;
+	};
+	// Non-null while a player command is buffering its completion messages; null on the out-of-command
+	// paths (events, character walks, triggered tasks), which keep emitting immediately with the
+	// simple turn-wide dedup in completionMessagesThisTurn. Transient: never saved or undone.
+	ResponseBuffer *activeResponseBuffer = nullptr;
+
 	// Characters named via character.Name/%CharacterName% so far this turn, and the pronoun they
 	// were last shown as -- consulted so a character is only pronominalised ("he"/"she"/"it") once
 	// the player has actually seen them named this turn, and so that an Object mention right after
@@ -503,11 +534,11 @@ private:
 	// unless the earlier one already broke the line. Mutable because OutputFiltered is const.
 	mutable bool turnHasOutput = false;
 	mutable bool endsWithNewline = false;
-	// Task completion messages already shown this turn, exactly as displayed. A task whose message
-	// duplicates one already shown this turn (e.g. the same task run repeatedly by a SetTasks FOR
-	// loop) is not printed again, approximating ADRIFT's "Aggregate output" task property -- see
-	// RunTaskAndCapture. Same lifecycle as turnHasOutput above: reset every ProcessInput, never
-	// saved or undone.
+	// Task completion messages already shown this turn, exactly as displayed. Used by the
+	// out-of-command emit path (events, walks, triggered tasks) to suppress a message that already
+	// appeared this turn, and topped up by FlushResponseBuffer so those paths still dedup against a
+	// command's own messages. Within a command, aggregation is handled by activeResponseBuffer
+	// instead. Same lifecycle as turnHasOutput above: reset every ProcessInput, never saved/undone.
 	mutable std::unordered_set<std::string> completionMessagesThisTurn;
 
 	size_t descriptionsSoFar = 0;

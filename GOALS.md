@@ -30,12 +30,15 @@
     than falling through to "I didn't understand that sentence"
 [x] implement subevents that override the room description (`SetLook`)
 [x] implement tasks that use a loop
-[ ] fully implement ADRIFT's "Aggregate output" task property: dedup completion messages on
-    unevaluated (rather than evaluated) text when a task's Aggregate flag is on, and merge the
-    %object%/%character% references of messages that collapse together so they can be displayed
-    as one combined sentence ("Ok, I drop X and Y.") -- see the simplified always-dedup-on-final-text
-    approximation in `Game::RunTaskAndCapture`'s `emit()` lambda (parser.cpp), which does not
-    attempt this reference-merging and ignores the per-task `<Aggregate>` XML flag entirely
+[x] fully implement ADRIFT's "Aggregate output" task property: a per-command response buffer
+    (`Game::ResponseBuffer`/`activeResponseBuffer`, opened over `ExecuteMatchedTask`) collects
+    completion messages, dedups them on unevaluated text when a task's `<Aggregate>` flag is on
+    (evaluated text when off), merges the references of collapsed runs, and flushes them at
+    end-of-command, rendering %objects%.Name / %TheObject[...]% as "the X and the Y" -- see
+    `Game::RunTaskAndCapture`'s `emit()` and `Game::FlushResponseBuffer` (parser.cpp).
+    Remaining deviation: restriction-failure ("pass/fail") messages are not routed through the
+    buffer, so ADRIFT's merge of a failing subset ("You take A and B. C is too heavy.") is not
+    reproduced -- failure text still prints immediately on the non-buffered path
 [ ] support a variable reference (not just a literal integer) as a `SetVariable`/`IncVariable`/
     `DecVariable` array index, e.g. `SetVariable cl_Buttonarra[cl_One] = "%b0%"` where `cl_One`
     is itself a variable holding the index -- `Task::Action::PerformImpl`'s array-index parsing

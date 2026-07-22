@@ -470,18 +470,71 @@ bool Game::RunTaskAndCapture(Task *task, bool showText, bool runActions) {
 	bool anyText = false;
 	auto emit = [&] {
 		if (!showText || task->GetCompletionMsg() == 0) return;
-		std::string text = GetDescription(task->GetCompletionMsg())->Build();
-		if (!text.empty()) anyText = true;
-		// A message identical to one already shown this turn (e.g. the same task run repeatedly
-		// by a SetTasks FOR loop) doesn't print again -- approximating ADRIFT's "Aggregate output"
-		// task property, which is on by default.
-		if (completionMessagesThisTurn.insert(text).second)
-			OutputFiltered(std::move(text));
+		Description *desc = GetDescription(task->GetCompletionMsg());
+
+		if (!activeResponseBuffer) {
+			// Out-of-command path (event, walk, triggered task): unchanged from before -- build and
+			// commit the message now (so a sequential/return-to-default description advances its
+			// shown-state as it always did), dedup on the evaluated text turn-wide, emit immediately.
+			std::string text = desc->Build();
+			if (!text.empty()) anyText = true;
+			if (completionMessagesThisTurn.insert(text).second)
+				OutputFiltered(std::move(text));
+			return;
+		}
+
+		// Buffering: the message is rendered (and its shown-state committed) once, at flush time; here
+		// we only measure whether it has anything to say -- which drives Specific-override /
+		// AlwaysContinues control flow -- without committing, using commit=false.
+		std::string evaluated = desc->Build(false);
+		if (!evaluated.empty()) anyText = true;
+		// Nothing to say: record nothing (mirrors ADRIFT's bHasOutput filter).
+		if (evaluated.empty()) return;
+
+		// Collect for the end-of-command flush instead of printing now. The dedup key is
+		// the *unevaluated* text when this task aggregates -- so runs differing only in their bound
+		// references (a multi-object command, a SetTasks FOR loop) collapse into one response -- and
+		// the evaluated text otherwise, keeping distinct objects on separate lines.
+		std::string key = task->AggregatesOutput() ? desc->BuildRawKey() : evaluated;
+		ResponseBuffer &buf = *activeResponseBuffer;
+		auto it = buf.byKey.find(key);
+		if (it == buf.byKey.end()) {
+			AggregatedResponse resp;
+			resp.descr = task->GetCompletionMsg();
+			resp.refSnapshot = currentRefs;
+			buf.order.push_back(key);
+			buf.byKey.emplace(std::move(key), std::move(resp));
+		} else {
+			// Same message as an earlier run this command: merge in any reference whose value differs
+			// from what was first recorded, so the flush can render the collapsed runs as one list.
+			AggregatedResponse &resp = it->second;
+			for (const auto &[name, val] : currentRefs) {
+				auto mit = resp.mergedRefs.find(name);
+				if (mit != resp.mergedRefs.end()) {
+					auto &keys = mit->second;
+					if (std::find(keys.begin(), keys.end(), val) == keys.end())
+						keys.push_back(val);
+					continue;
+				}
+				auto sit = resp.refSnapshot.find(name);
+				if (sit != resp.refSnapshot.end() && sit->second == val)
+					continue;  // unchanged from the snapshot -- nothing to merge for this name
+				// First divergence for this name: seed the list with the snapshot's original value
+				// (if any) so it is included alongside the new one.
+				std::vector<std::string> keys;
+				if (sit != resp.refSnapshot.end())
+					keys.push_back(sit->second);
+				keys.push_back(val);
+				resp.mergedRefs.emplace(name, std::move(keys));
+			}
+		}
 	};
 	if (msgFirst) emit();
-	// Actions run between (or after/before) the message output points above/below, so that a
-	// nested "Execute" action's own output interleaves in true chronological order rather than
-	// being buffered and flushed out of order relative to this task's own message.
+	// The message is emitted (or, during a command, recorded into the response buffer -- see emit)
+	// before or after this task's actions per its MessagePlacement. Ordering the emit around
+	// RunActions this way keeps a Before message ahead of, and an After message behind, whatever a
+	// nested "Execute" action itself emits/records -- so the buffer's insertion order, which the
+	// end-of-command flush preserves, still reflects each message's place in the action sequence.
 	if (runActions) task->RunActions();
 	if (!msgFirst) emit();
 	return anyText;
@@ -568,6 +621,22 @@ void Game::ExecuteMatchedTask(Task *general) {
 	// place that needs to do the noting.
 	UpdatePronounAntecedents();
 
+	// Collect this command's completion messages so they can be aggregated and flushed together at
+	// the end -- see RunTaskAndCapture / FlushResponseBuffer. The guard flushes on every exit path
+	// (including the odometer's early returns) and restores any enclosing buffer.
+	ResponseBuffer buffer;
+	ResponseBuffer *prevBuffer = activeResponseBuffer;
+	activeResponseBuffer = &buffer;
+	struct BufferGuard {
+		Game *g;
+		ResponseBuffer *buffer;
+		ResponseBuffer *prev;
+		~BufferGuard() {
+			g->FlushResponseBuffer(*buffer);
+			g->activeResponseBuffer = prev;
+		}
+	} bufferGuard{this, &buffer, prevBuffer};
+
 	// "Take the plates and the ration bar" is two takes: ADRIFT runs the whole task once per thing
 	// a plural reference named, so each gets its own restrictions checked and its own Specific
 	// overrides applied. The references are bound to one combination at a time, cycling through
@@ -592,6 +661,33 @@ void Game::ExecuteMatchedTask(Task *general) {
 			if (pos == 0) return;
 		}
 		if (currentRefLists.empty()) return;
+	}
+}
+
+void Game::FlushResponseBuffer(ResponseBuffer &buffer) {
+	for (const std::string &key : buffer.order) {
+		AggregatedResponse &resp = buffer.byKey.at(key);
+		// Re-render the message against the references it was recorded with, overlaying any reference
+		// that varied across the collapsed runs as a pipe-joined key list -- which %objects%.Name and
+		// %TheObject[...]% expand to "the ball and the box". Restrictions in the message re-evaluate
+		// against the merged value too, matching ADRIFT's deferred single Display of the raw message.
+		std::unordered_map<std::string, std::string> savedRefs = std::move(currentRefs);
+		currentRefs = resp.refSnapshot;
+		for (const auto &[name, keys] : resp.mergedRefs) {
+			if (keys.size() < 2) continue;
+			std::string joined;
+			for (size_t i = 0; i < keys.size(); i++) {
+				if (i) joined += '|';
+				joined += keys[i];
+			}
+			currentRefs[name] = std::move(joined);
+		}
+		std::string text = GetDescription(resp.descr)->Build();
+		currentRefs = std::move(savedRefs);
+		// Record it against the turn-wide set so a later out-of-command message (a triggered task or
+		// event this turn) with the same text stays suppressed, as it was before buffering existed.
+		if (!text.empty() && completionMessagesThisTurn.insert(text).second)
+			OutputFiltered(std::move(text));
 	}
 }
 
