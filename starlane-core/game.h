@@ -249,9 +249,15 @@ public:
 	uint32_t GetChecksum() const { return staticData->gameCrc32; }
 
 	bool IsGameOngoing() const { return gameHasBegun; }
+	// Whether the frontend should keep reading input at all. True until the player actually
+	// quits (or confirms QUIT after the game has ended) -- unlike IsGameOngoing, this stays true
+	// across EndGame, since the player can still answer the final question.
+	bool IsSessionActive() const { return sessionActive; }
 
-	// How a game can stop. A task's "end the game" action says which; the player is told, and no
-	// further input is taken (the frontend's own loop notices via GameIsOngoing).
+	// How a game can stop. A task's "end the game" action says which; the player is told, and from
+	// then on ProcessInput accepts only RESTART, RESTORE, QUIT, or UNDO (see
+	// AttemptMatchEndOfGameCommand) until one of those puts the game running again or ends the
+	// session.
 	enum class Ending {
 		Win,
 		Lose,
@@ -301,6 +307,16 @@ private:
 	// On return, currentRefs and currentMatchedRefTokens hold the references captured from the
 	// matched command (needed to test that task's Specific children for applicability).
 	Task *FindMatchingTask();
+	// FindMatchingTask found nothing at all: as ADRIFT's NotUnderstood does, check whether
+	// currentCommand is a single bare verb ("launch") that some task's command pattern would
+	// accept given an object/character/direction to go with it, and if so print a targeted
+	// "Launch what?"/"who?"/"where?" instead of the generic rejection. Returns whether it did.
+	bool PromptForIncompleteVerb();
+	// FindMatchingTask (and PromptForIncompleteVerb) found nothing at all: as ADRIFT's
+	// NotUnderstood does, check whether currentCommand names a thing the player can currently
+	// see, and if so print "I don't understand what you want to do with <thing>." instead of the
+	// generic rejection. Returns whether it did.
+	bool DescribeUnmatchedThing();
 	// Resolve a single reference's raw matched text (e.g. "the sword") to the keys of all
 	// currently known game objects of the given family ("object"/"character"/etc.) that it
 	// could refer to. Matches in the narrowest non-empty scope win: objects currently
@@ -381,6 +397,11 @@ private:
 	// Caution: RESTART and UNDO replace the current Game instance wholesale, so this may well
 	// `delete this` -- the caller must not touch the instance afterwards.
 	bool AttemptMatchSystemCommand();
+	// The subset of AttemptMatchSystemCommand offered once the game has ended (see EndGame):
+	// RESTART, RESTORE, QUIT, or UNDO. Split out so that ProcessInput can restrict itself to
+	// exactly these once gameHasBegun is false, without also matching SAVE or WAIT, which have
+	// nothing left to act on. Same caution as AttemptMatchSystemCommand: may `delete this`.
+	bool AttemptMatchEndOfGameCommand();
 
 	// mutable game state (objects copied for undo state)
 	std::unordered_map<std::string, GameObj *> objects;
@@ -468,6 +489,10 @@ private:
 	static bool inputInFlight;
 
 	bool gameHasBegun = false;
+	// Whether the session is still worth reading input for at all. Only QUIT (see
+	// AttemptMatchEndOfGameCommand) ever clears this; EndGame leaves it set, since the final
+	// question is itself something the player answers through ProcessInput.
+	bool sessionActive = true;
 
 	// Output separation within a turn: whether anything has been printed yet, and whether it ended
 	// a line. See OutputFiltered -- two messages in the same turn are separated by two spaces

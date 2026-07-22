@@ -108,6 +108,7 @@ Game::Game(const Game &rhs) {
 	pronounHerText = rhs.pronounHerText;
 	turnCount = rhs.turnCount;
 	gameHasBegun = rhs.gameHasBegun;
+	sessionActive = rhs.sessionActive;
 	descriptionsSoFar = rhs.descriptionsSoFar;
 	restrictionsSoFar = rhs.restrictionsSoFar;
 	textSnippetsSoFar = rhs.textSnippetsSoFar;
@@ -318,10 +319,11 @@ void Game::EndGame(Ending how) {
 		// A neutral ending announces itself only through whatever the task itself said.
 		break;
 	}
-	// TODO: ADRIFT goes on taking input at this point, accepting exactly these four commands.
+	// ProcessInput keys off this: no more turns, no more events, and no more ordinary commands --
+	// only RESTART, RESTORE, QUIT, and UNDO (see AttemptMatchEndOfGameCommand), which is exactly
+	// what this question offers.
 	OutputFiltered("Would you like to <c>restart</c>, <c>restore</c> a saved game, <c>quit</c> or "
 	               "<c>undo</c> the last command?\n\n");
-	// Everything else keys off this: no more turns, no more events, no more input.
 	gameHasBegun = false;
 }
 
