@@ -1,0 +1,30 @@
+Untitled
+
+
+Event Hall
+This is a space where events take place.
+
+(Type JUMP, then LOOK again to run this test.)    
+
+> jump
+You jump on the spot.
+
+> look
+
+Event Hall
+This is a space where events take place.
+
+(Type JUMP, then LOOK again to run this test.)  Oh wow! An event is currently happening!
+
+(Type WAIT, then LOOK again to verify that this message disappears.)  
+
+> wait
+Time passes...
+
+> look
+
+Event Hall
+This is a space where events take place.
+
+(Type JUMP, then LOOK again to run this test.)  
+

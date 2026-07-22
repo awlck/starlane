@@ -341,10 +341,12 @@ void Event::RunSubEvent(int32_t idx) {
 				t->Uncomplete();
 			break;
 		case SEType::SetLook:
-			// TODO: SetLook stacks an override of the location description, which LOOK and the
-			// room description then read back. Wiring that stack into description building is a
-			// change of its own, and no subevent in any test game asks for it -- so this is
-			// deliberately not implemented, rather than half-implemented and silently wrong.
+			// Push this subevent's built text onto our look-override stack, exactly as ADRIFT's
+			// own RunSubEvent pushes a clsLookText: the text is resolved right now, not lazily
+			// when LOOK later reads it back, and an empty onlyAtLocation is pushed too -- it will
+			// simply never match anywhere once LookOverrideText goes looking (mirrors ADRIFT,
+			// which pushes unconditionally and only tests the key when the stack is read).
+			lookOverrides.emplace_back(se.onlyAtLocation, g->GetDescription(se.actionDescr)->Build());
 			break;
 	}
 	lastSubEventTime = timeSinceStart;
@@ -359,6 +361,16 @@ void Event::RunSubEvent(int32_t idx) {
 				next.whenRefType == SERefType::LastSubEvent)
 			BeginSubEventCountdown(idx + 1);
 	}
+}
+
+std::string Event::LookOverrideText() const {
+	if (state != State::Running) return "";
+	// Most recent first, mirroring ADRIFT reading its stack via ToArray (LIFO order) and taking
+	// the first entry whose place the player is in.
+	for (auto it = lookOverrides.rbegin(); it != lookOverrides.rend(); ++it)
+		if (Game::Get()->PlayerIsInLocationOrGroup(it->first))
+			return it->second;
+	return "";
 }
 
 void Event::StartRealTimeSubEvents() {
@@ -462,6 +474,16 @@ void Event::WriteState(Save::Writer &writer) const {
 	for (const auto &se : subevents)
 		secondsRemaining.push_back(se.secondsRemaining);
 	writer.WriteKV("subevent_seconds_remaining", secondsRemaining);
+	// The look-override stack, as two parallel lists -- see lookOverrides' declaration.
+	std::vector<std::string> lookOverrideKeys, lookOverrideTexts;
+	lookOverrideKeys.reserve(lookOverrides.size());
+	lookOverrideTexts.reserve(lookOverrides.size());
+	for (const auto &lo : lookOverrides) {
+		lookOverrideKeys.push_back(lo.first);
+		lookOverrideTexts.push_back(lo.second);
+	}
+	writer.WriteKV("look_override_keys", lookOverrideKeys);
+	writer.WriteKV("look_override_texts", lookOverrideTexts);
 }
 
 namespace {
@@ -526,6 +548,22 @@ bool Event::RestoreState(const Save::AstNode *node) {
 		subevents[i++].secondsRemaining = (int32_t) s->sv.Int;
 	}
 	if (i != subevents.size()) return false;
+
+	if (!(n = GetField(node, "look_override_keys", Save::NT_STRINGLIST)) &&
+			!(n = GetField(node, "look_override_keys", Save::NT_EMPTY)))
+		return false;
+	std::vector<std::string> lookOverrideKeys;
+	ITERATE_CHILDREN(n, k) lookOverrideKeys.push_back(k->Str);
+	if (!(n = GetField(node, "look_override_texts", Save::NT_STRINGLIST)) &&
+			!(n = GetField(node, "look_override_texts", Save::NT_EMPTY)))
+		return false;
+	std::vector<std::string> lookOverrideTexts;
+	ITERATE_CHILDREN(n, t) lookOverrideTexts.push_back(t->Str);
+	if (lookOverrideKeys.size() != lookOverrideTexts.size()) return false;
+	lookOverrides.clear();
+	for (size_t j = 0; j < lookOverrideKeys.size(); j++)
+		lookOverrides.emplace_back(lookOverrideKeys[j], lookOverrideTexts[j]);
+
 	return true;
 }
 

@@ -10,6 +10,7 @@
 #include "../game.h"
 #include "character.h"
 #include "description.h"
+#include "event.h"
 #include "group.h"
 #include "restriction.h"
 
@@ -217,6 +218,18 @@ std::string Location::GetDescription(bool forDisplay) const {
 		PadForAppend(result);
 		result += anyPrecedingContent ? ("Also here is " + list + ".")
 		                              : ("There is " + list + " here.");
+	}
+
+	// Any event currently running a SetLook subevent that applies here gets spliced in next,
+	// mirroring where ViewLocation folds in Adventure.htblEvents' LookText: after the listed
+	// objects, before character "is here" lines. Events contribute in load order, same as ADRIFT
+	// walking htblEvents.Values; more than one applying at once is a corner ADRIFT itself leaves
+	// as "whatever order the hashtable gives you", so load order is as good a tiebreak as any.
+	for (const auto &evKey: theGame->GetEventLoadOrder()) {
+		std::string lookText = theGame->GetEvent(evKey)->LookOverrideText();
+		if (lookText.empty()) continue;
+		PadForAppend(result);
+		result += lookText;
 	}
 
 	// Characters visible here are listed after the objects. Each contributes its

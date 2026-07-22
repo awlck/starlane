@@ -109,6 +109,13 @@ public:
 	// Whether any subevent here is measured in seconds. Used to warn about a turn-based event
 	// whose subevents still need a wall clock this interpreter might not have.
 	bool HasRealTimeSubEvents() const;
+	// The text this event currently wants LOOK (and the room description) to show in place of
+	// wherever it applies, or empty if it isn't asking for an override right now. Mirrors
+	// ADRIFT's own LookText(): live only while this event is Running, and reading back the
+	// most-recently-pushed SetLook entry whose place the player is currently in -- entries stay
+	// on the stack (see RunSubEvent's SetLook case) even once this event stops, so restarting it
+	// does not forget what an earlier run had already set.
+	std::string LookOverrideText() const;
 	// Clear the "started on this very tick" flag. Done in a pass of its own once every event has
 	// ticked, rather than by the event itself -- see Game::RunEventTick.
 	void ClearJustStarted() { justStarted = false; }
@@ -198,6 +205,10 @@ private:
 	// timeSinceStart as of that subevent, which is what "N turns after the last subevent" counts
 	// from.
 	int32_t lastSubEventTime = 0;
+	// Every SetLook subevent this event has ever run, in the order it ran them: (place, text).
+	// Pushed to by RunSubEvent and never popped, exactly like ADRIFT's stackLookText -- see
+	// LookOverrideText for how the most recent applicable entry gets read back out.
+	std::vector<std::pair<std::string, std::string>> lookOverrides;
 };
 
 }

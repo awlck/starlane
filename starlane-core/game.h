@@ -153,6 +153,9 @@ public:
 	const std::unordered_map<std::string, GameObj *> &GetAllObjects() const { return objects; }
 	// All object keys, in the order the objects appear in the game file.
 	const std::vector<std::string> &GetObjectLoadOrder() const { return staticData->objectLoadOrder; }
+	// All event keys, in the order the events appear in the game file -- used to walk every
+	// event's LookOverrideText the way ADRIFT's ViewLocation walks Adventure.htblEvents.
+	const std::vector<std::string> &GetEventLoadOrder() const { return staticData->eventLoadOrder; }
 	GameObj *GetPlayerChar() const { return objects.at(playerKey); }
 	// The player's key, for asking "is this the player?" without a map lookup -- and without the
 	// throw GetPlayerChar() would give for a question asked before the player has been picked.

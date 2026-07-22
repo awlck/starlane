@@ -28,7 +28,7 @@
     names a known object but matches no task
 [x] let a command's %object% match nothing at all, so that "launch" answers "Launch what?" rather
     than falling through to "I didn't understand that sentence"
-[ ] implement subevents that override the room description (`SetLook`)
+[x] implement subevents that override the room description (`SetLook`)
 [x] implement tasks that use a loop
 [ ] fully implement ADRIFT's "Aggregate output" task property: dedup completion messages on
     unevaluated (rather than evaluated) text when a task's Aggregate flag is on, and merge the

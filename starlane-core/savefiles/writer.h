@@ -22,7 +22,9 @@ namespace Starlane::Save {
 // Bumped to -996 when characters learned to walk: each character now saves the scheduling state of
 // every walk it has (status, countdown, sub-walk bookkeeping, and settled step/when rolls).
 // Bumped to -995 when a game checksum was added to the savefile.
-constexpr int currentSaveFileVer = -995;
+// Bumped to -994 when events learned to run SetLook subevents: each event now carries a stack of
+// look-description overrides that must survive a save/restore round trip.
+constexpr int currentSaveFileVer = -994;
 
 namespace {
 // Helper to determine whether there's a const_iterator for T.
