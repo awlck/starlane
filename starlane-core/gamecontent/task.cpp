@@ -485,13 +485,22 @@ Task::Action Task::Action::CreateFromXML(const pugi::xml_node &xmlNode) {
 		}
 		return result;
 	} else if (name == "SetTasks") {
-		if (tokens[0] == "Execute")
+		size_t offset = 0;
+		if (tokens[0] == "FOR") {
+			// FOR <var> = <from> TO <to> : Execute/Unset <key>[(<args>)] : NEXT <var>
+			// The loop variable itself is decorative -- ADRIFT never substitutes it into the
+			// executed task's key or arguments -- so we only need the bounds.
+			if (tokens.size() < 8 || tokens[2] != "=" || tokens[4] != "TO" || tokens[6] != ":")
+				throw std::runtime_error(std::string("Malformed looped SetTasks action: ") + xmlNode.child_value());
+			result.loopFrom = ParseInt(tokens[3].c_str());
+			result.loopTo = ParseInt(tokens[5].c_str());
+			offset = 7;
+		}
+		if (tokens[offset] == "Execute")
 			result.type = ActionType::ExecTask;
-		else if (tokens[0] == "FOR")
-			throw std::runtime_error("Looped task execution is currenly unsupported.");
 		else result.type = ActionType::UnsetTask;
 		result.refType = ActionRefType::Task;
-		result.lhs = tokens[1];
+		result.lhs = tokens[offset + 1];
 		// An Execute action may hand the called task the values for its own %ref%s, e.g.
 		// `Execute MoveOutObject (%Player%.Parent)`. Without these the called task's
 		// restrictions test references the player never named, and reject it.
@@ -1163,12 +1172,14 @@ void Task::Action::PerformImpl() const {
 		args.reserve(taskParams.size());
 		for (const auto &p : taskParams)
 			args.push_back(ResolveParam(p));
-		g->ExecuteTaskByKey(lhs, args);
+		for (int64_t i = loopFrom; i <= loopTo; i++)
+			g->ExecuteTaskByKey(lhs, args);
 		break;
 	}
 	case Starlane::Task::ActionType::UnsetTask:
-		if (Task *t = g->GetTask(lhs))
-			t->Uncomplete();
+		for (int64_t i = loopFrom; i <= loopTo; i++)
+			if (Task *t = g->GetTask(lhs))
+				t->Uncomplete();
 		break;
 	case Starlane::Task::ActionType::SkipTurns: {
 		// "Skip N turns": let that many turns' worth of events run here and now, part-way through

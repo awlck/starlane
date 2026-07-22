@@ -10,6 +10,7 @@
 #include <set>
 #include <string>
 #include <unordered_map>
+#include <unordered_set>
 #include <utility>
 #include <string_view>
 #include <vector>
@@ -499,6 +500,12 @@ private:
 	// unless the earlier one already broke the line. Mutable because OutputFiltered is const.
 	mutable bool turnHasOutput = false;
 	mutable bool endsWithNewline = false;
+	// Task completion messages already shown this turn, exactly as displayed. A task whose message
+	// duplicates one already shown this turn (e.g. the same task run repeatedly by a SetTasks FOR
+	// loop) is not printed again, approximating ADRIFT's "Aggregate output" task property -- see
+	// RunTaskAndCapture. Same lifecycle as turnHasOutput above: reset every ProcessInput, never
+	// saved or undone.
+	mutable std::unordered_set<std::string> completionMessagesThisTurn;
 
 	size_t descriptionsSoFar = 0;
 	size_t restrictionsSoFar = 0;

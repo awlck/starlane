@@ -219,6 +219,14 @@ private:
 		// (empty when the action names a task without a parenthesised argument list).
 		std::vector<TaskParam> taskParams;
 
+		// For SetTasks's `FOR <var> = <from> TO <to> : ... : NEXT <var>` form: the iteration
+		// bounds. A plain (non-loop) SetTasks defaults to loopFrom == loopTo == 1, i.e. "run
+		// once" -- matching the ADRIFT reference's own default when there is no FOR wrapper.
+		// The loop variable name itself is decorative in the original and is discarded during
+		// parsing.
+		int64_t loopFrom = 1;
+		int64_t loopTo = 1;
+
 		// Actually perform the action for concrete objects/values.
 		void PerformImpl() const;
 		// Perform a move

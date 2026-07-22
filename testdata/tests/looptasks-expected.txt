@@ -1,0 +1,18 @@
+Untitled
+
+
+The Loopatorium
+This is a strange place where things happen in loops.
+
+(Test this with JUMP.)    
+
+> jump
+This is run number "%Loop%"
+
+> look
+
+The Loopatorium
+This is a strange place where things happen in loops.
+
+(Test this with JUMP.)  
+

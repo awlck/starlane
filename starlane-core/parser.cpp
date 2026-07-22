@@ -472,7 +472,11 @@ bool Game::RunTaskAndCapture(Task *task, bool showText, bool runActions) {
 		if (!showText || task->GetCompletionMsg() == 0) return;
 		std::string text = GetDescription(task->GetCompletionMsg())->Build();
 		if (!text.empty()) anyText = true;
-		OutputFiltered(std::move(text));
+		// A message identical to one already shown this turn (e.g. the same task run repeatedly
+		// by a SetTasks FOR loop) doesn't print again -- approximating ADRIFT's "Aggregate output"
+		// task property, which is on by default.
+		if (completionMessagesThisTurn.insert(text).second)
+			OutputFiltered(std::move(text));
 	};
 	if (msgFirst) emit();
 	// Actions run between (or after/before) the message output points above/below, so that a
@@ -797,6 +801,7 @@ void Game::ProcessInput(const std::string &s) {
 	// command or the answer to a question we asked; there is nothing to separate its first
 	// message from.
 	turnHasOutput = false;
+	completionMessagesThisTurn.clear();
 	// A character is only pronominalised once the player has seen them named earlier in the same
 	// turn (see DisplayCharacterName) -- so that tracking resets here too.
 	charactersMentionedThisTurn.clear();

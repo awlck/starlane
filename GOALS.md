@@ -29,7 +29,22 @@
 [x] let a command's %object% match nothing at all, so that "launch" answers "Launch what?" rather
     than falling through to "I didn't understand that sentence"
 [ ] implement subevents that override the room description (`SetLook`)
-[ ] implement tasks that use a loop
+[x] implement tasks that use a loop
+[ ] fully implement ADRIFT's "Aggregate output" task property: dedup completion messages on
+    unevaluated (rather than evaluated) text when a task's Aggregate flag is on, and merge the
+    %object%/%character% references of messages that collapse together so they can be displayed
+    as one combined sentence ("Ok, I drop X and Y.") -- see the simplified always-dedup-on-final-text
+    approximation in `Game::RunTaskAndCapture`'s `emit()` lambda (parser.cpp), which does not
+    attempt this reference-merging and ignores the per-task `<Aggregate>` XML flag entirely
+[ ] support a variable reference (not just a literal integer) as a `SetVariable`/`IncVariable`/
+    `DecVariable` array index, e.g. `SetVariable cl_Buttonarra[cl_One] = "%b0%"` where `cl_One`
+    is itself a variable holding the index -- `Task::Action::PerformImpl`'s array-index parsing
+    (task.cpp, the `ActionType::SetVarTo`/`IncVar`/`DecVar` case) calls `ParseInt` directly on the
+    bracketed text and crashes (uncaught `std::invalid_argument` from `stoll`) when it isn't a
+    bare integer literal. Found via `testdata/ww2-elevator-escape/ww2-elevator-escape.taf`, whose
+    `cl_Vars2array` System task does exactly this at game start; previously masked because the
+    game failed to load at all (unimplemented `SetTasks` FOR loop, now fixed) before ever reaching
+    `Game::Begin()`
 [ ] implement the conversation system (or refuse to load games using it because it isn't very widely used)
 [ ] come up with a better error-handling mechanism than crashing the entire interpreter on load issues
 [ ] implement status bar support into the backend

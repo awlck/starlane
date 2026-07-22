@@ -1,0 +1,19 @@
+Untitled
+
+
+The Loopatorium
+This is a strange place where things happen in loops.
+
+(Test this with LOOP.)    
+
+> loop
+This is run number "%Loop%"  
+(Done looping.)
+
+> look
+
+The Loopatorium
+This is a strange place where things happen in loops.
+
+(Test this with LOOP.)  
+
