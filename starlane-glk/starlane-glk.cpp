@@ -2,6 +2,7 @@
 // Created by Adrian Welcker on 17.07.26.
 //
 
+#include <stdint.h>
 #include <string.h>
 
 #include <vector>
