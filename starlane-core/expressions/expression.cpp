@@ -189,6 +189,7 @@ std::map<std::string, decltype(&Expression::LCaseImpl)> Expression::tableOfBuilt
 
 // List of built-in item functions that require an object of any kind.
 static const char *listOfObjectFunctions[] = {
+		"Article",
 		"Children",
 		"Contents",
 		"Description",
@@ -719,6 +720,7 @@ Expr::Value Expression::EvalItemfuncSingle(const std::string &key, const Expr::V
 	if (Expr::IsListedIn(listOfObjectFunctions, toCall_.Str.c_str())) {
 		const auto *theObj = g->GetObject(key);
 		if (!theObj) return std::string();
+		if (toCall_.Str == "Article") return theObj->GetArticle();
 		if (toCall_.Str == "Children") return ObjChildrenImpl(theObj, args);
 		if (toCall_.Str == "Contents") return ObjContentsImpl(theObj, args);
 		if (toCall_.Str == "Name") {

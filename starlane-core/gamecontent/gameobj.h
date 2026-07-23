@@ -53,6 +53,8 @@ public:
 	virtual std::string GetDisplayName(bool defArt = false) const;
 	// The same name with no article at all ("cell air duct"), as `obj.Name(none)` asks for.
 	[[nodiscard]] std::string GetBareName() const;
+	// The article on its own ("a", "the", "" for none), as `obj.Article` asks for.
+	[[nodiscard]] const std::string &GetArticle() const { return article; }
 	virtual std::string GetDescription(bool forDisplay = true) const;
 
 	// Note that this object is becoming a member of the given group.
