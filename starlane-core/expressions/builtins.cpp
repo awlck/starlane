@@ -469,7 +469,10 @@ Expr::Value Expression::DisplayCharacterName(const std::string &key, Pronoun pro
 }
 
 Expr::Value Expression::CharNameImpl(const Character *ch, const ast_node_tag *args) const {
-	CHECK_ARGCOUNT_V("character.Name", 0, 4);
+	// A bare "%character%.Name" (no bracketed arguments at all) reaches here with args == nullptr,
+	// same as object.Name's own no-args case just above -- so this has to check before the count,
+	// not just before reading the argument list.
+	if (args) CHECK_ARGCOUNT_V("character.Name", 0, 4);
 	Pronoun pronoun = Pronoun::Subject;
 	bool force = false;
 	ParseCharacterPronounArgs(args ? args->child.first : nullptr, pronoun, force);
