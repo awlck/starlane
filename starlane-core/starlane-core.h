@@ -89,6 +89,14 @@ SLC_API uint32_t GetBlorbResourceForPath(const std::string &path);
 // Initiate a save programmatically, e.g. via a menu option:
 SLC_API bool SaveGame();
 SLC_API bool RestoreGame();
+
+struct SLC_API StatusBar {
+	std::string location;
+	std::string userStatus;
+};
+// Get the current status bar.
+// Call this after every time you call Begin(), ProcessInput(), or TimeTick().
+SLC_API bool GetStatusBar(StatusBar *statusBar);
 }
 
 

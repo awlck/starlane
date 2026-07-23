@@ -51,6 +51,7 @@ class GameStatic {
 	// How many turns a single WAIT command lets pass.
 	uint32_t waitTurns = 3;
 	DescrRef gameIntro = 0;
+	DescrRef userStatusBar = 0;
 
 	// immutable content (only exists once)
 	std::unordered_map<RestrRef, Restriction *> restrictions;
@@ -232,6 +233,9 @@ public:
 	bool Save();
 	// Restore a saved game.
 	bool Restore();
+	// Get status bar info
+	bool GetStatusBar(StatusBar *statusBar);
+	void ApplyOverrides(std::string &t) const;
 
 	ReferralPerson GetCurrentReferralPerson() const {
 		if (mostRecentlyMentioned.first.empty() || mostRecentlyMentioned.first == playerKey)

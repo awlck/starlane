@@ -66,6 +66,8 @@ Game *Game::LoadFromXML(const std::string &gameTxt, uint32_t gameCrc32) {
 	// on the way in (a negative wait is meaningless, and would wrap around here).
 	if (gameNode.child("WaitTurns").type() != pugi::node_null)
 		rStatic->waitTurns = (uint32_t) std::max((int64_t) 0, ParseInt(gameNode.child_value("WaitTurns")));
+	if (gameNode.child("UserStatus").type() != pugi::node_null)
+		rStatic->userStatusBar = result->CreateDescFromText(gameNode.child_value("UserStatus"));
 	// Before parsing the intro (or anything else): an inline conditional segment inside the intro
 	// text carries its own <Restrictions>, and Description::Segment::CreateFromXML reaches for
 	// Game::Get() to store them -- which is still null until this assignment. (Jacaranda Jim has

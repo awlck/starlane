@@ -65,7 +65,7 @@
     MoveCharacter ... ToSwitchWith Look output) and `testdata/tests/charswitchplayertest.taf`.
 [ ] implement the conversation system (or refuse to load games using it because it isn't very widely used)
 [ ] come up with a better error-handling mechanism than crashing the entire interpreter on load issues
-[ ] implement status bar support into the backend
+[x] implement status bar support into the backend
 [ ] resolve outstanding TODO markers within starlane-core
 [ ] implement the status bar in the Qt frontend
 [ ] fix and fully implement text formatting in the Qt frontend (including default colors and fonts)

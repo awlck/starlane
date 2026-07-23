@@ -640,39 +640,52 @@ bool Game::RollbackRestore() {
 	return false;
 }
 
-void Game::OutputFiltered(std::string s) const {
-	auto applyOverrides = [this](std::string &t) {
-		std::string initialText;
-		do {
-			initialText = t;
-			for (const auto &it: staticData->textOverrides) {
-				const auto &f = it.second->GetFrom();
-				// An empty needle would match at every position forever; nothing sensible to do.
-				if (f.empty())
-					continue;
-				// Resume the search past each insertion rather than restarting from the front, as
-				// .NET's String.Replace (which ADRIFT uses) does: every original occurrence is
-				// replaced once, left to right, and the inserted text is not itself rescanned.
-				// Restarting from zero hangs the moment a replacement contains its own from-text --
-				// and games ship overrides that map a string to itself ("~~~~" -> "~~~~", a colour
-				// tag to the same tag), which would otherwise loop forever.
-				size_t pos = 0;
-				while ((pos = t.find(f, pos)) != std::string::npos) {
-					std::string replacement(GetDescription(it.second->GetReplacement())->Build());
-					t.replace(pos, f.size(), replacement);
-					pos += replacement.size();
-				}
-			}
-		} while (initialText != t);
-	};
+bool Game::GetStatusBar(StatusBar *statusBar) {
+	if (!gameHasBegun) return false;
+	try {
+		auto locationName = GetObject(GetPlayerLocationKey())->GetDisplayName();
+		ApplyOverrides(locationName);
+		statusBar->location = locationName;
+		auto userStatus = GetDescription(staticData->userStatusBar)->Build();
+		ApplyOverrides(userStatus);
+		statusBar->userStatus = userStatus;
+	} catch (std::exception &e) { return false; }
+	return true;
+}
 
-	applyOverrides(s);
+void Game::ApplyOverrides(std::string &t) const {
+	std::string initialText;
+	do {
+		initialText = t;
+		for (const auto &it: staticData->textOverrides) {
+			const auto &f = it.second->GetFrom();
+			// An empty needle would match at every position forever; nothing sensible to do.
+			if (f.empty())
+				continue;
+			// Resume the search past each insertion rather than restarting from the front, as
+			// .NET's String.Replace (which ADRIFT uses) does: every original occurrence is
+			// replaced once, left to right, and the inserted text is not itself rescanned.
+			// Restarting from zero hangs the moment a replacement contains its own from-text --
+			// and games ship overrides that map a string to itself ("~~~~" -> "~~~~", a colour
+			// tag to the same tag), which would otherwise loop forever.
+			size_t pos = 0;
+			while ((pos = t.find(f, pos)) != std::string::npos) {
+				std::string replacement(GetDescription(it.second->GetReplacement())->Build());
+				t.replace(pos, f.size(), replacement);
+				pos += replacement.size();
+			}
+		}
+	} while (initialText != t);
+}
+
+void Game::OutputFiltered(std::string s) const {
+	ApplyOverrides(s);
 	// Capitalise only now, after the overrides: a replacement can land mid-sentence in one message
 	// and start a sentence in the next, and only the finished text knows which. ADRIFT is explicit
 	// about the ordering, and about looking again afterwards -- an author may well have written an
 	// override to match text as the player finally sees it, capital and all.
 	if (AutoCapitalize(s))
-		applyOverrides(s);
+		ApplyOverrides(s);
 	StripSeamMarkers(s);
 	if (s.empty()) return;
 	// Successive messages within one turn run together otherwise: ADRIFT's Display() puts two
