@@ -49,6 +49,7 @@ The following references are available:
 * Do not introduce new dependencies besides what is already included:
   * The UI is built using Qt6
   * The interpreter core uses `pugixml`, `packcc`, `miniz`, and `magic_enum`.
+* Keep headers slim; prefer to put implementations into `.cpp` files.
 * For reference, the original VB.NET implementation of ADRIFT 5 can be
   found in the `reference/ADRIFT-5/ADRIFT` directory. (Beware that some files here use
   encodings other than UTF-8; use `grep -a` when searching here.)
