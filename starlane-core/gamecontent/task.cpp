@@ -443,6 +443,8 @@ Task::Action Task::Action::CreateFromXML(const pugi::xml_node &xmlNode) {
 			result.type = ActionType::MakeSittingOn;
 		} else if (tokens[2] == "ToLyingOn") {
 			result.type = ActionType::MakeLyingOn;
+		} else if (tokens[2] == "ToSwitchWith") {
+			result.type = ActionType::MoveToSwitchWith;
 		} else throw std::runtime_error(std::string("Unknown movement command: ") + tokens[2]);
 		// reference type determined below.
 	} else if (name == "AddObjectToGroup" || name == "AddCharacterToGroup" || name == "AddLocationToGroup") {
@@ -1115,6 +1117,73 @@ void Task::Action::PerformImpl() const {
 			throw std::runtime_error("Tried to change the posture of a non-character.");
 		}
 		break;
+	case ActionType::MoveToSwitchWith:
+		switch (refType) {
+		case ActionRefType::SingleObj:
+			PerformSwitchWith(lhs);
+			break;
+		case ActionRefType::CharsAtLocation:
+		case ActionRefType::CharsInside:
+		case ActionRefType::CharsOn: {
+			auto &allObjs = g->GetAllObjects();
+			auto ht = ActionRefToHoldingType(refType);
+			for (auto &o : allObjs) {
+				if (dynamic_cast<Character *>(o.second) && o.second->GetParentKey() == lhs && o.second->GetParentRelation() == ht)
+					PerformSwitchWith(o.first);
+			}
+		}
+			break;
+		case ActionRefType::CharsWithProp: {
+			auto &allObjs = g->GetAllObjects();
+			auto propType = g->GetPropMeta(prop)->Type();
+			switch (propType) {
+			case Property::ValueType::Bool:
+				for (auto &o : allObjs) {
+					if (dynamic_cast<Character *>(o.second) && o.second->GetBoolProp(prop))
+						PerformSwitchWith(o.first);
+				}
+				break;
+			case Property::ValueType::Object:
+			case Property::ValueType::Enum:
+				for (auto &o : allObjs) {
+					if (dynamic_cast<Character *>(o.second) && o.second->GetStrProp(prop) == lhs)
+						PerformSwitchWith(o.first);
+				}
+				break;
+			case Property::ValueType::Map:
+			case Property::ValueType::Int: {
+				auto tmpInt = propType == Property::ValueType::Map ? ParseInt(lhs.c_str()) : g->GetExpression(expr)->EvaluateInt();
+				for (auto &o : allObjs) {
+					if (dynamic_cast<Character *>(o.second) && o.second->GetIntProp(prop) == tmpInt)
+						PerformSwitchWith(o.first);
+				}
+				break;
+			}
+			case Property::ValueType::Text: {
+				std::string tmpTxt(g->GetExpression(expr)->EvaluateStr());
+				for (auto &o : allObjs) {
+					if (dynamic_cast<Character *>(o.second) && o.second->GetStrProp(prop) == tmpTxt)
+						PerformSwitchWith(o.first);
+				}
+				break;
+			}
+			case Property::ValueType::ErrorType:
+				UNREACHABLE();
+			}
+			break;
+		}
+		case ActionRefType::CharsInGroup: {
+			auto &allObjs = g->GetAllObjects();
+			for (auto &o : allObjs) {
+				if (dynamic_cast<Character *>(o.second) && o.second->IsMemberOfGroup(lhs))
+					PerformSwitchWith(o.first);
+			}
+		}
+			break;
+		default:
+			throw std::runtime_error("Tried to switch places with a non-character.");
+		}
+		break;
 	case ActionType::SetVarTo:
 	case ActionType::IncVar:
 	case ActionType::DecVar: {
@@ -1321,6 +1390,26 @@ void Task::Action::PerformMoveTo(const std::string &moveTarget) const {
 	default:
 		break;
 	}
+}
+
+void Task::Action::PerformSwitchWith(const std::string &chKey) const {
+	Game *g = Game::Get();
+	// If either side is the player, nobody actually moves -- the player just starts playing as
+	// whichever of the two they weren't already.
+	if (chKey == g->GetPlayerKey() || rhs == g->GetPlayerKey()) {
+		g->SwitchPlayerCharacter(chKey == g->GetPlayerKey() ? rhs : chKey);
+		return;
+	}
+	// Otherwise, per the original ADRIFT runner: only the second character (`rhs`) actually
+	// moves, teleporting to wherever `chKey` is via a raw location copy with none of the arrival
+	// bookkeeping a proper move would do. `chKey` itself never goes anywhere -- ADRIFT's own
+	// implementation swaps both characters' locations and then immediately moves `chKey` back to
+	// where it started, which nets out to exactly this.
+	GameObj *ch = g->GetObject(chKey);
+	GameObj *other = g->GetObject(rhs);
+	if (!ch || !other) return;
+	other->CopyLocationFrom(*ch);
+	other->SetPropValue("CharacterPosition", ch->GetStrProp("CharacterPosition"));
 }
 
 }

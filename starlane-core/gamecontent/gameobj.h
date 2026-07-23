@@ -5,6 +5,7 @@
 
 #include "../slc_private.h"
 
+#include <algorithm>
 #include <optional>
 #include <regex>
 #include <string>
@@ -13,6 +14,7 @@
 #include <vector>
 
 #include "propholder.h"
+#include "utility.h"
 #include "../savefiles/parser.h"
 
 namespace Starlane {
@@ -122,6 +124,21 @@ public:
 	// Set the `dynamic` state, because of course you can change that through property assignments.
 	void SetDynamic(bool dynamic) { this->dynamic = dynamic; }
 	bool IsDynamic() const { return dynamic; }
+
+	// Directly overwrite this object's location (parent + relation) with someone else's,
+	// bypassing the arrival bookkeeping (and system-task triggering) MoveTo performs. Used by
+	// `MoveCharacter ... ToSwitchWith`, which -- per the original ADRIFT runner -- teleports the
+	// second character to the first's location this way, without treating it as a proper move.
+	void CopyLocationFrom(const GameObj &other) {
+		parent = other.parent;
+		relation = other.relation;
+	}
+
+	// Move any of `pronouns` found (case-insensitively) among this object's nouns over to
+	// `newOwner`'s, removing them from here and recompiling both objects' match expressions.
+	// Used by `MoveCharacter ... ToSwitchWith` to keep "me"/"myself"/etc. answering to whichever
+	// character is currently the player, matching the original ADRIFT runner.
+	void TransferPronounNouns(GameObj &newOwner, const std::vector<std::string> &pronouns);
 
 	// Write out mutable object state to a save file
 	virtual void WriteState(Save::Writer &writer) const;

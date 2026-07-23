@@ -167,6 +167,26 @@ const std::string &Game::GetPlayerLocationKey() const {
 	return GetPlayerChar()->GetLocationKey();
 }
 
+void Game::SwitchPlayerCharacter(const std::string &newPlayerKey) {
+	if (newPlayerKey == playerKey) return;
+	static const std::vector<std::string> kFirstPersonPronouns = {"I", "me", "myself"};
+	// Second person is treated as also answering to first-person pronouns, matching the original
+	// ADRIFT runner (its comment there: "include 1st in 2nd").
+	static const std::vector<std::string> kSecondPersonPronouns = {"I", "me", "myself", "you", "yourself"};
+	const std::vector<std::string> *pronouns = nullptr;
+	switch (staticData->pcReferralPerson) {
+	case ReferralPerson::FirstPerson: pronouns = &kFirstPersonPronouns; break;
+	case ReferralPerson::SecondPerson: pronouns = &kSecondPersonPronouns; break;
+	case ReferralPerson::ThirdPerson: break;
+	}
+	if (pronouns) {
+		if (GameObj *oldPlayer = GetObject(playerKey))
+			if (GameObj *newPlayer = GetObject(newPlayerKey))
+				oldPlayer->TransferPronounNouns(*newPlayer, *pronouns);
+	}
+	playerKey = newPlayerKey;
+}
+
 bool Game::PlayerIsInLocationOrGroup(const std::string &key) const {
 	const std::string &here = GetPlayerLocationKey();
 	// A key naming a location is only ever about that location, even if a group happens to share

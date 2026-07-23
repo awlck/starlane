@@ -123,6 +123,7 @@ public:
 		MoveOntoObj,
 		MoveInDirection,
 		MoveToParent,
+		MoveToSwitchWith,
 		MakeCarriedBy,
 		MakeWornBy,
 		MakePartOf,
@@ -238,6 +239,9 @@ private:
 		void PerformImpl() const;
 		// Perform a move
 		void PerformMoveTo(const std::string &moveTarget) const;
+		// MoveCharacter <chKey> ToSwitchWith <rhs>. See the case in PerformImpl for the (rather
+		// odd) semantics this reproduces from the original ADRIFT runner.
+		void PerformSwitchWith(const std::string &chKey) const;
 	};
 
 	std::string key;

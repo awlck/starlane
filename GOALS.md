@@ -49,6 +49,18 @@
     game failed to load at all (unimplemented `SetTasks` FOR loop, now fixed) before ever reaching
     `Game::Begin()`
 [x] also properly support variable names on the right-hand side of a restriction regarding variables
+[x] Implement task action `Move <character> ToSwitchWith <character>`. (For the player, this means
+    changing perspective. "Switching" two NPC apparently just brings the second to the first? Weird.)
+[ ] A completion message that ends up in the per-command response buffer (see
+    Game::RunTaskAndCapture/FlushResponseBuffer) gets its expressions evaluated twice: once to
+    measure whether it has anything to say, once more at flush time to actually render it. That's
+    fine for side-effect-free text, but a %CharacterName%/character.Name call inside such a message
+    mentions the character (see DisplayCharacterName) on the *first* (throwaway) evaluation, so the
+    second (printed) evaluation sees them as already mentioned this turn and wrongly pronominalises
+    them ("he" instead of the name) the first time they're actually shown to the player. Found via
+    `testdata/tests/charswitchothertest.taf`'s Look output after MoveCharacter ... ToSwitchWith, but
+    the bug is general to any aggregating/"Before"-placed completion message, not specific to that
+    action.
 [ ] implement the conversation system (or refuse to load games using it because it isn't very widely used)
 [ ] come up with a better error-handling mechanism than crashing the entire interpreter on load issues
 [ ] implement status bar support into the backend

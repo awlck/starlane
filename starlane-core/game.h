@@ -160,6 +160,11 @@ public:
 	// The player's key, for asking "is this the player?" without a map lookup -- and without the
 	// throw GetPlayerChar() would give for a question asked before the player has been picked.
 	const std::string &GetPlayerKey() const { return playerKey; }
+	// Make `newPlayerKey` the character the player is playing as, per `MoveCharacter ...
+	// ToSwitchWith` when either side of the switch is the player. Neither character actually
+	// moves; the old player's pronoun descriptors ("me", "myself", ...) move to the new one, as
+	// in the original ADRIFT runner.
+	void SwitchPlayerCharacter(const std::string &newPlayerKey);
 
 	bool GetIsTaskCompleted(const std::string &key) const { return taskCompletedStorage.at(key); }
 	void SetTaskCompleted(const std::string &key, bool val) { taskCompletedStorage[key] = val; }
