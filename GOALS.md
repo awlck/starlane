@@ -63,6 +63,8 @@
     nested within one), via `Game::MentionTrackingSuppressGuard` -- mirroring how `commit` already
     gates `HandleSegmentShown`. Covered by `testdata/tests/charswitchothertest.taf` (a
     MoveCharacter ... ToSwitchWith Look output) and `testdata/tests/charswitchplayertest.taf`.
+[ ] implement Specific Tasks with multiple objects in the same reference (cf. Race Against Time,
+    `cl_PutABlueFo`)
 [ ] implement the conversation system (or refuse to load games using it because it isn't very widely used)
 [ ] come up with a better error-handling mechanism than crashing the entire interpreter on load issues
 [x] implement status bar support into the backend
