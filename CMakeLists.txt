@@ -10,6 +10,9 @@ option(SL_BUILD_TOOLS "Build command-line utilities" ON)
 option(SL_BUILD_C_WRAPPER "Build C-style API wrapper" ON)
 option(SL_BUILD_GLK "Build the Starlane Glk frontend" ON)
 
+include(CheckIPOSupported)
+check_ipo_supported(RESULT SL_IPO_SUPPORTED OUTPUT ipo_errors)
+
 # Global compiler options: warnings, security, optimizations
 if(MSVC)
 	add_compile_options(
@@ -23,12 +26,10 @@ if(MSVC)
 		"/GS"  # enable the stack guard
 		"/guard:cf"  # enable control flow guard for indirect calls
 		"/guard:ehcont"  # enable exception continuation guards
-		$<$<NOT:$<CONFIG:Debug>>:/GL>  # release only: whole program optimization
 	)
 	add_link_options(
 		"/guard:cf"  # linker support for indirect call guarding
 		"/guard:ehcont"  # linker support for exception continuation guarding
-		$<$<NOT:$<CONFIG:Debug>>:/LTCG>  # linker support for whole program optimization
 	)
 else()
 	# GCC/clang
@@ -39,13 +40,16 @@ else()
 		"-Werror=return-type"  # treat return-related issues as errors
 		"$<$<NOT:$<BOOL:${EMSCRIPTEN}>>:-fstack-protector>"  # enable stack protection
 		"-fvisibility=hidden"
-		$<$<NOT:$<CONFIG:Debug>>:-flto>  # release only: link-time whole-program optimization
-	)
-	add_link_options(
-		$<$<NOT:$<CONFIG:Debug>>:-flto>
 	)
 endif()
 
+if(NOT ${CMAKE_BUILD_TYPE} STREQUAL "Debug")
+	if(${SL_IPO_SUPPORTED})
+		set(CMAKE_INTERPROCEDURAL_OPTIMIZATION ON)
+	else()
+		message(WARNING "IPO/LTO/LTCG is not supported on this compiler: ${ipo_errors}")
+	endif()
+endif()
 
 add_subdirectory("starlane-core")
 add_subdirectory("starlane-utils")
