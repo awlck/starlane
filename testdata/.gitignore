@@ -10,4 +10,4 @@
 !tests/**
 
 # Stray editor/tool backup copies, not meant to be tracked.
-starsreturn/*.bak
+*/*.bak
