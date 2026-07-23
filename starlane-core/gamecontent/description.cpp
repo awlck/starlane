@@ -79,6 +79,13 @@ std::string Description::Build(bool commit, const UserFuncContext *context, bool
 	// do nothing if there is no text
 	if (segments.empty()) return "";
 
+	// A commit=false pass is a throwaway measurement (see the comment above and this function's
+	// declaration) -- so besides not committing segment shown-state below, it must not let any
+	// %CharacterName%/character.Name evaluated along the way commit its mention either, or the
+	// real, printed Build() that follows would wrongly see the character as already named this
+	// turn and print a pronoun instead of their name.
+	Game::MentionTrackingSuppressGuard mentionGuard(Game::Get(), !commit);
+
 	// First, find the rightmost segment with "BeginHere" mode that passes restrictions
 	size_t beginning = NPOS;
 	for (size_t i = segments.size() - 1; i != NPOS; i--) {

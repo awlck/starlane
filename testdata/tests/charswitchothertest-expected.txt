@@ -1,0 +1,16 @@
+Untitled
+
+
+testing location
+Here you are, Player, in the testing location, a place in which things are tested.
+
+In this test, we will apply "Move Character ToSwitchWith otherchar" to two NPCs, rather than the player.
+
+(Type TEST ME to run the test.)  Bob is here, lounging around, only vaguely aware of what fate will soon befall him.    
+
+> test me
+POOF! With a swish of your hand, you switch out Bob and Test Character!  
+testing location
+Here you are, Player, in the testing location, a place in which things are tested.
+Test Character is here.  Bob is here, lounging around, only vaguely aware of what fate will soon befall him.  
+
