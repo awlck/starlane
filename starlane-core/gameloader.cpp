@@ -126,6 +126,14 @@ Game *Game::LoadFromXML(const std::string &gameTxt, uint32_t gameCrc32) {
 		}
 	}
 
+	LOAD_STAGE("Loading Groups");
+	// Groups only need the objects/locations/characters and properties loaded above -- moved
+	// ahead of Tasks so that a task action's parameter parsing (e.g. Task::Action::CreateFromXML
+	// recognizing "Npcs.Gender" as naming the "Npcs" group) can already see which keys name a
+	// group rather than an object.
+	for (const auto &it : gameNode.children("Group"))
+		result->CreateGroupFromXML(it);
+
 	LOAD_STAGE("Loading Tasks");
 	for (const auto &it: gameNode.children("Task")) {
 		auto t = result->CreateTaskFromXML(it);
@@ -155,10 +163,6 @@ Game *Game::LoadFromXML(const std::string &gameTxt, uint32_t gameCrc32) {
 	LOAD_STAGE("Loading Events");
 	for (const auto &it : gameNode.children("Event"))
 		result->CreateEventFromXML(it);
-	
-	LOAD_STAGE("Loading Groups");
-	for (const auto &it : gameNode.children("Group"))
-		result->CreateGroupFromXML(it);
 
 	LOAD_STAGE("Loading Functions");
 	for (const auto &it: gameNode.children("Function"))

@@ -535,8 +535,28 @@ Task::Action Task::Action::CreateFromXML(const pugi::xml_node &xmlNode) {
 						// which costs this one task call rather than the whole game's load.
 					}
 				} else {
-					tp.kind = TaskParam::Kind::Literal;
-					tp.text = std::move(param);
+					const size_t dot = param.find('.');
+					const std::string prefix = param.substr(0, dot);
+					// A genuine bool property after the dot ("BlankCards.ObjectIsAC") already
+					// works through the Expr path once %Foo% syntax reaches EvalItemfunc: a Group
+					// on the left expands to its members and the bool property filters them down
+					// to the ones it holds for, yielding exactly the keys we want. But "Gender" and
+					// "StaticOrDynamic" (Npcs.Gender, Everything.StaticOrDynamic) aren't filters at
+					// all -- Gender is an enum every character has some value for, and
+					// StaticOrDynamic isn't even a property our engine evaluates generically -- so
+					// neither takes that path. They are ADRIFT's idiom for "run the called task once
+					// per member of this group", and only reach here because `prefix` names a Group,
+					// not an Object.
+					const Property *suffixProp = dot != std::string::npos
+						? Game::Get()->GetPropMeta(param.substr(dot + 1)) : nullptr;
+					const bool suffixIsBoolFilter = suffixProp && suffixProp->Type() == Property::ValueType::Bool;
+					if (!suffixIsBoolFilter && Game::Get()->GroupExists(prefix)) {
+						tp.kind = TaskParam::Kind::GroupIter;
+						tp.text = prefix;
+					} else {
+						tp.kind = TaskParam::Kind::Literal;
+						tp.text = std::move(param);
+					}
 				}
 				result.taskParams.push_back(std::move(tp));
 			}
@@ -776,6 +796,9 @@ std::string Task::Action::ResolveParam(const TaskParam &p) {
 			return "";
 		}
 	case TaskParam::Kind::Literal:
+	case TaskParam::Kind::GroupIter:
+		// ExecTask's PerformImpl handles GroupIter itself (it needs to loop, not resolve to a
+		// single value); this fallback only matters if some future caller resolves one directly.
 		break;
 	}
 	return p.text;
@@ -923,9 +946,30 @@ void Task::Action::PerformImpl() const {
 				self->MoveTo(parent->GetParentKey(), parent->GetParentRelation());
 		}
 		break;
-	case Starlane::Task::ActionType::MoveToGroup:
-		// TODO: randomly pick group member to move to.
+	case Starlane::Task::ActionType::MoveToGroup: {
+		// A character (the player included -- "MoveCharacter ... ToLocationGroup" moves the
+		// player themselves) or a dynamic (takeable) object picks one member of the location
+		// group at random and sits there like any other single-location object. A static
+		// object instead sits in *every* location the group names at once -- e.g. scenery
+		// that should be seen throughout a whole region -- which Location::HoldsDirectly
+		// already knows how to answer for the AtLocationGroup relation; there is no single
+		// member to pick, and unlike an object, a character can never be spread across a
+		// whole group of locations at once.
+		GameObj *mover = g->GetObject(lhs);
+		if (!mover) break;
+		if (!mover->IsDynamic() && !dynamic_cast<Character *>(mover)) {
+			mover->MoveTo(rhs, GameObj::HoldingType::AtLocationGroup);
+			break;
+		}
+		const Group *grp = g->GetGroup(rhs);
+		if (!grp) break;
+		const auto &members = grp->GetAllMembers();
+		if (members.empty()) break;
+		auto it = members.begin();
+		std::advance(it, RandomInt((uint32_t) members.size() - 1));
+		mover->MoveTo(*it, GameObj::HoldingType::AtLocation);
 		break;
+	}
 	case Starlane::Task::ActionType::MoveInDirection: {
 		// Move the character named by `lhs` through the exit in direction `rhs` (a
 		// canonical direction like "North"). Movement-related tasks generally validate
@@ -1248,12 +1292,25 @@ void Task::Action::PerformImpl() const {
 	}
 		break;
 	case Starlane::Task::ActionType::ExecTask: {
-		std::vector<std::string> args;
-		args.reserve(taskParams.size());
-		for (const auto &p : taskParams)
-			args.push_back(ResolveParam(p));
-		for (int64_t i = loopFrom; i <= loopTo; i++)
-			g->ExecuteTaskByKey(lhs, args);
+		// A GroupIter param ("Npcs.Gender") makes this an iterating call: unlike every other
+		// param kind, which resolves to one value shared by every call, it runs the task once
+		// per member of the named group, with that member bound in its place.
+		size_t groupParamIdx = taskParams.size();
+		for (size_t i = 0; i < taskParams.size(); i++) {
+			if (taskParams[i].kind == TaskParam::Kind::GroupIter) { groupParamIdx = i; break; }
+		}
+		const Group *grp = groupParamIdx < taskParams.size() ? g->GetGroup(taskParams[groupParamIdx].text) : nullptr;
+		if (groupParamIdx < taskParams.size() && !grp) break;
+		const auto singleDummyMember = std::set<std::string>{std::string()};
+		const auto &members = grp ? grp->GetAllMembers() : singleDummyMember;
+		for (const auto &member : members) {
+			std::vector<std::string> args;
+			args.reserve(taskParams.size());
+			for (size_t i = 0; i < taskParams.size(); i++)
+				args.push_back(i == groupParamIdx ? member : ResolveParam(taskParams[i]));
+			for (int64_t i = loopFrom; i <= loopTo; i++)
+				g->ExecuteTaskByKey(lhs, args);
+		}
 		break;
 	}
 	case Starlane::Task::ActionType::UnsetTask:

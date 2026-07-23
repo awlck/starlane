@@ -110,10 +110,19 @@ bool GameObj::MatchesNameWord(const std::string &word) const {
 }
 
 const std::string &GameObj::GetLocationKey() const {
+	static const std::string kNowhere;
 	if (parent.empty()) return parent;
 	const GameObj *o = this;
 	Game *theGame = Game::Get();
-	while (!(o = theGame->GetObject(o->parent))->parent.empty());
+	while (true) {
+		// A static object spread across a whole location group (see MoveToGroup) isn't "at"
+		// any single location -- Location::HoldsDirectly answers presence per-location for
+		// those instead. `parent` here names a Group, not a GameObj, so GetObject would
+		// return null and crash the walk below.
+		if (o->relation == HoldingType::AtLocationGroup) return kNowhere;
+		o = theGame->GetObject(o->parent);
+		if (o->parent.empty()) break;
+	}
 	return o->key;
 }
 

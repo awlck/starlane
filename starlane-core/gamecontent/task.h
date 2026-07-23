@@ -193,12 +193,19 @@ private:
 		// expressions at runtime, and those live in the GameStatic shared between undo states.
 		struct TaskParam {
 			enum class Kind {
-				Ref,      // a bare "%object%"/"%Player%": pass the caller's reference straight through
-				Expr,     // "%Player%.Parent", "cl_Foo.SomeProp": evaluate to get the key
-				Literal   // "South", "cl_Lamp1": already the value the called task wants
+				Ref,       // a bare "%object%"/"%Player%": pass the caller's reference straight through
+				Expr,      // "%Player%.Parent", "cl_Foo.SomeProp": evaluate to get the key
+				Literal,   // "South", "cl_Lamp1": already the value the called task wants
+				// "Npcs.Gender", "Everything.StaticOrDynamic": ADRIFT's idiom for "run the called
+				// task once per member of this group", named Npcs/Everything here. The text after
+				// the dot is never evaluated -- it is only the game file's own hint at what kind of
+				// thing the group holds (a Character group vs. an Object group), not a real
+				// property access, so it plays no part in resolving this parameter.
+				GroupIter
 			};
 			Kind kind = Kind::Literal;
-			// For Ref, the canonical reference name to look up; for Literal, the value itself.
+			// For Ref, the canonical reference name to look up; for Literal, the value itself;
+			// for GroupIter, the group's key.
 			std::string text;
 			// For Expr, the expression to evaluate; 0 for the other kinds, and also for an Expr
 			// whose text wouldn't compile (which then resolves to nothing rather than throwing).
