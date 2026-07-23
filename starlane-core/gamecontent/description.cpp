@@ -420,7 +420,13 @@ ResolveOO_FakeTailcall:
 	// the current level of parentheses (only relevant within a potential expression)
 	int parensLevel = 0;
 	for (pos = 0; pos < theText.length(); pos++) {
-		if (theText[pos] == ' ' || theText[pos] == '\n' || (theText[pos] == ',' && parensLevel == 0) || theText[pos] == ';') {
+		// Sentence and quote punctuation ends a property chain the same way whitespace does --
+		// see SkipSingleOOExpression's identical list, added for the same reason (Grandma's Flying
+		// Saucer): without it, "Bob.ProperName!" swallows the "!" into the expression text handed
+		// to the parser, which then fails on it.
+		if (theText[pos] == ' ' || theText[pos] == '\n' || (theText[pos] == ',' && parensLevel == 0) || theText[pos] == ';'
+				|| theText[pos] == '!' || theText[pos] == '?' || theText[pos] == '/' || theText[pos] == '<'
+				|| theText[pos] == ':' || theText[pos] == '"' || theText[pos] == '\'') {
 			inWord = false;
 			if (reallyInExpr == 1) {
 				auto theKey = GetPotentialObjKey(theText.substr(wordBegan, pos - wordBegan));
