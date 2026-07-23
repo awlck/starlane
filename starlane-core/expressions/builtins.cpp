@@ -8,6 +8,7 @@
 #include "../gamecontent/character.h"
 #include "../gamecontent/location.h"
 #include "../gamecontent/utility.h"
+#include "../gamecontent/variable.h"
 
 namespace Starlane {
 #define CHECK_ARGCOUNT(funcname, cnt) do { if (args->arity != (cnt)) throw std::runtime_error("Wrong number of arguments to built-in function " funcname ": expected " #cnt ", got " + std::to_string(args->arity)); } while (0)
@@ -262,6 +263,10 @@ void EnsureInt(Value &v, bool allowSigned) {
 			v.ty = Expr::ValueType::Integer;
 			v.Int = ParseInt(v.Str.c_str() + pos);
 			if (neg) v.Int *= -1;
+		} else if (auto var = Game::Get()->GetVariable(v.Str); var && var->GetType() == Variable::Type::Int) {
+			// If this value is a string naming an int variable, use that instead of giving up.
+			v.ty = Expr::ValueType::Integer;
+			v.Int = var->GetValue<int64_t>();
 		} else {
 			throw std::runtime_error("Got a string where a number was expected: \"" + v.Str + "\"");
 		}

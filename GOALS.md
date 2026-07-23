@@ -48,6 +48,7 @@
     `cl_Vars2array` System task does exactly this at game start; previously masked because the
     game failed to load at all (unimplemented `SetTasks` FOR loop, now fixed) before ever reaching
     `Game::Begin()`
+[x] also properly support variable names on the right-hand side of a restriction regarding variables
 [ ] implement the conversation system (or refuse to load games using it because it isn't very widely used)
 [ ] come up with a better error-handling mechanism than crashing the entire interpreter on load issues
 [ ] implement status bar support into the backend
