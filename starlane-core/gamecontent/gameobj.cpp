@@ -214,6 +214,27 @@ std::string GameObj::GetListOfChildren(GameObj::ChildFilter f1, GameObj::ChildRe
 	return result;
 }
 
+void GameObj::TransferPronounNouns(GameObj &newOwner, const std::vector<std::string> &pronouns) {
+	bool changed = false, otherChanged = false;
+	for (auto it = nouns.begin(); it != nouns.end();) {
+		auto pronoun = std::find_if(pronouns.begin(), pronouns.end(), [&](const std::string &p) {
+			return Util::ToLower(p) == Util::ToLower(*it);
+		});
+		if (pronoun == pronouns.end()) { ++it; continue; }
+		bool alreadyHasIt = std::any_of(newOwner.nouns.begin(), newOwner.nouns.end(), [&](const std::string &n) {
+			return Util::ToLower(n) == Util::ToLower(*pronoun);
+		});
+		if (!alreadyHasIt) {
+			newOwner.nouns.push_back(*pronoun);
+			otherChanged = true;
+		}
+		it = nouns.erase(it);
+		changed = true;
+	}
+	if (changed) MakeMatchExpr();
+	if (otherChanged) newOwner.MakeMatchExpr();
+}
+
 void GameObj::WriteState(Save::Writer &writer) const {
 	writer.WriteKV("parent", parent);
 	writer.WriteKV("dynamic", dynamic);

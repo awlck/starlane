@@ -160,6 +160,11 @@ public:
 	// The player's key, for asking "is this the player?" without a map lookup -- and without the
 	// throw GetPlayerChar() would give for a question asked before the player has been picked.
 	const std::string &GetPlayerKey() const { return playerKey; }
+	// Make `newPlayerKey` the character the player is playing as, per `MoveCharacter ...
+	// ToSwitchWith` when either side of the switch is the player. Neither character actually
+	// moves; the old player's pronoun descriptors ("me", "myself", ...) move to the new one, as
+	// in the original ADRIFT runner.
+	void SwitchPlayerCharacter(const std::string &newPlayerKey);
 
 	bool GetIsTaskCompleted(const std::string &key) const { return taskCompletedStorage.at(key); }
 	void SetTaskCompleted(const std::string &key, bool val) { taskCompletedStorage[key] = val; }
@@ -236,6 +241,11 @@ public:
 	ReferralPerson GetPCReferralPerson() const { return staticData->pcReferralPerson; }
 	const std::pair<std::string, Pronoun> &GetMostRecentlyMentioned() const { return mostRecentlyMentioned; }
 	void MentionCharacter(const std::string &key, Pronoun p) {
+		// Suppressed while a Description::Build(false) frame (or anything nested within one) is
+		// evaluating -- that pass is a throwaway measurement never shown to the player, so it must
+		// not be able to make a *later*, real Build() print a pronoun instead of a name. See
+		// mentionTrackingSuppressed.
+		if (mentionTrackingSuppressed) return;
 		mostRecentlyMentioned = {key, p};
 		charactersMentionedThisTurn[key] = p;
 	}
@@ -246,6 +256,19 @@ public:
 		if (it == charactersMentionedThisTurn.end()) return std::nullopt;
 		return it->second;
 	}
+	// RAII guard used by Description::Build to suppress MentionCharacter's writes for the duration
+	// of a commit=false ("measuring") build -- mirroring how that same commit flag already gates
+	// Description::HandleSegmentShown. Nests correctly (a counter, not a bool) since a measuring
+	// build can itself evaluate a nested Description::Build call. `active` is false for an ordinary
+	// commit=true build, which should have no effect on the ambient suppression state.
+	struct MentionTrackingSuppressGuard {
+		Game *g;
+		bool active;
+		MentionTrackingSuppressGuard(Game *g, bool active) : g(g), active(active) {
+			if (active) g->mentionTrackingSuppressed++;
+		}
+		~MentionTrackingSuppressGuard() { if (active) g->mentionTrackingSuppressed--; }
+	};
 
 	const std::string &GetTitle() const { return staticData->gameTitle; }
 	const std::string &GetAuthor() const { return staticData->gameAuthor; }
@@ -483,6 +506,9 @@ private:
 	// a Subject one upgrades to Reflective ("he saw himself" rather than "he saw him"). Reset at
 	// the start of every ProcessInput, like turnHasOutput below: transient, never saved or undone.
 	std::unordered_map<std::string, Pronoun> charactersMentionedThisTurn;
+	// >0 while a Description::Build(false) frame -- or anything nested within one -- is evaluating.
+	// See MentionCharacter/MentionTrackingSuppressGuard.
+	int mentionTrackingSuppressed = 0;
 
 	// For each object/character %ref% captured, the raw text the player typed for it and the full
 	// list of object keys that text could refer to. currentRefs keeps only the first of those (the
