@@ -246,9 +246,16 @@ std::string Location::GetDescription(bool forDisplay) const {
 		if (!ch || !IsCharVisibleHere(ch))
 			continue;
 		std::string name = ch->GetDisplayName(false);
-		std::string hereDesc = ch->HasProp("CharHereDesc")
-			? theGame->GetDescription(ch->GetIntProp("CharHereDesc"))->Build(forDisplay)
-			: name + " is here.";
+		std::string hereDesc;
+		if (ch->HasProp("CharHereDesc")) {
+			// A CharHereDesc using %CharacterName% means this character, not the player -- same
+			// referral-character convention Character::GetDescription uses for its own text.
+			theGame->SetInternalReference("referral-character", ch->Key());
+			hereDesc = theGame->GetDescription(ch->GetIntProp("CharHereDesc"))->Build(forDisplay);
+			theGame->ClearInternalReference("referral-character");
+		} else {
+			hereDesc = name + " is here.";
+		}
 		if (hereDesc.empty())
 			continue;
 		std::string grouped = hereDesc;
