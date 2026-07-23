@@ -39,7 +39,7 @@
     Remaining deviation: restriction-failure ("pass/fail") messages are not routed through the
     buffer, so ADRIFT's merge of a failing subset ("You take A and B. C is too heavy.") is not
     reproduced -- failure text still prints immediately on the non-buffered path
-[ ] support a variable reference (not just a literal integer) as a `SetVariable`/`IncVariable`/
+[x] support a variable reference (not just a literal integer) as a `SetVariable`/`IncVariable`/
     `DecVariable` array index, e.g. `SetVariable cl_Buttonarra[cl_One] = "%b0%"` where `cl_One`
     is itself a variable holding the index -- `Task::Action::PerformImpl`'s array-index parsing
     (task.cpp, the `ActionType::SetVarTo`/`IncVar`/`DecVar` case) calls `ParseInt` directly on the

@@ -1119,11 +1119,16 @@ void Task::Action::PerformImpl() const {
 	case ActionType::IncVar:
 	case ActionType::DecVar: {
 		Variable *var;
-		int idx = 1;
+		uint32_t idx = 1;
 		if (size_t bracket = lhs.find_first_of('['); bracket != std::string::npos) {
 			var = g->GetVariable(lhs.substr(0, bracket));
 			auto idxStr = lhs.substr(bracket+1, lhs.length() - (bracket+2));
-			idx = ParseInt(idxStr.c_str());
+			// The index itself can be a variable name rather than a literal integer.
+			if (IsDigits(idxStr.c_str())) {
+				idx = ParseInt(idxStr.c_str());
+			} else {
+				idx = g->GetVariable(idxStr)->GetValue<int64_t>();
+			}
 		} else var = g->GetVariable(lhs);
 		
 		if (type == ActionType::SetVarTo) {
