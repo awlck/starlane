@@ -59,6 +59,18 @@ std::string GenericAliasFamily(const std::string &family) {
 	return "";
 }
 
+// The inverse of Util::SplitList: combine several object/character keys into the '|'-joined form
+// a reference bound to more than one of them at once is represented as (see FlushResponseBuffer's
+// merging of aggregated runs).
+std::string JoinKeys(const std::vector<std::string> &keys) {
+	std::string joined;
+	for (size_t i = 0; i < keys.size(); i++) {
+		if (i) joined += '|';
+		joined += keys[i];
+	}
+	return joined;
+}
+
 // A system command is matched against the player's input directly rather than through a task's
 // Command pattern, so it has to make its own arrangements for the leniency those (case-insensitive)
 // regexes afford: fold case, and ignore surrounding whitespace.
@@ -449,15 +461,35 @@ bool Game::SpecificTaskMatches(const Task *specific, const std::vector<std::stri
 
 	for (size_t i = 0; i < specifics.size(); i++) {
 		const auto &spec = specifics[i];
-		if (spec.key.empty()) continue;  // wildcard: matches any value for this reference
+		if (spec.keys.empty()) continue;  // wildcard: matches any value for this reference
+
+		if (spec.keys.size() > 1) {
+			// This reference must have named exactly this set of objects together, e.g. "put the
+			// fob key and the tube in the box" (cf. Race Against Time's cl_PutABlueFo). The full
+			// set of things a plural reference named lives in currentRefLists, independent of
+			// whichever single one of them ExecuteMatchedTask's per-object odometer loop currently
+			// has currentRefs bound to -- so this checks the named set directly rather than the
+			// current single-object binding, and fires on every odometer iteration that named set
+			// produced (each suppressing its own object's share of the parent's behavior).
+			auto listIt = std::find_if(currentRefLists.begin(), currentRefLists.end(),
+				[&](const auto &p) { return p.first == refTokens[i]; });
+			if (listIt == currentRefLists.end()) return false;
+			const auto &items = listIt->second;
+			if (items.size() != spec.keys.size()) return false;
+			for (const auto &k : spec.keys) {
+				if (std::find(items.begin(), items.end(), k) == items.end()) return false;
+			}
+			continue;
+		}
 
 		auto it = currentRefs.find(Util::CanonicalizeRefName(refTokens[i]));
 		if (it == currentRefs.end()) return false;
 
+		const std::string &key = spec.keys.front();
 		if (spec.type == Task::SpType::Text) {
-			if (!CaseInsensitiveEq(it->second, spec.key)) return false;
+			if (!CaseInsensitiveEq(it->second, key)) return false;
 		} else {
-			const std::string &want = (spec.key == "%Player%" || spec.key == "Player") ? playerKey : spec.key;
+			const std::string &want = (key == "%Player%" || key == "Player") ? playerKey : key;
 			if (it->second != want) return false;
 		}
 	}
@@ -675,12 +707,7 @@ void Game::FlushResponseBuffer(ResponseBuffer &buffer) {
 		currentRefs = resp.refSnapshot;
 		for (const auto &[name, keys] : resp.mergedRefs) {
 			if (keys.size() < 2) continue;
-			std::string joined;
-			for (size_t i = 0; i < keys.size(); i++) {
-				if (i) joined += '|';
-				joined += keys[i];
-			}
-			currentRefs[name] = std::move(joined);
+			currentRefs[name] = JoinKeys(keys);
 		}
 		std::string text = GetDescription(resp.descr)->Build();
 		currentRefs = std::move(savedRefs);

@@ -398,7 +398,9 @@ private:
 	// The Specific tasks (if any) that override the General task with this key, in priority order.
 	const std::vector<Task *> &GetSpecificChildren(const std::string &generalKey) const;
 	// Whether a Specific task's per-reference constraints are satisfied by the references
-	// currently captured in currentRefs (as named by refTokens, positionally).
+	// currently captured in currentRefs (as named by refTokens, positionally), or -- for a
+	// reference whose Specific constraint names more than one key -- by the full set currentRefLists
+	// recorded for it (see SpecificTaskMatches's multi-key branch).
 	bool SpecificTaskMatches(const Task *specific, const std::vector<std::string> &refTokens) const;
 	// Run a matched General task to completion, applying any overriding/extending Specific
 	// tasks per their OverrideType, and output whatever text results.

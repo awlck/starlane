@@ -64,10 +64,22 @@
     gates `HandleSegmentShown`. Covered by `testdata/tests/charswitchothertest.taf` (a
     MoveCharacter ... ToSwitchWith Look output) and `testdata/tests/charswitchplayertest.taf`.
 [x] Implement the `.Article` built-in expression function
-[ ] implement Specific Tasks with multiple objects in the same reference (cf. Race Against Time,
-    `cl_PutABlueFo`)
+[x] Implement Specific Tasks with multiple objects in the same reference (cf. Race Against Time,
+    `cl_PutABlueFo`). `Task::SpecificInfo::keys` (task.h/task.cpp) now holds every `<Key>` in a
+    `<Specific>` block instead of just the first; loading no longer throws on a second one.
+    `SpecificTaskMatches` (parser.cpp) gained a branch for `keys.size() > 1`: rather than binding a
+    merged multi-object value into `currentRefs` (which would feed restriction.cpp/expression.cpp
+    code paths that were never built to handle more than one object per reference -- confirmed by a
+    crash when tried), it checks the *full* set a plural reference named -- held in `currentRefLists`,
+    untouched by which single item `ExecuteMatchedTask`'s per-object odometer loop currently has
+    bound -- against the required key set. The Specific then fires on every odometer iteration that
+    set produced, each suppressing its own object's share of the parent's behavior, so "put the fob
+    key and the tube in the box" is blocked as a whole while "put the fob key in the box" alone still
+    falls through to the general task normally. Matches ADRIFT's own `GetReference`, which likewise
+    only ever narrows a plural reference down to its first item for restriction/expression purposes.
 [ ] implement the conversation system (or refuse to load games using it because it isn't very widely used)
 [ ] come up with a better error-handling mechanism than crashing the entire interpreter on load issues
+    or when unexpectedly referencing non-existing objects.
 [x] implement status bar support into the backend
 [ ] resolve outstanding TODO markers within starlane-core
 [ ] implement the status bar in the Qt frontend

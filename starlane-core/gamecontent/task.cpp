@@ -326,11 +326,16 @@ Task *Task::CreateFromXML(Game *g, const pugi::xml_node &xmlNode) {
 			spi.type = STREQ(spcNode.child_value("Type"), "Text") ? SpType::Text : SpType::Object;
 			spi.multiple = ParseBool(spcNode.child_value("Multiple"));
 			if (spi.type != SpType::Text) {
-				spi.key = spcNode.child_value("Key");
+				// Usually one <Key> (or one empty <Key/> for a wildcard); a Specific reference
+				// with `Multiple` set can instead name several keys at once, requiring this
+				// reference to have named exactly that set of objects together (see
+				// SpecificTaskMatches). An empty key never combines with real ones, so filter it
+				// out rather than counting it as "must also match nothing".
+				for (const auto &keyNode: spcNode.children("Key")) {
+					std::string k = keyNode.child_value();
+					if (!k.empty()) spi.keys.push_back(std::move(k));
+				}
 			}
-			if (std::count_if(spcNode.begin(), spcNode.end(), [](const auto &item) {
-				return STREQ(item.name(), "Key");
-			}) > 1) throw std::runtime_error(std::string("In task ") + result->key + ": specific tasks with multiple explicitly-named objects in the same reference are currently unsupported.");
 			result->specificRefs.push_back(std::move(spi));
 		}
 		result->overrideType = ParseOverrideType(xmlNode.child_value("SpecificOverrideType"));

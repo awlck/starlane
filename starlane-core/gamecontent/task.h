@@ -47,12 +47,15 @@ public:
 		Text
 	};
 	// One entry per %ref% in the general task's Command, in the same order, describing what a
-	// Specific task requires of that reference in order to apply. An empty `key` matches any
-	// value (i.e. this reference doesn't narrow down which specific task applies).
+	// Specific task requires of that reference in order to apply. An empty `keys` matches any
+	// value (i.e. this reference doesn't narrow down which specific task applies). A single key
+	// requires that reference to resolve to exactly that value. More than one key (only seen with
+	// `multiple` set) requires the reference to have named exactly that set of objects together,
+	// e.g. "put the fob key and the tube in the box" -- see SpecificTaskMatches.
 	struct SpecificInfo {
 		SpType type;
 		bool multiple;
-		std::string key;
+		std::vector<std::string> keys;
 	};
 
 	[[nodiscard]] const std::string &Key() const { return key; }
