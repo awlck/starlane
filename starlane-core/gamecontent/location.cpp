@@ -276,6 +276,16 @@ std::string Location::GetDescription(bool forDisplay) const {
 		result += desc;
 	}
 
+	// The available exits are listed last, when the game asks for it (<ShowExits>), mirroring
+	// where clsLocation.ViewLocation appends its "Exits are ..." sentence.
+	if (theGame->ShowExits()) {
+		std::string exitsLine = GetExitsLine();
+		if (!exitsLine.empty()) {
+			PadForAppend(result);
+			result += exitsLine;
+		}
+	}
+
 	// Fallback in case there is nothing to show
 	if (Util::StringIsNullOrWhitespace(result))
 		return "There is nothing of interest here.";
@@ -302,6 +312,34 @@ std::string Location::GetListOfExits() const {
 		}
 	}
 	return result;
+}
+
+std::string Location::GetExitsLine() const {
+	auto *theGame = Game::Get();
+	const auto &dirTable = theGame->GetDirectionTable();
+	// ADRIFT's compass order (DirectionsEnum): N, E, S, W, U, D, In, Out, NE, SE, SW, NW.
+	static const char *const kCompassOrder[] = {
+		"North", "East", "South", "West", "Up", "Down", "In", "Out",
+		"NorthEast", "SouthEast", "SouthWest", "NorthWest",
+	};
+	std::vector<std::string> available;
+	for (const char *canonical : kCompassOrder) {
+		auto it = exits.find(canonical);
+		if (it == exits.end())
+			continue;
+		// An exit with restrictions is only listed if they currently pass, mirroring
+		// clsCharacter.HasRouteInDirection (which evaluates each direction's restrictions).
+		if (it->second.restr != 0 && !theGame->GetRestriction(it->second.restr)->PassRestrictionBlock().first)
+			continue;
+		auto disp = dirTable.canonicalToDisplay.find(canonical);
+		available.push_back(frontend->StrToLowerCase(
+			disp != dirTable.canonicalToDisplay.end() ? disp->second : std::string(canonical)));
+	}
+	if (available.empty())
+		return "";
+	if (available.size() == 1)
+		return "An exit leads " + available.front() + ".";
+	return "Exits are " + JoinNames(available) + ".";
 }
 
 bool Location::IsAdjacent(const std::string &locKey) const {

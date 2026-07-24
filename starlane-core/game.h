@@ -134,6 +134,9 @@ public:
 		return o;
 	}
 	Task *GetTask(const std::string &key) const { return SafeMapGet(staticData->tasks, key); }
+	// Whether `childKey` is one of `parentKey`'s direct Specific children -- ADRIFT's task.Children,
+	// which an Event/Walk control uses to ignore a re-trigger by a child of the task it just handled.
+	bool TaskIsSpecificChildOf(const std::string &childKey, const std::string &parentKey) const;
 	// Directly run a task by key (used by the "Execute <task>" task action), independent of
 	// player command matching: check its restrictions, run its actions if they pass, mark it
 	// completed, and output its completion (or restriction failure) message. Does nothing if
@@ -300,6 +303,7 @@ public:
 	const std::string &GetLastUpdated() const { return staticData->gameLastUpdated; }
 	uint32_t GetChecksum() const { return staticData->gameCrc32; }
 	const Util::DirectionTable &GetDirectionTable() const { return staticData->directionTable; }
+	bool ShowExits() const { return staticData->showExits; }
 
 	bool IsGameOngoing() const { return gameHasBegun; }
 	// Whether the frontend should keep reading input at all. True until the player actually
@@ -546,6 +550,15 @@ private:
 	// (RefMatchInfo is defined up with the parser internals, where its first user is.)
 	std::unordered_map<std::string, RefMatchInfo> currentRefMatches;
 
+	// For a *plural* reference ("%objects%") that named several things at once ("the plates and the
+	// ball"), the per-item match info: one RefMatchInfo per named piece, in the same order as that
+	// reference's entry in currentRefLists. Any single piece can itself be ambiguous ("the ball" with
+	// two balls present) -- which currentRefMatches, one entry per whole reference, has no room to
+	// express -- so those questions are driven from here instead. Same transient lifecycle as
+	// currentRefMatches/currentRefLists. Only plural references (pieces > 1) appear here; a
+	// single-piece reference still disambiguates through currentRefMatches as a singular one does.
+	std::unordered_map<std::string, std::vector<RefMatchInfo>> currentRefItemMatches;
+
 	// A command that matched a task but left one or more of its references ambiguous, held while we
 	// ask the player which object they meant. Their next line of input is routed to the resolver
 	// (see ProcessInput) rather than parsed as a fresh command. Transient by nature -- asking is
@@ -558,8 +571,25 @@ private:
 		// = currentRefLists at the time. Held because answering can run FindMatchingTask (when the
 		// answer turns out to be a command of its own), which repopulates the live one.
 		std::vector<std::pair<std::string, std::vector<std::string>>> refLists;
+		// = currentRefItemMatches at the time: per-item candidates for each plural reference, so a
+		// question about one item of a plural reference can be resolved and its refLists slot updated.
+		std::unordered_map<std::string, std::vector<RefMatchInfo>> itemMatches;
 	};
 	std::optional<PendingDisambig> pendingDisambig;
+
+	// The first reference slot still matching several objects, in refTokens order: a whole singular
+	// reference (from refMatches) or one item of a plural reference (from itemMatches). Returns the
+	// RefMatchInfo to ask about (nullptr if none); outItemIdx is the plural item index, or -1 for a
+	// singular reference. Drives both BeginDisambiguationIfNeeded and ResolveDisambiguation.
+	static RefMatchInfo *FirstAmbiguousSlot(
+		const std::vector<std::string> &refTokens,
+		std::unordered_map<std::string, RefMatchInfo> &refMatches,
+		std::unordered_map<std::string, std::vector<RefMatchInfo>> &itemMatches,
+		std::string &outToken, int &outItemIdx);
+	// Apply a disambiguated plural item choice to a held command: update that item's slot in
+	// pd.refLists and, for item 0, the reference's provisional single binding.
+	static void SetPluralItemChoice(PendingDisambig &pd, const std::string &token,
+	                                int itemIdx, const std::string &chosenKey);
 
 	// used at load-time to prevent duplicating expressions too much
 	std::unordered_map<std::string, ExprRef> knownExprs;

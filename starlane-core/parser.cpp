@@ -258,6 +258,7 @@ void Game::BindReference(std::unordered_map<std::string, std::string> &refs,
 
 bool Game::CaptureReferences(const std::vector<std::string> &refSpecs, const std::smatch &matches) {
 	currentRefLists.clear();
+	currentRefItemMatches.clear();
 	for (size_t i = 0; i < refSpecs.size(); i++) {
 		const std::string &ref = refSpecs[i];
 		std::string raw = matches[i + 1].str();
@@ -278,6 +279,7 @@ bool Game::CaptureReferences(const std::vector<std::string> &refSpecs, const std
 			const auto pieces = Util::SplitObjectList(raw);
 			if (pieces.empty()) return false;
 			std::vector<std::string> items;
+			std::vector<RefMatchInfo> itemMatches;
 			for (const auto &piece : pieces) {
 				auto matchList = MatchListForReference(piece, family);
 				if (matchList.empty()) return false;
@@ -289,12 +291,16 @@ bool Game::CaptureReferences(const std::vector<std::string> &refSpecs, const std
 					currentRefMatches[Util::CanonicalizeRefName(ref)] = {raw, matchList};
 				}
 				items.push_back(matchList.front());
+				itemMatches.push_back({piece, std::move(matchList)});
 			}
 			resolved = items.front();
-			// When the player really does name several things, each is resolved to its first match
-			// without asking (see GOALS.md: per-item disambiguation within a plural reference).
-			if (items.size() > 1)
+			// When the player names several things, each is provisionally its first match; any piece
+			// that is itself ambiguous ("... and the ball" with two balls) is remembered per-item so
+			// BeginDisambiguationIfNeeded can ask about it, mirroring the singular case above.
+			if (items.size() > 1) {
 				currentRefLists.emplace_back(ref, std::move(items));
+				currentRefItemMatches[Util::CanonicalizeRefName(ref)] = std::move(itemMatches);
+			}
 		} else {
 			// Objects, characters, locations, items: resolve the raw text to an actual game object.
 			auto matchList = MatchListForReference(raw, family);
@@ -320,6 +326,7 @@ Task *Game::FindMatchingTask() {
 	std::unordered_map<std::string, std::string> fallbackRefs;
 	std::unordered_map<std::string, RefMatchInfo> fallbackRefMatches;
 	std::vector<std::pair<std::string, std::vector<std::string>>> fallbackRefLists;
+	std::unordered_map<std::string, std::vector<RefMatchInfo>> fallbackRefItemMatches;
 	// The highest-priority task whose command matched but whose %ref%s named nothing the game
 	// knows. If nothing better turns up, ADRIFT runs this one anyway (its sNoRefTask) so that its
 	// own "must exist" restriction can say something useful -- "Launch what?" beats "I didn't
@@ -371,6 +378,7 @@ Task *Game::FindMatchingTask() {
 				fallbackRefs = currentRefs;
 				fallbackRefMatches = currentRefMatches;
 				fallbackRefLists = currentRefLists;
+				fallbackRefItemMatches = currentRefItemMatches;
 			}
 		}
 	}
@@ -380,6 +388,7 @@ Task *Game::FindMatchingTask() {
 		currentMatchedRefTokens = std::move(fallbackRefTokens);
 		currentRefMatches = std::move(fallbackRefMatches);
 		currentRefLists = std::move(fallbackRefLists);
+		currentRefItemMatches = std::move(fallbackRefItemMatches);
 		return fallback;
 	}
 	if (noRefTask) {
@@ -388,6 +397,7 @@ Task *Game::FindMatchingTask() {
 		currentRefs.clear();
 		currentRefMatches.clear();
 		currentRefLists.clear();
+		currentRefItemMatches.clear();
 		currentMatchedRefTokens = std::move(noRefTokens);
 	}
 	return noRefTask;
@@ -448,6 +458,13 @@ const std::vector<Task *> &Game::GetSpecificChildren(const std::string &generalK
 	static const std::vector<Task *> kEmpty;
 	auto it = staticData->specificChildren.find(generalKey);
 	return it == staticData->specificChildren.end() ? kEmpty : it->second;
+}
+
+bool Game::TaskIsSpecificChildOf(const std::string &childKey, const std::string &parentKey) const {
+	for (const Task *child : GetSpecificChildren(parentKey))
+		if (child->Key() == childKey)
+			return true;
+	return false;
 }
 
 bool Game::SpecificTaskMatches(const Task *specific, const std::vector<std::string> &refTokens) const {
@@ -571,15 +588,52 @@ bool Game::RunTaskAndCapture(Task *task, bool showText, bool runActions) {
 	return anyText;
 }
 
+// Which of a task's alternate <Command> lines an argument-bearing Execute call is really about.
+// Unlike the player-input path (MatchInput), there is no typed sentence to regex against here, so
+// the arguments themselves are the only clue: pick the alternate whose %ref% count matches the
+// number of arguments, breaking ties by how many arguments are of the kind the ref family expects
+// (an Object argument for a %object%, a Character for a %character%; a %text%/other family accepts
+// anything). Falls back to the first line when nothing matches, preserving the no-argument case.
+static size_t PickCommandAlternate(Game *g,
+                                   const std::vector<std::vector<std::string>> &coding,
+                                   const std::vector<std::string> &args) {
+	size_t best = 0;
+	int bestScore = -1;
+	for (size_t i = 0; i < coding.size(); i++) {
+		if (coding[i].size() != args.size())
+			continue;
+		int score = 0;
+		for (size_t j = 0; j < args.size(); j++) {
+			const std::string &family = SplitRefName(coding[i][j]).family;
+			const GameObj *ob = g->TryGetObject(args[j]);
+			const bool isChar = dynamic_cast<const Character *>(ob) != nullptr;
+			const bool isObj = ob && !isChar;
+			if (IsObjectPronounFamily(family) ? isObj
+			    : IsCharacterPronounFamily(family) ? isChar
+			    : true)  // direction/number/text and the like: no object kind to disagree with
+				score++;
+		}
+		if (score > bestScore) {
+			bestScore = score;
+			best = i;
+		}
+	}
+	return best;
+}
+
 void Game::ExecuteTaskByKey(const std::string &key, const std::vector<std::string> &args) {
 	Task *task = GetTask(key);
 	if (!task) return;  // unknown task key: nothing to do
 
-	// A task with several alternate Command lines only ever gets its first one's references
-	// considered here (see GOALS.md: ExecuteTaskByKey and multi-Command tasks).
+	// With explicit arguments, bind the alternate Command line that actually fits them rather than
+	// blindly taking the first (a task's alternates can differ in reference count and kind). With no
+	// arguments there is nothing to fit against, so the first line stands in as before.
 	static const std::vector<std::string> kNoRefs;
 	const auto &coding = task->GetGroupCoding();
-	const std::vector<std::string> &refTokens = coding.empty() ? kNoRefs : coding.front();
+	const std::vector<std::string> &refTokens =
+		coding.empty() ? kNoRefs
+		: args.empty() ? coding.front()
+		: coding[PickCommandAlternate(this, coding, args)];
 
 	// An Execute action that supplies arguments is naming the objects the called task is to act
 	// on, in place of anything the player's own command referred to. Bind them to that task's
@@ -820,62 +874,108 @@ void Game::DisplayAmbiguityQuestion(const RefMatchInfo &info) {
 	OutputFiltered("Which " + word + "? " + list + ".\n");
 }
 
-bool Game::BeginDisambiguationIfNeeded(Task *chosen) {
-	for (const auto &token : currentMatchedRefTokens) {
-		auto it = currentRefMatches.find(Util::CanonicalizeRefName(token));
-		if (it == currentRefMatches.end() || it->second.candidates.size() <= 1) continue;
-		// This reference matched several objects: hold the whole command, ask about this one, and
-		// let the player's next line resolve it (see ResolveDisambiguation).
-		pendingDisambig = PendingDisambig{chosen, currentMatchedRefTokens, currentRefs,
-		                                 currentRefMatches, currentRefLists};
-		DisplayAmbiguityQuestion(it->second);
-		return true;
+// The first reference slot, in `refTokens` order, that still matches more than one object -- a
+// whole singular reference (from `refMatches`) or one item of a plural reference (from
+// `itemMatches`, e.g. "the ball" in "the plates and the ball"). Returns the RefMatchInfo to ask
+// about, or nullptr when nothing is ambiguous. `outToken` is the raw reference token; `outItemIdx`
+// is the plural item's index, or -1 for a singular reference.
+Game::RefMatchInfo *Game::FirstAmbiguousSlot(
+		const std::vector<std::string> &refTokens,
+		std::unordered_map<std::string, RefMatchInfo> &refMatches,
+		std::unordered_map<std::string, std::vector<RefMatchInfo>> &itemMatches,
+		std::string &outToken, int &outItemIdx) {
+	for (const auto &token : refTokens) {
+		std::string canon = Util::CanonicalizeRefName(token);
+		auto sit = refMatches.find(canon);
+		if (sit != refMatches.end() && sit->second.candidates.size() > 1) {
+			outToken = token;
+			outItemIdx = -1;
+			return &sit->second;
+		}
+		auto pit = itemMatches.find(canon);
+		if (pit != itemMatches.end()) {
+			for (size_t j = 0; j < pit->second.size(); j++) {
+				if (pit->second[j].candidates.size() > 1) {
+					outToken = token;
+					outItemIdx = (int) j;
+					return &pit->second[j];
+				}
+			}
+		}
 	}
-	return false;
+	return nullptr;
+}
+
+bool Game::BeginDisambiguationIfNeeded(Task *chosen) {
+	std::string token;
+	int itemIdx;
+	RefMatchInfo *amb = FirstAmbiguousSlot(currentMatchedRefTokens, currentRefMatches,
+	                                       currentRefItemMatches, token, itemIdx);
+	if (!amb) return false;
+	// Some reference matched several objects (or one item of a plural reference did): hold the whole
+	// command, ask about that slot, and let the player's next line resolve it (see ResolveDisambiguation).
+	pendingDisambig = PendingDisambig{chosen, currentMatchedRefTokens, currentRefs,
+	                                 currentRefMatches, currentRefLists, currentRefItemMatches};
+	DisplayAmbiguityQuestion(*amb);
+	return true;
+}
+
+// Record a plural reference's item choice into the held command's state: update that item's slot in
+// pd.refLists (which ExecuteMatchedTask's per-item odometer reads), and, when it is the first item,
+// the reference's provisional single binding too (which is item 0 -- see CaptureReferences).
+void Game::SetPluralItemChoice(PendingDisambig &pd, const std::string &token,
+                               int itemIdx, const std::string &chosenKey) {
+	for (auto &entry : pd.refLists) {
+		if (entry.first == token) {
+			if (itemIdx >= 0 && (size_t) itemIdx < entry.second.size())
+				entry.second[itemIdx] = chosenKey;
+			break;
+		}
+	}
+	if (itemIdx == 0)
+		BindReference(pd.refs, token, chosenKey);
 }
 
 void Game::ResolveDisambiguation(const std::string &answer) {
 	PendingDisambig &pd = *pendingDisambig;
 
-	// The reference we are currently asking about is the first one still matching several objects.
+	// The slot we are currently asking about is the first one still matching several objects.
 	std::string ambToken;
-	RefMatchInfo *ambInfo = nullptr;
-	for (const auto &token : pd.refTokens) {
-		auto it = pd.refMatches.find(Util::CanonicalizeRefName(token));
-		if (it != pd.refMatches.end() && it->second.candidates.size() > 1) {
-			ambToken = token;
-			ambInfo = &it->second;
-			break;
-		}
-	}
+	int ambItemIdx;
+	RefMatchInfo *ambInfo = FirstAmbiguousSlot(pd.refTokens, pd.refMatches, pd.itemMatches,
+	                                           ambToken, ambItemIdx);
 	if (!ambInfo) { pendingDisambig.reset(); return; }  // nothing left to ask; shouldn't happen
 
 	auto narrowed = NarrowByAnswer(ambInfo->candidates, answer);
 	if (!narrowed.empty()) {
-		// The answer picked out one or more of the candidates: adopt it as this reference's value.
+		// The answer picked out one or more of the candidates: adopt it as this slot's value.
 		ambInfo->candidates = std::move(narrowed);
-		BindReference(pd.refs, ambToken, ambInfo->candidates.front());
+		if (ambItemIdx < 0)
+			BindReference(pd.refs, ambToken, ambInfo->candidates.front());
+		else
+			SetPluralItemChoice(pd, ambToken, ambItemIdx, ambInfo->candidates.front());
 
 		// Still ambiguous (the answer narrowed but didn't settle it)? Keep asking about this one.
 		if (ambInfo->candidates.size() > 1) {
 			DisplayAmbiguityQuestion(*ambInfo);
 			return;
 		}
-		// Settled -- but another reference of the same command may still be ambiguous.
-		for (const auto &token : pd.refTokens) {
-			auto it = pd.refMatches.find(Util::CanonicalizeRefName(token));
-			if (it != pd.refMatches.end() && it->second.candidates.size() > 1) {
-				DisplayAmbiguityQuestion(it->second);
-				return;
-			}
+		// Settled -- but another slot of the same command may still be ambiguous.
+		std::string nextToken;
+		int nextItemIdx;
+		if (RefMatchInfo *next = FirstAmbiguousSlot(pd.refTokens, pd.refMatches, pd.itemMatches,
+		                                            nextToken, nextItemIdx)) {
+			DisplayAmbiguityQuestion(*next);
+			return;
 		}
 		// Everything resolved: run the held command, now as a real turn.
 		Task *task = pd.task;
 		currentRefs = std::move(pd.refs);
 		currentMatchedRefTokens = std::move(pd.refTokens);
 		// Restored along with the references: answering may have run FindMatchingTask (when an
-		// earlier answer turned out to name no candidate), which repopulates the live list.
+		// earlier answer turned out to name no candidate), which repopulates the live lists.
 		currentRefLists = std::move(pd.refLists);
+		currentRefItemMatches = std::move(pd.itemMatches);
 		pendingDisambig.reset();
 		SaveUndo();
 		ExecuteMatchedTask(task);

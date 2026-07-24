@@ -41,6 +41,11 @@ public:
 	bool HasExit(const std::string &dir) const { return exits.count(dir) > 0; }
 	std::string GetListOfExits() const;
 
+	// The "Exits are north and east." / "An exit leads north." sentence appended to a location
+	// description when <ShowExits> is on. Empty when no (unrestricted) exit is currently available.
+	// Directions are listed in ADRIFT's compass order and named per the game's own direction table.
+	std::string GetExitsLine() const;
+
 	// Whether some exit of this location leads directly to the location with this key. Restrictions
 	// on the exit are ignored, as in ADRIFT: adjacency is about the map's shape, not whether the
 	// player could pass. Used by character walks to decide whether a wandering or following step

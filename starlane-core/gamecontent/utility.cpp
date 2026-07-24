@@ -55,6 +55,10 @@ DirectionTable BuildDirectionTable(const std::unordered_map<std::string, std::st
 		const std::string &words = it != overrides.end() ? it->second : entry.synonyms;
 		for (const auto &syn : SplitString(words, "/")) {
 			if (syn.empty()) continue;
+			// The first synonym is the direction's display word (ADRIFT's DirectionName takes the
+			// part before the first "/"). Keep it as written; lowercasing is the caller's business.
+			if (!table.canonicalToDisplay.count(entry.canonical))
+				table.canonicalToDisplay[entry.canonical] = syn;
 			std::string lower = ToLower(syn);
 			if (!table.regexAlternation.empty()) table.regexAlternation += '|';
 			table.regexAlternation += lower;

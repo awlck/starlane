@@ -181,53 +181,67 @@
 [ ] Glk frontend: add a debug window
 [ ] Glk frontend: implement secondary windows
 [ ] think about implementing an automap (then probably decide against it)
-[ ] fix `EverythingWithProperty`/`EveryoneWithProperty` task actions (Move*/AddToGroup/RemoveFromGroup)
-    for Object-, Enum-, and Map-typed properties: `Task::Action::CreateFromXML` (task.cpp) computes the
-    comparison value into a local `temp` and stores it as `result.lhs` for these three property types
-    (Bool/Int/Text instead build `result.expr`, an expression, which is what non-broken cases below
-    actually read at runtime) -- but every action name handled further down (`MoveObject`/
-    `MoveCharacter`, `AddObjectToGroup`/`RemoveObjectFromGroup`/etc.) unconditionally re-assigns
-    `result.lhs`/`result.rhs` from the (by-then-collapsed) token list without checking whether an
-    `EverythingWithProperty` prefix already claimed one of those fields, so the comparison value is
-    silently clobbered -- for Move actions, `lhs` ends up holding the property's own key (redundant
-    with `result.prop`, since `tokens[1]` never moves); for AddToGroup/RemoveFromGroup, `rhs` ends up
-    holding the destination group's key instead. The affected execution code is `Task::Action::
-    PerformMoveTo` and the `AddToGroup`/`RemoveFromGroup` case of `Task::Action::Perform`, both in
-    task.cpp, in each case the `ActionRefType::ObjsWithProp`/`CharsWithProp` switch's
-    `Property::ValueType::Object`/`Enum` (and, for Map, the `ParseInt` half of the `Int`/`Map` case).
-    No test game under `testdata` exercises this path, so there is no regression-suite coverage to
-    lean on while fixing it. Likely fix: give `Action` a field dedicated to this comparison value
-    (distinct from `lhs`/`rhs`, which the later per-action-name code needs to keep using for their own
-    purposes) and have `CreateFromXML` populate it instead of `result.lhs`, for exactly the
-    Object/Enum/Map branch of the `EverythingWithProperty`/`EveryoneWithProperty` special case.
-[ ] disambiguate per-item within a plural reference: `Game::CaptureReferences` (parser.cpp, the
-    "objects"/"characters" family branch) resolves a plural reference ("take the plates and the
-    ration bar") by taking each named item's *first* match without ever asking, even when one of
-    several items is itself ambiguous ("take the plates and the ball" with two balls present).
-    Singular references already disambiguate correctly via `currentRefMatches` +
-    `BeginDisambiguationIfNeeded`; extending that to a plural reference needs a per-item (not just
-    per-reference) record, since one plural reference can have more than one of its items ambiguous
-    at once, which the current `currentRefMatches`/`currentRefLists` data model has no room for.
-[ ] make `Game::ExecuteTaskByKey` (parser.cpp) consider the right Command line's references, not just
-    the first: it always binds `task->GetGroupCoding().front()` regardless of which of a task's several
-    alternate `<Command>` lines is the one actually relevant to the call (e.g. an `Execute` action
-    naming explicit arguments whose count/kind matches a *later* alternate). Needs a way to pick the
-    matching alternate when there is no player input to pattern-match against, unlike the regular
-    command-matching path (`MatchInput`, same file) which already juggles multiple alternates.
-[ ] model ADRIFT's child-task control suppression: a `<Control>` on an Event or Walk that triggers on
-    task T is ignored if T is a *child* of the task currently completing (so a child task can't
-    re-trigger what its parent's own completion already handled) -- see ADRIFT's `bChildTask`
-    threading through `AttemptToExecuteTask`/`AttemptToExecuteSubTask`/`ExecuteSubTasks` in
-    `reference/ADRIFT-5/ADRIFT/clsUserSession.vb`. Not modelled in `Event::ReceiveTaskNotification`
-    (gamecontent/event.cpp) or `Walk::ReceiveTaskNotification` (gamecontent/walk.cpp), both of which
-    currently fire on every matching control regardless of task ancestry. Needs a notion of "task
-    children" (ADRIFT tracks this via each task's `Children`) and of which task is "currently
-    completing" threaded through to these two notification paths.
-[ ] implement automatic exit listing ("Exits are north and east.") when `<ShowExits>` is on.
-    `GameStatic::showExits` (game.h) is parsed from the game file (gameloader.cpp) but nothing in
-    starlane-core ever reads it back -- there is no code anywhere that appends an exits line to a
-    location description. Found via `testdata/tests/renamedirtest-expected.txt` (a real ADRIFT
-    Runner transcript), whose location descriptions each end with such a line and which starlane
-    currently never prints. Note that the listed words follow the *game's own* direction table
-    (`Game::GetDirectionTable()`), not always the canonical compass name -- renamedirtest's own
-    exits line reads "Exits are clockwise and counterclockwise.", not "Exits are east and west.".
+[x] fix `EverythingWithProperty`/`EveryoneWithProperty` task actions (Move*/AddToGroup/RemoveFromGroup)
+    for Object-, Enum-, and Map-typed properties. `Task::Action` gained a dedicated `propCmpValue`
+    field (task.h) for exactly this comparison value; `Task::Action::CreateFromXML` (task.cpp) now
+    populates it in the Object/Enum/Map branch instead of `result.lhs` (Bool needs no value, Int/Text
+    still build `result.expr`). Because the value no longer rides in `lhs`/`rhs`, the later
+    per-action-name parsing (`MoveObject`/`AddObjectToGroup`/...) that re-assigns those fields can no
+    longer clobber it. `Task::Action::PerformMoveTo` and the `AddToGroup`/`RemoveFromGroup` case of
+    `Task::Action::Perform` now read `propCmpValue` (directly for Object/Enum, via `ParseInt` for Map)
+    rather than the collapsed `lhs`/`rhs`. No test game under `testdata` exercises this path (and a
+    raw XML fixture can't be loaded -- only obfuscated/zlib'd `.taf` binaries are), so this is
+    code-review-verified against ADRIFT's behavior rather than regression-covered.
+[x] disambiguate per-item within a plural reference. `Game::CaptureReferences` (parser.cpp) now
+    records, for a plural reference that named several things, a `currentRefItemMatches` entry: one
+    `RefMatchInfo` (raw piece text + candidate keys) per named item, in the same order as that
+    reference's `currentRefLists` entry. A new `Game::FirstAmbiguousSlot` walks the matched reference
+    tokens in order and returns the first slot -- a whole singular reference (from `currentRefMatches`,
+    as before) or one item of a plural reference (from `currentRefItemMatches`) -- that still matches
+    more than one object; both `BeginDisambiguationIfNeeded` and `ResolveDisambiguation` drive off it,
+    so several ambiguous items across one or more references are asked about one after another.
+    Resolving a plural item narrows that item's candidates and writes the choice back into the held
+    command's `refLists` slot (`Game::SetPluralItemChoice`) that `ExecuteMatchedTask`'s per-item
+    odometer reads. `PendingDisambig` carries the item-matches alongside the existing refs/refLists so
+    the command survives being held across the question(s). Covered by `testdata/tests/disambigtest`
+    (red ball / green ball): "take the red ball and the ball" now asks "Which ball?" for just the
+    ambiguous item and then takes both; "take the ball and the ball" asks twice; the unambiguous and
+    command-as-answer paths are unchanged, and the singular `disambigtest-expected.txt` transcript
+    still matches.
+[x] make `Game::ExecuteTaskByKey` (parser.cpp) consider the right Command line's references, not just
+    the first. When an `Execute` action supplies explicit arguments, the new `PickCommandAlternate`
+    chooses the `<Command>` alternate whose `%ref%` count equals the argument count, breaking ties by
+    how many arguments are of the kind the ref family expects (an Object for `%object%`, a Character
+    for `%character%`; `%text%`/`%direction%`/number families accept anything) -- the arguments being
+    the only signal available, since there is no typed sentence to regex against as on the `MatchInput`
+    path. It falls back to the first line when nothing fits, and the no-argument case still takes the
+    first line unchanged. Regression suite transcripts are byte-identical (single-Command tasks and
+    first-alternate Execute calls are unaffected); the multi-alternate case has no corpus coverage.
+[x] model ADRIFT's child-task control suppression. Rather than thread "currently completing" state
+    through the notification paths, this mirrors ADRIFT's actual mechanism (clsUserSession.vb's
+    sTriggeringTask): an Event/Walk remembers the last task whose *completion* triggered one of its
+    controls this cycle, and a later completion control is ignored when that remembered task is one of
+    the completing task's own direct Specific children. Because a child task completes first (deep in
+    the cascade) and claims the trigger, the parent's identical control on the same Event/Walk is then
+    skipped instead of re-firing. Implemented as a `triggeringTask` field on `Event`/`Walk`
+    (gamecontent/event.{h,cpp}, walk.{h,cpp}), checked and set in each `ReceiveTaskNotification` via
+    the new `Game::TaskIsSpecificChildOf` (which reads the existing `specificChildren` index -- note
+    ADRIFT's `task.Children(True)` is *direct* children, the `True` only meaning "include completed").
+    The memory is cleared when the queued command is applied in `IncrementTimer`, exactly where ADRIFT
+    resets sTriggeringTask; it rides undo automatically (Events/Walks are deep-cloned) and is now saved
+    as `triggering_task` (save version bumped to -992). Only completion controls carry the guard, as
+    in ADRIFT; uncompletion controls are untouched. No test game under `testdata` pairs a parent and
+    child task on one control, so this is code-review-verified against ADRIFT rather than
+    regression-covered; the full regression suite still shows no new crashes and save/restore round
+    trips cleanly.
+[x] implement automatic exit listing ("Exits are north and east.") when `<ShowExits>` is on.
+    `Location::GetExitsLine` (gamecontent/location.cpp) now builds the sentence
+    `Location::GetDescription` appends last (gated on `Game::ShowExits()`), mirroring
+    clsLocation.ViewLocation: it walks the exits in ADRIFT's compass order (N, E, S, W, U, D, In,
+    Out, NE, SE, SW, NW), skips any whose restrictions currently fail (like
+    clsCharacter.HasRouteInDirection), and names each per the game's own direction table --
+    "An exit leads <dir>." for a lone exit, "Exits are <...>." for several. The displayed word is
+    the direction's first synonym (ADRIFT's DirectionName), now stored as
+    `DirectionTable::canonicalToDisplay` (gamecontent/utility.{h,cpp}) and lowercased for display.
+    Verified against `testdata/tests/renamedirtest-expected.txt` ("Exits are clockwise and
+    counterclockwise.") -- output now matches the real Runner transcript exactly.

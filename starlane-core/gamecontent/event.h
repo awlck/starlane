@@ -197,6 +197,11 @@ private:
 	// An event that started on this very tick does not also age on it.
 	bool justStarted = false;
 	Command nextCommand = Command::None;
+	// The last task whose completion triggered a control of ours this cycle (empty if none). ADRIFT's
+	// sTriggeringTask: a control is ignored when its task's own Specific child already triggered us,
+	// so a child task can't re-fire what the parent's completion is about to handle. Reset when the
+	// queued command is applied in IncrementTimer, matching ADRIFT.
+	std::string triggeringTask;
 	// Which subevent ran most recently, or -1 if none has since this event last started. An index
 	// rather than a pointer because Game clones every Event wholesale for each undo state, with
 	// the compiler's own copy constructor -- a pointer would survive that copy aimed squarely at

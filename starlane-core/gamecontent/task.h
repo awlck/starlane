@@ -225,12 +225,15 @@ private:
 		ActionRefType refType;
 		ActionType type;
 		// for simple moves, the object on the left-hand side (e.g. object to move, object whose children to move)
-		// for moves based on boolean, enum, or map properties, the value that the property must hold
-		//  in order for the object(s) to be moved
 		std::string lhs;
 		// on moves choosing objects by property, the key of the property to check
 		std::string prop;
 		std::string rhs;
+		// For an EverythingWithProperty/EveryoneWithProperty ref whose property is Object-, Enum-, or
+		// Map-typed, the value that property must hold for a member to be selected. Kept separate from
+		// lhs/rhs because the per-action-name parsing (MoveObject/AddToGroup/...) re-uses those for its
+		// own operands and would otherwise clobber this. (Bool needs no value; Int/Text use `expr`.)
+		std::string propCmpValue;
 
 		// there are no reference mode / action combinations that have an expression both
 		// on the left and the right side, so we can get away with just one reference here.

@@ -414,7 +414,10 @@ Task::Action Task::Action::CreateFromXML(const pugi::xml_node &xmlNode) {
 		case Property::ValueType::Object:
 		case Property::ValueType::Enum:
 		case Property::ValueType::Map:
-			result.lhs = temp;
+			// A field of its own: the per-action-name parsing below re-assigns lhs/rhs from the
+			// (now-collapsed) token list without knowing an EverythingWithProperty prefix already
+			// claimed a value, so storing this in lhs/rhs would silently lose it.
+			result.propCmpValue = temp;
 			break;
 		case Property::ValueType::Bool:
 			// this means that the property must be "set" (i.e., true)
@@ -1061,20 +1064,18 @@ void Task::Action::PerformImpl() const {
 						(grp->*addOrRemove)(o.second);
 				}
 				break;
-			// `rhs` here is actually the destination group's key (set once, above, for every case
-			// of this switch) rather than a property comparison value -- same root cause as the
-			// Move actions' version of this switch; see GOALS.md: EverythingWithProperty comparison
-			// value lost for Object/Enum/Map properties.
+			// The comparison value lives in propCmpValue, not rhs -- rhs holds the destination
+			// group's key here (set once, above, for every case of this switch).
 			case Property::ValueType::Object:
 			case Property::ValueType::Enum:
 				for (auto &o : allObjs) {
-					if (ObjIsAppropriate(refType, o.second) && o.second->GetStrProp(prop) == rhs)
+					if (ObjIsAppropriate(refType, o.second) && o.second->GetStrProp(prop) == propCmpValue)
 						(grp->*addOrRemove)(o.second);
 				}
 				break;
 			case Property::ValueType::Map:
 			case Property::ValueType::Int: {
-				auto tmpInt = propType == Property::ValueType::Map ? ParseInt(rhs.c_str()) : g->GetExpression(expr)->EvaluateInt();
+				auto tmpInt = propType == Property::ValueType::Map ? ParseInt(propCmpValue.c_str()) : g->GetExpression(expr)->EvaluateInt();
 				for (auto &o : allObjs) {
 					if (ObjIsAppropriate(refType, o.second) && o.second->GetIntProp(prop) == tmpInt)
 						(grp->*addOrRemove)(o.second);
@@ -1428,19 +1429,16 @@ void Task::Action::PerformMoveTo(const std::string &moveTarget) const {
 					o.second->MoveTo(moveTarget, ActionTypeToHoldingType(type));
 			}
 			break;
-			// The Object/Enum/Map cases below read a comparison value that CreateFromXML never
-			// actually preserves for this ref type -- see GOALS.md: EverythingWithProperty
-			// comparison value lost for Object/Enum/Map properties.
 		case Property::ValueType::Object:
 		case Property::ValueType::Enum:
 			for (auto &o : allObjs) {
-				if (ObjIsAppropriate(refType, o.second) && o.second->GetStrProp(prop) == lhs)
+				if (ObjIsAppropriate(refType, o.second) && o.second->GetStrProp(prop) == propCmpValue)
 					o.second->MoveTo(moveTarget, ActionTypeToHoldingType(type));
 			}
 			break;
 		case Property::ValueType::Map:
 		case Property::ValueType::Int: {
-			auto tmpInt = propType == Property::ValueType::Map ? ParseInt(lhs.c_str()) : g->GetExpression(expr)->EvaluateInt();
+			auto tmpInt = propType == Property::ValueType::Map ? ParseInt(propCmpValue.c_str()) : g->GetExpression(expr)->EvaluateInt();
 			for (auto &o : allObjs) {
 				if (ObjIsAppropriate(refType, o.second) && o.second->GetIntProp(prop) == tmpInt)
 					o.second->MoveTo(moveTarget, ActionTypeToHoldingType(type));

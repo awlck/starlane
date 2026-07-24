@@ -27,7 +27,9 @@ namespace Starlane::Save {
 // Bumped to -993 when a group with no properties of its own stopped being written out at all
 // (ContinueRestore resets every group before applying the file's exceptions, same as
 // descriptions_shown already did).
-constexpr int currentSaveFileVer = -993;
+// Bumped to -992 when Events and Walks gained a saved `triggering_task` (ADRIFT's sTriggeringTask),
+// the per-cycle memory that suppresses a child task's re-trigger of a control its parent handles.
+constexpr int currentSaveFileVer = -992;
 
 namespace {
 // Helper to determine whether there's a const_iterator for T.

@@ -186,6 +186,11 @@ private:
 	// rather than a pointer so that cloning a character wholesale for undo can't leave it dangling.
 	int32_t lastSubWalkIndex = -1;
 	Command nextCommand = Command::None;
+	// The last task whose completion triggered a control of this walk this cycle (empty if none) --
+	// ADRIFT's sTriggeringTask. A completion control is ignored when that task is one of the
+	// completing task's own Specific children, so a child task can't re-fire what its parent handles.
+	// Reset when the queued command is applied in IncrementTimer, matching ADRIFT.
+	std::string triggeringTask;
 };
 
 }

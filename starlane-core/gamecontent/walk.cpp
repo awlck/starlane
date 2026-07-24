@@ -197,6 +197,9 @@ void Walk::IncrementTimer() {
 	if (nextCommand != Command::None) {
 		Command cmd = nextCommand;
 		nextCommand = Command::None;
+		// The child-task suppression memory lasts only until the queued command is applied, exactly
+		// as ADRIFT clears sTriggeringTask here.
+		triggeringTask.clear();
 		switch (cmd) {
 			case Command::Start:   StartImpl(false); break;
 			case Command::Stop:    StopImpl(false, false); break;
@@ -402,6 +405,15 @@ void Walk::RunSubWalk(int32_t idx) {
 }
 
 void Walk::ReceiveTaskNotification(Util::Control::Condition cond, const std::string &taskKey) {
+	// A completion control is ignored when the last task to trigger this walk this cycle is one of
+	// the completing task's own Specific children -- ADRIFT's sTriggeringTask guard, so a child task
+	// (which completes first) claims the trigger and the parent's identical control does not re-fire.
+	// Only completion controls carry the guard in ADRIFT; uncompletion controls are unaffected.
+	if (cond == Util::Control::Condition::Completion && !triggeringTask.empty() &&
+			Game::Get()->TaskIsSpecificChildOf(triggeringTask, taskKey))
+		return;
+
+	bool fired = false;
 	// Every matching control acts, as in ADRIFT: a walk that lists the same task twice under the same
 	// condition genuinely does the thing twice.
 	for (const auto &c : controls) {
@@ -412,10 +424,10 @@ void Walk::ReceiveTaskNotification(Util::Control::Condition cond, const std::str
 			case Util::Control::Action::Pause:  Pause(); break;
 			case Util::Control::Action::Resume: Resume(); break;
 		}
+		fired = true;
 	}
-	// ADRIFT additionally ignores a control whose triggering task is a child of the task currently
-	// completing, so a child task can't re-trigger what its parent already did. As with the same
-	// case for events, not modelled here (see GOALS.md: child-task control suppression).
+	if (fired && cond == Util::Control::Condition::Completion)
+		triggeringTask = taskKey;
 }
 
 void Walk::WriteState(Save::Writer &writer) const {
@@ -424,6 +436,7 @@ void Walk::WriteState(Save::Writer &writer) const {
 	writer.WriteKV("last_subwalk_time", lastSubWalkTime);
 	writer.WriteKV("last_subwalk", lastSubWalkIndex);
 	writer.WriteKV("next_command", magic_enum::enum_name(nextCommand));
+	writer.WriteKV("triggering_task", triggeringTask);
 	// Each step's settled length. All bare numbers in the test games, so foregone conclusions today,
 	// but "5 to 12" is legal and then the roll is real state a restore can't otherwise guess.
 	std::vector<uint32_t> stepTurns;
@@ -460,6 +473,11 @@ bool Walk::RestoreState(const Save::AstNode *node) {
 	auto tmpCmd = magic_enum::enum_cast<Command>(n->Str);
 	if (!tmpCmd.has_value()) return false;
 	nextCommand = tmpCmd.value();
+
+	if (!(n = GetField(node, "triggering_task", Save::NT_STRING)) &&
+			!(n = GetField(node, "triggering_task", Save::NT_EMPTY)))
+		return false;
+	triggeringTask = n->type == Save::NT_STRING ? n->Str : "";
 
 	if (!(n = GetField(node, "timer_to_end", Save::NT_INT))) return false;
 	timerToEnd = (int32_t) n->sv.Int;

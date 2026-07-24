@@ -180,6 +180,10 @@ struct DirectionTable {
 	std::string regexAlternation;
 	// Lowercased word/abbreviation -> canonical direction name.
 	std::unordered_map<std::string, std::string> synonymToCanonical;
+	// Canonical direction name ("North", ...) -> the word shown to the player for it (the first
+	// of that direction's synonyms, e.g. "Clockwise" for a game that renamed East to "Clockwise/CW"),
+	// mirroring ADRIFT's DirectionName. Used when listing a location's exits.
+	std::unordered_map<std::string, std::string> canonicalToDisplay;
 };
 // Builds a DirectionTable from ADRIFT's built-in defaults, substituting in any of `overrides`
 // (keyed by canonical name, e.g. "North" -> "Clockwise/CW", mirroring a game's <DirectionNorth>

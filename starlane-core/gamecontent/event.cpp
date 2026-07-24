@@ -248,6 +248,9 @@ void Event::IncrementTimer() {
 		// event loop, and that code may well queue something new for our next tick.
 		Command cmd = nextCommand;
 		nextCommand = Command::None;
+		// The child-task suppression memory lasts only until the queued command is applied, exactly
+		// as ADRIFT clears sTriggeringTask here in IncrementTimer.
+		triggeringTask.clear();
 		switch (cmd) {
 			case Command::Start:  StartImpl(false); break;
 			case Command::Stop:   StopImpl(false); break;
@@ -420,6 +423,16 @@ bool Event::HasRealTimeSubEvents() const {
 }
 
 void Event::ReceiveTaskNotification(Util::Control::Condition cond, const std::string &taskKey) {
+	// ADRIFT tracks the last task to trigger us this cycle and, on a *completion* control, ignores
+	// the trigger when that last task is one of this task's own Specific children -- so a child task
+	// (which completes first, deep in the cascade) claims the trigger and the parent's identical
+	// control is skipped rather than re-firing it. Only completion controls carry this guard in
+	// ADRIFT; uncompletion controls are unaffected.
+	if (cond == Util::Control::Condition::Completion && !triggeringTask.empty() &&
+			Game::Get()->TaskIsSpecificChildOf(triggeringTask, taskKey))
+		return;
+
+	bool fired = false;
 	// Every matching control acts, as in ADRIFT: an event that lists the same task twice under
 	// the same condition genuinely does the thing twice. (The old code took only the first match
 	// -- and, having no end-iterator check, dereferenced controls.cend() outright when a task it
@@ -440,10 +453,10 @@ void Event::ReceiveTaskNotification(Util::Control::Condition cond, const std::st
 				Resume();
 				break;
 		}
+		fired = true;
 	}
-	// ADRIFT additionally ignores a control whose triggering task is a child of the task currently
-	// completing, so that a child task can't re-trigger what its parent already did. Not modelled
-	// here (see GOALS.md: child-task control suppression).
+	if (fired && cond == Util::Control::Condition::Completion)
+		triggeringTask = taskKey;
 }
 
 void Event::WriteState(Save::Writer &writer) const {
@@ -457,6 +470,7 @@ void Event::WriteState(Save::Writer &writer) const {
 	writer.WriteKV("time_since_start", timeSinceStart);
 	writer.WriteKV("just_started", justStarted);
 	writer.WriteKV("next_command", magic_enum::enum_name(nextCommand));
+	writer.WriteKV("triggering_task", triggeringTask);
 	writer.WriteKV("last_subevent", lastSubEventIndex);
 	writer.WriteKV("last_subevent_time", lastSubEventTime);
 	// Each subevent's own settled roll. Every "When" in the test games is a bare number, so these
@@ -517,6 +531,11 @@ bool Event::RestoreState(const Save::AstNode *node) {
 	auto tmpCmd = magic_enum::enum_cast<Command>(n->Str);
 	if (!tmpCmd.has_value()) return false;
 	nextCommand = tmpCmd.value();
+
+	if (!(n = GetField(node, "triggering_task", Save::NT_STRING)) &&
+			!(n = GetField(node, "triggering_task", Save::NT_EMPTY)))
+		return false;
+	triggeringTask = n->type == Save::NT_STRING ? n->Str : "";
 
 	if (!(n = GetField(node, "time_since_start", Save::NT_INT))) return false;
 	timeSinceStart = (int32_t) n->sv.Int;
