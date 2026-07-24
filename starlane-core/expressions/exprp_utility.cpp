@@ -1,4 +1,5 @@
 #include "exprp_utility.h"
+#include "../error.h"
 #include "../expression.h"
 #include "../valueparsers.h"
 
@@ -96,8 +97,7 @@ void system__handle_syntax_error(system_t *obj, syntax_error_t error, range_t ra
         FormatError(expr->exprStr, range, "missing comma");
         return;
     default:
-        std::cerr << "General syntax error parsing expression:\n  " << expr->exprStr << std::endl;
-        throw std::runtime_error("Syntax error.");
+        throw Starlane::Expr::GeneralSyntaxException(expr->exprStr);
     }
 }
 

@@ -40,6 +40,18 @@ private:
 	std::string key;
 };
 
+namespace Expr {
+// Thrown by the expression parser on syntax errors we can't compensate/ignore
+class GeneralSyntaxException : public ::Starlane::Exception {
+public:
+	explicit GeneralSyntaxException(const std::string &expr);
+	const std::string &Expr() const { return expr; }
+
+private:
+	std::string expr;
+};
+}
+
 // Capture a backtrace of the current call stack as a printable string. Used by
 // Exception's constructor; exposed for ad-hoc diagnostics too. Returns an empty
 // string where backtracing is unavailable.

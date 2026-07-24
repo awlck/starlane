@@ -75,6 +75,11 @@ Exception::Exception(const std::string &what)
 MissingObjectException::MissingObjectException(const std::string &key)
 	: Exception("Reference to nonexistent object with key: " + key), key(key) {}
 
+namespace Expr {
+GeneralSyntaxException::GeneralSyntaxException(const std::string &expr)
+	: Exception("General syntax error parsing expression: \"" + expr + '"'), expr(expr) {}
+}
+
 void LogError(const std::string &message) {
 	std::cerr << "[starlane] " << message << std::endl;
 }
