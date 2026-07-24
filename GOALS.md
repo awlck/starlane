@@ -120,6 +120,23 @@
       does not reproduce that bug: absent `<TaskExecution>` and `<Version>` < 5.000022 defaults to
       `HighestPrioPassing`. None of the games under `testdata` are old enough to exercise this (the
       oldest is 5.000029), so this has no regression-suite coverage either way.
+    - Fixed (correcting an initial misreading of this exact TODO -- a first pass wrongly concluded
+      ADRIFT has no such feature, because a `head`-truncated reference-source grep missed it):
+      games actually can replace ADRIFT's default English direction words wholesale via 12
+      `<DirectionNorth>`/`<DirectionNorthEast>`/.../`<DirectionDown>` elements (FileIO.vb), e.g.
+      `<DirectionEast>Clockwise/CW</DirectionEast>` on a circular map. The canonical direction name
+      itself (what a Location's exits key on, and what a move message displays, e.g. "You move
+      east") is unaffected -- only which typed words resolve to it. `Util::kDirections`
+      (gamecontent/utility.cpp) is now built per-game into a `Util::DirectionTable`
+      (`GameStatic::directionTable`, `Game::GetDirectionTable()`) from ADRIFT's defaults with any of
+      those 12 elements substituted in, instead of a single process-wide static table. Verified
+      against `testdata/tests/renamedirtest.taf`/`renamedirtest-expected.txt` (a real Runner
+      transcript): "clockwise"/"cw"/"ccw" now correctly resolve to East/West.
+      - That same test exposed a second, unrelated gap while verifying this: its expected transcript
+        also has an "Exits are clockwise and counterclockwise." line after each location description
+        that starlane never prints. `GameStatic::showExits` is loaded from `<ShowExits>` but nothing
+        in starlane-core ever reads it -- automatic exit listing isn't implemented at all yet. Left
+        as its own goal below rather than folded into this fix.
 [ ] implement the status bar in the Qt frontend
 [ ] fix and fully implement text formatting in the Qt frontend (including default colors and fonts)
 [ ] implement dockable secondary windows in the Qt frontend
@@ -138,3 +155,11 @@
 [ ] Glk frontend: add a debug window
 [ ] Glk frontend: implement secondary windows
 [ ] think about implementing an automap (then probably decide against it)
+[ ] implement automatic exit listing ("Exits are north and east.") when `<ShowExits>` is on.
+    `GameStatic::showExits` (game.h) is parsed from the game file (gameloader.cpp) but nothing in
+    starlane-core ever reads it back -- there is no code anywhere that appends an exits line to a
+    location description. Found via `testdata/tests/renamedirtest-expected.txt` (a real ADRIFT
+    Runner transcript), whose location descriptions each end with such a line and which starlane
+    currently never prints. Note that the listed words follow the *game's own* direction table
+    (`Game::GetDirectionTable()`), not always the canonical compass name -- renamedirtest's own
+    exits line reads "Exits are clockwise and counterclockwise.", not "Exits are east and west.".

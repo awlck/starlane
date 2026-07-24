@@ -24,52 +24,49 @@ std::vector<std::string> Starlane::Util::SplitObjectList(const std::string &s) {
 namespace Starlane::Util {
 namespace {
 
-// Mirrors ADRIFT 5's built-in sDirectionsRE table (clsAdventure.vb).
-// TODO: support games that rename these via custom direction names.
+// Mirrors ADRIFT 5's built-in sDirectionsRE table (clsAdventure.vb) -- the default that applies
+// unless a game's <DirectionNorth>/etc. element (FileIO.vb) replaces a direction's words wholesale.
 struct DirectionEntry {
 	const char *canonical;
-	const char *synonyms[5];  // nullptr-terminated
+	const char *synonyms;  // '/'-separated, same format as a <DirectionXxx> override
 };
 
 const DirectionEntry kDirections[] = {
-	{ "North",     { "north", "n", nullptr } },
-	{ "NorthEast", { "northeast", "ne", "north-east", "n-e", nullptr } },
-	{ "East",      { "east", "e", nullptr } },
-	{ "SouthEast", { "southeast", "se", "south-east", "s-e", nullptr } },
-	{ "South",     { "south", "s", nullptr } },
-	{ "SouthWest", { "southwest", "sw", "south-west", "s-w", nullptr } },
-	{ "West",      { "west", "w", nullptr } },
-	{ "NorthWest", { "northwest", "nw", "north-west", "n-w", nullptr } },
-	{ "In",        { "in", "inside", nullptr } },
-	{ "Out",       { "out", "o", "outside", nullptr } },
-	{ "Up",        { "up", "u", nullptr } },
-	{ "Down",      { "down", "d", nullptr } },
+	{ "North",     "North/N" },
+	{ "NorthEast", "NorthEast/NE/North-East/N-E" },
+	{ "East",      "East/E" },
+	{ "SouthEast", "SouthEast/SE/South-East/S-E" },
+	{ "South",     "South/S" },
+	{ "SouthWest", "SouthWest/SW/South-West/S-W" },
+	{ "West",      "West/W" },
+	{ "NorthWest", "NorthWest/NW/North-West/N-W" },
+	{ "In",        "In/Inside" },
+	{ "Out",       "Out/O/Outside" },
+	{ "Up",        "Up/U" },
+	{ "Down",      "Down/D" },
 };
 
 }  // anonymous namespace
 
-const std::string &DirectionsRegexAlternation() {
-	static const std::string result = [] {
-		std::string r;
-		for (const auto &entry : kDirections) {
-			for (const char * const *syn = entry.synonyms; *syn; syn++) {
-				if (!r.empty()) r += '|';
-				r += *syn;
-			}
-		}
-		return r;
-	}();
-	return result;
-}
-
-std::string CanonicalizeDirection(const std::string &raw) {
-	std::string lower = ToLower(raw);
+DirectionTable BuildDirectionTable(const std::unordered_map<std::string, std::string> &overrides) {
+	DirectionTable table;
 	for (const auto &entry : kDirections) {
-		for (const char * const *syn = entry.synonyms; *syn; syn++) {
-			if (lower == *syn) return entry.canonical;
+		auto it = overrides.find(entry.canonical);
+		const std::string &words = it != overrides.end() ? it->second : entry.synonyms;
+		for (const auto &syn : SplitString(words, "/")) {
+			if (syn.empty()) continue;
+			std::string lower = ToLower(syn);
+			if (!table.regexAlternation.empty()) table.regexAlternation += '|';
+			table.regexAlternation += lower;
+			table.synonymToCanonical[lower] = entry.canonical;
 		}
 	}
-	return "";
+	return table;
+}
+
+std::string CanonicalizeDirection(const std::string &raw, const DirectionTable &table) {
+	auto it = table.synonymToCanonical.find(ToLower(raw));
+	return it != table.synonymToCanonical.end() ? it->second : "";
 }
 
 }  // namespace Starlane::Util

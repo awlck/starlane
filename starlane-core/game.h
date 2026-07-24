@@ -53,6 +53,7 @@ class GameStatic {
 	uint32_t waitTurns = 3;
 	DescrRef gameIntro = 0;
 	DescrRef userStatusBar = 0;
+	Util::DirectionTable directionTable;
 
 	// immutable content (only exists once)
 	std::unordered_map<RestrRef, Restriction *> restrictions;
@@ -298,6 +299,7 @@ public:
 	const std::string &GetAuthor() const { return staticData->gameAuthor; }
 	const std::string &GetLastUpdated() const { return staticData->gameLastUpdated; }
 	uint32_t GetChecksum() const { return staticData->gameCrc32; }
+	const Util::DirectionTable &GetDirectionTable() const { return staticData->directionTable; }
 
 	bool IsGameOngoing() const { return gameHasBegun; }
 	// Whether the frontend should keep reading input at all. True until the player actually

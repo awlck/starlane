@@ -270,7 +270,7 @@ bool Game::CaptureReferences(const std::vector<std::string> &refSpecs, const std
 		} else if (family == "direction") {
 			// May resolve to "" if somehow not a recognized direction word; that's fine,
 			// restrictions/messages relying on it will simply see an empty reference.
-			resolved = Util::CanonicalizeDirection(raw);
+			resolved = Util::CanonicalizeDirection(raw, GetDirectionTable());
 		} else if (family == "objects" || family == "characters") {
 			// A plural reference can name several things at once ("take the plates and the ration
 			// bar"). Each one is resolved separately, and the task runs once per thing; see

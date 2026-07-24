@@ -1,0 +1,36 @@
+Untitled
+
+
+Northern Segment
+This is the northern ring segment.  Exits are clockwise and counterclockwise.  
+
+> clockwise
+You move east.
+
+Eastern Segment
+This is the eastern ring segment.  Exits are clockwise and counterclockwise.
+
+> cw
+You move east.
+
+Southern Segment
+This is the southern ring segment.  Exits are clockwise and counterclockwise.
+
+> cw
+You move east.
+
+Western Segment
+This is the western ring segment.  Exits are clockwise and counterclockwise.
+
+> cw
+You move east.
+
+Northern Segment
+This is the northern ring segment.  Exits are clockwise and counterclockwise.
+
+> ccw
+You move west.
+
+Western Segment
+This is the western ring segment.  Exits are clockwise and counterclockwise.
+

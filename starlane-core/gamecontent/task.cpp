@@ -34,7 +34,7 @@ std::string RegexFragmentForRef(const std::string &token) {
 	family = Util::ToLower(family);
 
 	if (family == "direction")
-		return "(" + Util::DirectionsRegexAlternation() + ")";
+		return "(" + Game::Get()->GetDirectionTable().regexAlternation + ")";
 	if (family == "number")
 		return "(-?[0-9]+)";
 	return "(.+?)";

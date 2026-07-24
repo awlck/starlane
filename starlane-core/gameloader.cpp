@@ -69,6 +69,28 @@ Game *Game::LoadFromXML(const std::string &gameTxt, uint32_t gameCrc32) {
 	// on the way in (a negative wait is meaningless, and would wrap around here).
 	if (gameNode.child("WaitTurns").type() != pugi::node_null)
 		rStatic->waitTurns = (uint32_t) std::max((int64_t) 0, ParseInt(gameNode.child_value("WaitTurns")));
+	{
+		// A game can replace ADRIFT's default English direction words wholesale via these 12
+		// elements (FileIO.vb), each written only when it differs from the editor's own default at
+		// save time -- e.g. <DirectionEast>Clockwise/CW</DirectionEast> to make a circular map's
+		// exits read "clockwise"/"cw" instead of "east"/"e" (the displayed/canonical name, "East",
+		// is unaffected either way).
+		static const std::pair<const char *, const char *> kDirectionElements[] = {
+			{ "North", "DirectionNorth" }, { "NorthEast", "DirectionNorthEast" },
+			{ "East", "DirectionEast" }, { "SouthEast", "DirectionSouthEast" },
+			{ "South", "DirectionSouth" }, { "SouthWest", "DirectionSouthWest" },
+			{ "West", "DirectionWest" }, { "NorthWest", "DirectionNorthWest" },
+			{ "In", "DirectionIn" }, { "Out", "DirectionOut" },
+			{ "Up", "DirectionUp" }, { "Down", "DirectionDown" },
+		};
+		std::unordered_map<std::string, std::string> overrides;
+		for (const auto &[canonical, element] : kDirectionElements) {
+			auto n = gameNode.child(element);
+			if (n.type() != pugi::node_null && *n.child_value())
+				overrides[canonical] = n.child_value();
+		}
+		rStatic->directionTable = Util::BuildDirectionTable(overrides);
+	}
 	if (gameNode.child("UserStatus").type() != pugi::node_null)
 		rStatic->userStatusBar = result->CreateDescFromText(gameNode.child_value("UserStatus"));
 	// Before parsing the intro (or anything else): an inline conditional segment inside the intro

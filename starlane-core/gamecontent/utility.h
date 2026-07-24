@@ -5,6 +5,7 @@
 
 #include <algorithm>
 #include <string>
+#include <unordered_map>
 #include <vector>
 
 #include "../random.h"
@@ -167,12 +168,26 @@ inline bool ContainsWholeWord(const std::string &phrase, const std::string &word
 	return false;
 }
 
-// A regex alternation (e.g. "north|n|northeast|ne|...") of every direction word and
-// abbreviation ADRIFT recognizes, suitable for embedding in a capturing group.
-const std::string &DirectionsRegexAlternation();
+// A game's resolved set of direction words: which raw words/abbreviations mean which of the 12
+// canonical directions ("North", "NorthEast", ..., "Down"). Built once at load time (see
+// BuildDirectionTable) since a game can replace ADRIFT's default English words wholesale via its
+// <DirectionNorth>/<DirectionNorthEast>/.../<DirectionDown> elements (e.g. "Clockwise/CW" in place
+// of "East/E") -- the canonical names themselves (what a Location's exits key on, and what gets
+// displayed, e.g. "You move east") never change, only which typed words resolve to them.
+struct DirectionTable {
+	// A regex alternation (e.g. "north|n|northeast|ne|...") of every recognized direction word and
+	// abbreviation, suitable for embedding in a capturing group.
+	std::string regexAlternation;
+	// Lowercased word/abbreviation -> canonical direction name.
+	std::unordered_map<std::string, std::string> synonymToCanonical;
+};
+// Builds a DirectionTable from ADRIFT's built-in defaults, substituting in any of `overrides`
+// (keyed by canonical name, e.g. "North" -> "Clockwise/CW", mirroring a game's <DirectionNorth>
+// element) wholesale in place of that direction's default words.
+DirectionTable BuildDirectionTable(const std::unordered_map<std::string, std::string> &overrides);
 // Canonicalize a matched direction word/abbreviation (e.g. "n", "North-East") to the form
 // used as a Location's exit key (e.g. "North", "NorthEast"). Returns "" if not recognized.
-std::string CanonicalizeDirection(const std::string &raw);
+std::string CanonicalizeDirection(const std::string &raw, const DirectionTable &table);
 
 // Split the text captured by a plural reference ("the plates and a ration bar") into the
 // individual things it names. Entries keep their articles; it is the object-matching regexes'
