@@ -38,9 +38,11 @@ namespace Starlane {
 Game *Game::LoadFromXML(const std::string &gameTxt, uint32_t gameCrc32) {
 	// If a game is already ongoing, delete it.
 	// Assume that, if we get here, the user has already consented to this.
-	// TODO: deal with `startupState` and the undo history.
+	// Discard() (rather than a bare `delete`) also clears the undo history and the startupState
+	// snapshot -- both static and specific to the game being replaced, so left alone they would
+	// either dangle or quietly leak into the newly loaded game.
 	if (Game::theGame)
-		delete Game::theGame;
+		Game::Discard();
 
 	LOAD_STAGE("Parsing File");
 	pugi::xml_document doc;

@@ -221,8 +221,12 @@ void Game::Discard() {
 	for (auto *state : undoStates)
 		delete state;
 	undoStates.clear();
+	// ~Game() frees startupState itself (it's a snapshot sharing theGame's staticData), but only
+	// the object it points to -- the static pointer would otherwise dangle rather than read as
+	// "none yet", so a subsequently loaded game's first Begin() would skip creating its own.
 	delete theGame;
 	theGame = nullptr;
+	startupState = nullptr;
 }
 
 void Game::DiscardUndo() {

@@ -94,6 +94,14 @@
     - TODO(debug-log): `LogError` currently writes to stderr; route it to a real debug log (see below).
 [x] implement status bar support into the backend
 [ ] resolve outstanding TODO markers within starlane-core
+    - Fixed: loading a new game over one that was already ongoing left the old game's `startupState`
+      snapshot and `undoStates` history dangling/leaked instead of being cleared, because
+      `Game::LoadFromXML` deleted the old `Game::theGame` directly rather than going through
+      `Game::Discard()` -- and `Discard()` itself didn't null the (freed) `startupState` pointer
+      either. A subsequently loaded game's first `Begin()` would then see a non-null but dangling
+      `startupState` and skip creating its own, so a later `restart` dereferenced freed memory.
+      `LoadFromXML` now calls `Discard()` (gameloader.cpp), and `Discard()` nulls `startupState`
+      after the delete that frees it (game.cpp).
 [ ] implement the status bar in the Qt frontend
 [ ] fix and fully implement text formatting in the Qt frontend (including default colors and fonts)
 [ ] implement dockable secondary windows in the Qt frontend
@@ -106,5 +114,9 @@
 [x] implement image support in Glk frontend
 [x] implement font color support in Glk frontend
 [x] implement sound support in Glk frontend
+[ ] wrap Glk windows in classes where it makes sense
+[ ] Glk frontend: ensure real-time events can't print while input is active
 [ ] implement status bar support in Glk frontend
+[ ] Glk frontend: add a debug window
+[ ] Glk frontend: implement secondary windows
 [ ] think about implementing an automap (then probably decide against it)
