@@ -137,6 +137,9 @@
         that starlane never prints. `GameStatic::showExits` is loaded from `<ShowExits>` but nothing
         in starlane-core ever reads it -- automatic exit listing isn't implemented at all yet. Left
         as its own goal below rather than folded into this fix.
+    - Investigated and found moot, so just removed/reworded rather than fixed: the two performance
+      musings in `savefiles/parser.cpp` (`Parser::CreateNode`, `Parser::Prepare`) were already
+      answered by their own comments -- reworded into plain statements of the design tradeoff.
 [ ] implement the status bar in the Qt frontend
 [ ] fix and fully implement text formatting in the Qt frontend (including default colors and fonts)
 [ ] implement dockable secondary windows in the Qt frontend

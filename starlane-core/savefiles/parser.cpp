@@ -23,8 +23,8 @@ Parser::~Parser() {
 }
 
 inline AstNode* Parser::CreateNode() {
-	// TODO: investigate if this is okay performance-wise, or whether we should be writing
-	//  a proper arena allocator with placement new.
+	// Already block-allocated (nodesAtOnce nodes per new[], reclaimed as a block by the destructor)
+	// rather than one `new` per node, so this is the arena allocator in spirit if not letter.
 	if (nextNodeToUse == nullptr || nextNodeToUse > lastNodeInBlock) {
 		nextNodeToUse = new AstNode[nodesAtOnce];
 		lastNodeInBlock = nextNodeToUse + nodesAtOnce - 1;
@@ -33,8 +33,10 @@ inline AstNode* Parser::CreateNode() {
 	return nextNodeToUse++;
 }
 
+// Grows by another readBufferSize-sized reallocation-and-copy per full buffer read, which is not
+// cheap -- fine in practice since a save file is not expected to ever approach even one such chunk.
 static constexpr size_t readBufferSize = 1024*1024*10;  // 10MB
-void Parser::Prepare() {  // TODO: this is terrible. not that i expect to ever have save files that large.
+void Parser::Prepare() {
 	auto incoming = static_cast<uint8_t *>(::operator new(readBufferSize));
 	size_t read = frontend->ReadFile(hFile, incoming, readBufferSize);
 	size_t counter = 1;
