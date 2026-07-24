@@ -1,4 +1,4 @@
-cmake_minimum_required(VERSION 3.18)
+cmake_minimum_required(VERSION 3.24)
 
 project(starlane-glk C CXX)
 set(CMAKE_CXX_STANDARD 17)
@@ -65,6 +65,10 @@ if(NOT ${SLGLK_LIB_ONLY} AND NOT ${SLGLK_USE_BUILTIN_CHEAPGLK})
     find_package(PkgConfig REQUIRED)
     pkg_check_modules(SLGLK_EXTERNAL_GLK REQUIRED IMPORTED_TARGET "${SLGLK_GLK_LIB_NAME}")
     pkg_get_variable(SLGLK_EXTERNAL_GLK_INCLUDEDIR "${SLGLK_GLK_LIB_NAME}" includedir)
+
+    if(EXISTS ${SLGLK_GLK_LIB_NAME})  # is a path to a pkgconfig file rather than just a name
+        SET(SLGLK_GLK_LIB_NAME "$<PATH:REMOVE_EXTENSION,$<PATH:GET_FILENAME,$<PATH:CMAKE_PATH,${SLGLK_GLK_LIB_NAME}>>>")
+    endif()
 
     # Our sources #include "glk.h" etc. unprefixed (to stay agnostic of which Glk
     # implementation they end up linked against), but an installed external library
