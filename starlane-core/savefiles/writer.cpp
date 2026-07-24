@@ -6,6 +6,7 @@
 
 #include <miniz.h>
 
+#include "../error.h"
 #include "../game.h"
 
 namespace Starlane::Save {
@@ -32,7 +33,14 @@ Writer::Writer(void *target, const Starlane::Game *game)
 }
 
 Writer::~Writer() {
-	RunCompressor(true);
+	// A throwing destructor is a hard std::terminate() away from happening (this runs during
+	// unwinding as often as not), so a compression failure on this final flush can only be logged,
+	// not propagated -- RunCompressor's other caller (AcceptChar, mid-write) is free to throw.
+	try {
+		RunCompressor(true);
+	} catch (const Exception &e) {
+		LogError(e.what());
+	}
 	mz_deflateEnd(stream);
 	delete[] textbuf;
 	delete[] zbuf;
@@ -141,8 +149,12 @@ void Writer::RunCompressor(bool finish) {
 	do {
 		stream->avail_out = WRITER_BUFSIZE;
 		stream->next_out = zbuf;
-		[[maybe_unused]] int status = mz_deflate(stream, finish ? MZ_FINISH : MZ_NO_FLUSH);
-		// TODO: error handling
+		int status = mz_deflate(stream, finish ? MZ_FINISH : MZ_NO_FLUSH);
+		// We only ever feed the compressor buffers it was itself initialized with, so the only way
+		// to land here is a real internal fault (e.g. out of memory) -- surface it rather than
+		// silently writing a truncated/corrupt save file.
+		if (status < 0)
+			throw Exception(std::string("Save file compression failed: ") + (mz_error(status) ? mz_error(status) : "unknown error"));
 		mz_ulong toWrite = WRITER_BUFSIZE - stream->avail_out;
 		frontend->WriteFile(hFile, zbuf, toWrite);
 	} while (stream->avail_in > 0 || stream->avail_out < WRITER_BUFSIZE);

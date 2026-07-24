@@ -102,6 +102,10 @@
       `startupState` and skip creating its own, so a later `restart` dereferenced freed memory.
       `LoadFromXML` now calls `Discard()` (gameloader.cpp), and `Discard()` nulls `startupState`
       after the delete that frees it (game.cpp).
+    - Fixed: `Save::Writer::RunCompressor` (savefiles/writer.cpp) ignored `mz_deflate`'s status
+      entirely; it now throws `Starlane::Exception` on failure. Since the same call also runs from
+      `~Writer()` on the final flush, where throwing risks `std::terminate()`, the destructor's call
+      is wrapped in its own try/catch that logs instead of propagating.
 [ ] implement the status bar in the Qt frontend
 [ ] fix and fully implement text formatting in the Qt frontend (including default colors and fonts)
 [ ] implement dockable secondary windows in the Qt frontend
