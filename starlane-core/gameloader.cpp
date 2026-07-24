@@ -1,6 +1,7 @@
 #include "game.h"
 
 #include <algorithm>
+#include <cstdlib>
 #include <iterator>
 #include <limits>
 
@@ -93,7 +94,20 @@ Game *Game::LoadFromXML(const std::string &gameTxt, uint32_t gameCrc32) {
 		if ((n = gameNode.child("TaskExecution")).type() != pugi::node_null &&
 				STREQ(n.child_value(), "HighestPriorityPassingTask"))
 			rStatic->executionPolicy = ExecutionPolicy::HighestPrioPassing;
-		// TODO: games with versions <5.0.0.22 need to use the other one by default.
+		else if (n.type() == pugi::node_null) {
+			// ADRIFT only ever wrote out <TaskExecution> when it differed from the editor's own
+			// default at the time (mirroring how WaitTurns is handled above) -- so a game built
+			// before that default changed can be missing the element even though it was authored
+			// (and tested) against HighestPriorityPassingTask. The stock Runner doesn't correct for
+			// this: it just applies its current default (HighestPriorityTask) regardless of the
+			// game's vintage, which is a known bug that leaves at least a couple of real ADRIFT
+			// games unwinnable. We deliberately don't reproduce it: for a file built before ADRIFT
+			// 5.0.0.22 (encoded as the double 5.000022 in <Version>, e.g. "5.000021") with no
+			// explicit <TaskExecution>, default to HighestPriorityPassingTask instead.
+			double ver = std::strtod(rStatic->gameAdriftVersion.c_str(), nullptr);
+			if (ver > 0.0 && ver < 5.000022)
+				rStatic->executionPolicy = ExecutionPolicy::HighestPrioPassing;
+		}
 	}
 
 	LOAD_STAGE("Loading Properties");

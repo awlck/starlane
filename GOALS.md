@@ -110,6 +110,16 @@
       (mirroring how `descriptions_shown` already skipped descriptions with nothing shown);
       `Game::ContinueRestore` resets every group to that state before applying the file's
       exceptions, the same way it already did for descriptions. Bumped `currentSaveFileVer` to -993.
+    - Fixed: a game with no explicit `<TaskExecution>` element (i.e. one whose editor's own default
+      at the time matched what it wrote, so it never had reason to emit the element) built before
+      ADRIFT 5.0.0.22 (`<Version>` encodes this as the double 5.000022, e.g. "5.000021") is missing
+      `HighestPriorityPassingTask` even though it was authored and tested against it. The stock
+      Runner doesn't correct for this -- it just applies its current default
+      (`HighestPriorityTask`) regardless of the game's vintage, a known bug that leaves at least a
+      couple of real ADRIFT games unwinnable. `Game::LoadFromXML` (gameloader.cpp) now deliberately
+      does not reproduce that bug: absent `<TaskExecution>` and `<Version>` < 5.000022 defaults to
+      `HighestPrioPassing`. None of the games under `testdata` are old enough to exercise this (the
+      oldest is 5.000029), so this has no regression-suite coverage either way.
 [ ] implement the status bar in the Qt frontend
 [ ] fix and fully implement text formatting in the Qt frontend (including default colors and fonts)
 [ ] implement dockable secondary windows in the Qt frontend
