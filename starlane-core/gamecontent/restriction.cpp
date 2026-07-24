@@ -693,6 +693,26 @@ void Restriction::Single::Translate() {
 	}
 
 	if (targetType == TargetType::Variable || targetType == TargetType::Property) {
+		// ADRIFT distinguishes a restriction value that is an *expression* from one that is a
+		// *string constant* by the quotes around it (see FileIO.vb): single quotes wrap an
+		// expression, double quotes a string constant, and both are stripped on load. So a value
+		// like '%var_A%+%var_B%' must be compiled as the arithmetic expression %var_A%+%var_B%
+		// (yielding a number), not read as the literal string "%var_A%+%var_B%" -- which is what
+		// our grammar's single-quoted-string rule would otherwise produce, leaving a value like
+		// "1+2" that no numeric comparison can use. Strip the single quotes and compile the inside;
+		// if the inside isn't a valid expression (e.g. a multi-word string literal), fall back to
+		// compiling the value verbatim, letting the grammar treat it as the string it is.
+		std::string val = x;
+		while (!val.empty() && isspace((unsigned char) val.front())) val.erase(val.begin());
+		while (!val.empty() && isspace((unsigned char) val.back())) val.pop_back();
+		if (val.size() >= 2 && val.front() == '\'' && val.back() == '\'') {
+			try {
+				exprContent = Game::Get()->CreateExpression(val.substr(1, val.size() - 2));
+				return;
+			} catch (const std::exception &) {
+				// Not a valid expression; fall through and compile the value as written.
+			}
+		}
 		try {
 			exprContent = Game::Get()->CreateExpression(x);
 		} catch (std::runtime_error& e) {
