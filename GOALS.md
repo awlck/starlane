@@ -93,7 +93,7 @@
       its pre-turn undo snapshot. Errors are logged with a backtrace (`Starlane::Exception`).
     - TODO(debug-log): `LogError` currently writes to stderr; route it to a real debug log (see below).
 [x] implement status bar support into the backend
-[ ] resolve outstanding TODO markers within starlane-core
+[x] resolve outstanding TODO markers within starlane-core
     - Fixed: loading a new game over one that was already ongoing left the old game's `startupState`
       snapshot and `undoStates` history dangling/leaked instead of being cleared, because
       `Game::LoadFromXML` deleted the old `Game::theGame` directly rather than going through
@@ -140,6 +140,14 @@
     - Investigated and found moot, so just removed/reworded rather than fixed: the two performance
       musings in `savefiles/parser.cpp` (`Parser::CreateNode`, `Parser::Prepare`) were already
       answered by their own comments -- reworded into plain statements of the design tradeoff.
+    - Left in place (already tracked): the two `TODO: Conversation` markers in
+      `gamecontent/character.cpp` and `gamecontent/restriction.cpp` -- covered by "implement the
+      conversation system" above. `error.h`'s `TODO(debug-log)` -- covered by the error-handling
+      item's own last bullet.
+    - Promoted to their own goals below, being too large for this pass: the `EverythingWithProperty`
+      comparison-value bug (`gamecontent/task.cpp`), per-item plural disambiguation and
+      `ExecuteTaskByKey`'s first-Command-line-only references (both `parser.cpp`), and child-task
+      control suppression (`gamecontent/walk.cpp`/`gamecontent/event.cpp`).
 [ ] implement the status bar in the Qt frontend
 [ ] fix and fully implement text formatting in the Qt frontend (including default colors and fonts)
 [ ] implement dockable secondary windows in the Qt frontend
@@ -158,6 +166,48 @@
 [ ] Glk frontend: add a debug window
 [ ] Glk frontend: implement secondary windows
 [ ] think about implementing an automap (then probably decide against it)
+[ ] fix `EverythingWithProperty`/`EveryoneWithProperty` task actions (Move*/AddToGroup/RemoveFromGroup)
+    for Object-, Enum-, and Map-typed properties: `Task::Action::CreateFromXML` (task.cpp) computes the
+    comparison value into a local `temp` and stores it as `result.lhs` for these three property types
+    (Bool/Int/Text instead build `result.expr`, an expression, which is what non-broken cases below
+    actually read at runtime) -- but every action name handled further down (`MoveObject`/
+    `MoveCharacter`, `AddObjectToGroup`/`RemoveObjectFromGroup`/etc.) unconditionally re-assigns
+    `result.lhs`/`result.rhs` from the (by-then-collapsed) token list without checking whether an
+    `EverythingWithProperty` prefix already claimed one of those fields, so the comparison value is
+    silently clobbered -- for Move actions, `lhs` ends up holding the property's own key (redundant
+    with `result.prop`, since `tokens[1]` never moves); for AddToGroup/RemoveFromGroup, `rhs` ends up
+    holding the destination group's key instead. The affected execution code is `Task::Action::
+    PerformMoveTo` and the `AddToGroup`/`RemoveFromGroup` case of `Task::Action::Perform`, both in
+    task.cpp, in each case the `ActionRefType::ObjsWithProp`/`CharsWithProp` switch's
+    `Property::ValueType::Object`/`Enum` (and, for Map, the `ParseInt` half of the `Int`/`Map` case).
+    No test game under `testdata` exercises this path, so there is no regression-suite coverage to
+    lean on while fixing it. Likely fix: give `Action` a field dedicated to this comparison value
+    (distinct from `lhs`/`rhs`, which the later per-action-name code needs to keep using for their own
+    purposes) and have `CreateFromXML` populate it instead of `result.lhs`, for exactly the
+    Object/Enum/Map branch of the `EverythingWithProperty`/`EveryoneWithProperty` special case.
+[ ] disambiguate per-item within a plural reference: `Game::CaptureReferences` (parser.cpp, the
+    "objects"/"characters" family branch) resolves a plural reference ("take the plates and the
+    ration bar") by taking each named item's *first* match without ever asking, even when one of
+    several items is itself ambiguous ("take the plates and the ball" with two balls present).
+    Singular references already disambiguate correctly via `currentRefMatches` +
+    `BeginDisambiguationIfNeeded`; extending that to a plural reference needs a per-item (not just
+    per-reference) record, since one plural reference can have more than one of its items ambiguous
+    at once, which the current `currentRefMatches`/`currentRefLists` data model has no room for.
+[ ] make `Game::ExecuteTaskByKey` (parser.cpp) consider the right Command line's references, not just
+    the first: it always binds `task->GetGroupCoding().front()` regardless of which of a task's several
+    alternate `<Command>` lines is the one actually relevant to the call (e.g. an `Execute` action
+    naming explicit arguments whose count/kind matches a *later* alternate). Needs a way to pick the
+    matching alternate when there is no player input to pattern-match against, unlike the regular
+    command-matching path (`MatchInput`, same file) which already juggles multiple alternates.
+[ ] model ADRIFT's child-task control suppression: a `<Control>` on an Event or Walk that triggers on
+    task T is ignored if T is a *child* of the task currently completing (so a child task can't
+    re-trigger what its parent's own completion already handled) -- see ADRIFT's `bChildTask`
+    threading through `AttemptToExecuteTask`/`AttemptToExecuteSubTask`/`ExecuteSubTasks` in
+    `reference/ADRIFT-5/ADRIFT/clsUserSession.vb`. Not modelled in `Event::ReceiveTaskNotification`
+    (gamecontent/event.cpp) or `Walk::ReceiveTaskNotification` (gamecontent/walk.cpp), both of which
+    currently fire on every matching control regardless of task ancestry. Needs a notion of "task
+    children" (ADRIFT tracks this via each task's `Children`) and of which task is "currently
+    completing" threaded through to these two notification paths.
 [ ] implement automatic exit listing ("Exits are north and east.") when `<ShowExits>` is on.
     `GameStatic::showExits` (game.h) is parsed from the game file (gameloader.cpp) but nothing in
     starlane-core ever reads it back -- there is no code anywhere that appends an exits line to a

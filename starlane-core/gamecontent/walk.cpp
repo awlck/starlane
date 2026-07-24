@@ -413,9 +413,9 @@ void Walk::ReceiveTaskNotification(Util::Control::Condition cond, const std::str
 			case Util::Control::Action::Resume: Resume(); break;
 		}
 	}
-	// TODO: ADRIFT additionally ignores a control whose triggering task is a child of the task
-	// currently completing, so a child task can't re-trigger what its parent already did. As with the
-	// same case for events, not modelled here.
+	// ADRIFT additionally ignores a control whose triggering task is a child of the task currently
+	// completing, so a child task can't re-trigger what its parent already did. As with the same
+	// case for events, not modelled here (see GOALS.md: child-task control suppression).
 }
 
 void Walk::WriteState(Save::Writer &writer) const {

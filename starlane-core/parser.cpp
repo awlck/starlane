@@ -291,9 +291,8 @@ bool Game::CaptureReferences(const std::vector<std::string> &refSpecs, const std
 				items.push_back(matchList.front());
 			}
 			resolved = items.front();
-			// TODO: when the player really does name several things, each is resolved to its first
-			// match without asking. Disambiguation is per-reference, and one plural reference can
-			// be ambiguous in more than one of its items at once, which it has no way to hold.
+			// When the player really does name several things, each is resolved to its first match
+			// without asking (see GOALS.md: per-item disambiguation within a plural reference).
 			if (items.size() > 1)
 				currentRefLists.emplace_back(ref, std::move(items));
 		} else {
@@ -576,8 +575,8 @@ void Game::ExecuteTaskByKey(const std::string &key, const std::vector<std::strin
 	Task *task = GetTask(key);
 	if (!task) return;  // unknown task key: nothing to do
 
-	// TODO: a task with several alternate Command lines only ever gets its first one's
-	// references considered here.
+	// A task with several alternate Command lines only ever gets its first one's references
+	// considered here (see GOALS.md: ExecuteTaskByKey and multi-Command tasks).
 	static const std::vector<std::string> kNoRefs;
 	const auto &coding = task->GetGroupCoding();
 	const std::vector<std::string> &refTokens = coding.empty() ? kNoRefs : coding.front();

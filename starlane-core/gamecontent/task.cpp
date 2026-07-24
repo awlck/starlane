@@ -1061,6 +1061,10 @@ void Task::Action::PerformImpl() const {
 						(grp->*addOrRemove)(o.second);
 				}
 				break;
+			// `rhs` here is actually the destination group's key (set once, above, for every case
+			// of this switch) rather than a property comparison value -- same root cause as the
+			// Move actions' version of this switch; see GOALS.md: EverythingWithProperty comparison
+			// value lost for Object/Enum/Map properties.
 			case Property::ValueType::Object:
 			case Property::ValueType::Enum:
 				for (auto &o : allObjs) {
@@ -1424,7 +1428,9 @@ void Task::Action::PerformMoveTo(const std::string &moveTarget) const {
 					o.second->MoveTo(moveTarget, ActionTypeToHoldingType(type));
 			}
 			break;
-			// TODO: these do not seem right.
+			// The Object/Enum/Map cases below read a comparison value that CreateFromXML never
+			// actually preserves for this ref type -- see GOALS.md: EverythingWithProperty
+			// comparison value lost for Object/Enum/Map properties.
 		case Property::ValueType::Object:
 		case Property::ValueType::Enum:
 			for (auto &o : allObjs) {

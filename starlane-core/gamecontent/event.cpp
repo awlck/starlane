@@ -441,9 +441,9 @@ void Event::ReceiveTaskNotification(Util::Control::Condition cond, const std::st
 				break;
 		}
 	}
-	// TODO: ADRIFT additionally ignores a control whose triggering task is a child of the task
-	// currently completing, so that a child task can't re-trigger what its parent already did.
-	// Not modelled here.
+	// ADRIFT additionally ignores a control whose triggering task is a child of the task currently
+	// completing, so that a child task can't re-trigger what its parent already did. Not modelled
+	// here (see GOALS.md: child-task control suppression).
 }
 
 void Event::WriteState(Save::Writer &writer) const {
