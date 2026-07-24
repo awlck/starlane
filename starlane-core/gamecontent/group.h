@@ -40,8 +40,15 @@ public:
 	}
 	const std::set<std::string> &GetAllMembers() const { return members; }
 
+	// Whether this group has any properties of its own set (as opposed to relying entirely on
+	// defaults), i.e. whether WriteState below would have anything to say.
+	bool HasOwnProperties() const { return !GetAllIntProps().empty() || !GetAllStrProps().empty(); }
+
 	void WriteState(Save::Writer &writer) const;
 	bool RestoreState(const Save::AstNode *node);
+	// Reset to "no properties of its own" -- WriteState skips a group in that state, so a restore
+	// must put every group back into it before applying whatever the save file names as exceptions.
+	void ResetState() { ClearProps(); }
 
 	virtual ~Group() {}
 

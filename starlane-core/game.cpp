@@ -477,8 +477,11 @@ bool Game::Save() {
 	writer.EndCompound();
 
 	writer.BeginNamedCompound("groups");
-	// TODO: only save groups with at least one property of their own?
+	// "no properties of its own" is the initial state, so only save anything for groups that have
+	// diverged from it -- ContinueRestore resets every group to that state before applying the
+	// file's exceptions, mirroring descriptions_shown just below.
 	for (const auto &grp: groups) {
+		if (!grp.second->HasOwnProperties()) continue;
 		writer.BeginNamedCompound(grp.first.c_str());
 		grp.second->WriteState(writer);
 		writer.EndCompound();
@@ -486,7 +489,6 @@ bool Game::Save() {
 	writer.EndCompound();
 
 	writer.BeginNamedCompound("descriptions_shown");
-	// TODO: save only those where at least one segment even cares?
 	for (const auto &desc: descriptions) {
 		auto name = std::to_string(desc.first);
 		auto state = desc.second->GetState();
@@ -609,6 +611,10 @@ bool Game::ContinueRestore(const Save::AstNode *root) {
 	{
 		const auto *grpsNode = root->FindChildByName("groups");
 		if (!grpsNode || !grpsNode->IsCollection(Save::NT_COMPOUND)) return RollbackRestore();
+		// Only groups with properties of their own get written out, so reset the lot to "none" and
+		// let the file fill in the exceptions -- see the matching comment on descriptions_shown below.
+		for (const auto &grp: groups)
+			grp.second->ResetState();
 		ITERATE_CHILDREN(grpsNode, grpN) {
 			auto *grp = GetGroup(grpN->myName);
 			if (!grp || !grp->RestoreState(grpN)) return RollbackRestore();

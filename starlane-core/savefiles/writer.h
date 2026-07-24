@@ -24,7 +24,10 @@ namespace Starlane::Save {
 // Bumped to -995 when a game checksum was added to the savefile.
 // Bumped to -994 when events learned to run SetLook subevents: each event now carries a stack of
 // look-description overrides that must survive a save/restore round trip.
-constexpr int currentSaveFileVer = -994;
+// Bumped to -993 when a group with no properties of its own stopped being written out at all
+// (ContinueRestore resets every group before applying the file's exceptions, same as
+// descriptions_shown already did).
+constexpr int currentSaveFileVer = -993;
 
 namespace {
 // Helper to determine whether there's a const_iterator for T.

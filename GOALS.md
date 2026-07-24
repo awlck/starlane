@@ -106,6 +106,10 @@
       entirely; it now throws `Starlane::Exception` on failure. Since the same call also runs from
       `~Writer()` on the final flush, where throwing risks `std::terminate()`, the destructor's call
       is wrapped in its own try/catch that logs instead of propagating.
+    - Implemented: groups with no properties of their own are no longer written into a save file
+      (mirroring how `descriptions_shown` already skipped descriptions with nothing shown);
+      `Game::ContinueRestore` resets every group to that state before applying the file's
+      exceptions, the same way it already did for descriptions. Bumped `currentSaveFileVer` to -993.
 [ ] implement the status bar in the Qt frontend
 [ ] fix and fully implement text formatting in the Qt frontend (including default colors and fonts)
 [ ] implement dockable secondary windows in the Qt frontend
