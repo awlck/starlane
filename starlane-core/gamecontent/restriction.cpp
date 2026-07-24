@@ -7,6 +7,7 @@
 
 #include <pugixml.hpp>
 
+#include "../error.h"
 #include "../expression.h"
 #include "../game.h"
 #include "../valueparsers.h"
@@ -113,7 +114,15 @@ Restriction *Restriction::CreateFromXML(const pugi::xml_node &xmlNode) {
 		const auto &msg = it.child("Message");
 		if (msg.type() != pugi::node_null)
 			s.failureMsg = Game::Get()->CreateDescFromXML(msg);
-		s.Translate();
+		// A restriction the Runner would only have choked on if it ever evaluated (a malformed
+		// expression, say) must not abort the whole load here. Mark it faulty and carry on; it
+		// will simply always fail at runtime.
+		try {
+			s.Translate();
+		} catch (const std::exception &e) {
+			LogError(std::string("Faulty restriction (") + e.what() + "); it will always fail.");
+			s.faulty = true;
+		}
 		result->restrs.emplace_back(std::move(s));
 	}
 	std::string sequence(xmlNode.child_value("BracketSequence"));
@@ -158,7 +167,22 @@ std::pair<bool, DescrRef> Restriction::PassRestrictionBlock(size_t &tidx, size_t
 			// applicable to the "has route in direction" restriction, so doing this is more convenient
 			// than returning a pair.
 			DescrRef txt = 0;
-			if (restrs[ridx].Pass(&txt, ignoreUnsetRefs)) {
+			// A faulty restriction (one that wouldn't parse) always fails, as does one whose
+			// evaluation throws -- a comparison against a nonexistent object, a NaN, and so on.
+			// Either way the enclosing task/description is denied, and we log the runtime kind.
+			bool passed;
+			if (restrs[ridx].faulty) {
+				passed = false;
+			} else {
+				try {
+					passed = restrs[ridx].Pass(&txt, ignoreUnsetRefs);
+				} catch (const std::exception &e) {
+					LogError(std::string("Restriction failed to evaluate (") + e.what()
+					         + "); treating as failed.");
+					passed = false;
+				}
+			}
+			if (passed) {
 				state = { true, 0 };
 			} else if (txt && !Game::Get()->GetDescription(txt)->Build(false).empty()) {
 				// If the failure message was overridden and the override message doesn't

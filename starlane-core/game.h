@@ -15,12 +15,13 @@
 #include <string_view>
 #include <vector>
 
+#include "error.h"
 #include "gamecontent/task.h"
 #include "gamecontent/utility.h"
 
 namespace Starlane {
 
-template<typename K, typename V> V *SafeMapGet(std::unordered_map<K, V *> map, const K &key) {
+template<typename K, typename V> V *SafeMapGet(const std::unordered_map<K, V *> &map, const K &key) {
 	auto f = map.find(key);
 	return f == map.end() ? nullptr : f->second;
 }
@@ -104,6 +105,9 @@ public:
 	static inline Game *Get() { return theGame; }
 
 	static Game *LoadFromXML(const std::string &gameTxt, uint32_t crc32);
+	// Tear down the current game (and any undo history) and leave no current game behind. Used by
+	// the top-level backstop when loading throws partway, so a half-built game can't linger.
+	static void Discard();
 	DescrRef CreateDescFromXML(const pugi::xml_node &descNode);
 	DescrRef CreateDescFromText(const std::string &text);
 	RestrRef CreateRestrictionsFromXML(const pugi::xml_node &restrNode);
@@ -114,7 +118,20 @@ public:
 	Description *GetDescription(DescrRef d) const { return descriptions.at(d); }
 	Event *GetEvent(const std::string &key) { return SafeMapGet(events, key); }
 	Group *GetGroup(const std::string &key) { return SafeMapGet(groups, key); }
-	GameObj *GetObject(const std::string &key) { return SafeMapGet(objects, key); }
+	// Look up an object by key, returning nullptr if none exists. Use this only where a missing
+	// key is a legitimate, expected answer -- existence/type probes (`dynamic_cast<Location *>(...)`)
+	// and explicit `if (TryGetObject(k))` guards.
+	GameObj *TryGetObject(const std::string &key) { return SafeMapGet(objects, key); }
+	// Look up an object by key that the caller expects to exist. Throws MissingObjectException
+	// (logging the key) rather than returning a dangling nullptr to be dereferenced -- either the
+	// game file is malformed or a reference was evaluated while unset. Callers that cannot tolerate
+	// this sit under a funnel-level try/catch (restriction/action evaluation) or the top-level
+	// backstop in starlane-core.cpp.
+	GameObj *GetObject(const std::string &key) {
+		GameObj *o = SafeMapGet(objects, key);
+		if (!o) throw MissingObjectException(key);
+		return o;
+	}
 	Task *GetTask(const std::string &key) const { return SafeMapGet(staticData->tasks, key); }
 	// Directly run a task by key (used by the "Execute <task>" task action), independent of
 	// player command matching: check its restrictions, run its actions if they pass, mark it
@@ -212,6 +229,9 @@ public:
 	static void DiscardUndo();
 	// Is there at least one undo state available?
 	bool UndoAvailable() const { return !undoStates.empty(); }
+	// Number of saved undo states. Used by the top-level backstop (starlane-core.cpp) to tell
+	// whether a turn recorded a snapshot before it threw, and hence whether to roll it back.
+	static size_t UndoDepth() { return undoStates.size(); }
 	// Restart the game.
 	void Restart();
 

@@ -189,6 +189,11 @@ private:
 		// Perform this action. Potentially creates and executes several sub-actions
 		// if lhs or rhs hold references to multiple objects.
 		void Perform() const;
+
+		// Set when this action couldn't be parsed at load time (e.g. an argument expression that
+		// wouldn't compile). A faulty action is skipped rather than performed -- see RunActions.
+		// Read by the enclosing Task, hence public.
+		bool faulty = false;
 	private:
 		// One argument of an `Execute <task> (<arg>|<arg>...)` action, bound positionally to the
 		// called task's own %ref% tokens. Which of the three forms it takes is settled at load

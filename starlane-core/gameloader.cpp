@@ -116,10 +116,10 @@ Game *Game::LoadFromXML(const std::string &gameTxt, uint32_t gameCrc32) {
 	// as the ADRIFT Runner does -- otherwise the player would start nowhere, seeing nothing and
 	// unable to act on anything. Done here, once, so every later snapshot (startup state, undo
 	// history) inherits the placement rather than each having to rediscover it.
-	if (auto *player = dynamic_cast<Character *>(result->GetObject(result->playerKey));
+	if (auto *player = dynamic_cast<Character *>(result->TryGetObject(result->playerKey));
 	    player && player->GetLocationKey().empty()) {
 		for (const auto &key : rStatic->objectLoadOrder) {
-			if (dynamic_cast<Location *>(result->GetObject(key))) {
+			if (dynamic_cast<Location *>(result->TryGetObject(key))) {
 				player->SetInitialLocation(key);
 				break;
 			}
@@ -157,7 +157,7 @@ Game *Game::LoadFromXML(const std::string &gameTxt, uint32_t gameCrc32) {
 	// loading, so wire each walk up to them now. The characters themselves loaded earlier, before any
 	// task existed, which is why this can't happen while a character is being built.
 	for (const auto &key : rStatic->objectLoadOrder)
-		if (auto *c = dynamic_cast<Character *>(result->GetObject(key)))
+		if (auto *c = dynamic_cast<Character *>(result->TryGetObject(key)))
 			c->RegisterWalkNotifications();
 
 	LOAD_STAGE("Loading Events");

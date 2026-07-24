@@ -37,6 +37,7 @@ add_library(starlane-core
 	# core files
 	"starlane-core.cpp" "starlane-core.h"
 	"slc_private.h"
+	"error.cpp" "error.h"
 	"taffile.cpp"
 	"game.cpp" "game.h" "gameloader.cpp" "parser.cpp"
 	"valueparsers.cpp" "valueparsers.h"
@@ -66,6 +67,9 @@ add_library(starlane-core
     savefiles/writer.cpp savefiles/writer.h
 	savefiles/parser.cpp savefiles/parser.h)
 target_link_libraries(starlane-core miniz pugixml slc_exprparser)
+if (WIN32)  # DbgHelp provides symbol resolution for captured backtraces
+	target_link_libraries(starlane-core dbghelp)
+endif()
 target_include_directories(starlane-core PRIVATE deps/miniz deps/pugixml/src deps/magicenum ${CMAKE_CURRENT_BINARY_DIR})
 if (BUILD_SHARED_LIBS)
 	target_compile_definitions(starlane-core PUBLIC SL_SHARED_CORE)

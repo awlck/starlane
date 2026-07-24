@@ -22,7 +22,14 @@ Group *Group::CreateFromXML(const pugi::xml_node &xmlNode) {
 }
 
 void Group::AddObj(const std::string &key) {
-	Game::Get()->GetObject(key)->BecomeGroupMember(this->key_);
+	// A group that lists a member key naming no object is malformed; skip it rather than
+	// dereferencing a missing object.
+	GameObj *obj = Game::Get()->TryGetObject(key);
+	if (!obj) {
+		LogError("Group '" + key_ + "' names nonexistent member '" + key + "'; skipping.");
+		return;
+	}
+	obj->BecomeGroupMember(this->key_);
 	ReceiveObj(key);
 }
 void Group::AddObj(GameObj *obj) {
@@ -31,7 +38,8 @@ void Group::AddObj(GameObj *obj) {
 }
 
 void Group::RemoveObj(const std::string &key) {
-	Game::Get()->GetObject(key)->CeaseBeingGroupMember(this->key_);
+	if (GameObj *obj = Game::Get()->TryGetObject(key))
+		obj->CeaseBeingGroupMember(this->key_);
 	LetGoOfObj(key);
 }
 void Group::RemoveObj(GameObj *obj) {

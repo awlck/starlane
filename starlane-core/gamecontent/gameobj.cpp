@@ -117,8 +117,8 @@ const std::string &GameObj::GetLocationKey() const {
 	while (true) {
 		// A static object spread across a whole location group (see MoveToGroup) isn't "at"
 		// any single location -- Location::HoldsDirectly answers presence per-location for
-		// those instead. `parent` here names a Group, not a GameObj, so GetObject would
-		// return null and crash the walk below.
+		// those instead. `parent` here names a Group, not a GameObj, so GetObject would throw
+		// on the walk below; bail out before it can.
 		if (o->relation == HoldingType::AtLocationGroup) return kNowhere;
 		o = theGame->GetObject(o->parent);
 		if (o->parent.empty()) break;
@@ -129,7 +129,7 @@ const std::string &GameObj::GetLocationKey() const {
 Location *GameObj::GetLocation() const {
 	const std::string &lkey = GetLocationKey();
 	if (lkey.empty()) return nullptr;
-	return dynamic_cast<Location *>(Game::Get()->GetObject(lkey));
+	return dynamic_cast<Location *>(Game::Get()->TryGetObject(lkey));
 }
 
 const std::string &GameObj::GetVisbilityCeiling() const {
@@ -188,7 +188,7 @@ std::string GameObj::GetListOfChildren(GameObj::ChildFilter f1, GameObj::ChildRe
 	// In the order the game file lists them: that is the order ADRIFT itself writes lists in, and
 	// the player sees it ("a set of fatigues and a pair of boots", not the other way around).
 	for (const auto &childKey: g->GetObjectLoadOrder()) {
-		GameObj *child = g->GetObject(childKey);
+		GameObj *child = g->TryGetObject(childKey);
 		if (!child || child->GetParentKey() != key) continue;
 		if (f1 == ChildFilter::Objects && dynamic_cast<Character *>(child))
 			continue;
@@ -301,7 +301,7 @@ std::optional<std::string> GameObj::SynthesizeLocationProp(const std::string &k)
 	// Only meaningful once `relation`/`parent` have been derived. During loading the real property
 	// still exists and wins (GetStrProp gates this on !HasProp), so we are never asked mid-load.
 	const bool parentIsChar = !parent.empty()
-		&& dynamic_cast<const Character *>(Game::Get()->GetObject(parent)) != nullptr;
+		&& dynamic_cast<const Character *>(Game::Get()->TryGetObject(parent)) != nullptr;
 
 	if (dynamic_cast<const Character *>(this)) {
 		// A character's location: the CharacterLocation StateList and its dependent keys.

@@ -138,7 +138,7 @@ void Walk::RegisterNotifications(int32_t selfIndex) const {
 }
 
 Character *Walk::Owner() const {
-	return dynamic_cast<Character *>(Game::Get()->GetObject(ownerKey));
+	return dynamic_cast<Character *>(Game::Get()->TryGetObject(ownerKey));
 }
 
 void Walk::Start(bool force) {
@@ -274,7 +274,7 @@ void Walk::DoAnySteps() {
 				} else if (!members.empty()) {
 					resolved = PickRandomMember(members);
 				}
-			} else if (dynamic_cast<Character *>(g->GetObject(dest))) {
+			} else if (dynamic_cast<Character *>(g->TryGetObject(dest))) {
 				// Follow a character, but only if they are in an adjacent room.
 				const std::string &targetLoc = g->GetObject(dest)->GetLocationKey();
 				if (owner->GetLocationKey() != targetLoc) {
@@ -286,7 +286,7 @@ void Walk::DoAnySteps() {
 				resolved = dest;
 			}
 
-			if (resolved == "Hidden" || dynamic_cast<Location *>(g->GetObject(resolved))) {
+			if (resolved == "Hidden" || dynamic_cast<Location *>(g->TryGetObject(resolved))) {
 				AnnounceMove(*owner, resolved);
 				owner->MoveTo(resolved, resolved == "Hidden" ? GameObj::HoldingType::Hidden
 				                                             : GameObj::HoldingType::AtLocation);
@@ -326,7 +326,7 @@ void Walk::AnnounceMove(Character &owner, const std::string &dest) const {
 		// The player watches the character arrive.
 		std::string verb = owner.HasProp("CharEnters") ? owner.GetStrProp("CharEnters") : "enters";
 		std::string msg = owner.GetDisplayName(false) + " " + verb;
-		if (Location *destLoc = dynamic_cast<Location *>(g->GetObject(dest));
+		if (Location *destLoc = dynamic_cast<Location *>(g->TryGetObject(dest));
 				destLoc && destLoc->IsAdjacent(ownerLoc)) {
 			std::string dir = destLoc->DirectionTo(ownerLoc);
 			if (dir != "nowhere") msg += " from " + dir;

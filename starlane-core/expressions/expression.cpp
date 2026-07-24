@@ -718,7 +718,7 @@ Expr::Value Expression::EvalItemfuncSingle(const std::string &key, const Expr::V
 	// A key that names nothing of the kind a function wants yields the empty string rather than
 	// throwing, so the group/list mapping above can drop members the function doesn't apply to.
 	if (Expr::IsListedIn(listOfObjectFunctions, toCall_.Str.c_str())) {
-		const auto *theObj = g->GetObject(key);
+		const auto *theObj = g->TryGetObject(key);
 		if (!theObj) return std::string();
 		if (toCall_.Str == "Article") return theObj->GetArticle();
 		if (toCall_.Str == "Children") return ObjChildrenImpl(theObj, args);
@@ -735,14 +735,14 @@ Expr::Value Expression::EvalItemfuncSingle(const std::string &key, const Expr::V
 		if (toCall_.Str == "Parent") return theObj->GetParentKey();
 	}
 	if (Expr::IsListedIn(listOfLocationFunctions, toCall_.Str.c_str())) {
-		const auto *theObj = dynamic_cast<Location *>(g->GetObject(key));
+		const auto *theObj = dynamic_cast<Location *>(g->TryGetObject(key));
 		if (!theObj) return std::string();
 		if (toCall_.Str == "Objects")
 			return theObj->GetListOfChildren(GameObj::ChildFilter::Objects, GameObj::ChildRelFilter::In);
 		if (toCall_.Str == "Exits") return theObj->GetListOfExits();
 	}
 	if (Expr::IsListedIn(listOfCharacterFunctions, toCall_.Str.c_str())) {
-		const auto *theObj = dynamic_cast<Character *>(g->GetObject(key));
+		const auto *theObj = dynamic_cast<Character *>(g->TryGetObject(key));
 		if (!theObj) return std::string();
 		if (toCall_.Str == "Descriptor") return theObj->GetDescriptor();
 		if (toCall_.Str == "ProperName") return theObj->GetProperName();
@@ -761,7 +761,7 @@ Expr::Value Expression::EvalItemfuncSingle(const std::string &key, const Expr::V
 	auto meta = g->GetPropMeta(toCall_.Str);
 	if (!meta)
 		throw std::runtime_error("Not a property or built-in item function: " + toCall_.Str);
-	const auto *theObj = g->GetObject(key);
+	const auto *theObj = g->TryGetObject(key);
 	if (!theObj) return std::string();
 	switch (meta->Type()) {
 		case Property::ValueType::ErrorType:

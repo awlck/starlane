@@ -137,7 +137,7 @@ std::string LanguageNumber(int64_t num, bool f = false) {
 
 		// Not every list holds object keys: a location's Exits, for one, is a list of direction
 		// names, which have no object to look up and are simply written out as they stand.
-		const auto *obj = Game::Get()->GetObject(entries[i]);
+		const auto *obj = Game::Get()->TryGetObject(entries[i]);
 
 		switch (transform) {
 		case ListTransformType::IndefName:
@@ -317,7 +317,7 @@ Expr::Value Expression::NumberAsTextImpl(const ast_node_tag *args) const {
 Expr::Value Expression::CharacterDescriptorImpl(const ast_node_tag *args) const {
 	CHECK_ARGCOUNT("CharacterDescriptor", 1);
 	EXTRACT_FIRST_ARG_STR(args, theArg);
-	auto *theChar = dynamic_cast<Character *>(Game::Get()->GetObject(theArg.Str));
+	auto *theChar = dynamic_cast<Character *>(Game::Get()->TryGetObject(theArg.Str));
 	if (theChar == nullptr)
 		return Expr::Value();
 	return theChar->GetDescriptor();
@@ -326,7 +326,7 @@ Expr::Value Expression::CharacterDescriptorImpl(const ast_node_tag *args) const 
 Expr::Value Expression::CharacterProperImpl(const ast_node_tag *args) const {
 	CHECK_ARGCOUNT("CharacterProper", 1);
 	EXTRACT_FIRST_ARG_STR(args, theArg);
-	auto *theChar = dynamic_cast<Character *>(Game::Get()->GetObject(theArg.Str));
+	auto *theChar = dynamic_cast<Character *>(Game::Get()->TryGetObject(theArg.Str));
 	if (theChar == nullptr)
 		return Expr::Value();
 	return theChar->GetProperName();
@@ -362,7 +362,7 @@ Expr::Value Expression::TurnsImpl(const ast_node_tag *args) const {
 Expr::Value Expression::LocationNameImpl(const ast_node_tag *args) const {
 	CHECK_ARGCOUNT("LocationName", 1);
 	EXTRACT_FIRST_ARG_STR(args, theArg);
-	auto *loc = dynamic_cast<Location *>(Game::Get()->GetObject(theArg.Str));
+	auto *loc = dynamic_cast<Location *>(Game::Get()->TryGetObject(theArg.Str));
 	if (!loc)
 		return std::string("<invalid location>");
 	return loc->GetDisplayName();
@@ -388,7 +388,7 @@ Expr::Value Expression::ListRelatedImpl(const ast_node_tag *args, ListRelation r
 	switch (rel) {
 	case ListRelation::Held:
 	case ListRelation::Worn: {
-		const auto *ch = dynamic_cast<const Character *>(g->GetObject(theArg.Str));
+		const auto *ch = dynamic_cast<const Character *>(g->TryGetObject(theArg.Str));
 		if (!ch) return std::string("nothing");
 		keys = ch->GetPossessionsList(rel == ListRelation::Worn ? Character::PossessionFilter::Worn
 		                                                        : Character::PossessionFilter::Held,
@@ -398,7 +398,7 @@ Expr::Value Expression::ListRelatedImpl(const ast_node_tag *args, ListRelation r
 	case ListRelation::ObjectsIn:
 	case ListRelation::ObjectsOnAndIn:
 	case ListRelation::CharactersOnAndIn: {
-		const auto *obj = g->GetObject(theArg.Str);
+		const auto *obj = g->TryGetObject(theArg.Str);
 		if (!obj) return std::string("nothing");
 		auto filter = rel == ListRelation::CharactersOnAndIn ? GameObj::ChildFilter::Characters
 		                                                     : GameObj::ChildFilter::Objects;
@@ -463,7 +463,7 @@ Expr::Value Expression::DisplayCharacterName(const std::string &key, Pronoun pro
 	}
 	g->MentionCharacter(key, pronoun);
 	if (usePronoun) return Expr::ShowPronounForChar(key, pronoun);
-	auto *obj = g->GetObject(key);
+	auto *obj = g->TryGetObject(key);
 	if (!obj) return Expr::Value();
 	return obj->GetDisplayName(true);
 }

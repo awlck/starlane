@@ -6,6 +6,7 @@
 
 #include <pugixml.hpp>
 
+#include "../error.h"
 #include "../game.h"
 #include "../expression.h"
 #include "../random.h"
@@ -377,8 +378,18 @@ Task *Task::CreateFromXML(Game *g, const pugi::xml_node &xmlNode) {
 		}
 	}
 
-	for (const auto &it: xmlNode.child("Actions").children())
-		result->actions.push_back(Action::CreateFromXML(it));
+	for (const auto &it: xmlNode.child("Actions").children()) {
+		// A malformed action (an argument expression that won't compile, say) must not abort the
+		// whole load. Record it as a faulty placeholder that RunActions skips over.
+		try {
+			result->actions.push_back(Action::CreateFromXML(it));
+		} catch (const std::exception &e) {
+			LogError("Faulty action in task '" + result->key + "' (" + e.what() + "); it will be skipped.");
+			Action faultyAct;
+			faultyAct.faulty = true;
+			result->actions.push_back(std::move(faultyAct));
+		}
+	}
 
 	return result;
 }
@@ -715,8 +726,19 @@ std::pair<bool, DescrRef> Task::CheckRestrictions() const {
 }
 
 void Task::RunActions() {
-	for (const auto &act : actions)
-		act.Perform();
+	for (const auto &act : actions) {
+		// A faulty action (unparseable at load) is skipped outright. An action that throws mid-way
+		// -- a reference to a nonexistent object, say -- is logged and skipped too; the remaining
+		// actions still run, and the top-level backstop rolls the turn back if the partial state
+		// left behind matters. See starlane-core.cpp.
+		if (act.faulty)
+			continue;
+		try {
+			act.Perform();
+		} catch (const std::exception &e) {
+			LogError("Task '" + key + "' action failed (" + std::string(e.what()) + "); skipped.");
+		}
+	}
 }
 
 void Task::RegisterNotification(const std::string &evtKey, Util::Control::Condition cond) {
@@ -770,7 +792,7 @@ void Task::SendCompleteNotifications() const {
 	// Walks resolve the same way, and for the same reason: they belong to a Game instance that gets
 	// cloned for undo, so the character is looked up afresh through the live Game each time.
 	for (const auto &it: walkCompleteSubs) {
-		if (auto *c = dynamic_cast<Character *>(Game::Get()->GetObject(it.first)))
+		if (auto *c = dynamic_cast<Character *>(Game::Get()->TryGetObject(it.first)))
 			c->NotifyWalk(it.second, Util::Control::Condition::Completion, key);
 	}
 }
@@ -781,7 +803,7 @@ void Task::SendUncompleteNotifications() const {
 			evt->ReceiveTaskNotification(Util::Control::Condition::Uncompletion, key);
 	}
 	for (const auto &it: walkUncompleteSubs) {
-		if (auto *c = dynamic_cast<Character *>(Game::Get()->GetObject(it.first)))
+		if (auto *c = dynamic_cast<Character *>(Game::Get()->TryGetObject(it.first)))
 			c->NotifyWalk(it.second, Util::Control::Condition::Uncompletion, key);
 	}
 }
@@ -935,7 +957,7 @@ void Task::Action::PerformImpl() const {
 	case ActionType::MoveToLocationOf:
 		// "to the same location as X": the room X is ultimately in, not whatever immediately holds
 		// it -- a thing in someone's pocket still puts you in the room, not the pocket.
-		if (const GameObj *other = g->GetObject(rhs))
+		if (const GameObj *other = g->TryGetObject(rhs))
 			PerformMoveTo(other->GetLocationKey());
 		break;
 	case ActionType::MoveToParent:  // moving a character "up" one level
@@ -945,8 +967,8 @@ void Task::Action::PerformImpl() const {
 			// room, out of a duct inside a crate, inside the crate. PerformMoveTo can't help
 			// here -- it reads the relation off the action's own type, which for this action
 			// says nothing about where the object is coming from.
-			GameObj *self = g->GetObject(lhs);
-			GameObj *parent = self ? g->GetObject(self->GetParentKey()) : nullptr;
+			GameObj *self = g->TryGetObject(lhs);
+			GameObj *parent = self ? g->TryGetObject(self->GetParentKey()) : nullptr;
 			if (parent && !parent->GetParentKey().empty())
 				self->MoveTo(parent->GetParentKey(), parent->GetParentRelation());
 		}
@@ -960,7 +982,7 @@ void Task::Action::PerformImpl() const {
 		// already knows how to answer for the AtLocationGroup relation; there is no single
 		// member to pick, and unlike an object, a character can never be spread across a
 		// whole group of locations at once.
-		GameObj *mover = g->GetObject(lhs);
+		GameObj *mover = g->TryGetObject(lhs);
 		if (!mover) break;
 		if (!mover->IsDynamic() && !dynamic_cast<Character *>(mover)) {
 			mover->MoveTo(rhs, GameObj::HoldingType::AtLocationGroup);
@@ -981,7 +1003,7 @@ void Task::Action::PerformImpl() const {
 		// the route in their own restrictions first, but we re-check here so that
 		// running this action directly can never teleport a character through a
 		// nonexistent or blocked (e.g. closed-door) exit.
-		auto *mover = dynamic_cast<Character *>(g->GetObject(lhs));
+		auto *mover = dynamic_cast<Character *>(g->TryGetObject(lhs));
 		if (!mover)
 			break;
 		const auto *loc = mover->GetLocation();
@@ -1010,7 +1032,7 @@ void Task::Action::PerformImpl() const {
 		auto grp = g->GetGroup(rhs);
 		switch (refType) {
 		case ActionRefType::SingleObj:
-			if (auto *o = g->GetObject(lhs)) (grp->*addOrRemove)(o);
+			if (auto *o = g->TryGetObject(lhs)) (grp->*addOrRemove)(o);
 			break;
 		case ActionRefType::ObjsHeldBy:
 		case ActionRefType::ObjsInside:
@@ -1467,8 +1489,8 @@ void Task::Action::PerformSwitchWith(const std::string &chKey) const {
 	// bookkeeping a proper move would do. `chKey` itself never goes anywhere -- ADRIFT's own
 	// implementation swaps both characters' locations and then immediately moves `chKey` back to
 	// where it started, which nets out to exactly this.
-	GameObj *ch = g->GetObject(chKey);
-	GameObj *other = g->GetObject(rhs);
+	GameObj *ch = g->TryGetObject(chKey);
+	GameObj *other = g->TryGetObject(rhs);
 	if (!ch || !other) return;
 	other->CopyLocationFrom(*ch);
 	other->SetPropValue("CharacterPosition", ch->GetStrProp("CharacterPosition"));

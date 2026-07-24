@@ -143,7 +143,7 @@ void Game::UpdatePronounAntecedents() {
 		std::string result;
 		for (size_t i = 0; i < keys.size(); i++) {
 			if (i != 0) result += (i + 1 == keys.size()) ? " and " : ", ";
-			GameObj *ob = GetObject(keys[i]);
+			GameObj *ob = TryGetObject(keys[i]);
 			result += ob ? ob->GetDisplayName(true) : keys[i];
 		}
 		return result;
@@ -166,7 +166,7 @@ void Game::UpdatePronounAntecedents() {
 
 		auto refIt = currentRefs.find(Util::CanonicalizeRefName(token));
 		if (refIt == currentRefs.end() || refIt->second.empty()) continue;
-		GameObj *ob = GetObject(refIt->second);
+		GameObj *ob = TryGetObject(refIt->second);
 		if (!ob) continue;
 
 		if (isCharFamily && ob->HasProp("Gender")) {
@@ -783,7 +783,7 @@ std::vector<std::string> Game::NarrowByAnswer(const std::vector<std::string> &ca
 	auto answerWords = Util::SplitString(frontend->StrToLowerCase(answer), " ");
 	std::vector<std::string> result;
 	for (const auto &key : candidates) {
-		GameObj *ob = GetObject(key);
+		GameObj *ob = TryGetObject(key);
 		if (!ob) continue;
 		bool matchesAll = true;
 		for (const auto &word : answerWords) {
@@ -805,7 +805,7 @@ void Game::DisplayAmbiguityQuestion(const RefMatchInfo &info) {
 		if (w.empty()) continue;
 		bool inAll = true;
 		for (const auto &key : info.candidates) {
-			GameObj *ob = GetObject(key);
+			GameObj *ob = TryGetObject(key);
 			if (!ob || !ob->MatchesNameWord(w)) { inAll = false; break; }
 		}
 		if (inAll) { word = w; break; }
@@ -815,7 +815,7 @@ void Game::DisplayAmbiguityQuestion(const RefMatchInfo &info) {
 	std::string list;
 	for (size_t i = 0; i < info.candidates.size(); i++) {
 		if (i != 0) list += (i + 1 == info.candidates.size()) ? " or " : ", ";
-		GameObj *ob = GetObject(info.candidates[i]);
+		GameObj *ob = TryGetObject(info.candidates[i]);
 		list += ob ? ob->GetDisplayName(true) : info.candidates[i];
 	}
 	OutputFiltered("Which " + word + "? " + list + ".\n");

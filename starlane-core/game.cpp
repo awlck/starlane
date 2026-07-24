@@ -180,8 +180,8 @@ void Game::SwitchPlayerCharacter(const std::string &newPlayerKey) {
 	case ReferralPerson::ThirdPerson: break;
 	}
 	if (pronouns) {
-		if (GameObj *oldPlayer = GetObject(playerKey))
-			if (GameObj *newPlayer = GetObject(newPlayerKey))
+		if (GameObj *oldPlayer = TryGetObject(playerKey))
+			if (GameObj *newPlayer = TryGetObject(newPlayerKey))
 				oldPlayer->TransferPronounNouns(*newPlayer, *pronouns);
 	}
 	playerKey = newPlayerKey;
@@ -213,6 +213,16 @@ bool Game::RestoreUndo() {
 	undoStates.pop_back();
 	delete this;
 	return true;
+}
+
+void Game::Discard() {
+	// Drop any undo history first: those states share the current game's static data, and once the
+	// current instance is gone (taking that static data with it) they would dangle.
+	for (auto *state : undoStates)
+		delete state;
+	undoStates.clear();
+	delete theGame;
+	theGame = nullptr;
 }
 
 void Game::DiscardUndo() {
@@ -282,7 +292,7 @@ void Game::Begin() {
 	// As in ADRIFT: the initial room description, if the game asks for one, follows the intro
 	// rather than being left for the player's first LOOK.
 	if (staticData->showFirstLocation) {
-		if (auto *loc = dynamic_cast<Location *>(GetObject(GetPlayerLocationKey()))) {
+		if (auto *loc = dynamic_cast<Location *>(TryGetObject(GetPlayerLocationKey()))) {
 			std::string desc = "\n" + loc->GetDescription();
 			StripSeamMarkers(desc);
 			frontend->OutputText(desc.c_str());
@@ -555,7 +565,7 @@ bool Game::ContinueRestore(const Save::AstNode *root) {
 		if (!objsNode || !objsNode->IsCollection(Save::NT_COMPOUND)) return RollbackRestore();
 		ITERATE_CHILDREN(objsNode, objN) {
 			// A save file naming something this game hasn't got is not one of ours.
-			auto *obj = GetObject(objN->myName);
+			auto *obj = TryGetObject(objN->myName);
 			if (!obj || !obj->RestoreState(objN)) return RollbackRestore();
 		}
 	}

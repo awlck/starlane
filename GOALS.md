@@ -78,8 +78,20 @@
     falls through to the general task normally. Matches ADRIFT's own `GetReference`, which likewise
     only ever narrows a plural reference down to its first item for restriction/expression purposes.
 [ ] implement the conversation system (or refuse to load games using it because it isn't very widely used)
-[ ] come up with a better error-handling mechanism than crashing the entire interpreter on load issues
+    -- deferred: no test game uses more than the ADRIFT standard library's scaffolding, and authors
+    generally roll their own with custom tasks/variables/properties (which already work).
+[x] come up with a better error-handling mechanism than crashing the entire interpreter on load issues
     or when unexpectedly referencing non-existing objects.
+    - `Game::GetObject` now throws `MissingObjectException` for a missing key (a probing
+      `Game::TryGetObject` returns nullptr for the callers that legitimately expect one).
+    - Restrictions and task actions that won't parse are marked faulty at load and logged rather than
+      aborting the whole load: a faulty restriction always fails, a faulty action is skipped. The same
+      happens if evaluation throws at runtime (funnel try/catch in `Restriction::PassRestrictionBlock`
+      and `Task::RunActions`).
+    - Top-level try/catch in `starlane-core.cpp` (CreateGame/BeginGame/ProcessInput/TimeTick) backstops
+      anything else: a load/start failure is reported via `FatalError`; a failed turn is rolled back to
+      its pre-turn undo snapshot. Errors are logged with a backtrace (`Starlane::Exception`).
+    - TODO(debug-log): `LogError` currently writes to stderr; route it to a real debug log (see below).
 [x] implement status bar support into the backend
 [ ] resolve outstanding TODO markers within starlane-core
 [ ] implement the status bar in the Qt frontend

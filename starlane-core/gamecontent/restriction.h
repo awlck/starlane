@@ -88,6 +88,11 @@ private:
 		// True if this is a `must be` restriction, false otherwise.
 		bool positive = true;
 
+		// Set when this restriction couldn't be parsed at load time (a malformed expression,
+		// an unrecognized condition). A faulty restriction is never evaluated and always fails,
+		// mirroring how comparing NaN always fails -- see PassRestrictionBlock.
+		bool faulty = false;
+
 		TargetType targetType = TargetType::ErrorType;
 		std::string lhs;
 		// For variables, also store the index
