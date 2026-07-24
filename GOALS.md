@@ -148,6 +148,21 @@
       comparison-value bug (`gamecontent/task.cpp`), per-item plural disambiguation and
       `ExecuteTaskByKey`'s first-Command-line-only references (both `parser.cpp`), and child-task
       control suppression (`gamecontent/walk.cpp`/`gamecontent/event.cpp`).
+[x] Fixed: `ConditionType::InPosition`/`LyingOn`/`SittingOn`/`StandingOn` (restriction.cpp) read a
+    character's "CharacterPosition" property unconditionally via the throwing `GetStrProp`, on the
+    assumption (per the code's own comment) that it is a "mandatory" property every character has.
+    It isn't: it's runtime state a character doesn't acquire until they actually sit/stand/lie down
+    somewhere, and ADRIFT itself guards every read of it with `HasProperty` rather than assuming
+    it's set (`clsCharacter.vb`/`clsUserSession.vb`). A character who has never done any of those
+    threw `std::out_of_range` out of `PropHolder::GetStrProp`'s `.at()`, caught by
+    `PassRestrictionBlock`'s generic funnel and logged as "Restriction failed to evaluate" -- treated
+    as failed either way, so no game's *output* was ever wrong, but the load-bearing bug (a
+    restriction whose only conceivable pass path went through an exception on every single
+    evaluation) was real and worth fixing outright rather than just tolerating the noise. Found via
+    `testdata/tests/renamedirtest.taf`, whose Player never explicitly sits, stands, or lies down (a
+    plain `MoveCharacter ... InDirection` game), and whose standard-library `sit`/`stand`/`lie` tasks'
+    "already in that position" restrictions hit this on every turn. All four now check `HasProp`
+    first, matching ADRIFT.
 [ ] implement the status bar in the Qt frontend
 [ ] fix and fully implement text formatting in the Qt frontend (including default colors and fonts)
 [ ] implement dockable secondary windows in the Qt frontend

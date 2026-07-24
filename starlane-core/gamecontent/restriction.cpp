@@ -469,25 +469,31 @@ bool Restriction::Single::PassObjectCond(const std::string &lhs, const std::stri
 		auto l = g->GetObject(lhs);
 		return l->GetParentKey() == rhs
 			&& l->GetParentRelation() == GameObj::HoldingType::OnObject
-			&& l->GetStrProp("CharacterPosition") == "Lying";
+			&& l->HasProp("CharacterPosition") && l->GetStrProp("CharacterPosition") == "Lying";
 	}
 	case ConditionType::SittingOn:
 	{
 		auto l = g->GetObject(lhs);
 		return l->GetParentKey() == rhs
 			&& l->GetParentRelation() == GameObj::HoldingType::OnObject
-			&& l->GetStrProp("CharacterPosition") == "Sitting";
+			&& l->HasProp("CharacterPosition") && l->GetStrProp("CharacterPosition") == "Sitting";
 	}
 	case ConditionType::StandingOn:
 	{
 		auto l = g->GetObject(lhs);
 		return l->GetParentKey() == rhs
 			&& l->GetParentRelation() == GameObj::HoldingType::OnObject
-			&& l->GetStrProp("CharacterPosition") == "Standing";
+			&& l->HasProp("CharacterPosition") && l->GetStrProp("CharacterPosition") == "Standing";
 	}
 	case ConditionType::InPosition:
-		// Another mandatory property
-		return g->GetObject(lhs)->GetStrProp("CharacterPosition") == rhs;
+	{
+		// Unlike most of the "mandatory" library properties, this one is runtime state a character
+		// doesn't have until they actually sit/stand/lie down somewhere -- ADRIFT itself guards
+		// every read of it with HasProperty (clsCharacter.vb/clsUserSession.vb) rather than assuming
+		// it is always set, so a character who never has is simply not "in" any position yet.
+		auto obj = g->GetObject(lhs);
+		return obj->HasProp("CharacterPosition") && obj->GetStrProp("CharacterPosition") == rhs;
+	}
 	case ConditionType::BeHidden:
 		return g->GetObject(lhs)->GetLocationKey().empty();
 	case ConditionType::WornBy:
