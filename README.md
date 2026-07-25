@@ -129,7 +129,11 @@ minimal reproduction) and the expected vs. actual output where possible.
 
 ## Licensing and AI disclosure
 
-The Starlane project is licensed under the Apache License 2.0.
+The Starlane project is licensed under the Apache License 2.0 ([LICENSE.txt](LICENSE.txt)).
+Third-party components vendored under `starlane-core/deps/` (and, optionally,
+CheapGlk under `reference/cheapglk/`) are separately licensed; see
+[NOTICE.txt](NOTICE.txt) for the full rundown, including a note on how this
+project relates to the original ADRIFT 5 runner.
 
 The project started in mid-2022, but by early 2024 I had thoroughly burned
 myself out / lost steam / realized I had bitten off more than I could chew (pick

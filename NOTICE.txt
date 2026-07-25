@@ -1,0 +1,56 @@
+Starlane
+Copyright 2022-2026 Adrian Welcker
+
+This product is licensed under the Apache License, Version 2.0 (see LICENSE.txt).
+
+This product includes the following third-party software, vendored under
+`starlane-core/deps/`. Each is distributed under the MIT License; the full
+license text for each can also be found alongside its source in that
+directory.
+
+  * pugixml (starlane-core/deps/pugixml), compiled directly into the
+    interpreter core.
+    Copyright (c) 2006-2026 Arseny Kapoulkine
+    https://pugixml.org/
+
+  * PackCC (starlane-core/deps/packcc), not itself compiled into the
+    interpreter core; used as a build-time tool that generates the
+    expression parser's source from expressions/exprgrammar.peg.
+    Copyright (c) 2014, 2019-2025 Arihiro Yoshida
+    https://github.com/arithy/packcc
+
+  * miniz (starlane-core/deps/miniz), compiled directly into the
+    interpreter core.
+    Copyright 2013-2014 RAD Game Tools and Valve Software
+    Copyright 2010-2014 Rich Geldreich and Tenacious Software LLC
+    https://github.com/richgel999/miniz
+
+  * magic_enum (starlane-core/deps/magicenum), compiled directly into the
+    interpreter core.
+    Copyright (c) 2019-2024 Daniil Goncharov
+    https://github.com/Neargye/magic_enum
+
+The optional `starlane-glk` frontend can additionally be built directly
+against the vendored CheapGlk library (`reference/cheapglk`,
+SLGLK_USE_BUILTIN_CHEAPGLK=ON), also distributed under the MIT License:
+
+  * CheapGlk (reference/cheapglk)
+    Copyright (c) 1998-2025 Andrew Plotkin
+    http://eblong.com/zarf/glk/index.html
+
+None of the above MIT-licensed projects require or issue an Apache License
+NOTICE file of their own; the attributions above are provided as a courtesy
+summary in addition to the full license texts kept alongside each project's
+source.
+
+Starlane is an independent reimplementation of the ADRIFT 5 interactive
+fiction engine. It is not derived from, and does not incorporate any source
+code of, the original ADRIFT 5 runner. The `reference/ADRIFT-5` directory
+holds a copy of that project's VB.NET source purely for developer reference
+(understanding file formats and expected behavior); it is not built or
+distributed as part of Starlane. That project is:
+
+  ADRIFT 5
+  Copyright (c) 2018, Campbell Wild
+  Licensed under the BSD 3-Clause License
+  http://www.adrift.co
