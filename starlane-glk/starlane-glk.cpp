@@ -199,12 +199,15 @@ void glk_main() {
 		glk_stream_close(gamefile, nullptr);
 
 	Starlane::CreateGame(tafData.data(), tafData.size());
+	// TODO: call garglk_set_story_title (needs starlane-core API extension to get game info)
 	Starlane::BeginGame();
+	// TODO: Update status bar here.
 
 	while (Starlane::GameIsOngoing()) {
 		OutputStyled("\n> ", kStyleInput);
 		std::string cmd = GetLineInput();
 		Starlane::ProcessInput(cmd);
+		// TODO: update status bar here.
 	}
 
 	OutputStyled("\n[Press any key to exit.]", kStyleNormal);
