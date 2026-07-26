@@ -133,7 +133,7 @@ int main(int argc, char **argv) {
 	QApplication::processEvents();
 	Starlane::CreateGame(input, fsize);
 	QApplication::processEvents();
-	Starlane::BeginGame();
+	theWin->RunBeginGame();
 	// Only now: there is nothing for a tick to advance until the game has begun.
 	theWin->StartEventTimer();
 	return app.exec();

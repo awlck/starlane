@@ -1,0 +1,303 @@
+//
+// Created for text-formatting support in the Qt frontend.
+//
+
+#include "outputformatter.h"
+
+#include <QtCore/QMap>
+#include <QtGui/QAbstractTextDocumentLayout>
+#include <QtGui/QFont>
+#include <QtGui/QTextBlock>
+#include <QtGui/QTextDocument>
+#include <QtWidgets/QScrollBar>
+
+namespace {
+
+// Parses a tag's attribute text (everything after the tag name) into a
+// key->value map. Quote-aware (single or double quotes); bare flags (no
+// "=value") are recorded with an empty value so callers can still test for
+// their presence.
+QMap<QString, QString> ParseAttributes(const QString &text) {
+	QMap<QString, QString> attrs;
+	const int n = text.length();
+	int i = 0;
+	while (i < n) {
+		while (i < n && text[i].isSpace()) ++i;
+		if (i >= n) break;
+		const int keyStart = i;
+		while (i < n && text[i] != '=' && !text[i].isSpace()) ++i;
+		const QString key = text.mid(keyStart, i - keyStart).toLower();
+		while (i < n && text[i].isSpace()) ++i;
+		QString value;
+		if (i < n && text[i] == '=') {
+			++i;
+			while (i < n && text[i].isSpace()) ++i;
+			if (i < n && (text[i] == '"' || text[i] == '\'')) {
+				const QChar quote = text[i++];
+				const int valStart = i;
+				while (i < n && text[i] != quote) ++i;
+				value = text.mid(valStart, i - valStart);
+				if (i < n) ++i;  // skip closing quote
+			} else {
+				const int valStart = i;
+				while (i < n && !text[i].isSpace()) ++i;
+				value = text.mid(valStart, i - valStart);
+			}
+		}
+		if (!key.isEmpty()) attrs.insert(key, value);
+	}
+	return attrs;
+}
+
+}  // namespace
+
+QColor OutputFormatter::CommandColor() {
+	// Same colour used to echo the player's own input in MainWindow.
+	return Qt::red;
+}
+
+OutputFormatter::OutputFormatter(QTextBrowser *browser, std::function<void()> waitKeyHandler)
+	: browser(browser), waitKeyHandler(std::move(waitKeyHandler)) {
+	baseCharFormat.setForeground(browser->palette().color(QPalette::Text));
+	const QFont font = browser->font();
+	baseCharFormat.setFontFamilies({font.family()});
+	baseCharFormat.setFontPointSize(font.pointSizeF() > 0 ? font.pointSizeF() : 10.0);
+	baseAlignment = Qt::AlignLeft;
+}
+
+QTextCharFormat OutputFormatter::CurrentCharFormat() const {
+	return charFormatStack.isEmpty() ? baseCharFormat : charFormatStack.last().format;
+}
+
+Qt::Alignment OutputFormatter::CurrentAlignment() const {
+	return alignmentStack.isEmpty() ? baseAlignment : alignmentStack.last();
+}
+
+void OutputFormatter::ResetFormattingState() {
+	charFormatStack.clear();
+	alignmentStack.clear();
+}
+
+void OutputFormatter::BeginBatch() {
+	ResetFormattingState();
+	batchStartBlockNumber = browser->document()->lastBlock().blockNumber();
+}
+
+void OutputFormatter::EndBatch() {
+	FlushTextRun();
+
+	QTextDocument *doc = browser->document();
+	QTextBlock startBlock = doc->findBlockByNumber(batchStartBlockNumber);
+	if (!startBlock.isValid()) startBlock = doc->firstBlock();
+
+	const qreal startY = doc->documentLayout()->blockBoundingRect(startBlock).top();
+	const qreal viewportHeight = browser->viewport()->height();
+	QScrollBar *vbar = browser->verticalScrollBar();
+	if (doc->size().height() - startY <= viewportHeight) {
+		// The whole batch fits on one screen: scroll it fully into view.
+		vbar->setValue(vbar->maximum());
+	} else {
+		// The batch is taller than the viewport: keep its start visible
+		// rather than scrolling straight to the (now much further away) end.
+		vbar->setValue(qRound(startY));
+	}
+}
+
+void OutputFormatter::ApplyCurrentBlockAlignment(QTextCursor &cursor) {
+	QTextBlockFormat fmt;
+	fmt.setAlignment(CurrentAlignment());
+	cursor.mergeBlockFormat(fmt);
+}
+
+void OutputFormatter::FlushTextRun() {
+	if (textRun.isEmpty()) return;
+
+	QString decoded = textRun;
+	decoded.replace("&lt;", "<")
+	        .replace("&gt;", ">")
+	        .replace("&quot;", "\"")
+	        .replace("&apos;", "'")
+	        .replace("&nbsp;", QChar(0x00A0))
+	        .replace("&amp;", "&");
+	textRun.clear();
+
+	QTextCursor cursor(browser->document());
+	cursor.movePosition(QTextCursor::End);
+	ApplyCurrentBlockAlignment(cursor);
+	cursor.insertText(decoded, CurrentCharFormat());
+}
+
+void OutputFormatter::InsertLineBreak() {
+	QTextCursor cursor(browser->document());
+	cursor.movePosition(QTextCursor::End);
+	QTextBlockFormat blockFormat;
+	blockFormat.setAlignment(CurrentAlignment());
+	cursor.insertBlock(blockFormat);
+}
+
+void OutputFormatter::PushCharFormat(const QString &tagName, const QTextCharFormat &format) {
+	charFormatStack.push_back({tagName, format});
+}
+
+void OutputFormatter::PopCharFormat(const QString &tagName) {
+	if (!charFormatStack.isEmpty() && charFormatStack.last().tagName == tagName)
+		charFormatStack.pop_back();
+}
+
+void OutputFormatter::HandleFontTag(const QString &attributes) {
+	QTextCharFormat fmt = CurrentCharFormat();
+	const auto attrs = ParseAttributes(attributes);
+
+	if (attrs.contains("face") && !attrs["face"].isEmpty())
+		fmt.setFontFamilies({attrs["face"]});
+
+	if (attrs.contains("size") && !attrs["size"].isEmpty()) {
+		const QString &sizeStr = attrs["size"];
+		bool ok = false;
+		const double size = sizeStr.toDouble(&ok);
+		if (ok) {
+			if (sizeStr.startsWith('+') || sizeStr.startsWith('-'))
+				fmt.setFontPointSize(qMax(1.0, fmt.fontPointSize() + size));
+			else
+				fmt.setFontPointSize(size);
+		}
+	}
+
+	const QString colorStr = attrs.contains("color") ? attrs["color"] : attrs.value("colour");
+	if (!colorStr.isEmpty()) {
+		const QColor color(colorStr);
+		if (color.isValid()) fmt.setForeground(color);
+	}
+
+	PushCharFormat("font", fmt);
+}
+
+void OutputFormatter::HandleTag(const QString &tagRaw) {
+	const QString tag = tagRaw.trimmed();
+	if (tag.isEmpty()) return;
+
+	int spaceIdx = -1;
+	for (int i = 0; i < tag.length(); ++i) {
+		if (tag[i].isSpace()) {
+			spaceIdx = i;
+			break;
+		}
+	}
+	const QString name = (spaceIdx < 0 ? tag : tag.left(spaceIdx)).toLower();
+	const QString rest = spaceIdx < 0 ? QString() : tag.mid(spaceIdx + 1).trimmed();
+
+	if (name == "b") {
+		QTextCharFormat f = CurrentCharFormat();
+		f.setFontWeight(QFont::Bold);
+		PushCharFormat("b", f);
+		return;
+	}
+	if (name == "/b") { PopCharFormat("b"); return; }
+	if (name == "i") {
+		QTextCharFormat f = CurrentCharFormat();
+		f.setFontItalic(true);
+		PushCharFormat("i", f);
+		return;
+	}
+	if (name == "/i") { PopCharFormat("i"); return; }
+	if (name == "u") {
+		QTextCharFormat f = CurrentCharFormat();
+		f.setFontUnderline(true);
+		PushCharFormat("u", f);
+		return;
+	}
+	if (name == "/u") { PopCharFormat("u"); return; }
+	if (name == "c") {
+		QTextCharFormat f = CurrentCharFormat();
+		f.setForeground(CommandColor());
+		PushCharFormat("c", f);
+		return;
+	}
+	if (name == "/c") { PopCharFormat("c"); return; }
+	if (name == "font") { HandleFontTag(rest); return; }
+	if (name == "/font") { PopCharFormat("font"); return; }
+
+	if (name == "center" || name == "centre") { alignmentStack.push_back(Qt::AlignHCenter); return; }
+	if (name == "left") { alignmentStack.push_back(Qt::AlignLeft); return; }
+	if (name == "right") { alignmentStack.push_back(Qt::AlignRight); return; }
+	if (name == "/center" || name == "/centre" || name == "/left" || name == "/right") {
+		if (!alignmentStack.isEmpty()) alignmentStack.pop_back();
+		return;
+	}
+
+	if (name == "br") { InsertLineBreak(); return; }
+
+	if (name == "del") {
+		QTextCursor cursor(browser->document());
+		cursor.movePosition(QTextCursor::End);
+		cursor.deletePreviousChar();
+		return;
+	}
+
+	if (name == "cls") {
+		browser->clear();
+		ResetFormattingState();
+		batchStartBlockNumber = 0;
+		return;
+	}
+
+	if (name == "waitkey") {
+		browser->ensureCursorVisible();
+		if (waitKeyHandler) waitKeyHandler();
+		return;
+	}
+
+	// <wait n>, <window name>/</window>, <audio ...>, <img ...>,
+	// <bgcolor>/<bgcolour>: recognized so their markup never leaks into
+	// visible output, but intentionally no-op until their dedicated
+	// follow-up work (blorb plumbing, dockable panes, etc).
+}
+
+void OutputFormatter::AppendText(const QString &chunk) {
+	for (const QChar &c : chunk) {
+		if (inTag) {
+			if (!quoteChar.isNull()) {
+				tagBuffer += c;
+				if (c == quoteChar) quoteChar = QChar();
+				continue;
+			}
+			if (c == '"' || c == '\'') {
+				quoteChar = c;
+				tagBuffer += c;
+				continue;
+			}
+			if (c == '<') {
+				// The previous '<' never got a matching '>': treat it (and
+				// whatever followed) as literal text and start scanning a
+				// fresh tag from here.
+				textRun += '<';
+				textRun += tagBuffer;
+				tagBuffer.clear();
+				continue;
+			}
+			if (c == '>') {
+				FlushTextRun();
+				HandleTag(tagBuffer);
+				tagBuffer.clear();
+				inTag = false;
+				continue;
+			}
+			tagBuffer += c;
+			continue;
+		}
+
+		if (c == '<') {
+			inTag = true;
+			quoteChar = QChar();
+			tagBuffer.clear();
+			continue;
+		}
+		if (c == '\n') {
+			FlushTextRun();
+			InsertLineBreak();
+			continue;
+		}
+		textRun += c;
+	}
+	FlushTextRun();
+}

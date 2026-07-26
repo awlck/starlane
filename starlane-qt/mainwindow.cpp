@@ -6,6 +6,10 @@
 
 #include <starlane-core.h>
 
+#include <QtCore/QCoreApplication>
+#include <QtGui/QKeyEvent>
+#include <QtGui/QMouseEvent>
+
 MainWindow::MainWindow() : QMainWindow(nullptr) {
 	auto *dummy = new QWidget(this);
 	auto *box = new QVBoxLayout;
@@ -21,29 +25,63 @@ MainWindow::MainWindow() : QMainWindow(nullptr) {
 	dummy->setLayout(box);
 	setCentralWidget(dummy);
 
+	formatter = new OutputFormatter(output, [this]{ WaitForKeyOrClick(); });
+
 	eventTimer = new QTimer(this);
 	eventTimer->setInterval(1000);  // the core counts real-time events in whole seconds
-	connect(eventTimer, &QTimer::timeout, this, []{ Starlane::TimeTick(); });
+	connect(eventTimer, &QTimer::timeout, this, &MainWindow::HandleTimeTick);
+
+	qApp->installEventFilter(this);
 }
 
 void MainWindow::StartEventTimer() {
 	eventTimer->start();
 }
 
+void MainWindow::RunBeginGame() {
+	formatter->BeginBatch();
+	Starlane::BeginGame();
+	formatter->EndBatch();
+}
+
+void MainWindow::HandleTimeTick() {
+	formatter->BeginBatch();
+	Starlane::TimeTick();
+	formatter->EndBatch();
+}
+
 void MainWindow::OutputText(const char *txt) {
-	output->moveCursor(QTextCursor::End, QTextCursor::MoveAnchor);
-	QString theText = QString(txt).replace('\n', "<br>")
-	                                 .replace("<center>", "<div style=\"text-align: center;\">", Qt::CaseInsensitive)
-	                                 .replace("</center>", "</div>", Qt::CaseInsensitive)
-	                                 .replace("<centre>", "<div style=\"text-align: center;\">", Qt::CaseInsensitive)
-	                                 .replace("</centre>", "</div>", Qt::CaseInsensitive);
-	output->insertHtml(theText);
-	output->ensureCursorVisible();
+	formatter->AppendText(QString::fromUtf8(txt));
 }
 
 void MainWindow::InputReturnPressed() {
-	output->insertHtml(QStringLiteral("<br><font color=red>> ") + input->text() + QStringLiteral("</font><br>"));
+	formatter->BeginBatch();
+	// The echoed command flows through the same tag parser as everything else, so escape
+	// anything the player typed that would otherwise be misread as markup.
+	QString escaped = input->text();
+	escaped.replace('&', "&amp;").replace('<', "&lt;").replace('>', "&gt;");
+	formatter->AppendText(QStringLiteral("<br><font color=\"red\">> ") + escaped + QStringLiteral("</font><br>"));
+
 	std::string cmd(input->text().toStdString());
 	input->clear();
 	Starlane::ProcessInput(cmd);
+	formatter->EndBatch();
+}
+
+void MainWindow::WaitForKeyOrClick() {
+	input->setEnabled(false);
+	QEventLoop loop;
+	waitKeyLoop = &loop;
+	loop.exec();
+	waitKeyLoop = nullptr;
+	input->setEnabled(true);
+	input->setFocus();
+}
+
+bool MainWindow::eventFilter(QObject *watched, QEvent *event) {
+	if (waitKeyLoop && (event->type() == QEvent::KeyPress || event->type() == QEvent::MouseButtonPress)) {
+		waitKeyLoop->quit();
+		return true;  // consume: don't let this key/click also reach whatever widget it landed on
+	}
+	return QMainWindow::eventFilter(watched, event);
 }

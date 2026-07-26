@@ -164,7 +164,13 @@
     "already in that position" restrictions hit this on every turn. All four now check `HasProp`
     first, matching ADRIFT.
 [ ] implement the status bar in the Qt frontend
-[ ] fix and fully implement text formatting in the Qt frontend (including default colors and fonts)
+[x] fix and fully implement text formatting in the Qt frontend (including default colors and fonts).
+    Replaced the old insertHtml()-based approach with a hand-rolled parser (OutputFormatter) that
+    applies formatting directly via QTextCursor/QTextCharFormat/QTextBlockFormat, since ADRIFT's tag
+    vocabulary isn't valid HTML. Implements b/i/u/c/font/center/centre/left/right/br/del/cls/waitkey;
+    unclosed tags are implicitly reset at the end of each output batch (BeginGame/ProcessInput/
+    TimeTick), matching the original runner. wait/window/audio/img/bgcolor are tokenized (so their
+    markup never leaks into visible output) but remain no-ops pending blorb/dockable-window support.
 [ ] implement dockable secondary windows in the Qt frontend
 [ ] Qt frontend: redirect starlane-core debug output to a debug log window
 [ ] implement `blorb` support in the Qt frontend
