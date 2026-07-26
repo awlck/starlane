@@ -179,6 +179,10 @@ std::string GetLineInput() {
 		if (ev.type == evtype_LineInput && ev.win == gMainWin) {
 			return Utf32ToUtf8(buf.data(), ev.val1);
 		}
+		// TODO: glk spec says we cannot output anything here unless we cancel the input event.
+		// (There's a chain of slightly obscure Glk calls/features we can use to capture any input
+		//  that was typed so far, delete the prompt if we're under Gargoyle, output the new text,
+		//  then print a new prompt and restore the partial input.)
 		if (ev.type == evtype_Timer) Starlane::TimeTick();
 	}
 }
