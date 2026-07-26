@@ -18,7 +18,10 @@ on:
   workflow_dispatch:
 
 env:
-  QT_VERSION: "6.11.1"
+  # A wildcard patch version, since the exact same patch release isn't
+  # always available for every host/arch combination at the same time
+  # (e.g. 6.11.1 was missing for Windows while present for macOS).
+  QT_VERSION: "6.11.*"
 
 jobs:
   windows:
@@ -121,7 +124,7 @@ jobs:
             install_git: apt-get update && DEBIAN_FRONTEND=noninteractive apt-get install -y --no-install-recommends git ca-certificates
             install_deps: >
               apt-get install -y --no-install-recommends
-              cmake ninja-build g++ qt6-base-dev qt6-base-dev-tools dpkg-dev
+              cmake ninja-build g++ qt6-base-dev qt6-base-dev-tools dpkg-dev file
             package_cmd: cpack -G DEB
             artifact_glob: build/*.deb
           - name: Fedora 44
@@ -135,9 +138,12 @@ jobs:
             slug: opensuse-tumbleweed
             image: opensuse/tumbleweed
             install_git: zypper --non-interactive install git
-            install_deps: >
-              zypper --non-interactive install
-              cmake ninja gcc-c++ qt6-base-common-devel qt6-widgets-devel rpm-build
+            # busybox-gawk (present in the base image) provides gawk and
+            # conflicts with the real gawk package that rpm-build needs;
+            # drop it first (tolerating its absence on other base images).
+            install_deps: |
+              zypper --non-interactive remove busybox-gawk || true
+              zypper --non-interactive install cmake ninja gcc-c++ qt6-base-common-devel qt6-widgets-devel rpm-build
             package_cmd: cpack -G RPM
             artifact_glob: build/*.rpm
     steps:
