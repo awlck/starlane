@@ -1,6 +1,6 @@
 ﻿cmake_minimum_required (VERSION 3.16)
 
-project("starlane")
+project("starlane" VERSION 0.1.0)
 
 option(BUILD_SHARED_LIBS "Build the interpreter core as a shared library" OFF)
 option(CROSSCOMPILING "Whether cross-compiling to a different platform" ${CMAKE_CROSSCOMPILING})
@@ -68,4 +68,8 @@ endif()
 
 if(SL_BUILD_GLK)
 	add_subdirectory("starlane-glk")
+endif()
+
+if(SL_BUILD_QT)
+	include("cmake/Packaging.cmake")
 endif()

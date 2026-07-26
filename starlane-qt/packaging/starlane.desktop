@@ -1,0 +1,7 @@
+[Desktop Entry]
+Type=Application
+Name=Starlane
+Comment=Play ADRIFT 5 interactive fiction games
+Exec=starlane %f
+Terminal=false
+Categories=Game;

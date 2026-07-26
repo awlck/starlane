@@ -1,0 +1,176 @@
+name: Package
+
+# Builds the Qt frontend and produces distributable artifacts for every
+# supported platform. Unlike Regression (which only needs
+# starlane-console and runs on every push), this compiles the full Qt UI
+# and is comparatively slow, so on pull requests it's gated on paths that
+# could actually affect the build.
+on:
+  push:
+    branches: ["master"]
+  pull_request:
+    paths:
+      - "**/CMakeLists.txt"
+      - "cmake/**"
+      - "starlane-core/**"
+      - "starlane-qt/**"
+      - ".github/workflows/package.yml"
+  workflow_dispatch:
+
+env:
+  QT_VERSION: "6.11.1"
+
+jobs:
+  windows:
+    name: Windows 10/11 (x86_64)
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v5
+        with:
+          submodules: true
+
+      - uses: ilammy/msvc-dev-cmd@v1
+        with:
+          arch: x64
+
+      - uses: jurplel/install-qt-action@v4
+        with:
+          version: ${{ env.QT_VERSION }}
+          host: windows
+          target: desktop
+          arch: win64_msvc2022_64
+
+      - name: Configure
+        run: >
+          cmake -S . -B build -GNinja
+          -DCMAKE_BUILD_TYPE=Release
+          -DCMAKE_PREFIX_PATH="${{ env.QT_ROOT_DIR }}"
+          -DSL_BUILD_CONSOLE=OFF -DSL_BUILD_GLK=OFF -DSL_BUILD_TOOLS=OFF -DSL_BUILD_C_WRAPPER=OFF
+
+      - name: Build
+        run: cmake --build build --target starlane
+
+      - name: Assemble deployable folder
+        shell: pwsh
+        run: |
+          New-Item -ItemType Directory -Path dist | Out-Null
+          Copy-Item build/starlane-qt/starlane.exe dist/
+          windeployqt --release dist/starlane.exe
+
+      - name: Zip
+        shell: pwsh
+        run: Compress-Archive -Path dist/* -DestinationPath starlane-windows-x86_64.zip
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: starlane-windows-x86_64
+          path: starlane-windows-x86_64.zip
+
+  macos:
+    name: macOS 15 (universal x86_64+arm64)
+    runs-on: macos-15
+    steps:
+      - uses: actions/checkout@v5
+        with:
+          submodules: true
+
+      - uses: jurplel/install-qt-action@v4
+        with:
+          version: ${{ env.QT_VERSION }}
+          host: mac
+          target: desktop
+          arch: clang_64
+
+      - name: Configure
+        run: >
+          cmake -S . -B build -GNinja
+          -DCMAKE_BUILD_TYPE=Release
+          -DCMAKE_PREFIX_PATH="${{ env.QT_ROOT_DIR }}"
+          -DCMAKE_OSX_ARCHITECTURES="x86_64;arm64"
+          -DSL_BUILD_CONSOLE=OFF -DSL_BUILD_GLK=OFF -DSL_BUILD_TOOLS=OFF -DSL_BUILD_C_WRAPPER=OFF
+
+      - name: Build
+        run: cmake --build build --target starlane
+
+      # macdeployqt's -dmg bundles Qt's frameworks/plugins into the .app and
+      # wraps it in a .dmg in one step; the app and Qt itself are already
+      # universal (both archs), so the result is too.
+      - name: Deploy Qt and create .dmg
+        run: "$QT_ROOT_DIR/bin/macdeployqt build/starlane-qt/starlane.app -dmg"
+
+      - name: Rename artifact
+        run: mv build/starlane-qt/starlane.dmg starlane-macos-universal.dmg
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: starlane-macos-universal
+          path: starlane-macos-universal.dmg
+
+  linux:
+    name: ${{ matrix.name }} (x86_64)
+    runs-on: ubuntu-latest
+    container:
+      image: ${{ matrix.image }}
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - name: Ubuntu 26.04
+            slug: ubuntu-26.04
+            image: ubuntu:26.04
+            install_git: apt-get update && DEBIAN_FRONTEND=noninteractive apt-get install -y --no-install-recommends git ca-certificates
+            install_deps: >
+              apt-get install -y --no-install-recommends
+              cmake ninja-build g++ qt6-base-dev qt6-base-dev-tools dpkg-dev
+            package_cmd: cpack -G DEB
+            artifact_glob: build/*.deb
+          - name: Fedora 44
+            slug: fedora-44
+            image: fedora:44
+            install_git: dnf install -y git
+            install_deps: dnf install -y cmake ninja-build gcc-c++ qt6-qtbase-devel rpm-build
+            package_cmd: cpack -G RPM
+            artifact_glob: build/*.rpm
+          - name: openSUSE Tumbleweed
+            slug: opensuse-tumbleweed
+            image: opensuse/tumbleweed
+            install_git: zypper --non-interactive install git
+            install_deps: >
+              zypper --non-interactive install
+              cmake ninja gcc-c++ qt6-base-common-devel qt6-widgets-devel rpm-build
+            package_cmd: cpack -G RPM
+            artifact_glob: build/*.rpm
+    steps:
+      # actions/checkout needs git already present in the container, so
+      # this has to run as a plain shell step before checkout, not after.
+      - name: Install git
+        run: ${{ matrix.install_git }}
+
+      - uses: actions/checkout@v5
+        with:
+          submodules: true
+
+      - name: Install build dependencies
+        run: ${{ matrix.install_deps }}
+
+      - name: Configure
+        run: >
+          cmake -S . -B build -GNinja
+          -DCMAKE_BUILD_TYPE=Release
+          -DSL_BUILD_CONSOLE=OFF -DSL_BUILD_GLK=OFF -DSL_BUILD_TOOLS=OFF -DSL_BUILD_C_WRAPPER=OFF
+
+      - name: Build
+        run: cmake --build build --target starlane
+
+      # Doesn't bundle Qt -- the package declares a dependency on the
+      # distro's own Qt6 runtime libraries instead (see
+      # cmake/Packaging.cmake), detected automatically from what
+      # `starlane` actually links against.
+      - name: Package
+        working-directory: build
+        run: ${{ matrix.package_cmd }}
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: starlane-${{ matrix.slug }}-x86_64
+          path: ${{ matrix.artifact_glob }}
