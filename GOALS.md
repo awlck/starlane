@@ -163,7 +163,8 @@
       plain `MoveCharacter ... InDirection` game), and whose standard-library `sit`/`stand`/`lie` tasks'
       "already in that position" restrictions hit this on every turn. All four now check `HasProp`
       first, matching ADRIFT.
-- [ ] core: expose game info (title, author, default fonts, default colors)
+- [ ] core: expose game info (title, author, default fonts, default colors, scoring enabled)
+- [ ] core: explicitly handle divide-by-zero instead of displaying the internal error message.
 - [ ] implement the status bar in the Qt frontend
 - [x] fix and fully implement text formatting in the Qt frontend.
       Replaced the old insertHtml()-based approach with a hand-rolled parser (OutputFormatter) that
@@ -173,6 +174,8 @@
       TimeTick), matching the original runner. wait/window/audio/img/bgcolor are tokenized (so their
       markup never leaks into visible output) but remain no-ops pending blorb/dockable-window support.
 - [ ] Qt frontend: implement default colors and fonts
+- [ ] Qt frontend: implement menu bar (open, save, restore, restart, transcript)
+- [ ] Qt frontend: actually implement StrToSentenceCase
 - [ ] implement dockable secondary windows in the Qt frontend
 - [ ] Qt frontend: redirect starlane-core debug output to a debug log window
 - [ ] implement `blorb` support in the Qt frontend
@@ -186,6 +189,7 @@
 - [ ] wrap Glk windows in classes where it makes sense
 - [ ] Glk frontend: ensure real-time events can't print while input is active
 - [ ] implement status bar support in Glk frontend
+- [ ] Glk frontend: implement transcript support
 - [ ] Glk frontend: add a debug window
 - [ ] Glk frontend: implement secondary windows
 - [ ] think about implementing an automap (then probably decide against it)

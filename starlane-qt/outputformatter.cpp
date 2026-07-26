@@ -53,6 +53,7 @@ QMap<QString, QString> ParseAttributes(const QString &text) {
 
 QColor OutputFormatter::CommandColor() {
 	// Same colour used to echo the player's own input in MainWindow.
+	// TODO: Apply game-defined color.
 	return Qt::red;
 }
 

@@ -3,7 +3,6 @@
 
 #include <starlane-core.h>
 #include <clocale>
-#include <QtCore/QFile>
 #include <QtWidgets/QFileDialog>
 #include <QtWidgets/QMessageBox>
 
@@ -31,7 +30,7 @@ std::string StrToUpperCase(const std::string &s) {
 	return QString::fromUtf8(s.c_str(), s.length()).toUpper().toUtf8().toStdString();
 }
 
-std::string StrToSentenceCase(const std::string &s) {  // whatevs
+std::string StrToSentenceCase(const std::string &s) {  // TODO
 	return QString::fromUtf8(s.c_str(), s.length()).toUpper().toUtf8().toStdString();
 }
 
