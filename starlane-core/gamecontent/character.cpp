@@ -85,17 +85,16 @@ bool Character::CanSee(const std::string &key) const {
 	if (myCeiling.empty()) return false;
 
 	// seeing a group means seeing any member of the group
-	if (Game::Get()->GroupExists(key)) {
-		const Group *grp = Game::Get()->GetGroup(key);
-		return std::any_of(grp->GetAllMembers().begin(), grp->GetAllMembers().end(), [this](const auto &o) {
+	if (const auto *grp = Game::Get()->GetGroup(myCeiling); grp) {
+		const auto &allMembers = grp->GetAllMembers();
+		return std::any_of(allMembers.cbegin(), allMembers.cend(),[this](const auto &o) {
 			return CanSee(o);
 		});
 	}
 
 	const auto &otherCeiling = Game::Get()->GetObject(key)->GetVisbilityCeiling();
 	// If the other object's ceiling is a group, we can see it if our own visibility ceiling is also a member of that group.
-	if (Game::Get()->GroupExists(otherCeiling)) {
-		const Group *grp = Game::Get()->GetGroup(otherCeiling);
+	if (const auto *grp = Game::Get()->GetGroup(otherCeiling); grp) {
 		return grp->GetAllMembers().count(myCeiling) > 0;
 	}
 
@@ -112,12 +111,13 @@ GameObj *Character::Clone() const {
 void Character::MarkVisibleAsSeen() {
 	if (GetVisbilityCeiling().empty()) return;  // hidden characters see nothing
 	MarkSeen(key);  // we can always see ourselves
-	for (const auto &o: Game::Get()->GetAllObjects()) {
+	const auto &objs = Game::Get()->GetAllObjects();
+	std::for_each(objs.begin(), objs.end(), [this](const auto &o) {
 		// CanSee also covers the location itself: when we stand in a location,
 		// that location is our visibility ceiling.
 		if (CanSee(o.first))
 			MarkSeen(o.first);
-	}
+	});
 }
 
 void Character::MoveTo(const std::string &newParent, HoldingType newRelation) {
