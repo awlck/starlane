@@ -189,6 +189,16 @@
       both the echoed input line and `<c>` tags) now returns the game's `InputColour` when present
       instead of always falling back to red. `MainWindow::ApplyGameInfo()` also sets the window
       title from the game's title/author, exercising the bibliographic half of `GetGameInfo()`.
+- [x] Qt frontend: always use a dark theme, regardless of the desktop's own light/dark setting.
+      The ADRIFT 5 Runner always renders against a black background (`DEFAULT_BACKGROUNDCOLOUR` is
+      `Color.Black` -- see `Global.vb`), so every game author picks their `InputColour`/
+      `OutputColour` assuming that background; ADRIFT's own defaults for those (a muted red and
+      teal) are barely readable on white. `ApplyDarkTheme()` (starlane.cpp), called right after
+      `QApplication` is constructed and before any widgets exist, switches to the Fusion style
+      (needed for a custom `QPalette` to consistently apply across platforms/native styles) with a
+      black-based palette. Verified against `alyas-of-starhollow.taf`, whose intro uses an explicit
+      `<font color=white>` block that was previously invisible against Qt's default light
+      background and now reads correctly.
 - [ ] Qt frontend: implement menu bar (open, save, restore, restart, transcript)
 - [ ] Qt frontend: actually implement StrToSentenceCase
 - [ ] implement dockable secondary windows in the Qt frontend

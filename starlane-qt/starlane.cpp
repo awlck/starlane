@@ -3,8 +3,10 @@
 
 #include <starlane-core.h>
 #include <clocale>
+#include <QtGui/QPalette>
 #include <QtWidgets/QFileDialog>
 #include <QtWidgets/QMessageBox>
+#include <QtWidgets/QStyleFactory>
 
 #include "mainwindow.h"
 
@@ -93,6 +95,36 @@ void CloseFile(void *hFile) {
 	delete file;
 }
 
+// The ADRIFT 5 Runner always renders against a black background (its
+// DEFAULT_BACKGROUNDCOLOUR is Color.Black -- see Global.vb), and every game author picks their
+// InputColour/OutputColour with that assumption in mind -- ADRIFT's own defaults for those are a
+// muted red and teal, both unreadable on a light background. Forcing a dark palette here,
+// regardless of the desktop's own light/dark setting, is what keeps those colors looking the way
+// their author intended rather than merely "as readable as they happen to be on white". Fusion
+// (rather than the native style) is what makes a custom QPalette take effect consistently across
+// platforms -- some native styles otherwise ignore several of these roles.
+void ApplyDarkTheme() {
+	qApp->setStyle(QStyleFactory::create("Fusion"));
+	QPalette pal;
+	pal.setColor(QPalette::Window, Qt::black);
+	pal.setColor(QPalette::WindowText, Qt::white);
+	pal.setColor(QPalette::Base, Qt::black);
+	pal.setColor(QPalette::AlternateBase, QColor(30, 30, 30));
+	pal.setColor(QPalette::ToolTipBase, Qt::white);
+	pal.setColor(QPalette::ToolTipText, Qt::white);
+	pal.setColor(QPalette::Text, Qt::white);
+	pal.setColor(QPalette::Button, QColor(30, 30, 30));
+	pal.setColor(QPalette::ButtonText, Qt::white);
+	pal.setColor(QPalette::BrightText, Qt::red);
+	pal.setColor(QPalette::Link, QColor(100, 180, 255));
+	pal.setColor(QPalette::Highlight, QColor(45, 90, 140));
+	pal.setColor(QPalette::HighlightedText, Qt::white);
+	pal.setColor(QPalette::Disabled, QPalette::Text, QColor(120, 120, 120));
+	pal.setColor(QPalette::Disabled, QPalette::WindowText, QColor(120, 120, 120));
+	pal.setColor(QPalette::Disabled, QPalette::ButtonText, QColor(120, 120, 120));
+	qApp->setPalette(pal);
+}
+
 }
 
 #include "../starlane-core/game.h"
@@ -101,6 +133,7 @@ int main(int argc, char **argv) {
 	using namespace SlQt;
 
 	QApplication app(argc, argv);
+	ApplyDarkTheme();
 	Starlane::Frontend fe {
 		/* .randomSeed = */ 0,
 		/* .timersAvailable = */ true,  // MainWindow drives TimeTick once a second
