@@ -199,7 +199,24 @@
       black-based palette. Verified against `alyas-of-starhollow.taf`, whose intro uses an explicit
       `<font color=white>` block that was previously invisible against Qt's default light
       background and now reads correctly.
-- [ ] Qt frontend: implement menu bar (open, save, restore, restart, transcript)
+- [x] Qt frontend: let the app launch with no game file on the command line, and add OS "open
+      file with" support -- a `.taf` path arrives as `argv[1]` on Windows/Linux (already the case,
+      but `main()` used to `return 1` before `app.exec()` if it was missing/not exactly one path,
+      so the app couldn't actually launch bare) or, on macOS, as a `QFileOpenEvent` delivered to a
+      new `StarlaneApplication : QApplication` (`starlane.cpp`) that stashes the path if
+      `MainWindow` doesn't exist yet. Both paths, plus the new "Open Game" menu action, funnel
+      through `MainWindow::LoadGameFile()`. Registered the `.taf` extension in the app bundle via
+      `starlane-qt/packaging/Info.plist.in` (`CFBundleDocumentTypes`/`UTExportedTypeDeclarations`,
+      wired up via the `MACOSX_BUNDLE_INFO_PLIST` target property in `starlane-qt/CMakeLists.txt`).
+- [x] Qt frontend: implement menu bar (open, save, restore, transcript, replay). File > Open Game;
+      Game > Save Game, Restore Game, Start/Stop Transcript, Replay Commands
+      (`MainWindow::CreateMenus()`). Save/Restore call `Starlane::SaveGame()`/`RestoreGame()`
+      directly rather than going through `ProcessInput("save")`, per the API's own doc comment.
+      Replay reads a command file and feeds it through the same `SubmitCommand()` path as typed
+      input, one line at a time; `<waitkey>` is suppressed for its duration (`isReplaying`, checked
+      in the `OutputFormatter` wait-key callback) so a replay never blocks on player input that
+      isn't coming. Transcript start/stop is still just a menu-label toggle, no file writing yet.
+      No "restart" action (not asked for; "restore" already exists to reset in effect).
 - [ ] Qt frontend: actually implement StrToSentenceCase
 - [ ] implement dockable secondary windows in the Qt frontend
 - [ ] Qt frontend: redirect starlane-core debug output to a debug log window

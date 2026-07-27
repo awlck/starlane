@@ -3,6 +3,7 @@
 
 #include <starlane-core.h>
 #include <clocale>
+#include <QtGui/QFileOpenEvent>
 #include <QtGui/QPalette>
 #include <QtWidgets/QFileDialog>
 #include <QtWidgets/QMessageBox>
@@ -11,6 +12,41 @@
 #include "mainwindow.h"
 
 MainWindow *theWin = nullptr;
+
+namespace {
+
+// Catches the macOS "open with"/double-click delivery mechanism (QFileOpenEvent), which arrives
+// as a system event rather than a command-line argument the way it does on Windows and Linux. It
+// can in principle arrive before MainWindow exists yet, so a path received that early is stashed
+// and handed to main() to deliver once the window is up.
+class StarlaneApplication : public QApplication {
+public:
+	using QApplication::QApplication;
+
+	QString TakePendingOpenPath() {
+		QString path = pendingOpenPath;
+		pendingOpenPath.clear();
+		return path;
+	}
+
+protected:
+	bool event(QEvent *event) override {
+		if (event->type() == QEvent::FileOpen) {
+			const auto *openEvent = static_cast<QFileOpenEvent *>(event);
+			if (theWin)
+				theWin->LoadGameFile(openEvent->file());
+			else
+				pendingOpenPath = openEvent->file();
+			return true;
+		}
+		return QApplication::event(event);
+	}
+
+private:
+	QString pendingOpenPath;
+};
+
+}  // namespace
 
 namespace SlQt {
 
@@ -132,7 +168,8 @@ void ApplyDarkTheme() {
 int main(int argc, char **argv) {
 	using namespace SlQt;
 
-	QApplication app(argc, argv);
+	StarlaneApplication app(argc, argv);
+	::setlocale(LC_ALL, ".utf-8");
 	ApplyDarkTheme();
 	Starlane::Frontend fe {
 		/* .randomSeed = */ 0,
@@ -153,21 +190,14 @@ int main(int argc, char **argv) {
 	Starlane::InitBackend(&fe);
 	theWin = new MainWindow;
 	theWin->show();
-	if (argc != 2) return 1;
-	::setlocale(LC_ALL, ".utf-8");
-	auto f = fopen(argv[1], "rb");
-	fseek(f, 0, SEEK_END);
-	size_t fsize = ftell(f);
-	rewind(f);
-	uint8_t *input = new uint8_t[fsize];
-	fread(input, fsize, 1, f);
-	fclose(f);
-	QApplication::processEvents();
-	Starlane::CreateGame(input, fsize);
-	theWin->ApplyGameInfo();
-	QApplication::processEvents();
-	theWin->RunBeginGame();
-	// Only now: there is nothing for a tick to advance until the game has begun.
-	theWin->StartEventTimer();
+
+	// A file may have arrived as a QFileOpenEvent (macOS "open with"/double-click) before theWin
+	// existed to handle it directly.
+	const QString pendingOpenPath = app.TakePendingOpenPath();
+	if (!pendingOpenPath.isEmpty())
+		theWin->LoadGameFile(pendingOpenPath);
+	else if (argc >= 2)  // Windows/Linux "open with": the game file arrives as a command-line argument
+		theWin->LoadGameFile(QString::fromLocal8Bit(argv[1]));
+
 	return app.exec();
 }

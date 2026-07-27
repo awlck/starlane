@@ -28,6 +28,12 @@ add_executable(starlane WIN32 MACOSX_BUNDLE "starlane.cpp" mainwindow.cpp mainwi
 target_link_libraries(starlane Qt6::Core Qt6::Gui Qt6::Widgets starlane-core)
 target_include_directories(starlane PRIVATE "../starlane-core")
 
+if(APPLE)
+	# Registers the .taf extension (see packaging/Info.plist.in) so Finder can hand game files to
+	# us via "open with"/double-click/drag-onto-dock-icon, delivered as a QFileOpenEvent.
+	set_target_properties(starlane PROPERTIES MACOSX_BUNDLE_INFO_PLIST "${CMAKE_CURRENT_SOURCE_DIR}/packaging/Info.plist.in")
+endif()
+
 install(TARGETS starlane
 	RUNTIME DESTINATION bin
 	BUNDLE DESTINATION .

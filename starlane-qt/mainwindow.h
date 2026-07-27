@@ -7,6 +7,7 @@
 
 #include <QtCore/QEventLoop>
 #include <QtCore/QTimer>
+#include <QtGui/QAction>
 #include <QtWidgets/QVBoxLayout>
 #include <QtWidgets/QLineEdit>
 #include <QtWidgets/QMainWindow>
@@ -30,6 +31,11 @@ public:
 	// Call this instead of Starlane::BeginGame() directly.
 	void RunBeginGame();
 
+	// Loads the TAF file at `path` as a new game, replacing whatever game is currently loaded
+	// (asking for confirmation first if one is ongoing). Used by the "Open Game" menu action, a
+	// command-line argument, and OS "open with"/double-click delivery alike.
+	bool LoadGameFile(const QString &path);
+
 protected:
 	bool eventFilter(QObject *watched, QEvent *event) override;
 
@@ -42,12 +48,36 @@ private:
 	QTimer *eventTimer;
 	OutputFormatter *formatter;
 
+	QAction *openGameAction;
+	QAction *saveGameAction;
+	QAction *restoreGameAction;
+	QAction *transcriptAction;
+	QAction *replayAction;
+	bool transcribing = false;
+
+	// Set while ReplayCommandsTriggered() is feeding commands from a file, so the <waitkey>
+	// handler knows not to block the replay on player input that isn't coming.
+	bool isReplaying = false;
+
 	// Set while a <waitkey> tag is blocking on WaitForKeyOrClick(), so eventFilter() knows to
 	// consume the next key/click instead of letting it reach whatever widget it landed on.
 	QEventLoop *waitKeyLoop = nullptr;
 
+	void CreateMenus();
+	// Enables/disables the game-dependent menu actions based on Starlane::GameIsOngoing().
+	void UpdateActionState();
+
+	// Sends `cmd` to the game as if the player had typed it: echoes it to the output, then runs
+	// it through Starlane::ProcessInput() with the usual output-batch bookkeeping.
+	void SubmitCommand(const QString &cmd);
+
 	void InputReturnPressed();
 	void HandleTimeTick();
+	void OpenGameTriggered();
+	void SaveGameTriggered();
+	void RestoreGameTriggered();
+	void ToggleTranscript();
+	void ReplayCommandsTriggered();
 	// Blocks (via a nested event loop) until the next keypress or mouse click anywhere in the
 	// app. Used to implement the <waitkey> tag.
 	void WaitForKeyOrClick();
