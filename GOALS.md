@@ -264,6 +264,17 @@
       game ongoing, where loading in place is still correct. Verified with two real processes:
       one already playing a game, `open -a` handed it a second file, and a second independent
       process (own window, own game, no dialog) appeared while the first kept running untouched.
+- [x] Qt frontend: give the window a reasonable initial size and remember the last one used.
+      `MainWindow`'s constructor restores `QWidget::saveGeometry()`'s blob from `QSettings` if one
+      was saved; otherwise (first launch, or a corrupt/unusable blob) it sizes itself to half the
+      available screen's width and two-thirds its height and centers itself, rather than a fixed
+      pixel size that would be cramped on a laptop display and tiny on a 4K monitor.
+      `closeEvent()` saves the current geometry back before quitting. `QCoreApplication`'s
+      organization/application metadata (`main()`, `starlane.cpp`) is set explicitly so
+      `QSettings`'s default constructor resolves a stable location -- macOS: verified this lands
+      in `~/Library/Preferences/de.diepixelecke.Starlane.plist` under the `mainWindowGeometry`
+      key. Verified end-to-end: resized and moved the window, closed it, relaunched, and confirmed
+      the exact same geometry came back.
 - [ ] Qt frontend: actually implement StrToSentenceCase
 - [ ] implement dockable secondary windows in the Qt frontend
 - [ ] Qt frontend: redirect starlane-core debug output to a debug log window

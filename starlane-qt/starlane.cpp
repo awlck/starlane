@@ -200,6 +200,13 @@ int main(int argc, char **argv) {
 	using namespace SlQt;
 
 	StarlaneApplication app(argc, argv);
+	// Needed for QSettings' default constructor (used to persist window geometry, see
+	// MainWindow) to resolve a sensible, stable preferences location -- matching the reversed
+	// form of MACOSX_BUNDLE_GUI_IDENTIFIER (CMakeLists.txt) so macOS's ~/Library/Preferences
+	// entry lines up with the app's actual bundle identifier.
+	QCoreApplication::setOrganizationDomain(QStringLiteral("diepixelecke.de"));
+	QCoreApplication::setOrganizationName(QStringLiteral("Die Pixelecke"));
+	QCoreApplication::setApplicationName(QStringLiteral("Starlane"));
 	::setlocale(LC_ALL, ".utf-8");
 	ApplyDarkTheme();
 	Starlane::Frontend fe {

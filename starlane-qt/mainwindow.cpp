@@ -9,11 +9,14 @@
 #include <QtCore/QCoreApplication>
 #include <QtCore/QDir>
 #include <QtCore/QFile>
+#include <QtCore/QSettings>
 #include <QtCore/QTextStream>
 #include <QtGui/QCloseEvent>
+#include <QtGui/QGuiApplication>
 #include <QtGui/QKeyEvent>
 #include <QtGui/QMouseEvent>
 #include <QtGui/QPalette>
+#include <QtGui/QScreen>
 #include <QtWidgets/QApplication>
 #include <QtWidgets/QFileDialog>
 #include <QtWidgets/QMenu>
@@ -21,8 +24,23 @@
 #include <QtWidgets/QMessageBox>
 #include <QtWidgets/QStatusBar>
 
+namespace {
+constexpr auto kGeometrySettingsKey = "mainWindowGeometry";
+}  // namespace
+
 MainWindow::MainWindow() : QMainWindow(nullptr) {
 	setWindowTitle(QStringLiteral("Starlane"));
+
+	// Restore the window size/position the player left it at; failing that (first launch, or
+	// nothing usable saved), size it relative to the available screen instead of some fixed pixel
+	// size -- what looks reasonable on a laptop display would be tiny on a 4K monitor, and vice
+	// versa. closeEvent() is where this gets saved back.
+	const QByteArray savedGeometry = QSettings().value(kGeometrySettingsKey).toByteArray();
+	if (savedGeometry.isEmpty() || !restoreGeometry(savedGeometry)) {
+		const QRect avail = QGuiApplication::primaryScreen()->availableGeometry();
+		resize(avail.width() / 2, avail.height() * 2 / 3);
+		move(avail.center() - rect().center());
+	}
 
 	auto *dummy = new QWidget(this);
 	auto *box = new QVBoxLayout;
@@ -285,6 +303,7 @@ void MainWindow::closeEvent(QCloseEvent *event) {
 	// *initial* <waitkey> (almost every game has one) getting closed before app.exec() has even
 	// been reached yet.
 	if (waitKeyLoop) waitKeyLoop->quit();
+	QSettings().setValue(kGeometrySettingsKey, saveGeometry());
 	QMainWindow::closeEvent(event);
 	qApp->quit();
 }
