@@ -29,13 +29,32 @@ enum TextStyleFlags : uint32_t {
 	kStyleMonospace = 1u << 4,  // `<font face="...">` naming one of the known monospace fonts
 };
 
-// The main (text buffer) output window and its stream, and the status bar above it. Created in
-// starlane-glk.cpp's glk_main(); starlane-core does not yet expose a callback for status bar
-// content (location/score), so for now the status window is created but left blank -- TODO once
-// such a callback exists.
+// The main (text buffer) output window and its stream, and the status bar above it. Lazily opened
+// by EnsureMainWindowOpen() (output.cpp) -- not at glk_main() startup, but only once the game is
+// loaded and its default colors (if any) are known, since glk_stylehint_set() only affects windows
+// created *after* the call (see the Glk spec's "Suggesting the Appearance of Styles"). starlane-core
+// does not yet expose a callback for status bar content (location/score), so for now the status
+// window is created but left blank -- TODO once such a callback exists.
 extern winid_t gMainWin;
 extern winid_t gStatusWin;
 extern strid_t gMainStream;
+// Opens gMainWin/gMainStream/gStatusWin if they aren't already open. Called from glk_main() once
+// the game's default colors are baked into style hints, and lazily by FatalError() so an error
+// that occurs before then (an unreadable game file, or one CreateGame rejects outright) still has
+// somewhere to print -- in that case with no game-specific style hints, since none are known.
+void EnsureMainWindowOpen();
+
+// Default foreground colors for ordinary output and for `<c>`-styled (player-command-like) text,
+// applied by OutputStyled() whenever it isn't given an explicit color -- set from the game's own
+// OutputColour/InputColour once loaded (see starlane-glk.cpp), and left at zcolor_Default (i.e.
+// "let the terminal choose") for a game that doesn't specify either. This is a per-run fallback on
+// top of (not a replacement for) the style_Normal/style_Input TextColor hints starlane-glk.cpp
+// also sets: it's what colors text on Glk libraries that support the garglk zcolor extension but
+// would otherwise print an explicit `<font color>` override in the wrong default color, and it's
+// the *only* mechanism on libraries that don't implement stylehint_TextColor at all -- whereas the
+// hints are what colors things on libraries that implement stylehint_TextColor but not zcolor.
+extern uint32_t gDefaultOutputColor;
+extern uint32_t gDefaultInputColor;
 
 // strutils.cpp: UTF-8/UTF-32 conversion and case-folding helpers.
 std::vector<uint32_t> Utf8ToUtf32(const std::string &s);

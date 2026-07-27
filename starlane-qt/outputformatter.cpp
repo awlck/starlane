@@ -4,6 +4,8 @@
 
 #include "outputformatter.h"
 
+#include <starlane-core.h>
+
 #include <QtCore/QMap>
 #include <QtGui/QAbstractTextDocumentLayout>
 #include <QtGui/QFont>
@@ -12,6 +14,11 @@
 #include <QtWidgets/QScrollBar>
 
 namespace {
+
+// Unpacks a starlane-core 0xRRGGBB color into a QColor.
+QColor FromPackedRgb(uint32_t rgb) {
+	return QColor((rgb >> 16) & 0xFF, (rgb >> 8) & 0xFF, rgb & 0xFF);
+}
 
 // Parses a tag's attribute text (everything after the tag name) into a
 // key->value map. Quote-aware (single or double quotes); bare flags (no
@@ -53,7 +60,9 @@ QMap<QString, QString> ParseAttributes(const QString &text) {
 
 QColor OutputFormatter::CommandColor() {
 	// Same colour used to echo the player's own input in MainWindow.
-	// TODO: Apply game-defined color.
+	Starlane::GameInfo info;
+	if (Starlane::GetGameInfo(&info) && info.hasInputColour)
+		return FromPackedRgb(info.inputColour);
 	return Qt::red;
 }
 
@@ -64,6 +73,15 @@ OutputFormatter::OutputFormatter(QTextBrowser *browser, std::function<void()> wa
 	baseCharFormat.setFontFamilies({font.family()});
 	baseCharFormat.setFontPointSize(font.pointSizeF() > 0 ? font.pointSizeF() : 10.0);
 	baseAlignment = Qt::AlignLeft;
+}
+
+void OutputFormatter::ApplyGameDefaults() {
+	Starlane::GameInfo info;
+	if (!Starlane::GetGameInfo(&info)) return;
+	if (info.hasOutputColour)
+		baseCharFormat.setForeground(FromPackedRgb(info.outputColour));
+	if (!info.fontName.empty())
+		baseCharFormat.setFontFamilies({QString::fromUtf8(info.fontName.c_str())});
 }
 
 QTextCharFormat OutputFormatter::CurrentCharFormat() const {

@@ -97,6 +97,24 @@ struct SLC_API StatusBar {
 // Get the current status bar.
 // Call this after every time you call Begin(), ProcessInput(), or TimeTick().
 SLC_API bool GetStatusBar(StatusBar *statusBar);
+
+// Bibliographic and display info about the current game, as read from the game file itself.
+struct SLC_API GameInfo {
+	std::string title;
+	std::string author;
+	// The author's preferred display font (<FontName>), or empty if unspecified.
+	std::string fontName;
+	// The author's preferred input/output text colors (<InputColour>/<OutputColour>), packed as
+	// 0xRRGGBB. hasInputColour/hasOutputColour are false (and the color left at 0) if the game
+	// does not specify one -- a frontend should fall back to its own default in that case, rather
+	// than treating an absent color as black.
+	bool hasInputColour = false;
+	uint32_t inputColour = 0;
+	bool hasOutputColour = false;
+	uint32_t outputColour = 0;
+};
+// Get bibliographic/display info about the current game. Call any time after CreateGame().
+SLC_API bool GetGameInfo(GameInfo *info);
 }
 
 

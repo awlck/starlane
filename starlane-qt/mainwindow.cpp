@@ -34,6 +34,17 @@ MainWindow::MainWindow() : QMainWindow(nullptr) {
 	qApp->installEventFilter(this);
 }
 
+void MainWindow::ApplyGameInfo() {
+	Starlane::GameInfo info;
+	if (Starlane::GetGameInfo(&info)) {
+		QString title = QString::fromUtf8(info.title.c_str());
+		if (!info.author.empty())
+			title += QStringLiteral(" by ") + QString::fromUtf8(info.author.c_str());
+		setWindowTitle(title.isEmpty() ? QStringLiteral("Starlane") : title);
+	}
+	formatter->ApplyGameDefaults();
+}
+
 void MainWindow::StartEventTimer() {
 	eventTimer->start();
 }
@@ -60,7 +71,8 @@ void MainWindow::InputReturnPressed() {
 	// anything the player typed that would otherwise be misread as markup.
 	QString escaped = input->text();
 	escaped.replace('&', "&amp;").replace('<', "&lt;").replace('>', "&gt;");
-	formatter->AppendText(QStringLiteral("<br><font color=\"red\">> ") + escaped + QStringLiteral("</font><br>"));
+	formatter->AppendText(QStringLiteral("<br><font color=\"") + OutputFormatter::CommandColor().name()
+		+ QStringLiteral("\">> ") + escaped + QStringLiteral("</font><br>"));
 
 	std::string cmd(input->text().toStdString());
 	input->clear();

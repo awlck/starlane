@@ -169,26 +169,26 @@ void glk_main() {
 
 	garglk_set_program_name("Starlane");
 
-	// Style hints must be set before the windows they apply to are opened. We repurpose
-	// BlockQuote for centered text, mirroring FrankenDrift's GlkRunner -- it's the closest
-	// stock Glk style to what ADRIFT's `<center>` tag asks for.
+	// Style hints must be set before the windows they apply to are opened -- and stay in effect
+	// for good once that window exists, with no way to change them later (see the Glk spec's
+	// "Suggesting the Appearance of Styles"). We repurpose BlockQuote for centered text, mirroring
+	// FrankenDrift's GlkRunner -- it's the closest stock Glk style to what ADRIFT's `<center>` tag
+	// asks for. This one doesn't depend on the game, so it can be set immediately.
 	glk_stylehint_set(wintype_AllTypes, style_BlockQuote, stylehint_Justification, stylehint_just_Centered);
 
-	gMainWin = glk_window_open(nullptr, 0, 0, wintype_TextBuffer, 0);
-	if (!gMainWin) glk_exit();
-	gMainStream = glk_window_get_stream(gMainWin);
-	gStatusWin = glk_window_open(gMainWin, winmethod_Above | winmethod_Fixed, 1, wintype_TextGrid, 0);
-
-	if (fe.timersAvailable) glk_request_timer_events(1000);
-
-	InitMultimedia();
-
 	if (init_err) {
-		OutputStyled(init_err, kStyleBold);
+		// The game file itself couldn't be read (missing, unopenable, or neither a bare TAF nor a
+		// Blorb) -- there's no game to load and hence no color info to bake into a hint before
+		// opening a window. FatalError() opens a plain one lazily for this message.
+		FatalError(init_err);
 		WaitForKeypress();
 		glk_exit();
 	}
 
+	// Read and load the whole game -- deliberately before opening any window, so that its
+	// InputColour/OutputColour (if it specifies either) are known in time to set style hints,
+	// below, which is the *only* way to get them applied on a Glk library that implements
+	// stylehint_TextColor but not the garglk zcolor extension OutputStyled() otherwise uses.
 	glk_stream_set_position(gamefile, gamefile_start, seekmode_Start);
 	std::vector<uint8_t> tafData(gamefile_len);
 	glk_get_buffer_stream(gamefile, reinterpret_cast<char *>(tafData.data()), gamefile_len);
@@ -199,7 +199,33 @@ void glk_main() {
 		glk_stream_close(gamefile, nullptr);
 
 	Starlane::CreateGame(tafData.data(), tafData.size());
-	// TODO: call garglk_set_story_title (needs starlane-core API extension to get game info)
+
+	// A malformed game file makes CreateGame() call FatalError() itself, which -- same as the
+	// init_err case above -- lazily opens a plain window of its own; GetGameInfo() then simply
+	// fails (no game ended up loaded), so no stylehint_TextColor gets set, and the
+	// EnsureMainWindowOpen() below is a no-op.
+	Starlane::GameInfo gameInfo;
+	bool haveGameInfo = Starlane::GetGameInfo(&gameInfo);
+	if (haveGameInfo) {
+		if (gameInfo.hasOutputColour)
+			glk_stylehint_set(wintype_AllTypes, style_Normal, stylehint_TextColor, (glsi32) gameInfo.outputColour);
+		if (gameInfo.hasInputColour)
+			glk_stylehint_set(wintype_AllTypes, style_Input, stylehint_TextColor, (glsi32) gameInfo.inputColour);
+	}
+	EnsureMainWindowOpen();
+
+	if (fe.timersAvailable) glk_request_timer_events(1000);
+
+	InitMultimedia();
+
+	if (haveGameInfo) {
+		if (!gameInfo.title.empty()) garglk_set_story_title(gameInfo.title.c_str());
+		// Also drives OutputStyled()'s zcolor fallback (see starlane-glk-internal.h) -- redundant
+		// with the style hints above on a library that honors both, but the only way to get the
+		// color applied on one that supports zcolor but not stylehint_TextColor.
+		if (gameInfo.hasInputColour) gDefaultInputColor = gameInfo.inputColour;
+		if (gameInfo.hasOutputColour) gDefaultOutputColor = gameInfo.outputColour;
+	}
 	Starlane::BeginGame();
 	// TODO: Update status bar here.
 

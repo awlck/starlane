@@ -20,6 +20,9 @@ public:
 	MainWindow();
 
 	void OutputText(const char *txt);
+	// Applies the game's bibliographic/display info (window title, default font/colors) once it is
+	// known. Call after CreateGame() and before RunBeginGame().
+	void ApplyGameInfo();
 	// Start the once-a-second clock that drives the core's real-time events. Call once the game
 	// has begun; there is nothing for it to advance before that.
 	void StartEventTimer();

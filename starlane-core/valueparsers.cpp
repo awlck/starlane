@@ -52,6 +52,14 @@ int64_t ParseInt(const char *txt) {
 	return std::stoll(txt);
 }
 
+uint32_t ParseOleColor(const char *txt) {
+	auto raw = (uint32_t) ParseInt(txt);
+	uint32_t r = raw & 0xFF;
+	uint32_t g = (raw >> 8) & 0xFF;
+	uint32_t b = (raw >> 16) & 0xFF;
+	return (r << 16) | (g << 8) | b;
+}
+
 bool IsDigits(const char *txt) {
 	if (!txt || !*txt) return false;
 	for (; *txt; ++txt) {

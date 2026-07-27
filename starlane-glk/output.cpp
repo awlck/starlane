@@ -10,7 +10,19 @@
 #include <unordered_map>
 #include <unordered_set>
 
+void EnsureMainWindowOpen() {
+	if (gMainWin) return;
+	gMainWin = glk_window_open(nullptr, 0, 0, wintype_TextBuffer, 0);
+	if (!gMainWin) glk_exit();
+	gMainStream = glk_window_get_stream(gMainWin);
+	gStatusWin = glk_window_open(gMainWin, winmethod_Above | winmethod_Fixed, 1, wintype_TextGrid, 0);
+}
+
 void FatalError(const char *msg) {
+	// Reachable before glk_main() has opened a window at all -- e.g. the game file couldn't be
+	// read, or CreateGame() rejected its contents outright -- in which case there is nowhere yet
+	// for this message to go.
+	EnsureMainWindowOpen();
 	OutputStyled("\n", kStyleNormal);
 	OutputStyled(msg, kStyleBold);
 	OutputStyled("\n", kStyleNormal);
@@ -19,6 +31,9 @@ void FatalError(const char *msg) {
 void OutputText(const char *msg) {
 	AppendHtml(msg);
 }
+
+uint32_t gDefaultOutputColor = zcolor_Default;
+uint32_t gDefaultInputColor = zcolor_Default;
 
 namespace {
 
@@ -143,8 +158,14 @@ void OutputStyled(const std::string &text, uint32_t styleFlags, uint32_t color) 
 	else if (styleFlags & kStyleInput) style = style_Input;
 	else style = style_Normal;
 
+	// A caller with no opinion on color (the common case) gets the game's own default for this
+	// style, if it specified one -- otherwise zcolor_Default, i.e. "let the terminal choose".
+	uint32_t effectiveColor = color;
+	if (effectiveColor == zcolor_Default)
+		effectiveColor = (styleFlags & kStyleInput) ? gDefaultInputColor : gDefaultOutputColor;
+
 	// Harmless no-op if the underlying Glk library doesn't support the garglk color extension.
-	garglk_set_zcolors_stream(gMainStream, color, zcolor_Default);
+	garglk_set_zcolors_stream(gMainStream, effectiveColor, zcolor_Default);
 	glk_set_style_stream(gMainStream, style);
 	auto codepoints = Utf8ToUtf32(text);
 	glk_put_buffer_stream_uni(gMainStream, (glui32 *) codepoints.data(), (glui32) codepoints.size());

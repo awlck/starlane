@@ -63,6 +63,11 @@ Game *Game::LoadFromXML(const std::string &gameTxt, uint32_t gameCrc32) {
 	rStatic->gameLastUpdated = gameNode.child_value("LastUpdated");
 	rStatic->gameAdriftVersion = gameNode.child_value("Version");
 	rStatic->gameStatusLine = gameNode.child_value("UserStatus");
+	rStatic->gameFontName = gameNode.child_value("FontName");
+	if (gameNode.child("InputColour").type() != pugi::node_null)
+		rStatic->gameInputColour = ParseOleColor(gameNode.child_value("InputColour"));
+	if (gameNode.child("OutputColour").type() != pugi::node_null)
+		rStatic->gameOutputColour = ParseOleColor(gameNode.child_value("OutputColour"));
 	rStatic->showFirstLocation = ParseBool(gameNode.child("ShowFirstLocation").child_value());
 	rStatic->showExits = ParseBool(gameNode.child("ShowExits").child_value());
 	// ADRIFT only writes this out when it differs from its default of 3, and clamps it at zero

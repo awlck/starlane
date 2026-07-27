@@ -163,7 +163,17 @@
       plain `MoveCharacter ... InDirection` game), and whose standard-library `sit`/`stand`/`lie` tasks'
       "already in that position" restrictions hit this on every turn. All four now check `HasProp`
       first, matching ADRIFT.
-- [ ] core: expose game info (title, author, default fonts, default colors, scoring enabled)
+- [x] core: expose game info (title, author, default fonts, default colors) via a new
+      `Starlane::GetGameInfo()`/`GameInfo` API in starlane-core.h, mirroring the existing
+      `GetStatusBar` pattern. `GameStatic` now parses `<FontName>`/`<InputColour>`/`<OutputColour>`
+      alongside `<Title>`/`<Author>` (gameloader.cpp); the colors are `std::optional<uint32_t>`
+      (game.h) rather than defaulting to some baked-in RGB, since ADRIFT distinguishes "the author
+      didn't say" from "the author chose black" (an XML file can legitimately contain
+      `<InputColour>0</InputColour>`). A new `ParseOleColor` (valueparsers.cpp) unpacks ADRIFT's
+      decimal Windows OLE_COLOR format (`0x00BBGGRR`) into the packed `0xRRGGBB` used elsewhere in
+      Starlane (Qt's QColor, Glk's zcolor extension). "scoring enabled" is not yet exposed --
+      nothing in the engine tracks a score at all yet.
+- [ ] core: expose whether the game has scoring enabled (once scoring itself is implemented)
 - [ ] core: explicitly handle divide-by-zero instead of displaying the internal error message.
 - [ ] implement the status bar in the Qt frontend
 - [x] fix and fully implement text formatting in the Qt frontend.
@@ -173,7 +183,12 @@
       unclosed tags are implicitly reset at the end of each output batch (BeginGame/ProcessInput/
       TimeTick), matching the original runner. wait/window/audio/img/bgcolor are tokenized (so their
       markup never leaks into visible output) but remain no-ops pending blorb/dockable-window support.
-- [ ] Qt frontend: implement default colors and fonts
+- [x] Qt frontend: implement default colors and fonts. `OutputFormatter::ApplyGameDefaults()`
+      (called from `MainWindow::ApplyGameInfo()`, right after `CreateGame()`) seeds `baseCharFormat`
+      from the game's `OutputColour`/`FontName` if it specifies either; `CommandColor()` (used for
+      both the echoed input line and `<c>` tags) now returns the game's `InputColour` when present
+      instead of always falling back to red. `MainWindow::ApplyGameInfo()` also sets the window
+      title from the game's title/author, exercising the bibliographic half of `GetGameInfo()`.
 - [ ] Qt frontend: implement menu bar (open, save, restore, restart, transcript)
 - [ ] Qt frontend: actually implement StrToSentenceCase
 - [ ] implement dockable secondary windows in the Qt frontend
@@ -186,6 +201,24 @@
 - [x] implement image support in Glk frontend
 - [x] implement font color support in Glk frontend
 - [x] implement sound support in Glk frontend
+- [x] Glk frontend: apply the game's default input/output colors and story title, via two
+      complementary mechanisms so it works whether or not the underlying library supports the
+      garglk zcolor extension:
+      - `stylehint_TextColor` hints for `style_Normal`/`style_Input`, set from `GetGameInfo()`'s
+        `OutputColour`/`InputColour` right after `CreateGame()` -- the only way to get default
+        colors on a Glk library that implements style hints but not zcolor. Per the Glk spec, a
+        hint only affects windows opened *after* `glk_stylehint_set()`, so `glk_main()` (
+        starlane-glk.cpp) had to be reordered to load the game -- and learn its colors -- before
+        opening the main window at all, rather than up front as before. `FatalError()` (output.cpp)
+        now lazily opens the window itself via `EnsureMainWindowOpen()`, for the error paths (a
+        malformed/unreadable game file) that need to print before any of that has happened.
+      - `OutputStyled()` (output.cpp) separately falls back to `gDefaultInputColor`/
+        `gDefaultOutputColor` (also set from `GetGameInfo()`) whenever a caller passes
+        `zcolor_Default` (i.e. no explicit `<font color>` is in effect), covering libraries that
+        support zcolor -- including per-run overrides the static style hints can't express -- but
+        also correcting the *default* zcolor libraries that don't implement stylehint_TextColor.
+      `glk_main()` also calls `garglk_set_story_title()` with the game's title. No Glk stylehint
+      controls font family, so `FontName` stays Qt-only.
 - [ ] wrap Glk windows in classes where it makes sense
 - [ ] Glk frontend: ensure real-time events can't print while input is active
 - [ ] implement status bar support in Glk frontend

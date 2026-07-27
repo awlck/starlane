@@ -11,6 +11,11 @@ namespace Starlane {
 bool ParseBool(const char *txt);
 int64_t ParseInt(const char *txt);
 
+// Converts an ADRIFT `<InputColour>`/`<OutputColour>`/`<BackgroundColour>` value -- a decimal
+// Windows OLE_COLOR (0x00BBGGRR, per ColorTranslator.ToOle/FromOle) -- to a packed 0xRRGGBB value,
+// the form used elsewhere in Starlane for a 24-bit RGB color (e.g. the Glk zcolor extension).
+uint32_t ParseOleColor(const char *txt);
+
 // Check whether the C-style string `txt` contains only digits.
 bool IsDigits(const char *txt);
 

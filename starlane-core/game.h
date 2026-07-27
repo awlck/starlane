@@ -47,6 +47,13 @@ class GameStatic {
 	std::string gameLastUpdated;
 	uint32_t gameCrc32;
 	std::string gameStatusLine;
+	// The author's preferred display font/colors (<FontName>/<InputColour>/<OutputColour>), if the
+	// game specifies any. The colors are std::nullopt (rather than some baked-in default) when the
+	// element is absent, so a frontend can tell "the author didn't say" from "the author chose
+	// black" and fall back to its own default only in the former case.
+	std::string gameFontName;
+	std::optional<uint32_t> gameInputColour;
+	std::optional<uint32_t> gameOutputColour;
 	bool showFirstLocation = true;
 	bool showExits = true;
 	// How many turns a single WAIT command lets pass.
@@ -302,6 +309,9 @@ public:
 	const std::string &GetAuthor() const { return staticData->gameAuthor; }
 	const std::string &GetLastUpdated() const { return staticData->gameLastUpdated; }
 	uint32_t GetChecksum() const { return staticData->gameCrc32; }
+	const std::string &GetFontName() const { return staticData->gameFontName; }
+	std::optional<uint32_t> GetInputColour() const { return staticData->gameInputColour; }
+	std::optional<uint32_t> GetOutputColour() const { return staticData->gameOutputColour; }
 	const Util::DirectionTable &GetDirectionTable() const { return staticData->directionTable; }
 	bool ShowExits() const { return staticData->showExits; }
 
