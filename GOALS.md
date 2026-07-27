@@ -217,6 +217,20 @@
       in the `OutputFormatter` wait-key callback) so a replay never blocks on player input that
       isn't coming. Transcript start/stop is still just a menu-label toggle, no file writing yet.
       No "restart" action (not asked for; "restore" already exists to reset in effect).
+- [x] Qt frontend (macOS): fix the app not quitting when its window is closed, leaving an inert
+      Dock icon that did nothing when clicked. Root cause: `MainWindow::LoadGameFile()` runs
+      synchronously from `main()` *before* `app.exec()`, and almost every game's intro ends in a
+      `<waitkey>`, which blocks in its own nested `QEventLoop` (`WaitForKeyOrClick()`) -- so
+      closing the window during that very first `<waitkey>` (extremely easy to hit) unwinds and
+      exits that nested loop, but `app.exec()`'s own loop hasn't started yet to be quit; `main()`
+      then entered it anyway a moment later regardless, starting an unrelated indefinitely-running
+      session with no window left. Fixed by checking `theWin->isVisible()` before calling
+      `app.exec()` and returning immediately if the window is already gone (`starlane.cpp`).
+      Separately added `MainWindow::closeEvent()` to release a `<waitkey>` blocked on a *later*
+      close (once the real main loop is already running, not just the initial one) before letting
+      `quitOnLastWindowClosed` proceed, so it isn't left holding on to input that will never come.
+      Verified both paths, plus the ordinary idle-close case, by launching the built app directly
+      and confirming via `ps` that the process actually exits each time.
 - [ ] Qt frontend: actually implement StrToSentenceCase
 - [ ] implement dockable secondary windows in the Qt frontend
 - [ ] Qt frontend: redirect starlane-core debug output to a debug log window

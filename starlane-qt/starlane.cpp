@@ -33,10 +33,20 @@ protected:
 	bool event(QEvent *event) override {
 		if (event->type() == QEvent::FileOpen) {
 			const auto *openEvent = static_cast<QFileOpenEvent *>(event);
-			if (theWin)
+			if (theWin) {
+				// macOS reuses the already-running process for this rather than launching a
+				// second one, delivering this event to it instead -- LoadGameFile()'s existing
+				// "discard the current game?" confirmation is what actually handles that (same
+				// as picking Open Game from the menu while a game is already loaded). The window
+				// may be minimized or behind others though, so surface it explicitly: otherwise
+				// that confirmation (or the newly loaded game) could pop up unseen.
+				theWin->show();
+				theWin->raise();
+				theWin->activateWindow();
 				theWin->LoadGameFile(openEvent->file());
-			else
+			} else {
 				pendingOpenPath = openEvent->file();
+			}
 			return true;
 		}
 		return QApplication::event(event);
@@ -206,6 +216,18 @@ int main(int argc, char **argv) {
 		theWin->LoadGameFile(pendingOpenPath);
 	else if (argc >= 2)  // Windows/Linux "open with": the game file arrives as a command-line argument
 		theWin->LoadGameFile(QString::fromLocal8Bit(argv[1]));
+
+	// LoadGameFile() above runs synchronously and can itself pump nested event loops (a game's
+	// intro almost always ends in a <waitkey>, which blocks in MainWindow::WaitForKeyOrClick()'s
+	// own QEventLoop) -- all before app.exec() below has ever been called. If the window gets
+	// closed during that window, MainWindow::closeEvent()'s qApp->quit() has nothing to actually
+	// terminate yet: it unwinds the nested loop that was running at the time, but app.exec()
+	// hasn't started, so there's no outer loop for the quit to reach. Entering it anyway a moment
+	// later would start an unrelated, indefinitely-running session with no window left to show
+	// for it (a wholly separate hazard from a close reaching MainWindow::closeEvent() once the
+	// real main loop is already running, which the closeEvent() override already handles fine).
+	if (!theWin->isVisible())
+		return 0;
 
 	return app.exec();
 }

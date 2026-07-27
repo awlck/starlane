@@ -15,6 +15,10 @@
 
 #include "outputformatter.h"
 
+QT_BEGIN_NAMESPACE
+class QCloseEvent;
+QT_END_NAMESPACE
+
 class MainWindow: public QMainWindow {
 	Q_OBJECT
 public:
@@ -38,6 +42,7 @@ public:
 
 protected:
 	bool eventFilter(QObject *watched, QEvent *event) override;
+	void closeEvent(QCloseEvent *event) override;
 
 private:
 	QTextBrowser *output;

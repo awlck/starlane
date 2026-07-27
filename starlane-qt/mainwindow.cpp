@@ -10,6 +10,7 @@
 #include <QtCore/QDir>
 #include <QtCore/QFile>
 #include <QtCore/QTextStream>
+#include <QtGui/QCloseEvent>
 #include <QtGui/QKeyEvent>
 #include <QtGui/QMouseEvent>
 #include <QtGui/QPalette>
@@ -235,4 +236,16 @@ bool MainWindow::eventFilter(QObject *watched, QEvent *event) {
 		return true;  // consume: don't let this key/click also reach whatever widget it landed on
 	}
 	return QMainWindow::eventFilter(watched, event);
+}
+
+void MainWindow::closeEvent(QCloseEvent *event) {
+	// A <waitkey> tag blocks in WaitForKeyOrClick()'s own nested QEventLoop. Closing the window
+	// while that's running should release it -- otherwise it just sits there blocked on input
+	// that will never come once the window (and, via quitOnLastWindowClosed below, soon the
+	// whole app) is gone. See main() in starlane.cpp for the closely related hazard of a game's
+	// *initial* <waitkey> (almost every game has one) getting closed before app.exec() has even
+	// been reached yet.
+	if (waitKeyLoop) waitKeyLoop->quit();
+	QMainWindow::closeEvent(event);
+	qApp->quit();
 }
