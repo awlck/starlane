@@ -3,7 +3,7 @@
 #ifndef SLC_VALUEPARSERS_H
 #define SLC_VALUEPARSERS_H
 
-#include <stdexcept>
+#include <stdint.h>
 #include <utility>
 
 namespace Starlane {
