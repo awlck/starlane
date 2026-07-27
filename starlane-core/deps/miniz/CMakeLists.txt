@@ -5,4 +5,6 @@ project(miniz C)
 
 add_library(miniz STATIC "miniz.c" "miniz.h")
 target_compile_definitions(miniz PUBLIC MINIZ_NO_ARCHIVE_APIS MINIZ_NO_ZLIB_COMPATIBLE_NAMES)
-target_compile_options(miniz PRIVATE "-Wno-unused-function")
+if (UNIX)
+    target_compile_options(miniz PRIVATE "-Wno-unused-function")
+endif()
