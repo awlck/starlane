@@ -22,6 +22,8 @@ env:
   # always available for every host/arch combination at the same time
   # (e.g. 6.11.1 was missing for Windows while present for macOS).
   QT_VERSION: "6.11.*"
+  # The CMake build type
+  BUILD_TYPE: "RelWithDebInfo"
 
 jobs:
   windows:
@@ -46,7 +48,7 @@ jobs:
       - name: Configure
         run: >
           cmake -S . -B build -GNinja
-          -DCMAKE_BUILD_TYPE=Release
+          -DCMAKE_BUILD_TYPE="${{ env.BUILD_TYPE }}"
           -DCMAKE_PREFIX_PATH="${{ env.QT_ROOT_DIR }}"
           -DSL_BUILD_CONSOLE=OFF -DSL_BUILD_GLK=OFF -DSL_BUILD_TOOLS=OFF -DSL_BUILD_C_WRAPPER=OFF
 
@@ -87,7 +89,7 @@ jobs:
       - name: Configure
         run: >
           cmake -S . -B build -GNinja
-          -DCMAKE_BUILD_TYPE=Release
+          -DCMAKE_BUILD_TYPE="${{ env.BUILD_TYPE }}"
           -DCMAKE_PREFIX_PATH="${{ env.QT_ROOT_DIR }}"
           -DCMAKE_OSX_ARCHITECTURES="x86_64;arm64"
           -DSL_BUILD_CONSOLE=OFF -DSL_BUILD_GLK=OFF -DSL_BUILD_TOOLS=OFF -DSL_BUILD_C_WRAPPER=OFF
@@ -162,7 +164,7 @@ jobs:
       - name: Configure
         run: >
           cmake -S . -B build -GNinja
-          -DCMAKE_BUILD_TYPE=Release
+          -DCMAKE_BUILD_TYPE="${{ env.BUILD_TYPE }}"
           -DSL_BUILD_CONSOLE=OFF -DSL_BUILD_GLK=OFF -DSL_BUILD_TOOLS=OFF -DSL_BUILD_C_WRAPPER=OFF
 
       - name: Build
