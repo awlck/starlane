@@ -435,19 +435,23 @@ bool Restriction::Single::PassObjectCond(const std::string &lhs, const std::stri
 	}
 	case Starlane::Restriction::ConditionType::OfType:  // ?
 		break;
-	case ConditionType::Alone:
-	    // "Alone" meaning "no other character is in the same location as the lhs"
-		return !std::any_of(g->GetAllObjects().cbegin(), g->GetAllObjects().cend(), [&](const GameObj *o) {
+	case ConditionType::Alone: {
+		// "Alone" meaning "no other character is in the same location as the lhs"
+		const auto *lhsLocation = g->GetObject(lhs)->GetLocation();
+		return !std::any_of(g->GetAllObjects().cbegin(), g->GetAllObjects().cend(), [&lhs, &lhsLocation](const GameObj *o) {
 			return o->Key() != lhs && o->IsCharacter()
-				&& o->GetLocationKey() != Game::Get()->GetObject(lhs)->GetLocationKey();
+				&& o->GetLocation() == lhsLocation;
 		});
-	case ConditionType::AloneWith:
-	    // "Alone with" meaning "no other character except rhs is in the same location as the lhs"
-		if (g->GetObject(lhs)->GetLocationKey() != g->GetObject(rhs)->GetLocationKey()) return false;
-		return !std::any_of(g->GetAllObjects().cbegin(), g->GetAllObjects().cend(), [&](const GameObj *o) {
+	}
+	case ConditionType::AloneWith: {
+		// "Alone with" meaning "no other character except rhs is in the same location as the lhs"
+		const auto *lhsLocation = g->GetObject(lhs)->GetLocation();
+		if (lhsLocation != g->GetObject(rhs)->GetLocation()) return false;
+		return !std::any_of(g->GetAllObjects().cbegin(), g->GetAllObjects().cend(), [&lhs, &rhs, &lhsLocation](const GameObj *o) {
 			return o->Key() != lhs && o->Key() != rhs && o->IsCharacter()
-				&& o->GetLocationKey() != Game::Get()->GetObject(lhs)->GetLocationKey();
+				&& lhsLocation == Game::Get()->GetObject(lhs)->GetLocation();
 		});
+	}
 	case Starlane::Restriction::ConditionType::InConversationWith:
 		break;  // TODO (once the conversations system is in place)
 	case ConditionType::HaveRoute:
