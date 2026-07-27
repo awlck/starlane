@@ -24,14 +24,18 @@ Location *Location::CreateFromXML(const pugi::xml_node &xmlNode) {
 	result->MakeCommonValues(xmlNode);
 	result->relation = HoldingType::Hidden;  // not really, but it also doesn't matter for locations at all.
 
-	for (const auto &m: xmlNode.children("Movement")) {
-		std::string direction = m.child_value("Direction");
-		std::string destination = m.child_value("Destination");
-		RestrRef restrs = 0;
-		const auto &r = m.child("Restrictions");
-		if (r.type() != pugi::node_null)
-			restrs = theGame->CreateRestrictionsFromXML(r);
-		result->exits[direction] = { destination, restrs };
+	{
+		auto exits = std::make_shared<std::unordered_map<std::string, ExitSpec>>();
+		for (const auto &m: xmlNode.children("Movement")) {
+			std::string direction = m.child_value("Direction");
+			std::string destination = m.child_value("Destination");
+			RestrRef restrs = 0;
+			const auto &r = m.child("Restrictions");
+			if (r.type() != pugi::node_null)
+				restrs = theGame->CreateRestrictionsFromXML(r);
+			(*exits)[direction] = { destination, restrs };
+		}
+		result->exits = std::move(exits);
 	}
 
 	result->MakeMatchExpr();
@@ -194,7 +198,7 @@ std::string Location::GetDescription(bool forDisplay) const {
 	std::vector<std::string> generalListed;
 	for (const auto &objKey: theGame->GetObjectLoadOrder()) {
 		const auto *obj = theGame->GetObject(objKey);
-		if (dynamic_cast<const Character *>(obj) || dynamic_cast<const Location *>(obj))
+		if (AsCharacter(obj) || AsLocation(obj))
 			continue;
 		if (!HoldsDirectly(obj))
 			continue;
@@ -242,7 +246,7 @@ std::string Location::GetDescription(bool forDisplay) const {
 	for (const auto &objKey: theGame->GetObjectLoadOrder()) {
 		if (objKey == playerKey)  // you are never listed to yourself
 			continue;
-		const auto *ch = dynamic_cast<const Character *>(theGame->GetObject(objKey));
+		const auto *ch = AsCharacter(theGame->GetObject(objKey));
 		if (!ch || !IsCharVisibleHere(ch))
 			continue;
 		std::string name = ch->GetDisplayName(false);
@@ -292,23 +296,36 @@ std::string Location::GetDescription(bool forDisplay) const {
 	return result;
 }
 
+// ADRIFT's compass order (DirectionsEnum): N, E, S, W, U, D, In, Out, NE, SE, SW, NW. Everything
+// that lists a location's exits walks them in this order, as the original does.
+static const char *const kCompassOrder[] = {
+	"North", "East", "South", "West", "Up", "Down", "In", "Out",
+	"NorthEast", "SouthEast", "SouthWest", "NorthWest",
+};
+
 std::string Location::GetListOfExits() const {
 	std::string result;
 	size_t count = 0;
-	for (auto &e: exits) {
+	// In compass order, matching ADRIFT's own `location.Exits` (Global.vb), which walks
+	// DirectionsEnum from North to NorthWest. Iterating the exit table itself would leave the
+	// order up to the hash map -- which is not merely arbitrary but unstable, since it changes
+	// when the table is copied.
+	for (const char *canonical : kCompassOrder) {
+		auto e = exits->find(canonical);
+		if (e == exits->end()) continue;
 		// add to result if unrestricted
-		if (e.second.restr == 0) {
+		if (e->second.restr == 0) {
 			if (count++ > 0)
 				result += '|';
-			result += e.first;
+			result += e->first;
 			continue;
 		}
 		// otherwise check if restriction passes
-		const auto *restr = Game::Get()->GetRestriction(e.second.restr);
+		const auto *restr = Game::Get()->GetRestriction(e->second.restr);
 		if (restr->PassRestrictionBlock().first) {
 			if (count++ > 0)
 				result += '|';
-			result += e.first;
+			result += e->first;
 		}
 	}
 	return result;
@@ -317,15 +334,10 @@ std::string Location::GetListOfExits() const {
 std::string Location::GetExitsLine() const {
 	auto *theGame = Game::Get();
 	const auto &dirTable = theGame->GetDirectionTable();
-	// ADRIFT's compass order (DirectionsEnum): N, E, S, W, U, D, In, Out, NE, SE, SW, NW.
-	static const char *const kCompassOrder[] = {
-		"North", "East", "South", "West", "Up", "Down", "In", "Out",
-		"NorthEast", "SouthEast", "SouthWest", "NorthWest",
-	};
 	std::vector<std::string> available;
 	for (const char *canonical : kCompassOrder) {
-		auto it = exits.find(canonical);
-		if (it == exits.end())
+		auto it = exits->find(canonical);
+		if (it == exits->end())
 			continue;
 		// An exit with restrictions is only listed if they currently pass, mirroring
 		// clsCharacter.HasRouteInDirection (which evaluates each direction's restrictions).
@@ -343,7 +355,7 @@ std::string Location::GetExitsLine() const {
 }
 
 bool Location::IsAdjacent(const std::string &locKey) const {
-	for (const auto &e : exits)
+	for (const auto &e : *exits)
 		if (e.second.destination == locKey)
 			return true;
 	return false;
@@ -360,8 +372,8 @@ std::string Location::DirectionTo(const std::string &locKey) const {
 		{"SouthWest", "the south-west"}, {"NorthWest", "the north-west"},
 	};
 	for (const auto &d : kDirs) {
-		auto it = exits.find(d.first);
-		if (it != exits.end() && it->second.destination == locKey)
+		auto it = exits->find(d.first);
+		if (it != exits->end() && it->second.destination == locKey)
 			return d.second;
 	}
 	return "nowhere";

@@ -1,5 +1,6 @@
 #include "description.h"
 
+#include <cstring>
 #include <regex>
 
 #include <pugixml.hpp>
@@ -17,14 +18,14 @@
 
 // A description segment is eligible to be displayed if it passes restrictions
 // and has either not been displayed yet, or is allowed to be displayed multiple times.
-#define SEGMENT_ELIGIBLE(s) ((!(s).onceOnly || !(s).shown) && RESTRICTION_PASSES((s).restrictionId))
+#define SEGMENT_ELIGIBLE(s, i) ((!(s).onceOnly || !IsShown(i)) && RESTRICTION_PASSES((s).restrictionId))
 
 namespace Starlane {
 
 Description *Description::CreateFromXML(const pugi::xml_node &xmlNode) {
 	auto result = new Description;
 	for (const auto &it : xmlNode.children("Description"))
-		result->segments.emplace_back(Segment::CreateFromXML(it));
+		result->segments->emplace_back(Segment::CreateFromXML(it));
 	return result;
 }
 
@@ -35,7 +36,7 @@ Description *Description::CreateFromText(const std::string &text) {
 	s.displayWhen = Display::BeginHere;
 	s.onceOnly = false;
 	s.returnToDefault = false;
-	result->segments.push_back(std::move(s));
+	result->segments->push_back(std::move(s));
 	return result;
 }
 
@@ -53,15 +54,21 @@ static bool NeedSpace(std::string_view textSoFar) {
 	}
 }
 
+void Description::SetShown(size_t idx, bool value) {
+	if (idx >= shown.size()) {
+		if (!value) return;  // "not shown" is what an absent entry already means
+		shown.resize(segments->size(), false);
+	}
+	shown[idx] = value;
+}
+
 void Description::HandleSegmentShown(size_t idx) {
-	auto &s = segments.at(idx);
-	s.shown = true;
-	if (!s.returnToDefault) return;
+	SetShown(idx, true);
+	if (!segments->at(idx).returnToDefault) return;
 	// if the current segment is marked "return to default", return all segments to
 	// the left of it to non-shown status.
-	for (size_t i = 0; i < idx; i++) {
-		segments.at(i).shown = false;
-	}
+	for (size_t i = 0; i < idx; i++)
+		SetShown(i, false);
 }
 
 std::string Description::Build(bool commit, const UserFuncContext *context, bool rawExpressions) {
@@ -77,7 +84,7 @@ std::string Description::Build(bool commit, const UserFuncContext *context, bool
 	// for restrictions on description segments.
 
 	// do nothing if there is no text
-	if (segments.empty()) return "";
+	if (segments->empty()) return "";
 
 	// A commit=false pass is a throwaway measurement (see the comment above and this function's
 	// declaration) -- so besides not committing segment shown-state below, it must not let any
@@ -88,12 +95,12 @@ std::string Description::Build(bool commit, const UserFuncContext *context, bool
 
 	// First, find the rightmost segment with "BeginHere" mode that passes restrictions
 	size_t beginning = NPOS;
-	for (size_t i = segments.size() - 1; i != NPOS; i--) {
-		const auto &s = segments.at(i);
+	for (size_t i = segments->size() - 1; i != NPOS; i--) {
+		const auto &s = segments->at(i);
 		// note that this is guaranteed to exist: the very first segment always fulfills
 		// these conditions by definition, the ADRIFT Developer will not allow you to
 		// set restrictions on it or change its display mode.
-		if (s.displayWhen == Display::BeginHere && SEGMENT_ELIGIBLE(s)) {
+		if (s.displayWhen == Display::BeginHere && SEGMENT_ELIGIBLE(s, i)) {
 			beginning = i;
 			break;
 		}
@@ -104,9 +111,9 @@ std::string Description::Build(bool commit, const UserFuncContext *context, bool
 	// Confusingly, if this exists we need to set 'beginning' back to 0
 	// (meaning we will go back to showing the 'default' description).
 	size_t continuation = NPOS;
-	for (size_t i = segments.size() - 1; i > beginning; i--) {
-		const auto &s = segments.at(i);
-		if (s.displayWhen == Display::AfterDefault && SEGMENT_ELIGIBLE(s)) {
+	for (size_t i = segments->size() - 1; i > beginning; i--) {
+		const auto &s = segments->at(i);
+		if (s.displayWhen == Display::AfterDefault && SEGMENT_ELIGIBLE(s, i)) {
 			continuation = i;
 			beginning = 0;
 			break;
@@ -115,8 +122,8 @@ std::string Description::Build(bool commit, const UserFuncContext *context, bool
 
 	// Whether anything shown so far would make ADRIFT's AddSpace say yes on grounds the finished
 	// text no longer shows -- see Description::Segment.
-	std::string result(segments.at(beginning).Build(context, rawExpressions));
-	bool rawWantsSpace = segments.at(beginning).rawEndsWithFunc || segments.at(beginning).rawHasPropChain;
+	std::string result(segments->at(beginning).Build(context, rawExpressions));
+	bool rawWantsSpace = segments->at(beginning).rawEndsWithFunc || segments->at(beginning).rawHasPropChain;
 	auto joinSpace = [&](const Segment &s, bool mark) {
 		if (NeedSpace(result) || (rawWantsSpace && !result.empty()
 				&& result.back() != ' ' && result.back() != '\n'))
@@ -132,14 +139,14 @@ std::string Description::Build(bool commit, const UserFuncContext *context, bool
 	if (commit) HandleSegmentShown(beginning);
 	size_t nextSegment = beginning + 1;
 	if (continuation != NPOS) {
-		joinSpace(segments.at(continuation), false);
-		result.append(segments.at(continuation).Build(context, rawExpressions));
+		joinSpace(segments->at(continuation), false);
+		result.append(segments->at(continuation).Build(context, rawExpressions));
 		if (commit) HandleSegmentShown(continuation);
 		nextSegment = continuation + 1;
 	}
-	for (size_t i = nextSegment; i < segments.size(); i++) {
-		const auto &s = segments.at(i);
-		if (s.displayWhen == Display::Append && SEGMENT_ELIGIBLE(s)) {
+	for (size_t i = nextSegment; i < segments->size(); i++) {
+		const auto &s = segments->at(i);
+		if (s.displayWhen == Display::Append && SEGMENT_ELIGIBLE(s, i)) {
 			joinSpace(s, true);
 			result.append(s.Build(context, rawExpressions));
 			if (commit) HandleSegmentShown(i);
@@ -150,7 +157,7 @@ std::string Description::Build(bool commit, const UserFuncContext *context, bool
 }
 
 void Description::ResolveText() {
-	for (auto &sd : segments) {
+	for (auto &sd : *segments) {
 		sd.udfArgNames = udfArgNames.empty() ? nullptr : &udfArgNames;
 		sd.ResolveText();
 		sd.udfArgNames = nullptr;
@@ -201,7 +208,15 @@ std::string Description::Segment::Build(const UserFuncContext *context, bool raw
 			// Note that this is liable to break when the alternatives contain an expression,
 			// but it will work for now...
 			const char *str = Game::Get()->GetPlainTextSnippet(ref);
-			std::regex matchEx(R"(\[(.*?)\/(.*?)\/(.*?)\])");
+			// Only a snippet that actually has a '[' in it can carry an alternative, and the vast
+			// majority don't -- so check for one before handing the text to the regex engine.
+			// (Building this pattern per snippet, as this used to, was one of the more expensive
+			// things a turn did.)
+			if (std::strchr(str, '[') == nullptr) {
+				result.append(str);
+				continue;
+			}
+			static const std::regex matchEx(R"(\[(.*?)\/(.*?)\/(.*?)\])");
 			const char *replacement;
 			switch (Game::Get()->GetCurrentReferralPerson()) {
 			case ReferralPerson::FirstPerson:
@@ -487,22 +502,20 @@ ResolveOO_FakeTailcall:
 std::vector<bool> Description::GetState() const {
 	// Really, the only thing we're interested in is whether each of our segments has been shown.
 	std::vector<bool> results;
-	results.reserve(segments.size());
-	for (const auto &s: segments)
-		results.push_back(s.shown);
+	results.reserve(segments->size());
+	for (size_t i = 0; i < segments->size(); i++)
+		results.push_back(IsShown(i));
 	return results;
 }
 
 void Description::RestoreState() {
-	for (auto &s: segments)
-		s.shown = false;
+	shown.clear();
 }
 
 void Description::RestoreState(const std::vector<bool> &state) {
 	size_t count = state.size();
-	for (size_t i = 0; i < count; i++) {
-		segments[i].shown = state[i];
-	}
+	for (size_t i = 0; i < count; i++)
+		SetShown(i, state[i]);
 }
 
 }

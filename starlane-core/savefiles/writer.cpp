@@ -146,7 +146,7 @@ void Writer::WriteLiteralString(const std::string_view &sv) {
 void Writer::RunCompressor(bool finish) {
 	stream->next_in = textbuf;
 	stream->avail_in = position;
-	do {
+	for (;;) {
 		stream->avail_out = WRITER_BUFSIZE;
 		stream->next_out = zbuf;
 		int status = mz_deflate(stream, finish ? MZ_FINISH : MZ_NO_FLUSH);
@@ -157,7 +157,15 @@ void Writer::RunCompressor(bool finish) {
 			throw Exception(std::string("Save file compression failed: ") + (mz_error(status) ? mz_error(status) : "unknown error"));
 		mz_ulong toWrite = WRITER_BUFSIZE - stream->avail_out;
 		frontend->WriteFile(hFile, zbuf, toWrite);
-	} while (stream->avail_in > 0 || stream->avail_out < WRITER_BUFSIZE);
+		// Mid-stream, our job is done as soon as the compressor has taken all the input: whatever
+		// it is still holding back comes out on a later call. Asking it for more with nothing left
+		// to give it is what MZ_BUF_ERROR means, and the previous loop condition ("go round again
+		// if the last call produced anything at all") did exactly that whenever a deflate happened
+		// to fill the output buffer to the byte -- which is why saving a game with a lot of state
+		// (Lost Coastlines, Skybreak) failed partway through and left a truncated file behind.
+		if (finish ? status == MZ_STREAM_END : stream->avail_in == 0)
+			break;
+	}
 	position = 0;
 }
 

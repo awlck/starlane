@@ -18,7 +18,7 @@ Character *Character::CreateFromXML(const pugi::xml_node &xmlNode) {
 	// A character's parser nouns are its descriptors ("me", "myself", "guard"); unlike an object,
 	// its <Name> is the proper name, handled separately.
 	for (const auto &it : xmlNode.children("Descriptor"))
-		result->nouns.emplace_back(it.child_value());
+		result->MutableNouns().emplace_back(it.child_value());
 	result->description = Game::Get()->CreateDescFromXML(xmlNode.child("Description"));
 
 	auto ht = ParseHoldingType(result->GetStrProp("CharacterLocation").c_str());
@@ -246,12 +246,12 @@ void Character::MakeMatchExpr() {
 	};
 
 	auto properNameComponents = Util::SplitString(properName, " ");
-	std::vector<std::string> unknownNames(nouns);
+	std::vector<std::string> unknownNames(*nouns);
 	if (unknownNames.empty())
 		unknownNames = properNameComponents;
 	matchRegex = buildExpr(unknownNames);
 
-	std::vector<std::string> knownNames(nouns);
+	std::vector<std::string> knownNames(*nouns);
 	knownNames.insert(knownNames.end(), properNameComponents.begin(), properNameComponents.end());
 	matchWhenKnownRegex = buildExpr(knownNames);
 }

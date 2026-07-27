@@ -375,3 +375,46 @@
       `DirectionTable::canonicalToDisplay` (gamecontent/utility.{h,cpp}) and lowercased for display.
       Verified against `testdata/tests/renamedirtest-expected.txt` ("Exits are clockwise and
       counterclockwise.") -- output now matches the real Runner transcript exactly.
+- [x] optimization pass over the interpreter core. Roughly 2.4x faster per turn and about half the
+      memory, measured over the whole `testdata` corpus; transcripts are byte-identical to before
+      except for the exit-ordering fix noted below, and the run is clean under ASan/UBSan.
+      * Snapshotting the world for UNDO (`Game::SaveUndo`, once per turn) was over a third of all
+        CPU time, because it deep-copied every object, description and property table in the game.
+        The parts of that state which do not change now share storage between snapshots instead:
+        `PropHolder`'s two property tables are copy-on-write (propholder.h), `Description` shares
+        one immutable segment list and keeps only the "which have been shown" bits per copy
+        (description.{h,cpp}), `Location::exits` is shared outright (nothing writes it after load),
+        and `GameObj::nouns` is copy-on-write (only a player switch changes it).
+      * `Game::descriptions` became a dense `std::vector` (DescrRefs are handed out sequentially, so
+        the hash map bought nothing), and `taskCompletedStorage` a `std::vector<uint8_t>` indexed by
+        the new `Task::StateIndex()` rather than a map keyed by task key -- that map was thousands
+        of string copies per snapshot.
+      * `AutoCapitalize` (game.cpp) no longer goes through `std::regex`. It rescanned the whole
+        message from the start after every letter it raised, which is quadratic; a single
+        left-to-right pass gives the same answer because raising a letter can only destroy a later
+        match, never create an earlier one.
+      * Matching player input against a game's several thousand `<Command>` patterns now runs a
+        substring test before the regex: each pattern carries the longest run of text any match must
+        contain (`LongestRequiredLiteral`, task.cpp; deliberately conservative -- it gives up rather
+        than risk excluding a pattern that would have matched).
+      * `dynamic_cast<Character *>`/`<Location *>`, used throughout as a type test on every object
+        in the game several times a turn, is now a stored `GameObj::Kind` tag behind
+        `AsCharacter`/`AsLocation`.
+      * `Util::SplitString` splits on a plain delimiter directly instead of building a `std::regex`
+        per call (nearly every delimiter in the codebase is a fixed string), and
+        `Description::Segment::Build` no longer compiles a regex per text snippet.
+- [x] fixed: saving a game with a lot of state failed partway through, leaving a truncated file.
+      `Save::Writer::RunCompressor` asked miniz for more output whenever the previous `mz_deflate`
+      call had produced any at all, so a chunk that happened to fill the output buffer to the byte
+      led to a call with no input left and no flush -- which is `MZ_BUF_ERROR`, thrown as "Save file
+      compression failed: buf error". It now stops once the compressor has taken all the input
+      (mid-stream) or reported `MZ_STREAM_END` (on the final flush). Lost Coastlines and all three
+      Skybreak versions could not be saved at all before this; their save files are now complete.
+      Property tables are also written in key order now (`Writer::WriteSortedMap`), so a save file's
+      bytes depend only on the game state and not on hash-table iteration order.
+- [x] fixed: `location.Exits` (`Location::GetListOfExits`) listed exits in hash-map order, which is
+      not merely arbitrary but unstable -- copying the table reverses it, so the same location could
+      report its exits in a different order after an undo or an internal-error rollback. It now walks
+      ADRIFT's compass order, as `Global.vb`'s own `Case "Exits"` does (and as `GetExitsLine`
+      already did). Changes the wording of "There is no route up, only east and west." style
+      messages in `alien-diver`, `be-there` and `tests/renamedirtest`.

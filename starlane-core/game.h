@@ -123,7 +123,14 @@ public:
 	PlainTextRef StorePlainTextSnippet(std::string_view snip);
 	ExprRef CreateExpression(const std::string &expr);
 
-	Description *GetDescription(DescrRef d) const { return descriptions.at(d); }
+	Description *GetDescription(DescrRef d) const {
+		// DescrRefs are handed out sequentially from 1 (see CreateDescFromXML), so the table is a
+		// flat vector rather than a hash map: it is indexed on every description built, and it is
+		// deep-copied once per turn for the undo snapshot. 0 means "no description" and is not a
+		// valid subscript -- throw for it exactly as the map lookup this replaced did.
+		if (d == 0 || d >= descriptions.size()) throw std::out_of_range("no such description");
+		return descriptions[d];
+	}
 	Event *GetEvent(const std::string &key) { return SafeMapGet(events, key); }
 	Group *GetGroup(const std::string &key) { return SafeMapGet(groups, key); }
 	// Look up an object by key, returning nullptr if none exists. Use this only where a missing
@@ -195,8 +202,12 @@ public:
 	// in the original ADRIFT runner.
 	void SwitchPlayerCharacter(const std::string &newPlayerKey);
 
-	bool GetIsTaskCompleted(const std::string &key) const { return taskCompletedStorage.at(key); }
-	void SetTaskCompleted(const std::string &key, bool val) { taskCompletedStorage[key] = val; }
+	bool GetIsTaskCompleted(const std::string &key) const {
+		return taskCompletedStorage[TaskStateIndex(key)] != 0;
+	}
+	void SetTaskCompleted(const std::string &key, bool val) {
+		taskCompletedStorage[TaskStateIndex(key)] = val ? 1 : 0;
+	}
 	// The key of the location the player is currently in. Out of line because it needs
 	// GameObj to be complete.
 	const std::string &GetPlayerLocationKey() const;
@@ -482,9 +493,17 @@ private:
 	std::unordered_map<std::string, Event *> events;
 	std::unordered_map<std::string, Variable *> variables;
 	std::unordered_map<std::string, Group *> groups;
-	std::unordered_map<DescrRef, Description *> descriptions;
-	// stores the completed-ness of tasks to avoid needing to copy the entire tasks for saves.
-	std::unordered_map<std::string, bool> taskCompletedStorage;
+	// Indexed by DescrRef; slot 0 is the "no description" sentinel and stays null.
+	std::vector<Description *> descriptions{nullptr};
+	// Stores the completed-ness of tasks to avoid needing to copy the entire tasks for saves.
+	// Indexed by Task::StateIndex() rather than keyed by task key: this is copied wholesale once
+	// per turn for the undo snapshot, and a map of one string key per task in the game made that
+	// one of the more expensive parts of a snapshot. (uint8_t rather than bool so that the copy
+	// is a plain memcpy instead of vector<bool>'s bit twiddling.)
+	std::vector<uint8_t> taskCompletedStorage;
+	// The slot in `taskCompletedStorage` belonging to the task with this key. Throws (as the map
+	// lookup this replaced did) if no such task exists.
+	size_t TaskStateIndex(const std::string &key) const;
 	// the current player character
 	std::string playerKey;
 	// most recently mentioned character and pronoun
@@ -635,7 +654,7 @@ private:
 	// instead. Same lifecycle as turnHasOutput above: reset every ProcessInput, never saved/undone.
 	mutable std::unordered_set<std::string> completionMessagesThisTurn;
 
-	size_t descriptionsSoFar = 0;
+	// (No descriptionsSoFar: `descriptions` is a dense vector, so its size is the count.)
 	size_t restrictionsSoFar = 0;
 	ptrdiff_t textSnippetsSoFar = 0;
 	ptrdiff_t expressionsSoFar = 0;

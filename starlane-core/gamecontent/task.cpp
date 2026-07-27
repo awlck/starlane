@@ -136,6 +136,95 @@ void ReplaceAll(std::string &s, const std::string &from, const std::string &to) 
 		s.replace(pos, from.size(), to);
 }
 
+// Index just past the group starting at `open` (which must be a '('), or npos if it never closes.
+size_t SkipRegexGroup(const std::string &p, size_t open) {
+	size_t depth = 0;
+	for (size_t i = open; i < p.size(); i++) {
+		if (p[i] == '\\') { i++; continue; }
+		if (p[i] == '(') depth++;
+		else if (p[i] == ')' && --depth == 0) return i + 1;
+	}
+	return std::string::npos;
+}
+
+// The longest run of characters that every string matching `pattern` must contain literally and
+// contiguously, folded to lower case -- or "" when there is no such run, or when the pattern uses
+// anything this doesn't model. Matching the player's input against a game's several thousand
+// command patterns is the most expensive thing the parser does; a substring test that rules a
+// pattern out before std::regex is ever asked is worth a great deal, so long as it never rules out
+// a pattern that would have matched. Hence the deliberately narrow reading below: anything not
+// positively understood ends the current run or abandons the pattern entirely.
+std::string LongestRequiredLiteral(const std::string &pattern) {
+	// Character classes and counted repeats aren't part of what the conversion above ever emits,
+	// and reading them wrongly would be exactly the kind of mistake that costs a real match.
+	if (pattern.find_first_of("[]{}") != std::string::npos) return "";
+
+	std::string best, run;
+	auto flush = [&]() {
+		// A run has to be worth a search: one character (or nothing but spaces) rules out nothing.
+		if (run.size() > best.size() && run.size() >= 2 &&
+				run.find_first_not_of(' ') != std::string::npos)
+			best = run;
+		run.clear();
+	};
+	for (size_t i = 0; i < pattern.size();) {
+		const char c = pattern[i];
+		if (c == '(') {
+			flush();
+			i = SkipRegexGroup(pattern, i);
+			if (i == std::string::npos) return "";  // unbalanced: don't guess
+			if (i < pattern.size() && (pattern[i] == '?' || pattern[i] == '*' || pattern[i] == '+'))
+				i++;
+			continue;
+		}
+		if (c == '|') return "";  // the whole pattern is alternatives; nothing is required of all of them
+		if (c == ')') return "";  // unbalanced
+		if (c == '.') {  // a wildcard run, and any quantifier on it
+			flush();
+			i++;
+			if (i < pattern.size() && (pattern[i] == '?' || pattern[i] == '*' || pattern[i] == '+')) {
+				i++;
+				if (i < pattern.size() && pattern[i] == '?') i++;  // the lazy form, ".*?"
+			}
+			continue;
+		}
+		if (c == '^' || c == '$') { flush(); i++; continue; }
+		char literal;
+		if (c == '\\') {
+			if (i + 1 >= pattern.size()) return "";
+			const unsigned char escaped = (unsigned char) pattern[i + 1];
+			i += 2;
+			if (isalnum(escaped)) {  // \s, \d, \n and friends: a class or control character, not a literal
+				flush();
+				if (i < pattern.size() && (pattern[i] == '?' || pattern[i] == '*' || pattern[i] == '+')) i++;
+				continue;
+			}
+			literal = (char) escaped;
+		} else if (c == '*' || c == '+' || c == '?') {
+			return "";  // a quantifier where we didn't expect one: stop trusting our reading
+		} else {
+			literal = c;
+			i++;
+		}
+		const char next = i < pattern.size() ? pattern[i] : '\0';
+		if (next == '?' || next == '*') {  // this character is optional after all
+			flush();
+			i++;
+			continue;
+		}
+		// Non-ASCII bytes are left out: the input was case-folded by the frontend, which knows about
+		// languages, and folding them here byte-by-byte could disagree with it.
+		if ((unsigned char) literal >= 0x80) { flush(); continue; }
+		run += (literal >= 'A' && literal <= 'Z') ? (char) (literal + ('a' - 'A')) : literal;
+		if (next == '+') {  // one or more: required, but a repeat would break up the run
+			i++;
+			flush();
+		}
+	}
+	flush();
+	return best;
+}
+
 // Expand ADRIFT's command wildcards (`*`, matching any run of words, and `_`, an explicit space)
 // the way ConvertToRE does: as a plain textual substitution over the whole command, before it is
 // broken into blocks. A wildcard next to a space swallows that space when it matches nothing, so
@@ -374,6 +463,7 @@ Task *Task::CreateFromXML(Game *g, const pugi::xml_node &xmlNode) {
 				transformed = std::move(rebuilt);
 			}
 			result->commandRegexes.push_back(std::regex(transformed, std::regex_constants::icase));
+			result->commandLiterals.push_back(LongestRequiredLiteral(transformed));
 			result->groupNumToRef.emplace_back(std::move(matches));
 		}
 	}
@@ -795,7 +885,7 @@ void Task::SendCompleteNotifications() const {
 	// Walks resolve the same way, and for the same reason: they belong to a Game instance that gets
 	// cloned for undo, so the character is looked up afresh through the live Game each time.
 	for (const auto &it: walkCompleteSubs) {
-		if (auto *c = dynamic_cast<Character *>(Game::Get()->TryGetObject(it.first)))
+		if (auto *c = AsCharacter(Game::Get()->TryGetObject(it.first)))
 			c->NotifyWalk(it.second, Util::Control::Condition::Completion, key);
 	}
 }
@@ -806,7 +896,7 @@ void Task::SendUncompleteNotifications() const {
 			evt->ReceiveTaskNotification(Util::Control::Condition::Uncompletion, key);
 	}
 	for (const auto &it: walkUncompleteSubs) {
-		if (auto *c = dynamic_cast<Character *>(Game::Get()->TryGetObject(it.first)))
+		if (auto *c = AsCharacter(Game::Get()->TryGetObject(it.first)))
 			c->NotifyWalk(it.second, Util::Control::Condition::Uncompletion, key);
 	}
 }
@@ -930,16 +1020,16 @@ static inline constexpr bool ObjIsAppropriate(Task::ActionRefType t, GameObj *o)
 	case Task::ActionRefType::ObjsOn:
 	case Task::ActionRefType::ObjsAtLocation:
 	case Task::ActionRefType::ObjsWithProp:
-		return !dynamic_cast<Character *>(o) && !dynamic_cast<Location *>(o);
+		return !AsCharacter(o) && !AsLocation(o);
 	case Task::ActionRefType::CharsInside:
 	case Task::ActionRefType::CharsOn:
 	case Task::ActionRefType::CharsAtLocation:
 	case Task::ActionRefType::CharsWithProp:
-		return dynamic_cast<Character *>(o);
+		return AsCharacter(o);
 	case Task::ActionRefType::LocationOf:
 	case Task::ActionRefType::LocationsInGroup:
 	case Task::ActionRefType::LocationsWithProp:
-		return dynamic_cast<Location *>(o);
+		return AsLocation(o);
 	default:
 		return false;
 	}
@@ -987,7 +1077,7 @@ void Task::Action::PerformImpl() const {
 		// whole group of locations at once.
 		GameObj *mover = g->TryGetObject(lhs);
 		if (!mover) break;
-		if (!mover->IsDynamic() && !dynamic_cast<Character *>(mover)) {
+		if (!mover->IsDynamic() && !AsCharacter(mover)) {
 			mover->MoveTo(rhs, GameObj::HoldingType::AtLocationGroup);
 			break;
 		}
@@ -1006,7 +1096,7 @@ void Task::Action::PerformImpl() const {
 		// the route in their own restrictions first, but we re-check here so that
 		// running this action directly can never teleport a character through a
 		// nonexistent or blocked (e.g. closed-door) exit.
-		auto *mover = dynamic_cast<Character *>(g->TryGetObject(lhs));
+		auto *mover = AsCharacter(g->TryGetObject(lhs));
 		if (!mover)
 			break;
 		const auto *loc = mover->GetLocation();
@@ -1123,7 +1213,7 @@ void Task::Action::PerformImpl() const {
 		case ActionRefType::SingleObj: {
 			GameObj *theObj = Game::Get()->GetObject(lhs);
 			Character *c;
-			if (!(c = dynamic_cast<Character *>(theObj)))
+			if (!(c = AsCharacter(theObj)))
 				throw std::runtime_error("Tried to set the posture of a non-character");
 			c->MakePosture(rhs, ActionTypeToPosture(type));
 		}
@@ -1135,7 +1225,7 @@ void Task::Action::PerformImpl() const {
 			auto ht = ActionRefToHoldingType(refType);
 			for (auto &o : allObjs) {
 				Character *c;
-				if ((c = dynamic_cast<Character *>(o.second)) && o.second->GetParentKey() == lhs && o.second->GetParentRelation() == ht)
+				if ((c = AsCharacter(o.second)) && o.second->GetParentKey() == lhs && o.second->GetParentRelation() == ht)
 					c->MakePosture(rhs, ActionTypeToPosture(type));
 			}
 		}
@@ -1147,14 +1237,14 @@ void Task::Action::PerformImpl() const {
 			switch (propType) {
 			case Property::ValueType::Bool:
 				for (auto &o : allObjs) {
-					if ((c = dynamic_cast<Character *>(o.second)) && o.second->GetBoolProp(prop))
+					if ((c = AsCharacter(o.second)) && o.second->GetBoolProp(prop))
 						c->MakePosture(rhs, ActionTypeToPosture(type));
 				}
 				break;
 			case Property::ValueType::Object:
 			case Property::ValueType::Enum:
 				for (auto &o : allObjs) {
-					if ((c = dynamic_cast<Character *>(o.second)) && o.second->GetStrProp(prop) == lhs)
+					if ((c = AsCharacter(o.second)) && o.second->GetStrProp(prop) == lhs)
 						c->MakePosture(rhs, ActionTypeToPosture(type));
 				}
 				break;
@@ -1162,7 +1252,7 @@ void Task::Action::PerformImpl() const {
 			case Property::ValueType::Int: {
 				auto tmpInt = propType == Property::ValueType::Map ? ParseInt(lhs.c_str()) : g->GetExpression(expr)->EvaluateInt();
 				for (auto &o : allObjs) {
-					if ((c = dynamic_cast<Character *>(o.second)) && o.second->GetIntProp(prop) == tmpInt)
+					if ((c = AsCharacter(o.second)) && o.second->GetIntProp(prop) == tmpInt)
 						c->MakePosture(rhs, ActionTypeToPosture(type));
 				}
 				break;
@@ -1170,7 +1260,7 @@ void Task::Action::PerformImpl() const {
 			case Property::ValueType::Text: {
 				std::string tmpTxt(g->GetExpression(expr)->EvaluateStr());
 				for (auto &o : allObjs) {
-					if ((c = dynamic_cast<Character *>(o.second)) && o.second->GetStrProp(prop) == tmpTxt)
+					if ((c = AsCharacter(o.second)) && o.second->GetStrProp(prop) == tmpTxt)
 						c->MakePosture(rhs, ActionTypeToPosture(type));
 				}
 				break;
@@ -1184,7 +1274,7 @@ void Task::Action::PerformImpl() const {
 			auto &allObjs = g->GetAllObjects();
 			for (auto &o : allObjs) {
 				Character *c;
-				if ((c = dynamic_cast<Character *>(o.second)) && o.second->IsMemberOfGroup(lhs))
+				if ((c = AsCharacter(o.second)) && o.second->IsMemberOfGroup(lhs))
 					c->MakePosture(rhs, ActionTypeToPosture(type));
 			}
 		}
@@ -1204,7 +1294,7 @@ void Task::Action::PerformImpl() const {
 			auto &allObjs = g->GetAllObjects();
 			auto ht = ActionRefToHoldingType(refType);
 			for (auto &o : allObjs) {
-				if (dynamic_cast<Character *>(o.second) && o.second->GetParentKey() == lhs && o.second->GetParentRelation() == ht)
+				if (AsCharacter(o.second) && o.second->GetParentKey() == lhs && o.second->GetParentRelation() == ht)
 					PerformSwitchWith(o.first);
 			}
 		}
@@ -1215,14 +1305,14 @@ void Task::Action::PerformImpl() const {
 			switch (propType) {
 			case Property::ValueType::Bool:
 				for (auto &o : allObjs) {
-					if (dynamic_cast<Character *>(o.second) && o.second->GetBoolProp(prop))
+					if (AsCharacter(o.second) && o.second->GetBoolProp(prop))
 						PerformSwitchWith(o.first);
 				}
 				break;
 			case Property::ValueType::Object:
 			case Property::ValueType::Enum:
 				for (auto &o : allObjs) {
-					if (dynamic_cast<Character *>(o.second) && o.second->GetStrProp(prop) == lhs)
+					if (AsCharacter(o.second) && o.second->GetStrProp(prop) == lhs)
 						PerformSwitchWith(o.first);
 				}
 				break;
@@ -1230,7 +1320,7 @@ void Task::Action::PerformImpl() const {
 			case Property::ValueType::Int: {
 				auto tmpInt = propType == Property::ValueType::Map ? ParseInt(lhs.c_str()) : g->GetExpression(expr)->EvaluateInt();
 				for (auto &o : allObjs) {
-					if (dynamic_cast<Character *>(o.second) && o.second->GetIntProp(prop) == tmpInt)
+					if (AsCharacter(o.second) && o.second->GetIntProp(prop) == tmpInt)
 						PerformSwitchWith(o.first);
 				}
 				break;
@@ -1238,7 +1328,7 @@ void Task::Action::PerformImpl() const {
 			case Property::ValueType::Text: {
 				std::string tmpTxt(g->GetExpression(expr)->EvaluateStr());
 				for (auto &o : allObjs) {
-					if (dynamic_cast<Character *>(o.second) && o.second->GetStrProp(prop) == tmpTxt)
+					if (AsCharacter(o.second) && o.second->GetStrProp(prop) == tmpTxt)
 						PerformSwitchWith(o.first);
 				}
 				break;
@@ -1251,7 +1341,7 @@ void Task::Action::PerformImpl() const {
 		case ActionRefType::CharsInGroup: {
 			auto &allObjs = g->GetAllObjects();
 			for (auto &o : allObjs) {
-				if (dynamic_cast<Character *>(o.second) && o.second->IsMemberOfGroup(lhs))
+				if (AsCharacter(o.second) && o.second->IsMemberOfGroup(lhs))
 					PerformSwitchWith(o.first);
 			}
 		}

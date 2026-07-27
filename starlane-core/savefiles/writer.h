@@ -6,7 +6,12 @@
 #ifndef SLC_SAVEFILES_WRITER_H
 #define SLC_SAVEFILES_WRITER_H
 
+#include <algorithm>
+#include <string>
 #include <type_traits>
+#include <unordered_map>
+#include <utility>
+#include <vector>
 
 #include "../slc_private.h"
 
@@ -55,6 +60,18 @@ public:
 	template<typename T> void WriteKV(const char *key, const T &val) {
 		WriteKey(key);
 		WriteValue(val);
+	}
+	// Write every entry of a string-keyed map, in key order. Property tables are unordered_maps
+	// whose iteration order is an implementation detail -- and, now that PropHolder shares them
+	// copy-on-write, not even stable between two games that reached the same state by different
+	// routes. Sorting here keeps a save file's bytes a function of the game state alone.
+	template<typename V> void WriteSortedMap(const std::unordered_map<std::string, V> &map) {
+		std::vector<const std::pair<const std::string, V> *> entries;
+		entries.reserve(map.size());
+		for (const auto &kv : map) entries.push_back(&kv);
+		std::sort(entries.begin(), entries.end(),
+		          [](const auto *a, const auto *b) { return a->first < b->first; });
+		for (const auto *kv : entries) WriteKV(kv->first.c_str(), kv->second);
 	}
 	// Write out a string value
 	void WriteValue(const std::string &str) { WriteLiteralString(str); }

@@ -343,8 +343,8 @@ bool Restriction::Single::PassObjectCond(const std::string &lhs, const std::stri
 		if (*side != "AnyObject" && *side != "AnyCharacter") continue;
 		bool wantChar = (*side == "AnyCharacter");
 		for (const auto &o: g->GetAllObjects()) {
-			if (dynamic_cast<Location *>(o.second)) continue;
-			if ((dynamic_cast<Character *>(o.second) != nullptr) != wantChar) continue;
+			if (AsLocation(o.second)) continue;
+			if ((AsCharacter(o.second) != nullptr) != wantChar) continue;
 			bool pass = (side == &lhs) ? PassObjectCond(o.first, rhs, out)
 			                           : PassObjectCond(lhs, o.first, out);
 			if (pass) return true;
@@ -360,7 +360,7 @@ bool Restriction::Single::PassObjectCond(const std::string &lhs, const std::stri
 		return g->ObjectExists(lhs);
 	case ConditionType::SeenByChar:
 	{
-		const Character *c = dynamic_cast<Character *>(g->GetObject(rhs));
+		const Character *c = AsCharacter(g->GetObject(rhs));
 		// The ADRIFT Developer application shouldn't generate files in which
 		// rhs is not of type character, but better safe than sorry...
 		// We'll have to see whether we should throw an error here, or just silently return false.
@@ -370,7 +370,7 @@ bool Restriction::Single::PassObjectCond(const std::string &lhs, const std::stri
 	}
 	case ConditionType::VisibleTo:
 	{
-		const Character *c = dynamic_cast<Character *>(g->GetObject(rhs));
+		const Character *c = AsCharacter(g->GetObject(rhs));
 		if (!c)
 			throw std::runtime_error("Restriction on characters references an object which isn't a character: " + rhs);
 		return c->CanSee(lhs);
@@ -438,21 +438,21 @@ bool Restriction::Single::PassObjectCond(const std::string &lhs, const std::stri
 	case ConditionType::Alone:
 	    // "Alone" meaning "no other character is in the same location as the lhs"
 		return !std::any_of(g->GetAllObjects().cbegin(), g->GetAllObjects().cend(), [&](const auto &o) {
-			return o.first != lhs && dynamic_cast<Character *>(o.second)
+			return o.first != lhs && AsCharacter(o.second)
 				&& o.second->GetLocationKey() != Game::Get()->GetObject(lhs)->GetLocationKey();
 		});
 	case ConditionType::AloneWith:
 	    // "Alone with" meaning "no other character except rhs is in the same location as the lhs"
 		if (g->GetObject(lhs)->GetLocationKey() != g->GetObject(rhs)->GetLocationKey()) return false;
 		return !std::any_of(g->GetAllObjects().cbegin(), g->GetAllObjects().cend(), [&](const auto &o) {
-			return o.first != lhs && o.first != rhs && dynamic_cast<Character *>(o.second)
+			return o.first != lhs && o.first != rhs && AsCharacter(o.second)
 				&& o.second->GetLocationKey() != Game::Get()->GetObject(lhs)->GetLocationKey();
 		});
 	case Starlane::Restriction::ConditionType::InConversationWith:
 		break;  // TODO (once the conversations system is in place)
 	case ConditionType::HaveRoute:
 	{
-		auto ch = dynamic_cast<Character *>(g->GetObject(lhs));
+		auto ch = AsCharacter(g->GetObject(lhs));
 		if (!ch)
 			throw std::runtime_error("Restriction on characters references an object which isn't a character: " + lhs);
 		auto result = ch->HasRoute(rhs);

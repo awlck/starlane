@@ -159,10 +159,10 @@ Game *Game::LoadFromXML(const std::string &gameTxt, uint32_t gameCrc32) {
 	// as the ADRIFT Runner does -- otherwise the player would start nowhere, seeing nothing and
 	// unable to act on anything. Done here, once, so every later snapshot (startup state, undo
 	// history) inherits the placement rather than each having to rediscover it.
-	if (auto *player = dynamic_cast<Character *>(result->TryGetObject(result->playerKey));
+	if (auto *player = AsCharacter(result->TryGetObject(result->playerKey));
 	    player && player->GetLocationKey().empty()) {
 		for (const auto &key : rStatic->objectLoadOrder) {
-			if (dynamic_cast<Location *>(result->TryGetObject(key))) {
+			if (AsLocation(result->TryGetObject(key))) {
 				player->SetInitialLocation(key);
 				break;
 			}
@@ -200,7 +200,7 @@ Game *Game::LoadFromXML(const std::string &gameTxt, uint32_t gameCrc32) {
 	// loading, so wire each walk up to them now. The characters themselves loaded earlier, before any
 	// task existed, which is why this can't happen while a character is being built.
 	for (const auto &key : rStatic->objectLoadOrder)
-		if (auto *c = dynamic_cast<Character *>(result->TryGetObject(key)))
+		if (auto *c = AsCharacter(result->TryGetObject(key)))
 			c->RegisterWalkNotifications();
 
 	LOAD_STAGE("Loading Events");
@@ -240,17 +240,13 @@ Game *Game::LoadFromXML(const std::string &gameTxt, uint32_t gameCrc32) {
 	// (This needs to happen after objects are loaded since we need to determine whether
 	//  'A.B' is indeed accessing property 'B' of object with key 'A' (if 'A' is a valid object key)
 	//  or just a period not followed by a space (if 'A' is not a valid object key).)
+	for (size_t i = 1; i < result->descriptions.size(); i++) {
 #ifndef NDEBUG
-	size_t count = 0;
-	for (auto &it : result->descriptions) {
-		if (++count % 250 == 0)
-			std::cout << count << "... ";
-		it.second->ResolveText();
-	}
-#else
-	for (auto &it : result->descriptions)
-		it.second->ResolveText();
+		if (i % 250 == 0)
+			std::cout << i << "... ";
 #endif
+		result->descriptions[i]->ResolveText();
+	}
 
 	LOAD_STAGE("Done!");
 
@@ -258,13 +254,13 @@ Game *Game::LoadFromXML(const std::string &gameTxt, uint32_t gameCrc32) {
 }
 
 size_t Game::CreateDescFromXML(const pugi::xml_node &descNode) {
-	descriptions[++descriptionsSoFar] = Description::CreateFromXML(descNode);
-	return descriptionsSoFar;
+	descriptions.push_back(Description::CreateFromXML(descNode));
+	return descriptions.size() - 1;
 }
 
 size_t Game::CreateDescFromText(const std::string &text) {
-	descriptions[++descriptionsSoFar] = Description::CreateFromText(text);
-	return descriptionsSoFar;
+	descriptions.push_back(Description::CreateFromText(text));
+	return descriptions.size() - 1;
 }
 
 void Game::CreateObjFromXML(const pugi::xml_node &objNode) {
@@ -291,6 +287,10 @@ Task *Game::CreateTaskFromXML(const pugi::xml_node &propNode) {
 	auto result = Task::CreateFromXML(this, propNode);
 	assert(result);
 	auto s = const_cast<GameStatic *>(staticData);
+	// Give the task its slot in the completed-ness vector as it is registered, so that the vector
+	// stays dense and parallel to the (immutable) task table.
+	result->stateIndex = taskCompletedStorage.size();
+	taskCompletedStorage.push_back(0);
 	s->tasks[result->Key()] = result;
 	return result;
 }
@@ -391,10 +391,9 @@ ExprRef Game::CreateExpression(const std::string &expr) {
 }
 
 void Game::StartupSanityCheck() const {
-    size_t sanityCheck = std::distance(descriptions.begin(), descriptions.end());
-    if (sanityCheck != descriptionsSoFar || sanityCheck != descriptions.size() || descriptionsSoFar != descriptions.size())
-        frontend->FatalError("Startup sanity check failed: description count mismatch.");
-    sanityCheck = std::distance(staticData->restrictions.begin(), staticData->restrictions.end());
+    // (Descriptions no longer need checking: they live in a dense vector indexed by DescrRef, so
+    // "every ref between 1 and the count names a description" holds by construction.)
+    size_t sanityCheck = std::distance(staticData->restrictions.begin(), staticData->restrictions.end());
     if (sanityCheck != restrictionsSoFar || sanityCheck != staticData->restrictions.size() || restrictionsSoFar != staticData->restrictions.size())
         frontend->FatalError("Startup sanity check failed: restriction count mismatch.");
 }

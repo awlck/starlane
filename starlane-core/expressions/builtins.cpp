@@ -146,7 +146,7 @@ std::string LanguageNumber(int64_t num, bool f = false) {
 				result += obj->GetDisplayName(transform == ListTransformType::DefName);
 				// Displaying a thing's name to the player means the player has now seen it.
 				// (This is how, e.g., the contents of a just-opened container become "seen".)
-				if (auto *pc = dynamic_cast<Character *>(Game::Get()->GetPlayerChar()))
+				if (auto *pc = AsCharacter(Game::Get()->GetPlayerChar()))
 					pc->MarkSeen(entries[i]);
 				break;
 			}
@@ -317,7 +317,7 @@ Expr::Value Expression::NumberAsTextImpl(const ast_node_tag *args) const {
 Expr::Value Expression::CharacterDescriptorImpl(const ast_node_tag *args) const {
 	CHECK_ARGCOUNT("CharacterDescriptor", 1);
 	EXTRACT_FIRST_ARG_STR(args, theArg);
-	auto *theChar = dynamic_cast<Character *>(Game::Get()->TryGetObject(theArg.Str));
+	auto *theChar = AsCharacter(Game::Get()->TryGetObject(theArg.Str));
 	if (theChar == nullptr)
 		return Expr::Value();
 	return theChar->GetDescriptor();
@@ -326,7 +326,7 @@ Expr::Value Expression::CharacterDescriptorImpl(const ast_node_tag *args) const 
 Expr::Value Expression::CharacterProperImpl(const ast_node_tag *args) const {
 	CHECK_ARGCOUNT("CharacterProper", 1);
 	EXTRACT_FIRST_ARG_STR(args, theArg);
-	auto *theChar = dynamic_cast<Character *>(Game::Get()->TryGetObject(theArg.Str));
+	auto *theChar = AsCharacter(Game::Get()->TryGetObject(theArg.Str));
 	if (theChar == nullptr)
 		return Expr::Value();
 	return theChar->GetProperName();
@@ -344,7 +344,7 @@ Expr::Value Expression::AloneWithCharImpl(const ast_node_tag *args) const {
 	auto g = Game::Get();
 	auto player = g->GetPlayerChar();
 	for (const auto &objref : g->GetAllObjects()) {
-		if (Character *c = dynamic_cast<Character *>(objref.second)) {
+		if (Character *c = AsCharacter(objref.second)) {
 			if (objref.second != player && c->GetLocationKey() == player->GetLocationKey())
 				return c->Key();
 		}
@@ -362,7 +362,7 @@ Expr::Value Expression::TurnsImpl(const ast_node_tag *args) const {
 Expr::Value Expression::LocationNameImpl(const ast_node_tag *args) const {
 	CHECK_ARGCOUNT("LocationName", 1);
 	EXTRACT_FIRST_ARG_STR(args, theArg);
-	auto *loc = dynamic_cast<Location *>(Game::Get()->TryGetObject(theArg.Str));
+	auto *loc = AsLocation(Game::Get()->TryGetObject(theArg.Str));
 	if (!loc)
 		return std::string("<invalid location>");
 	return loc->GetDisplayName();
@@ -388,7 +388,7 @@ Expr::Value Expression::ListRelatedImpl(const ast_node_tag *args, ListRelation r
 	switch (rel) {
 	case ListRelation::Held:
 	case ListRelation::Worn: {
-		const auto *ch = dynamic_cast<const Character *>(g->TryGetObject(theArg.Str));
+		const auto *ch = AsCharacter(g->TryGetObject(theArg.Str));
 		if (!ch) return std::string("nothing");
 		keys = ch->GetPossessionsList(rel == ListRelation::Worn ? Character::PossessionFilter::Worn
 		                                                        : Character::PossessionFilter::Held,

@@ -52,18 +52,33 @@ void StripSeamMarkers(std::string &s) {
 // [a-z]: prose in any language passes through intact.
 // Returns whether anything was raised.
 bool AutoCapitalize(std::string &s) {
-	static const std::regex kSentenceStart(R"(^([a-z])|\n([a-z])|[a-z][.!?] {1,2}([a-z]))");
+	// Written out by hand rather than handed to std::regex. ADRIFT rescans from the start of the
+	// text after every letter it raises, which is quadratic in the length of a long message, and
+	// this runs over every line the game prints. A single left-to-right pass gives the same answer:
+	// raising a letter can only ever destroy a potential match (all three alternatives need a
+	// *lowercase* letter where they act), never create an earlier one, so the matches come out in
+	// the same order either way.
+	auto isLower = [](char c) { return c >= 'a' && c <= 'z'; };
 	bool changed = false;
-	std::smatch m;
-	// Rescanning from the start each time, as ADRIFT does. It terminates because every
-	// alternative ends on the lowercase letter it raises, so a given match never matches twice.
-	while (std::regex_search(s, m, kSentenceStart)) {
-		const size_t group = m[1].matched ? 1 : (m[2].matched ? 2 : 3);
-		const auto at = (size_t) m.position(group);
+	for (size_t i = 0; i < s.size(); i++) {
+		size_t at = std::string::npos;
+		if (i == 0 && isLower(s[0])) {
+			at = 0;                                        // ^([a-z])
+		} else if (s[i] == '\n' && i + 1 < s.size() && isLower(s[i + 1])) {
+			at = i + 1;                                    // \n([a-z])
+		} else if (isLower(s[i]) && i + 3 < s.size() && (s[i + 1] == '.' || s[i + 1] == '!' ||
+				s[i + 1] == '?') && s[i + 2] == ' ') {     // [a-z][.!?] {1,2}([a-z])
+			if (isLower(s[i + 3])) at = i + 3;
+			else if (i + 4 < s.size() && s[i + 3] == ' ' && isLower(s[i + 4])) at = i + 4;
+		}
+		if (at == std::string::npos) continue;
 		// The match guarantees an ASCII 'a'-'z', so raise it directly. std::toupper would ask
 		// the locale, which the Qt frontend sets -- and a Turkish one does not raise 'i' to 'I'.
 		s[at] = (char) (s[at] - 'a' + 'A');
 		changed = true;
+		// Nothing between here and the letter just raised can start a match of its own (it is
+		// punctuation or a space), and the letter itself is no longer lowercase.
+		i = at;
 	}
 	return changed;
 }
@@ -91,10 +106,9 @@ Game::Game(const Game &rhs) {
 	groups.reserve(rhs.groups.size());
 	for (const auto &it : rhs.groups)
 		groups[it.first] = new Group(*it.second);
-	descriptions.reserve(rhs.descriptions.size());
-	for (const auto &it : rhs.descriptions) {
-		descriptions[it.first] = new Description(*it.second);
-	}
+	descriptions.resize(rhs.descriptions.size(), nullptr);
+	for (size_t i = 1; i < rhs.descriptions.size(); i++)  // slot 0 is the "none" sentinel
+		descriptions[i] = new Description(*rhs.descriptions[i]);
 
 	// just bools, so a vector copy is sufficient.
 	taskCompletedStorage = rhs.taskCompletedStorage;
@@ -109,7 +123,6 @@ Game::Game(const Game &rhs) {
 	turnCount = rhs.turnCount;
 	gameHasBegun = rhs.gameHasBegun;
 	sessionActive = rhs.sessionActive;
-	descriptionsSoFar = rhs.descriptionsSoFar;
 	restrictionsSoFar = rhs.restrictionsSoFar;
 	textSnippetsSoFar = rhs.textSnippetsSoFar;
 	expressionsSoFar = rhs.expressionsSoFar;
@@ -132,8 +145,8 @@ Game::~Game() {
 		delete it.second;
 	for (const auto &it : groups)
 		delete it.second;
-	for (const auto &it : descriptions)
-		delete it.second;
+	for (auto *d : descriptions)
+		delete d;
 
 	if (theGame == this) {
 		// We are the current (presumably last) game instance -- destroy everything.
@@ -191,11 +204,15 @@ bool Game::PlayerIsInLocationOrGroup(const std::string &key) const {
 	const std::string &here = GetPlayerLocationKey();
 	// A key naming a location is only ever about that location, even if a group happens to share
 	// the name: ADRIFT checks its locations first and stops there.
-	if (dynamic_cast<const Location *>(SafeMapGet(objects, key)))
+	if (AsLocation(SafeMapGet(objects, key)))
 		return here == key;
 	if (const Group *grp = SafeMapGet(groups, key))
 		return grp->ContainsObj(here);
 	return false;
+}
+
+size_t Game::TaskStateIndex(const std::string &key) const {
+	return staticData->tasks.at(key)->StateIndex();
 }
 
 void Game::SaveUndo() {
@@ -251,12 +268,10 @@ void Game::Restart() {
 void Game::Begin() {
 	if (!startupState)
 		startupState = new Game(*this);
-	taskCompletedStorage.reserve(staticData->tasks.size());
-	for (const auto &it : staticData->tasks)
-		taskCompletedStorage[it.first] = false;
+	std::fill(taskCompletedStorage.begin(), taskCompletedStorage.end(), (uint8_t) 0);
 	// Every character has "seen" their initial surroundings.
 	for (const auto &it : objects) {
-		if (auto *c = dynamic_cast<Character *>(it.second))
+		if (auto *c = AsCharacter(it.second))
 			c->MarkVisibleAsSeen();
 	}
 	gameHasBegun = true;
@@ -296,7 +311,7 @@ void Game::Begin() {
 	// As in ADRIFT: the initial room description, if the game asks for one, follows the intro
 	// rather than being left for the player's first LOOK.
 	if (staticData->showFirstLocation) {
-		if (auto *loc = dynamic_cast<Location *>(TryGetObject(GetPlayerLocationKey()))) {
+		if (auto *loc = AsLocation(TryGetObject(GetPlayerLocationKey()))) {
 			std::string desc = "\n" + loc->GetDescription();
 			StripSeamMarkers(desc);
 			frontend->OutputText(desc.c_str());
@@ -336,7 +351,7 @@ void Game::Begin() {
 	// Walks that begin active start now, after the events, as in ADRIFT. Starting one moves its
 	// character to the walk's first step and may run its opening sub-walks.
 	for (const auto &key : staticData->objectLoadOrder)
-		if (auto *c = dynamic_cast<Character *>(objects.at(key)))
+		if (auto *c = AsCharacter(objects.at(key)))
 			c->StartActiveWalks();
 }
 
@@ -402,7 +417,7 @@ void Game::RunEventTick(bool realTime) {
 	if (!realTime) {
 		for (const auto &key : staticData->objectLoadOrder) {
 			if (!gameHasBegun) return;
-			if (auto *c = dynamic_cast<Character *>(objects.at(key)))
+			if (auto *c = AsCharacter(objects.at(key)))
 				c->TickWalks();
 		}
 	}
@@ -489,9 +504,9 @@ bool Game::Save() {
 	writer.EndCompound();
 
 	writer.BeginNamedCompound("descriptions_shown");
-	for (const auto &desc: descriptions) {
-		auto name = std::to_string(desc.first);
-		auto state = desc.second->GetState();
+	for (size_t i = 1; i < descriptions.size(); i++) {
+		auto name = std::to_string(i);
+		auto state = descriptions[i]->GetState();
 		// "not shown" is the initial state, so only save anything for those descriptions where at least one segment has been shown.
 		if (std::find(state.cbegin(), state.cend(), true) != state.cend())  // at least one true
 			writer.WriteKV(name.c_str(), state);
@@ -499,9 +514,9 @@ bool Game::Save() {
 	writer.EndCompound();
 
 	writer.BeginNamedCompound("tasks_completed", true);
-	for (const auto &state: taskCompletedStorage) {
-		if (state.second) {
-			writer.WriteLiteralString(state.first.c_str());
+	for (const auto &it: staticData->tasks) {
+		if (taskCompletedStorage[it.second->StateIndex()]) {
+			writer.WriteLiteralString(it.first.c_str());
 			writer.WriteUnqouted(" ");
 		}
 	}
@@ -627,25 +642,26 @@ bool Game::ContinueRestore(const Save::AstNode *root) {
 		// to "not shown" and let the file fill in the exceptions. The entries are written out
 		// of an unordered_map, so they arrive in no particular order -- hence resetting up
 		// front rather than filling the gaps between consecutive entries as we go.
-		for (const auto &desc: descriptions)
-			desc.second->RestoreState();
+		for (size_t i = 1; i < descriptions.size(); i++)
+			descriptions[i]->RestoreState();
 		ITERATE_CHILDREN(descsNode, descN) {
-			auto desc = descriptions.find(ParseInt(descN->myName.c_str()));
-			if (desc == descriptions.end()) return RollbackRestore();  // no such description
+			const auto idx = (size_t) ParseInt(descN->myName.c_str());
+			if (idx == 0 || idx >= descriptions.size()) return RollbackRestore();  // no such description
 			std::vector<bool> state;
 			ITERATE_CHILDREN(descN, entry) {
 				state.push_back(entry->sv.Bool);
 			}
-			desc->second->RestoreState(state);
+			descriptions[idx]->RestoreState(state);
 		}
 	}
 	{
 		const auto *tasksCompletedNode = root->FindChildByName("tasks_completed");
 		if (!tasksCompletedNode || !tasksCompletedNode->IsCollection(Save::NT_STRINGLIST)) return RollbackRestore();
-		for (auto &elem: taskCompletedStorage)
-			elem.second = false;
+		std::fill(taskCompletedStorage.begin(), taskCompletedStorage.end(), (uint8_t) 0);
 		ITERATE_CHILDREN(tasksCompletedNode, taskNode) {
-			taskCompletedStorage[taskNode->myName] = taskNode->sv.Bool;
+			const auto *task = SafeMapGet(staticData->tasks, taskNode->myName);
+			if (!task) return RollbackRestore();  // no such task
+			taskCompletedStorage[task->StateIndex()] = taskNode->sv.Bool ? 1 : 0;
 		}
 	}
 	// finally, discard all previous undo states because UNDOing a restore would be a bit silly

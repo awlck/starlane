@@ -82,7 +82,7 @@ public:
 	void WriteState(Save::Writer &writer) const override;
 	bool RestoreState(const Save::AstNode *node) override;
 private:
-	Character() = default;
+	Character() : GameObj(Kind::Character) {}
 
 	std::string properName;
 	std::unordered_set<std::string> seenStorage;
@@ -91,6 +91,16 @@ private:
 	void MakeMatchExpr() override;
 	std::regex matchWhenKnownRegex;
 };
+
+// The Character this object is, or nullptr if it is not one. Replaces dynamic_cast for what is
+// by far its most common use here -- an "is this a character?" test on every object in the game,
+// several times a turn (see GameObj::Kind).
+inline Character *AsCharacter(GameObj *o) {
+	return o && o->IsCharacter() ? static_cast<Character *>(o) : nullptr;
+}
+inline const Character *AsCharacter(const GameObj *o) {
+	return o && o->IsCharacter() ? static_cast<const Character *>(o) : nullptr;
+}
 
 }
 

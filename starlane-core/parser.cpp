@@ -205,10 +205,10 @@ std::vector<std::string> Game::MatchListForReference(const std::string &from, co
 		if (it == objects.end()) continue;
 		switch (rt) {
 			case ReferenceType::Object:
-				if (dynamic_cast<Character *>(it->second)) continue;
+				if (AsCharacter(it->second)) continue;
 				break;
 			case ReferenceType::Character:
-				if (!dynamic_cast<Character *>(it->second)) continue;
+				if (!AsCharacter(it->second)) continue;
 				break;
 		}
 		if (std::regex_match(from, it->second->GetMatchExpr()))
@@ -220,7 +220,7 @@ std::vector<std::string> Game::MatchListForReference(const std::string &from, co
 	// then things they have seen at some point. If neither yields anything, keep the
 	// full list; the matched task's own restrictions will then produce a sensible
 	// failure message (e.g. "You see no such thing.").
-	const auto *player = dynamic_cast<const Character *>(GetPlayerChar());
+	const auto *player = AsCharacter(GetPlayerChar());
 	if (!player) return result;
 	std::vector<std::string> visible, seen;
 	for (const auto &k : result) {
@@ -334,14 +334,24 @@ Task *Game::FindMatchingTask() {
 	Task *noRefTask = nullptr;
 	std::vector<std::string> noRefTokens;
 
+	// Folded once here for Task::GetCmdLiterals below, which holds its literals folded the same
+	// way. The command usually arrives folded already, but not always: SubstitutePronouns splices
+	// in a thing's display name ("take it" -> "take the Brass Lantern") as the game spells it.
+	const std::string foldedCommand = Util::ToLower(currentCommand);
+
 	for (Task *task : staticData->prioOrderedTasks) {
 		if (task->GetType() != Task::Type::General) continue;
 		// A completed, non-repeatable task is not a candidate at all.
 		if (task->Completed() && !task->IsRepeatable()) continue;
 
 		const auto &regexes = task->GetCmdRegexes();
+		const auto &literals = task->GetCmdLiterals();
 		const auto &groupCoding = task->GetGroupCoding();
 		for (size_t cmdIdx = 0; cmdIdx < regexes.size(); cmdIdx++) {
+			// Cheap first: a pattern whose mandatory literal text isn't in the input cannot match,
+			// and a game has thousands of patterns for every command the player types.
+			const std::string &required = literals[cmdIdx];
+			if (!required.empty() && foldedCommand.find(required) == std::string::npos) continue;
 			std::smatch matches;
 			if (!std::regex_match(currentCommand, matches, regexes[cmdIdx])) continue;
 
@@ -438,7 +448,7 @@ bool Game::PromptForIncompleteVerb() {
 }
 
 bool Game::DescribeUnmatchedThing() {
-	const auto *player = dynamic_cast<const Character *>(GetPlayerChar());
+	const auto *player = AsCharacter(GetPlayerChar());
 	if (!player) return false;
 	// Load order, as everywhere else things are listed for the player -- and so that if the input
 	// somehow names more than one currently-visible thing, the one mentioned wins the same way it
@@ -606,7 +616,7 @@ static size_t PickCommandAlternate(Game *g,
 		for (size_t j = 0; j < args.size(); j++) {
 			const std::string &family = SplitRefName(coding[i][j]).family;
 			const GameObj *ob = g->TryGetObject(args[j]);
-			const bool isChar = dynamic_cast<const Character *>(ob) != nullptr;
+			const bool isChar = AsCharacter(ob) != nullptr;
 			const bool isObj = ob && !isChar;
 			if (IsObjectPronounFamily(family) ? isObj
 			    : IsCharacterPronounFamily(family) ? isChar

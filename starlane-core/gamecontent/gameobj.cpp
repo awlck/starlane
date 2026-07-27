@@ -26,7 +26,7 @@ GameObj *GameObj::CreateFromXML(const pugi::xml_node &xmlNode) {
 	auto result = new GameObj;
 	result->MakeCommonValues(xmlNode);
 	for (const auto &it : xmlNode.children("Name"))
-		result->nouns.emplace_back(it.child_value());
+		result->MutableNouns().emplace_back(it.child_value());
 	result->description = Game::Get()->CreateDescFromXML(xmlNode.child("Description"));
 
     // Extract location data from properties (this is faster than directly navigating the XML tree),
@@ -65,8 +65,8 @@ void GameObj::CompileNameExpressions() {
 	// like a description -- so let the description machinery deal with it.
 	if (prefix.find('%') != std::string::npos)
 		prefixExpr = g->CreateDescFromText(prefix);
-	if (!nouns.empty() && nouns[0].find('%') != std::string::npos)
-		nameExpr = g->CreateDescFromText(nouns[0]);
+	if (!nouns->empty() && (*nouns)[0].find('%') != std::string::npos)
+		nameExpr = g->CreateDescFromText((*nouns)[0]);
 }
 
 std::string GameObj::DisplayPrefix() const {
@@ -75,8 +75,8 @@ std::string GameObj::DisplayPrefix() const {
 }
 
 std::string GameObj::DisplayNoun() const {
-	if (nouns.empty()) return "";
-	if (nameExpr == 0) return nouns[0];
+	if (nouns->empty()) return "";
+	if (nameExpr == 0) return (*nouns)[0];
 	return Game::Get()->GetDescription(nameExpr)->Build(false);
 }
 
@@ -104,7 +104,7 @@ std::string GameObj::GetBareName() const {
 bool GameObj::MatchesNameWord(const std::string &word) const {
 	if (Util::ContainsWholeWord(article, word)) return true;
 	if (Util::ContainsWholeWord(prefix, word)) return true;
-	for (const auto &n : nouns)
+	for (const auto &n : *nouns)
 		if (Util::ContainsWholeWord(n, word)) return true;
 	return false;
 }
@@ -129,7 +129,7 @@ const std::string &GameObj::GetLocationKey() const {
 Location *GameObj::GetLocation() const {
 	const std::string &lkey = GetLocationKey();
 	if (lkey.empty()) return nullptr;
-	return dynamic_cast<Location *>(Game::Get()->TryGetObject(lkey));
+	return AsLocation(Game::Get()->TryGetObject(lkey));
 }
 
 const std::string &GameObj::GetVisbilityCeiling() const {
@@ -157,7 +157,7 @@ void GameObj::MoveTo(const std::string &newParent, HoldingType newRelation) {
 
 	// Anyone watching this object arrive at its new position has now seen it.
 	for (const auto &o: Game::Get()->GetAllObjects()) {
-		auto *c = dynamic_cast<Character *>(o.second);
+		auto *c = AsCharacter(o.second);
 		if (c && c->CanSee(key))
 			c->MarkSeen(key);
 	}
@@ -190,9 +190,9 @@ std::string GameObj::GetListOfChildren(GameObj::ChildFilter f1, GameObj::ChildRe
 	for (const auto &childKey: g->GetObjectLoadOrder()) {
 		GameObj *child = g->TryGetObject(childKey);
 		if (!child || child->GetParentKey() != key) continue;
-		if (f1 == ChildFilter::Objects && dynamic_cast<Character *>(child))
+		if (f1 == ChildFilter::Objects && AsCharacter(child))
 			continue;
-		if (f1 == ChildFilter::Characters && !dynamic_cast<Character *>(child))
+		if (f1 == ChildFilter::Characters && !AsCharacter(child))
 			continue;
 		switch (f2) {
 			case ChildRelFilter::On:
@@ -225,19 +225,21 @@ std::string GameObj::GetListOfChildren(GameObj::ChildFilter f1, GameObj::ChildRe
 
 void GameObj::TransferPronounNouns(GameObj &newOwner, const std::vector<std::string> &pronouns) {
 	bool changed = false, otherChanged = false;
-	for (auto it = nouns.begin(); it != nouns.end();) {
+	std::vector<std::string> &myNouns = MutableNouns();
+	for (auto it = myNouns.begin(); it != myNouns.end();) {
 		auto pronoun = std::find_if(pronouns.begin(), pronouns.end(), [&](const std::string &p) {
 			return Util::ToLower(p) == Util::ToLower(*it);
 		});
 		if (pronoun == pronouns.end()) { ++it; continue; }
-		bool alreadyHasIt = std::any_of(newOwner.nouns.begin(), newOwner.nouns.end(), [&](const std::string &n) {
+		std::vector<std::string> &theirNouns = newOwner.MutableNouns();
+		bool alreadyHasIt = std::any_of(theirNouns.begin(), theirNouns.end(), [&](const std::string &n) {
 			return Util::ToLower(n) == Util::ToLower(*pronoun);
 		});
 		if (!alreadyHasIt) {
-			newOwner.nouns.push_back(*pronoun);
+			theirNouns.push_back(*pronoun);
 			otherChanged = true;
 		}
-		it = nouns.erase(it);
+		it = myNouns.erase(it);
 		changed = true;
 	}
 	if (changed) MakeMatchExpr();
@@ -251,12 +253,8 @@ void GameObj::WriteState(Save::Writer &writer) const {
 	writer.WriteKV("groups", groupMembership);
 	writer.BeginNamedCompound("properties");
 	// make sure not to consult the groups here
-	const auto &intProps = PropHolder::GetAllIntProps();
-	for (const auto &p: intProps)
-		writer.WriteKV(p.first.c_str(), p.second);
-	const auto &strProps = PropHolder::GetAllStrProps();
-	for (const auto &p: strProps)
-		writer.WriteKV(p.first.c_str(), p.second);
+	writer.WriteSortedMap(PropHolder::GetAllIntProps());
+	writer.WriteSortedMap(PropHolder::GetAllStrProps());
 	writer.EndCompound();
 }
 
@@ -301,9 +299,9 @@ std::optional<std::string> GameObj::SynthesizeLocationProp(const std::string &k)
 	// Only meaningful once `relation`/`parent` have been derived. During loading the real property
 	// still exists and wins (GetStrProp gates this on !HasProp), so we are never asked mid-load.
 	const bool parentIsChar = !parent.empty()
-		&& dynamic_cast<const Character *>(Game::Get()->TryGetObject(parent)) != nullptr;
+		&& AsCharacter(Game::Get()->TryGetObject(parent)) != nullptr;
 
-	if (dynamic_cast<const Character *>(this)) {
+	if (AsCharacter(this)) {
 		// A character's location: the CharacterLocation StateList and its dependent keys.
 		if (k == "CharacterLocation") {
 			switch (relation) {
@@ -389,6 +387,9 @@ bool GameObj::GetBoolProp(const std::string &k) const {
 
 const std::unordered_map<std::string, std::string> &GameObj::GetAllStrProps() const {
 	auto g = Game::Get();
+	// Nothing to merge in for an object in no group -- which is most of them -- so hand back our
+	// own table rather than copying it into the cache first.
+	if (groupMembership.empty()) return PropHolder::GetAllStrProps();
 	hackyStrPropCache = PropHolder::GetAllStrProps();
 	// The priority of properties between groups defining the same property is undefined.
 	for (const auto &grpKey: groupMembership) {
@@ -401,6 +402,7 @@ const std::unordered_map<std::string, std::string> &GameObj::GetAllStrProps() co
 
 const std::unordered_map<std::string, int64_t> &GameObj::GetAllIntProps() const {
 	auto g = Game::Get();
+	if (groupMembership.empty()) return PropHolder::GetAllIntProps();
 	hackyIntPropCache = PropHolder::GetAllIntProps();
 	// The priority of properties between groups defining the same property is undefined.
 	for (const auto &grpKey: groupMembership) {
@@ -440,7 +442,7 @@ void GameObj::MakeMatchExpr() {
 	expr += PrefixRegexFragment(prefix);
 	expr += "(?:(?:";
 	size_t count = 0;
-	for (const auto &n : nouns) {
+	for (const auto &n : *nouns) {
 		if (++count != 1)
 			expr += "|";
 		expr += n;

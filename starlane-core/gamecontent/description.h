@@ -7,6 +7,7 @@
 #include "../expression.h"
 
 #include <map>
+#include <memory>
 #include <string>
 #include <string_view>
 #include <vector>
@@ -75,7 +76,6 @@ private:
 		size_t initialTextLength = 0;
 		bool onceOnly;
 		bool returnToDefault;
-		bool shown = false;
 		// ADRIFT decides whether to put a space between one description part and the next by
 		// looking at the *unevaluated* text so far -- which, once it contains an expression or an
 		// "obj.Prop" chain, essentially always says yes. We evaluate as we resolve, so the answer
@@ -98,7 +98,19 @@ private:
 
 	Description() = default;
 
-	std::vector<Segment> segments;
+	// Whether segment `idx` has been shown, and setting it. `shown` stays empty until something
+	// is actually shown, which for most descriptions is never: every Description in the game is
+	// copied into the undo snapshot once per turn, so a description nobody has read costs nothing
+	// to copy.
+	bool IsShown(size_t idx) const { return idx < shown.size() && shown[idx]; }
+	void SetShown(size_t idx, bool value);
+
+	// The segments are fixed once the game has loaded -- only which of them have been shown ever
+	// changes -- so snapshots share one list rather than each deep-copying it. Built (and resolved)
+	// during load, before the first copy of the Game exists.
+	std::shared_ptr<std::vector<Segment>> segments = std::make_shared<std::vector<Segment>>();
+	// Parallel to *segments where non-empty; see IsShown/SetShown.
+	std::vector<bool> shown;
 	std::vector<std::string> udfArgNames;
 };
 

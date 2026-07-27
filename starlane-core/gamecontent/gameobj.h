@@ -6,6 +6,7 @@
 #include "../slc_private.h"
 
 #include <algorithm>
+#include <memory>
 #include <optional>
 #include <regex>
 #include <string>
@@ -30,6 +31,19 @@ std::string PrefixRegexFragment(const std::string &prefix);
 
 class GameObj: public PropHolder {
 public:
+	// Which of the three kinds of thing this is. GameObj has exactly two subclasses and the
+	// engine asks "is this a character?"/"is this a location?" constantly -- on nearly every
+	// object in the game, several times a turn -- so the answer is a stored tag rather than a
+	// dynamic_cast, which showed up as a real cost in profiles. See AsCharacter/AsLocation.
+	enum class Kind : uint8_t {
+		Object,
+		Character,
+		Location
+	};
+	[[nodiscard]] Kind GetKind() const { return kind; }
+	[[nodiscard]] bool IsCharacter() const { return kind == Kind::Character; }
+	[[nodiscard]] bool IsLocation() const { return kind == Kind::Location; }
+
 	std::string GetStrProp(const std::string &key) const override;
 	int64_t GetIntProp(const std::string &key) const override;
 	bool GetBoolProp(const std::string &key) const override;
@@ -147,8 +161,11 @@ public:
 	virtual bool RestoreState(const Save::AstNode *node);
 
 protected:
+	explicit GameObj(Kind k = Kind::Object) : kind(k) {}
 	void MakeCommonValues(const pugi::xml_node &xmlNode);
 
+	// Set once, by the constructor of whichever subclass (if any) this really is.
+	Kind kind;
 	std::string key;
 	// The immediate parent holding this object.
 	std::string parent;
@@ -161,7 +178,16 @@ protected:
 	bool dynamic = false;
 	std::string article;
 	std::string prefix;
-	std::vector<std::string> nouns;
+	// The words this thing answers to. Copy-on-write: every object in the world is cloned into
+	// the undo snapshot once a turn, and this is the only part of an object's naming that is not
+	// a short (and so allocation-free) string -- but it changes only when the player switches
+	// character (see TransferPronounNouns), so snapshots share one list until then.
+	std::shared_ptr<std::vector<std::string>> nouns = std::make_shared<std::vector<std::string>>();
+	// The list to write to: our own if nobody else is looking at it, otherwise a private copy.
+	std::vector<std::string> &MutableNouns() {
+		if (nouns.use_count() > 1) nouns = std::make_shared<std::vector<std::string>>(*nouns);
+		return *nouns;
+	}
 	DescrRef description;
 	// The keys of all the groups this object is a member of.
 	std::unordered_set<std::string> groupMembership;

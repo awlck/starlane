@@ -726,7 +726,7 @@ Expr::Value Expression::EvalItemfuncSingle(const std::string &key, const Expr::V
 		if (toCall_.Str == "Name") {
 			// A character's Name honors pronoun arguments (Force/Objective/Possessive/...) and only
 			// pronominalises if they've already been named this turn -- see DisplayCharacterName.
-			if (const auto *ch = dynamic_cast<const Character *>(theObj))
+			if (const auto *ch = AsCharacter(theObj))
 				return CharNameImpl(ch, args);
 			return ObjNameImpl(theObj, args);
 		}
@@ -735,14 +735,14 @@ Expr::Value Expression::EvalItemfuncSingle(const std::string &key, const Expr::V
 		if (toCall_.Str == "Parent") return theObj->GetParentKey();
 	}
 	if (Expr::IsListedIn(listOfLocationFunctions, toCall_.Str.c_str())) {
-		const auto *theObj = dynamic_cast<Location *>(g->TryGetObject(key));
+		const auto *theObj = AsLocation(g->TryGetObject(key));
 		if (!theObj) return std::string();
 		if (toCall_.Str == "Objects")
 			return theObj->GetListOfChildren(GameObj::ChildFilter::Objects, GameObj::ChildRelFilter::In);
 		if (toCall_.Str == "Exits") return theObj->GetListOfExits();
 	}
 	if (Expr::IsListedIn(listOfCharacterFunctions, toCall_.Str.c_str())) {
-		const auto *theObj = dynamic_cast<Character *>(g->TryGetObject(key));
+		const auto *theObj = AsCharacter(g->TryGetObject(key));
 		if (!theObj) return std::string();
 		if (toCall_.Str == "Descriptor") return theObj->GetDescriptor();
 		if (toCall_.Str == "ProperName") return theObj->GetProperName();
