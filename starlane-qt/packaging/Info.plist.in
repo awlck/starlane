@@ -36,7 +36,19 @@
 	     Default rather than Owner: Starlane only plays ADRIFT 5 games (see the V4ident/V39ident
 	     checks in taffile.cpp's ExtractTaf) and shouldn't claim sole authority over an extension
 	     that ADRIFT 4 games also use -- and that some other multi-interpreter (e.g. a
-	     starlane-glk-based Gargoyle build) may legitimately want to be considered for too. -->
+	     starlane-glk-based Gargoyle build) may legitimately want to be considered for too.
+
+	     public.adrift, not a Starlane-specific identifier: it's the identifier Gargoyle and
+	     Spatterlight (both already installed .taf handlers on macOS) already use for this
+	     extension. Several apps minting their own distinct UTI for the same extension is exactly
+	     the situation Launch Services handles ambiguously (which one "wins" for default-open and
+	     Open With becomes registration-order dependent); sharing the existing identifier avoids
+	     that. Gargoyle's Info.plist declares it via UTExportedTypeDeclarations (i.e. Gargoyle
+	     considers itself the type's origin); we follow Spatterlight's lead and import it instead
+	     of re-exporting it, since there should only be one canonical exporter. We still declare it
+	     ourselves (rather than only referencing the bare string below) so type/extension
+	     resolution stays correct even on a machine where neither Gargoyle nor Spatterlight -- our
+	     actual likely-only source of a public.adrift declaration -- happens to be installed. -->
 	<key>CFBundleDocumentTypes</key>
 	<array>
 		<dict>
@@ -48,19 +60,20 @@
 			<string>Default</string>
 			<key>LSItemContentTypes</key>
 			<array>
-				<string>de.diepixelecke.starlane.taf</string>
+				<string>public.adrift</string>
 			</array>
 		</dict>
 	</array>
-	<key>UTExportedTypeDeclarations</key>
+	<key>UTImportedTypeDeclarations</key>
 	<array>
 		<dict>
 			<key>UTTypeIdentifier</key>
-			<string>de.diepixelecke.starlane.taf</string>
+			<string>public.adrift</string>
 			<key>UTTypeDescription</key>
-			<string>ADRIFT 5 Game File</string>
+			<string>ADRIFT Story File</string>
 			<key>UTTypeConformsTo</key>
 			<array>
+				<string>public.content</string>
 				<string>public.data</string>
 			</array>
 			<key>UTTypeTagSpecification</key>

@@ -206,8 +206,14 @@
       new `StarlaneApplication : QApplication` (`starlane.cpp`) that stashes the path if
       `MainWindow` doesn't exist yet. Both paths, plus the new "Open Game" menu action, funnel
       through `MainWindow::LoadGameFile()`. Registered the `.taf` extension in the app bundle via
-      `starlane-qt/packaging/Info.plist.in` (`CFBundleDocumentTypes`/`UTExportedTypeDeclarations`,
+      `starlane-qt/packaging/Info.plist.in` (`CFBundleDocumentTypes`/`UTImportedTypeDeclarations`,
       wired up via the `MACOSX_BUNDLE_INFO_PLIST` target property in `starlane-qt/CMakeLists.txt`).
+      Uses the shared `public.adrift` UTI (confirmed via the installed Gargoyle/Spatterlight
+      bundles' own `Info.plist`s) rather than a Starlane-specific one, and `LSHandlerRank` is
+      `Default` rather than `Owner` -- both to play nicely with other .taf handlers rather than
+      have Launch Services arbitrate three different apps each claiming the extension via a
+      different identifier. Imports (doesn't (re-)export) the UTI, matching Spatterlight's own
+      choice, since Gargoyle's declaration is the one that already exports/originates it.
 - [x] Qt frontend: implement menu bar (open, save, restore, transcript, replay). File > Open Game;
       Game > Save Game, Restore Game, Start/Stop Transcript, Replay Commands
       (`MainWindow::CreateMenus()`). Save/Restore call `Starlane::SaveGame()`/`RestoreGame()`
