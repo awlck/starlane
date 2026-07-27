@@ -112,11 +112,8 @@ Frontend support currently looks like this:
 * **starlane-glk**: the most complete frontend, with image, font color, and sound
   support. Status bar support, secondary/dockable windows, and a debug output window are
   not yet implemented.
-* **starlane-qt**: the least complete frontend. Text formatting (including default
-  colors and fonts), the status bar, dockable secondary windows, debug log output,
-  `blorb` support, graphics, sound, and WASM builds are all still outstanding.
-  (As well as, y'know, generally building a functional GUI with a menu bar and other
-  such common niceties.)
+* **starlane-qt**: the least complete frontend. The status bar, dockable secondary windows,
+  debug log output, `blorb` support, graphics, sound, and WASM builds are all still outstanding.
 
 See [GOALS.md](GOALS.md) for the detailed, up-to-date development to-do list.
 
