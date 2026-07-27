@@ -61,7 +61,9 @@ std::string Character::GetDescription(bool forDisplay) const {
 }
 
 void Character::SetPropValue(const std::string &key, const std::string &value) {
-	if (key == "CharacterProperName") {
+	// Only when it actually changes: recompiling both match expressions for a name being set to
+	// what it already was is pure waste, and the base class skips an unchanged write too.
+	if (key == "CharacterProperName" && value != properName) {
 		properName = value;
 		MakeMatchExpr();
 	}

@@ -242,6 +242,9 @@ void Event::ResumeImpl() {
 }
 
 void Event::IncrementTimer() {
+	// Nothing queued, not just started, and not on any clock: every branch below is a no-op for
+	// such an event, down to the `justStarted = false` at the end, so say so once here instead.
+	if (TickWouldDoNothing()) return;
 	// Anything a task asked of us since our last tick happens now, ahead of everything else.
 	if (nextCommand != Command::None) {
 		// Cleared first: these run the same code a task would reach were it running inside the

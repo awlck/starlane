@@ -119,6 +119,15 @@ public:
 	// Clear the "started on this very tick" flag. Done in a pass of its own once every event has
 	// ticked, rather than by the event itself -- see Game::RunEventTick.
 	void ClearJustStarted() { justStarted = false; }
+	// Whether this event started on the tick now finishing -- what ClearJustStarted clears. Lets a
+	// caller skip the call entirely when there is nothing to clear.
+	bool JustStarted() const { return justStarted; }
+	// Whether ticking this event could do anything at all. A game's events are mostly dormant at
+	// any given moment, and every one of them is offered a tick twice per turn.
+	bool TickWouldDoNothing() const {
+		return nextCommand == Command::None && !justStarted &&
+			(state == State::NotYetStarted || state == State::Paused || state == State::Finished);
+	}
 
 	Util::Range &GetDuration() { return duration; }
 	int32_t GetTimeSinceStart() const { return timeSinceStart; }

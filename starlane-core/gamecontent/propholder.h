@@ -49,10 +49,16 @@ public:
 		return props->intValued.count(key) > 0 || props->strValued.count(key) > 0;
 	}
 
+	// Both check first. Writing a value that is already there would otherwise detach this holder's
+	// shared property table (see `props` below) to change nothing at all.
 	virtual void SetPropValue(const std::string &key, int64_t value) {
+		auto it = props->intValued.find(key);
+		if (it != props->intValued.end() && it->second == value) return;
 		MutableProps().intValued[key] = value;
 	}
 	virtual void SetPropValue(const std::string &key, const std::string &value) {
+		auto it = props->strValued.find(key);
+		if (it != props->strValued.end() && it->second == value) return;
 		MutableProps().strValued[key] = value;
 	}
 

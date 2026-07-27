@@ -155,10 +155,12 @@ void GameObj::MoveTo(const std::string &newParent, HoldingType newRelation) {
 	parent = newParent == "Hidden" ? "" : newParent;
 	relation = newRelation;
 
-	// Anyone watching this object arrive at its new position has now seen it.
+	// Anyone watching this object arrive at its new position has now seen it. Checking HasSeen
+	// before CanSee: the former is a hash lookup and the latter walks the containment chain, and
+	// most characters have seen most things by the time a game is under way.
 	for (GameObj *o: Game::Get()->GetAllObjects()) {
 		auto *c = AsCharacter(o);
-		if (c && c->CanSee(key))
+		if (c && !c->HasSeen(key) && c->CanSee(key))
 			c->MarkSeen(key);
 	}
 }

@@ -350,7 +350,7 @@ void Game::Begin() {
 	// set so that an event doesn't also age on the tick it started; carried out of load and into
 	// the first real tick, that would have every immediate event sit out turn one.
 	for (Event *evt : events)
-		evt->ClearJustStarted();
+		if (evt->JustStarted()) evt->ClearJustStarted();
 	// Walks that begin active start now, after the events, as in ADRIFT. Starting one moves its
 	// character to the walk's first step and may run its opening sub-walks.
 	for (GameObj *o : objects)
@@ -436,7 +436,9 @@ void Game::RunEventTick(bool realTime) {
 	} runningGuard(this);
 	for (Event *evt : events) {
 		if (!gameHasBegun) break;
-		if (evt->IsRealTime() == realTime) evt->IncrementTimer();
+		if (evt->IsRealTime() == realTime) {
+			if (!evt->TickWouldDoNothing()) evt->IncrementTimer();
+		}
 		// A turn-based event's seconds-measured subevents ride the wall clock on their own,
 		// independently of the turn clock the rest of the event runs on -- so they get serviced
 		// on the real-time pass even though the event itself doesn't tick there.
@@ -447,7 +449,7 @@ void Game::RunEventTick(bool realTime) {
 	// "don't age on the turn you started" flag survived into the next tick, that event would sit
 	// out a turn it ought to have counted.
 	for (Event *evt : events) {
-		if (evt->IsRealTime() == realTime) evt->ClearJustStarted();
+		if (evt->IsRealTime() == realTime && evt->JustStarted()) evt->ClearJustStarted();
 	}
 }
 
