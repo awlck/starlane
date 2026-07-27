@@ -447,3 +447,16 @@
       exactly one -- being "alone with" two people is not a thing -- so with more than one present
       it returns nothing. Ours now does the same, which also makes the answer independent of the
       order the world is walked in.
+- [x] a Variable now holds its values in one `std::variant<vector<int64_t>, vector<string>>` rather
+      than a vector of each, and shares them copy-on-write. A game has hundreds of variables and
+      the whole lot was deep-copied into an undo snapshot every turn while a turn changes a handful
+      at most; a text variable's array of strings was the single most expensive thing in that copy.
+      The variant is the natural fit for "numbers or text, never both": a subclassing scheme would
+      need a virtual clone (Game's copy constructor builds a Variable with `new Variable(*v)`) and
+      virtual dispatch on every read, to express a distinction every caller already switches on at
+      run time -- and `Variable` stays a concrete type this way, so nothing outside variable.h
+      changes. Asking for the kind a variable hasn't got now throws `std::bad_variant_access` where
+      indexing the empty unused vector threw `std::out_of_range`; neither is a `std::runtime_error`,
+      so both land in the same handlers. About 15% off peak memory for a variable-heavy game;
+      the CPU saving is smaller (~2%), since what is left of a snapshot is the per-object and
+      per-variable allocation itself rather than what they contain.
