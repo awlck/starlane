@@ -196,7 +196,7 @@ void Character::NotifyWalk(int32_t idx, Util::Control::Condition cond, const std
 
 void Character::WriteState(Save::Writer &writer) const {
 	GameObj::WriteState(writer);
-	writer.WriteSortedKV("seen", seenStorage);
+	writer.WriteSortedKV("seen", *seenStorage);
 	writer.BeginNamedCompound("walks");
 	for (size_t i = 0; i < walks.size(); i++) {
 		writer.BeginNamedCompound(std::to_string(i).c_str());
@@ -210,9 +210,9 @@ bool Character::RestoreState(const Save::AstNode *node) {
 	if (!GameObj::RestoreState(node)) return false;
 	const auto *seenNode = node->FindChildByName("seen");
 	if (!seenNode) return false;
-	seenStorage.clear();
+	MutableSeen().clear();
 	ITERATE_CHILDREN(seenNode, s) {
-		seenStorage.insert(s->Str);
+		MutableSeen().insert(s->Str);
 	}
 	const auto *walksNode = node->FindChildByName("walks");
 	if (!walksNode) return false;
@@ -240,7 +240,7 @@ void Character::MakeMatchExpr() {
 			expr += n;
 		}
 		expr += ") ?)+";
-		return std::regex(expr, std::regex_constants::icase);
+		return std::make_shared<const std::regex>(expr, std::regex_constants::icase);
 	};
 
 	auto properNameComponents = Util::SplitString(properName, " ");

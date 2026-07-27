@@ -381,7 +381,9 @@ std::string Location::DirectionTo(const std::string &locKey) const {
 void Location::MakeMatchExpr() {
 	// This expression requires a string to both begin and not begin with the letter x,
 	// thus it can never match.
-	matchRegex = std::regex("^(?!x)x");
+	// The same "matches nothing" pattern for every location in the game, so they all share one.
+	static const auto kMatchesNothing = std::make_shared<const std::regex>("^(?!x)x");
+	matchRegex = kMatchesNothing;
 }
 
 }

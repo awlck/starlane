@@ -450,7 +450,7 @@ void GameObj::MakeMatchExpr() {
 		expr += n;
 	}
 	expr += ") ?)+";
-	matchRegex = std::regex(expr, std::regex_constants::icase);
+	matchRegex = std::make_shared<const std::regex>(expr, std::regex_constants::icase);
 }
 
 }

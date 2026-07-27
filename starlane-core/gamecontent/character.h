@@ -6,6 +6,7 @@
 #include "gameobj.h"
 
 #include <cstdint>
+#include <memory>
 #include <string>
 #include <unordered_set>
 #include <vector>
@@ -33,7 +34,7 @@ public:
 	// Always returns the descriptor, regardless of the status of the `Known` property.
 	std::string GetDescriptor() const { return GameObj::GetDisplayName(); }
 	std::string GetDescription(bool forDisplay = true) const override;
-	const std::regex &GetMatchExpr() const override { return GetBoolProp("Known") ? matchWhenKnownRegex : matchRegex; };
+	const std::regex &GetMatchExpr() const override { return *(GetBoolProp("Known") ? matchWhenKnownRegex : matchRegex); };
 	// Besides the article/prefix/nouns the base class checks, a character also answers to its
 	// proper name when disambiguating (e.g. "Which guard? George or the other guard.").
 	bool MatchesNameWord(const std::string &word) const override;
@@ -44,9 +45,12 @@ public:
 	// Whether this character can currently see the object in question.
 	bool CanSee(const std::string &key) const;
 	// Whether this character has ever seen the object in question.
-	bool HasSeen(const std::string &key) const { return seenStorage.count(key) > 0; }
+	bool HasSeen(const std::string &key) const { return seenStorage->count(key) > 0; }
 	// Note that this character has (at some point) seen the object in question.
-	void MarkSeen(const std::string &key) { seenStorage.insert(key); }
+	void MarkSeen(const std::string &key) {
+		if (seenStorage->count(key) > 0) return;  // nothing to do, and nothing to pay for
+		MutableSeen().insert(key);
+	}
 	// Mark everything this character can currently see (including its location and
 	// itself) as seen. Called whenever the character arrives somewhere new.
 	void MarkVisibleAsSeen();
@@ -85,11 +89,20 @@ private:
 	Character() : GameObj(Kind::Character) {}
 
 	std::string properName;
-	std::unordered_set<std::string> seenStorage;
+	// Everything this character has laid eyes on. Copy-on-write: it grows towards one entry per
+	// object in the game and is copied into every undo snapshot, but a turn adds to it rarely.
+	std::shared_ptr<std::unordered_set<std::string>> seenStorage =
+		std::make_shared<std::unordered_set<std::string>>();
+	std::unordered_set<std::string> &MutableSeen() {
+		if (seenStorage.use_count() > 1)
+			seenStorage = std::make_shared<std::unordered_set<std::string>>(*seenStorage);
+		return *seenStorage;
+	}
 	std::vector<Walk> walks;
 
 	void MakeMatchExpr() override;
-	std::regex matchWhenKnownRegex;
+	// The variant used once this character is Known; shared like GameObj::matchRegex.
+	std::shared_ptr<const std::regex> matchWhenKnownRegex = std::make_shared<const std::regex>();
 };
 
 // The Character this object is, or nullptr if it is not one. Replaces dynamic_cast for what is

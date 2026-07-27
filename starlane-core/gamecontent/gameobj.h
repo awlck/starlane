@@ -49,7 +49,7 @@ public:
 	bool GetBoolProp(const std::string &key) const override;
 	const std::unordered_map<std::string, std::string> &GetAllStrProps() const override;
 	const std::unordered_map<std::string, int64_t> &GetAllIntProps() const override;
-	virtual const std::regex &GetMatchExpr() const { return matchRegex; }
+	virtual const std::regex &GetMatchExpr() const { return *matchRegex; }
 	// Whether `word` (matched case-insensitively) is one of this object's naming words for
 	// disambiguation purposes: its article, one of its prefix (adjective) words, or one of its
 	// nouns. Deliberately distinct from GetMatchExpr(), whose pattern requires a noun and so
@@ -191,8 +191,12 @@ protected:
 	DescrRef description;
 	// The keys of all the groups this object is a member of.
 	std::unordered_set<std::string> groupMembership;
-	// A regular expression that matches this object's name.
-	std::regex matchRegex;
+	// A regular expression that matches this object's name. Held by pointer and shared rather than
+	// held by value: a std::regex copy is a deep copy of the compiled state machine, every object
+	// in the world is cloned into the undo snapshot each turn, and this only ever changes when
+	// MakeMatchExpr recompiles it (a rename, or the player switching character). Never written
+	// through -- MakeMatchExpr replaces the pointer -- so sharing it needs no copy-on-write dance.
+	std::shared_ptr<const std::regex> matchRegex = std::make_shared<const std::regex>();
 	virtual void MakeMatchExpr();
 
 	// A name component can itself hold a %function% call -- Return to the Stars names its rifle
