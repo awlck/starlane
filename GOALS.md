@@ -173,9 +173,22 @@
       decimal Windows OLE_COLOR format (`0x00BBGGRR`) into the packed `0xRRGGBB` used elsewhere in
       Starlane (Qt's QColor, Glk's zcolor extension). "scoring enabled" is not yet exposed --
       nothing in the engine tracks a score at all yet.
-- [ ] core: expose whether the game has scoring enabled (once scoring itself is implemented)
+- [x] core: expose whether the game has scoring enabled. `Starlane::StatusBar` gained `score`
+      (`int32_t`) and `scoringUsed` (`bool`); `Game::GetStatusBar` sets `scoringUsed` from whether
+      a positive `MaxScore` variable exists (matching the Runner's own `Adventure.MaxScore > 0`
+      check in `clsUserSession.UpdateStatusBar`), independent of whether `Score` itself is present.
 - [ ] core: explicitly handle divide-by-zero instead of displaying the internal error message.
-- [ ] implement the status bar in the Qt frontend
+- [x] implement the status bar in the Qt frontend. `MainWindow` adds three widgets to
+      `QMainWindow::statusBar()`: `locationLabel` and `userStatusLabel` (the latter with stretch
+      factor 1, so it fills the remaining space) via `addWidget`, and `scoreLabel` -- shown only
+      when `Starlane::StatusBar::scoringUsed` is true -- via `addPermanentWidget` (the right-hand,
+      "Score: N" segment). All three use `Qt::PlainText`, not `OutputFormatter`'s tag parsing,
+      matching the original Runner's own `StatusBarPanel`-based `UpdateStatusBar`, which has no
+      rich-text support either. Refreshed via `MainWindow::UpdateStatusBar()` at every call site
+      that already calls `UpdateActionState()` (`RunBeginGame`, `HandleTimeTick`, `SubmitCommand`,
+      `RestoreGameTriggered`), matching `GetStatusBar()`'s own "call after every
+      Begin()/ProcessInput()/TimeTick()" doc comment. Verified against two test games, one with
+      scoring (score segment shown and updates) and one without (segment absent).
 - [x] fix and fully implement text formatting in the Qt frontend.
       Replaced the old insertHtml()-based approach with a hand-rolled parser (OutputFormatter) that
       applies formatting directly via QTextCursor/QTextCharFormat/QTextBlockFormat, since ADRIFT's tag

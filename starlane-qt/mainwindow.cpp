@@ -19,6 +19,7 @@
 #include <QtWidgets/QMenu>
 #include <QtWidgets/QMenuBar>
 #include <QtWidgets/QMessageBox>
+#include <QtWidgets/QStatusBar>
 
 MainWindow::MainWindow() : QMainWindow(nullptr) {
 	setWindowTitle(QStringLiteral("Starlane"));
@@ -52,8 +53,24 @@ MainWindow::MainWindow() : QMainWindow(nullptr) {
 
 	qApp->installEventFilter(this);
 
+	// StatusBarPanel (the WinForms control the original ADRIFT Runner uses for these) has no rich
+	// text support, and the Runner's own UpdateStatusBar() assigns location/userStatus to it
+	// verbatim -- so, matching that, these show Starlane::StatusBar's fields as plain text rather
+	// than running them through OutputFormatter's tag parsing.
+	locationLabel = new QLabel;
+	locationLabel->setTextFormat(Qt::PlainText);
+	userStatusLabel = new QLabel;
+	userStatusLabel->setTextFormat(Qt::PlainText);
+	scoreLabel = new QLabel;
+	scoreLabel->setTextFormat(Qt::PlainText);
+	scoreLabel->hide();  // no score segment until a game says it uses scoring
+	statusBar()->addWidget(locationLabel);
+	statusBar()->addWidget(userStatusLabel, 1);
+	statusBar()->addPermanentWidget(scoreLabel);
+
 	CreateMenus();
 	UpdateActionState();
+	UpdateStatusBar();
 
 	formatter->BeginBatch();
 	formatter->AppendText(QStringLiteral("Welcome to Starlane. Use <b>File → Open Game...</b> to load a game."));
@@ -80,6 +97,24 @@ void MainWindow::UpdateActionState() {
 	replayAction->setEnabled(ongoing && !isReplaying);
 }
 
+void MainWindow::UpdateStatusBar() {
+	Starlane::StatusBar sb;
+	if (!Starlane::GetStatusBar(sb)) {
+		locationLabel->clear();
+		userStatusLabel->clear();
+		scoreLabel->hide();
+		return;
+	}
+	locationLabel->setText(QString::fromUtf8(sb.location.c_str()));
+	userStatusLabel->setText(QString::fromUtf8(sb.userStatus.c_str()));
+	if (sb.scoringUsed) {
+		scoreLabel->setText(tr("Score: %1").arg(sb.score));
+		scoreLabel->show();
+	} else {
+		scoreLabel->hide();
+	}
+}
+
 void MainWindow::ApplyGameInfo() {
 	Starlane::GameInfo info;
 	if (Starlane::GetGameInfo(&info)) {
@@ -100,6 +135,7 @@ void MainWindow::RunBeginGame() {
 	Starlane::BeginGame();
 	formatter->EndBatch();
 	UpdateActionState();
+	UpdateStatusBar();
 }
 
 void MainWindow::HandleTimeTick() {
@@ -107,6 +143,7 @@ void MainWindow::HandleTimeTick() {
 	Starlane::TimeTick();
 	formatter->EndBatch();
 	UpdateActionState();
+	UpdateStatusBar();
 }
 
 void MainWindow::OutputText(const char *txt) {
@@ -158,6 +195,7 @@ void MainWindow::SubmitCommand(const QString &cmd) {
 	Starlane::ProcessInput(cmd.toStdString());
 	formatter->EndBatch();
 	UpdateActionState();
+	UpdateStatusBar();
 }
 
 void MainWindow::InputReturnPressed() {
@@ -183,6 +221,7 @@ void MainWindow::RestoreGameTriggered() {
 	Starlane::RestoreGame();
 	formatter->EndBatch();
 	UpdateActionState();
+	UpdateStatusBar();
 }
 
 void MainWindow::ToggleTranscript() {

@@ -9,6 +9,7 @@
 #include <QtCore/QTimer>
 #include <QtGui/QAction>
 #include <QtWidgets/QVBoxLayout>
+#include <QtWidgets/QLabel>
 #include <QtWidgets/QLineEdit>
 #include <QtWidgets/QMainWindow>
 #include <QtWidgets/QTextBrowser>
@@ -60,6 +61,14 @@ private:
 	QAction *replayAction;
 	bool transcribing = false;
 
+	// The three segments of Starlane::StatusBar, left to right: current location (fixed width),
+	// an author-defined segment (stretches to fill the remaining space), and -- only shown for
+	// games that use scoring -- the current score, in the status bar's permanent (right-aligned)
+	// area.
+	QLabel *locationLabel;
+	QLabel *userStatusLabel;
+	QLabel *scoreLabel;
+
 	// Set while ReplayCommandsTriggered() is feeding commands from a file, so the <waitkey>
 	// handler knows not to block the replay on player input that isn't coming.
 	bool isReplaying = false;
@@ -71,6 +80,10 @@ private:
 	void CreateMenus();
 	// Enables/disables the game-dependent menu actions based on Starlane::GameIsOngoing().
 	void UpdateActionState();
+	// Refreshes the status bar from Starlane::GetStatusBar(). Per that function's own doc comment,
+	// call this after every BeginGame()/ProcessInput()/TimeTick() -- i.e. everywhere
+	// UpdateActionState() is already called.
+	void UpdateStatusBar();
 
 	// Sends `cmd` to the game as if the player had typed it: echoes it to the output, then runs
 	// it through Starlane::ProcessInput() with the usual output-batch bookkeeping.
