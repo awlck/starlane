@@ -12,6 +12,7 @@
 #include <QtCore/QTextStream>
 #include <QtGui/QKeyEvent>
 #include <QtGui/QMouseEvent>
+#include <QtGui/QPalette>
 #include <QtWidgets/QApplication>
 #include <QtWidgets/QFileDialog>
 #include <QtWidgets/QMenu>
@@ -25,6 +26,13 @@ MainWindow::MainWindow() : QMainWindow(nullptr) {
 	auto *box = new QVBoxLayout;
 
 	output = new QTextBrowser;
+	// Pure black, deliberately darker than the rest of the app's dark theme (see ApplyDarkTheme()
+	// in starlane.cpp) -- ADRIFT authors pick their InputColour/OutputColour assuming a true-black
+	// background, not merely "a dark one", and the contrast also helps set the output pane apart
+	// from the input line and window chrome around it.
+	QPalette outputPalette = output->palette();
+	outputPalette.setColor(QPalette::Base, Qt::black);
+	output->setPalette(outputPalette);
 
 	input = new QLineEdit;
 	input->setPlaceholderText(">");

@@ -139,22 +139,30 @@ void CloseFile(void *hFile) {
 // their author intended rather than merely "as readable as they happen to be on white". Fusion
 // (rather than the native style) is what makes a custom QPalette take effect consistently across
 // platforms -- some native styles otherwise ignore several of these roles.
+//
+// Only the output pane (MainWindow's `output`, forced separately to pure black -- see its
+// constructor) needs to actually be Color.Black; everywhere else just needs to look clearly
+// distinct from it and from each other, so the window chrome, the input line, and the output pane
+// don't all blur into one shapeless black rectangle. Window/Button/AlternateBase get the
+// lightest shade (general chrome); Base -- the input line's background -- sits a step darker,
+// between that and the output pane's true black.
 void ApplyDarkTheme() {
 	qApp->setStyle(QStyleFactory::create("Fusion"));
 	QPalette pal;
-	pal.setColor(QPalette::Window, Qt::black);
+	pal.setColor(QPalette::Window, QColor(53, 53, 53));
 	pal.setColor(QPalette::WindowText, Qt::white);
-	pal.setColor(QPalette::Base, Qt::black);
-	pal.setColor(QPalette::AlternateBase, QColor(30, 30, 30));
+	pal.setColor(QPalette::Base, QColor(25, 25, 25));
+	pal.setColor(QPalette::AlternateBase, QColor(53, 53, 53));
 	pal.setColor(QPalette::ToolTipBase, Qt::white);
 	pal.setColor(QPalette::ToolTipText, Qt::white);
 	pal.setColor(QPalette::Text, Qt::white);
-	pal.setColor(QPalette::Button, QColor(30, 30, 30));
+	pal.setColor(QPalette::Button, QColor(53, 53, 53));
 	pal.setColor(QPalette::ButtonText, Qt::white);
 	pal.setColor(QPalette::BrightText, Qt::red);
 	pal.setColor(QPalette::Link, QColor(100, 180, 255));
 	pal.setColor(QPalette::Highlight, QColor(45, 90, 140));
 	pal.setColor(QPalette::HighlightedText, Qt::white);
+	pal.setColor(QPalette::PlaceholderText, Qt::lightGray);
 	pal.setColor(QPalette::Disabled, QPalette::Text, QColor(120, 120, 120));
 	pal.setColor(QPalette::Disabled, QPalette::WindowText, QColor(120, 120, 120));
 	pal.setColor(QPalette::Disabled, QPalette::ButtonText, QColor(120, 120, 120));
