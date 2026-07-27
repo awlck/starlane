@@ -184,12 +184,12 @@ std::pair<bool, DescrRef> Restriction::PassRestrictionBlock(size_t &tidx, size_t
 			}
 			if (passed) {
 				state = { true, 0 };
-			} else if (txt && !Game::Get()->GetDescription(txt)->Build(false).empty()) {
+			} else if (txt && !Game::Get()->GetDescription(txt)->Build().empty()) {
 				// If the failure message was overridden and the override message doesn't
 				// come out empty, use that.
 				state = { false, txt };
 				// ... but still mark the original text as displayed.
-				(void) Game::Get()->GetDescription(restrs[ridx].failureMsg)->Build(true);
+				(void) Game::Get()->GetDescription(restrs[ridx].failureMsg)->BuildAndCommit();
 			} else {
 				state = { false, restrs[ridx].failureMsg };
 			}
@@ -269,7 +269,7 @@ bool Restriction::Single::PassImpl(DescrRef *out, bool ignoreUnsetRefs) const {
 				strVal = obj->GetStrProp(prop);
 				break;
 			case Property::ValueType::Text:
-				strVal = Game::Get()->GetDescription(obj->GetIntProp(prop))->Build(false);
+				strVal = Game::Get()->GetDescription(obj->GetIntProp(prop))->Build();
 				break;
 			default:
 				throw std::runtime_error("Invalid property type while evaluating restriction.");

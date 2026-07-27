@@ -71,7 +71,20 @@ void Description::HandleSegmentShown(size_t idx) {
 		SetShown(i, false);
 }
 
-std::string Description::Build(bool commit, const UserFuncContext *context, bool rawExpressions) {
+std::string Description::Build(const UserFuncContext *context, bool rawExpressions) const {
+	// BuildImpl only ever touches this object when `commit` is set, and it is not set here, so
+	// there is nothing for the cast to make unsafe. The two entry points share one implementation
+	// because committing is interleaved with rendering rather than following it: marking a segment
+	// shown can clear the flags of segments to its left (see HandleSegmentShown), which changes
+	// which of the later ones are still eligible.
+	return const_cast<Description *>(this)->BuildImpl(false, context, rawExpressions);
+}
+
+std::string Description::BuildAndCommit(const UserFuncContext *context) {
+	return BuildImpl(true, context, /*rawExpressions =*/ false);
+}
+
+std::string Description::BuildImpl(bool commit, const UserFuncContext *context, bool rawExpressions) {
 	// The ADRIFT Runner's way of handling descriptions goes something like this:
 	// "Build the text. If some segment wants to be first and passes restrictions,
 	//  throw the already-built text away and start over."

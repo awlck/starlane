@@ -774,7 +774,7 @@ Expr::Value Expression::EvalItemfuncSingle(const std::string &key, const Expr::V
 		case Property::ValueType::Object:
 			return theObj->GetStrProp(toCall_.Str);
 		case Property::ValueType::Text:
-			return g->GetDescription(theObj->GetIntProp(toCall_.Str))->Build();
+			return g->GetDescription(theObj->GetIntProp(toCall_.Str))->BuildAndCommit();
 	}
 	return Expr::Value();
 }

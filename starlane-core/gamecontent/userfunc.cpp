@@ -29,7 +29,7 @@ UserFunction *UserFunction::CreateFromXML(const pugi::xml_node &xmlNode) {
 }
 
 std::string UserFunction::Evaluate(const UserFuncContext &args) const {
-	return Game::Get()->GetDescription(output)->Build(true, &args);
+	return Game::Get()->GetDescription(output)->BuildAndCommit(&args);
 }
 
 }  // namespace Starlane

@@ -71,13 +71,13 @@ void GameObj::CompileNameExpressions() {
 
 std::string GameObj::DisplayPrefix() const {
 	if (prefixExpr == 0) return prefix;
-	return Game::Get()->GetDescription(prefixExpr)->Build(false);
+	return Game::Get()->GetDescription(prefixExpr)->Build();
 }
 
 std::string GameObj::DisplayNoun() const {
 	if (nouns->empty()) return "";
 	if (nameExpr == 0) return (*nouns)[0];
-	return Game::Get()->GetDescription(nameExpr)->Build(false);
+	return Game::Get()->GetDescription(nameExpr)->Build();
 }
 
 std::string GameObj::GetDisplayName(bool defArt) const {
@@ -178,7 +178,8 @@ GameObj *GameObj::Clone() const {
 }
 
 std::string GameObj::GetDescription(bool forDisplay) const {
-	return Game::Get()->GetDescription(description)->Build(forDisplay);
+	auto *d = Game::Get()->GetDescription(description);
+	return forDisplay ? d->BuildAndCommit() : d->Build();
 }
 
 std::string GameObj::GetListOfChildren(GameObj::ChildFilter f1, GameObj::ChildRelFilter f2, bool recurse) const {

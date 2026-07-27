@@ -530,7 +530,7 @@ bool Game::RunTaskAndCapture(Task *task, bool showText, bool runActions) {
 			// Out-of-command path (event, walk, triggered task): unchanged from before -- build and
 			// commit the message now (so a sequential/return-to-default description advances its
 			// shown-state as it always did), dedup on the evaluated text turn-wide, emit immediately.
-			std::string text = desc->Build();
+			std::string text = desc->BuildAndCommit();
 			if (!text.empty()) anyText = true;
 			if (completionMessagesThisTurn.insert(text).second)
 				OutputFiltered(std::move(text));
@@ -540,7 +540,7 @@ bool Game::RunTaskAndCapture(Task *task, bool showText, bool runActions) {
 		// Buffering: the message is rendered (and its shown-state committed) once, at flush time; here
 		// we only measure whether it has anything to say -- which drives Specific-override /
 		// AlwaysContinues control flow -- without committing, using commit=false.
-		std::string evaluated = desc->Build(false);
+		std::string evaluated = desc->Build();
 		if (!evaluated.empty()) anyText = true;
 		// Nothing to say: record nothing (mirrors ADRIFT's bHasOutput filter).
 		if (evaluated.empty()) return;
@@ -669,7 +669,7 @@ void Game::ExecuteTaskByKey(const std::string &key, const std::vector<std::strin
 	auto result = task->CheckRestrictions();
 	if (!result.first) {
 		if (result.second != 0)
-			OutputFiltered(GetDescription(result.second)->Build());
+			OutputFiltered(GetDescription(result.second)->BuildAndCommit());
 		return;
 	}
 	// A task reached through an "Execute" action still gets its Specific overrides applied,
@@ -739,7 +739,7 @@ void Game::ExecuteMatchedTask(Task *general) {
 
 		auto parentResult = general->CheckRestrictions();
 		if (!parentResult.first)
-			OutputFiltered(parentResult.second != 0 ? GetDescription(parentResult.second)->Build() : "You can't do that right now.\n");
+			OutputFiltered(parentResult.second != 0 ? GetDescription(parentResult.second)->BuildAndCommit() : "You can't do that right now.\n");
 		else
 			RunTaskWithSpecifics(general, currentMatchedRefTokens);
 
@@ -768,7 +768,7 @@ void Game::FlushResponseBuffer(ResponseBuffer &buffer) {
 			if (keys.size() < 2) continue;
 			currentRefs[name] = JoinKeys(keys);
 		}
-		std::string text = GetDescription(resp.descr)->Build();
+		std::string text = GetDescription(resp.descr)->BuildAndCommit();
 		currentRefs = std::move(savedRefs);
 		// Record it against the turn-wide set so a later out-of-command message (a triggered task or
 		// event this turn) with the same text stays suppressed, as it was before buffering existed.
@@ -807,7 +807,7 @@ void Game::RunTaskWithSpecifics(Task *general, const std::vector<std::string> &r
 		} else if (childResult.second != 0) {
 			// The child failed, but produced restriction-failure text of its own: that takes
 			// precedence over the parent, same as if the child had passed.
-			std::string text = GetDescription(childResult.second)->Build();
+			std::string text = GetDescription(childResult.second)->BuildAndCommit();
 			childHadSomethingToSay = !text.empty();
 			OutputFiltered(std::move(text));
 			if (childHadSomethingToSay) {
@@ -829,7 +829,7 @@ void Game::RunTaskWithSpecifics(Task *general, const std::vector<std::string> &r
 		if (childResult.first) {
 			childHadSomethingToSay = RunTaskAndCapture(child);
 		} else if (childResult.second != 0) {
-			std::string text = GetDescription(childResult.second)->Build();
+			std::string text = GetDescription(childResult.second)->BuildAndCommit();
 			childHadSomethingToSay = !text.empty();
 			OutputFiltered(std::move(text));
 		}

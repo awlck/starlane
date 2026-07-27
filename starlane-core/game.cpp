@@ -308,7 +308,7 @@ void Game::Begin() {
 		}
 	}
 	if (staticData->gameIntro != 0) {
-		std::string intro = GetDescription(staticData->gameIntro)->Build();
+		std::string intro = GetDescription(staticData->gameIntro)->BuildAndCommit();
 		StripSeamMarkers(intro);
 		frontend->OutputText(intro.c_str());
 	}
@@ -687,7 +687,7 @@ bool Game::GetStatusBar(StatusBar &statusBar) {
 		auto locationName = GetObject(GetPlayerLocationKey())->GetDisplayName();
 		ApplyOverrides(locationName);
 		statusBar.location = locationName;
-		auto userStatus = GetDescription(staticData->userStatusBar)->Build();
+		auto userStatus = GetDescription(staticData->userStatusBar)->BuildAndCommit();
 		ApplyOverrides(userStatus);
 		statusBar.userStatus = userStatus;
 		// MaxScore is a variable and can theoretically be changed (although I'm not sure
@@ -722,7 +722,7 @@ void Game::ApplyOverrides(std::string &t) const {
 			// tag to the same tag), which would otherwise loop forever.
 			size_t pos = 0;
 			while ((pos = t.find(f, pos)) != std::string::npos) {
-				std::string replacement(GetDescription(it.second->GetReplacement())->Build());
+				std::string replacement(GetDescription(it.second->GetReplacement())->BuildAndCommit());
 				t.replace(pos, f.size(), replacement);
 				pos += replacement.size();
 			}

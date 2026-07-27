@@ -329,7 +329,7 @@ void Event::RunSubEvent(int32_t idx) {
 			// An empty key means the message never shows at all, rather than showing everywhere:
 			// ADRIFT tests for a key before it tests where the player is, and so must we.
 			if (!se.onlyAtLocation.empty() && g->PlayerIsInLocationOrGroup(se.onlyAtLocation))
-				g->OutputFiltered(g->GetDescription(se.actionDescr)->Build());
+				g->OutputFiltered(g->GetDescription(se.actionDescr)->BuildAndCommit());
 			break;
 		case SEType::ExecuteTask:
 			// Already does nothing for a task that doesn't exist, which is ADRIFT's behaviour
@@ -349,7 +349,7 @@ void Event::RunSubEvent(int32_t idx) {
 			// when LOOK later reads it back, and an empty onlyAtLocation is pushed too -- it will
 			// simply never match anywhere once LookOverrideText goes looking (mirrors ADRIFT,
 			// which pushes unconditionally and only tests the key when the stack is read).
-			lookOverrides.emplace_back(se.onlyAtLocation, g->GetDescription(se.actionDescr)->Build());
+			lookOverrides.emplace_back(se.onlyAtLocation, g->GetDescription(se.actionDescr)->BuildAndCommit());
 			break;
 	}
 	lastSubEventTime = timeSinceStart;

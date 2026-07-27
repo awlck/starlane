@@ -390,7 +390,7 @@ void Walk::RunSubWalk(int32_t idx) {
 			// tests for the key before it tests where the player is. `descr` of 0 is the no-message
 			// sub-walk the loader leaves behind for an <Activity> with no <Action> -- nothing to show.
 			if (sw.descr != 0 && !sw.onlyAtLocation.empty() && g->PlayerIsInLocationOrGroup(sw.onlyAtLocation))
-				g->OutputFiltered(g->GetDescription(sw.descr)->Build());
+				g->OutputFiltered(g->GetDescription(sw.descr)->BuildAndCommit());
 			break;
 		case SubWhat::ExecuteTask:
 			g->ExecuteTaskByKey(sw.taskKey);
