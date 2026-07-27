@@ -231,6 +231,20 @@
       `quitOnLastWindowClosed` proceed, so it isn't left holding on to input that will never come.
       Verified both paths, plus the ordinary idle-close case, by launching the built app directly
       and confirming via `ps` that the process actually exits each time.
+- [x] Qt frontend (macOS): when a `QFileOpenEvent` arrives for a game while another is already
+      ongoing in this process, spawn a fresh instance of ourselves for it
+      (`QProcess::startDetached(QCoreApplication::applicationFilePath(), {path})`, in
+      `StarlaneApplication::event()`) rather than showing the "discard current game?"
+      confirmation and stealing focus -- `Game::Get()` (game.h) is a single global instance, so
+      the two can never coexist in one process. This isn't a Launch Services violation: "reuse
+      the running instance" is just its default routing for an open-document request (what
+      Option-double-click / `open -n` opt out of for the user), not a hard constraint against
+      multiple processes sharing a bundle identifier, and bypassing it like this doesn't confuse
+      the Dock or process bookkeeping. The confirmation dialog is kept for the "Open Game" menu
+      action (a deliberate, current-window-scoped choice) and for a FileOpen arriving with no
+      game ongoing, where loading in place is still correct. Verified with two real processes:
+      one already playing a game, `open -a` handed it a second file, and a second independent
+      process (own window, own game, no dialog) appeared while the first kept running untouched.
 - [ ] Qt frontend: actually implement StrToSentenceCase
 - [ ] implement dockable secondary windows in the Qt frontend
 - [ ] Qt frontend: redirect starlane-core debug output to a debug log window

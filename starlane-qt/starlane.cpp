@@ -1,4 +1,5 @@
-﻿#include <QtCore/QString>
+﻿#include <QtCore/QProcess>
+#include <QtCore/QString>
 #include <QtWidgets/QApplication>
 
 #include <starlane-core.h>
@@ -33,19 +34,31 @@ protected:
 	bool event(QEvent *event) override {
 		if (event->type() == QEvent::FileOpen) {
 			const auto *openEvent = static_cast<QFileOpenEvent *>(event);
-			if (theWin) {
-				// macOS reuses the already-running process for this rather than launching a
-				// second one, delivering this event to it instead -- LoadGameFile()'s existing
-				// "discard the current game?" confirmation is what actually handles that (same
-				// as picking Open Game from the menu while a game is already loaded). The window
-				// may be minimized or behind others though, so surface it explicitly: otherwise
-				// that confirmation (or the newly loaded game) could pop up unseen.
+			const QString path = openEvent->file();
+			if (!theWin) {
+				pendingOpenPath = path;
+			} else if (Starlane::GameIsOngoing()) {
+				// macOS reuses this already-running process for "open with"/double-click rather
+				// than launching a fresh one -- but Game::Get() (game.h) is a single global
+				// instance, so we can't just load a second game alongside the one already
+				// running here. Rather than steal focus and make the player choose between their
+				// current game and the one they just opened, hand this file to a brand new
+				// instance of ourselves instead, exactly as if it had been launched directly.
+				// (This is the same as Option-double-clicking, or `open -n`: macOS is fine with
+				// several processes sharing one bundle identifier, since the "reuse the running
+				// instance" behavior above is just Launch Services' default routing for an
+				// open-document request, not a hard constraint on the bundle -- going around it
+				// like this doesn't confuse Launch Services or the Dock.)
+				QProcess::startDetached(QCoreApplication::applicationFilePath(), {path});
+			} else {
+				// No game ongoing (either none loaded yet, or the last one ended and was fully
+				// quit): safe to just load it here. The window may be minimized or behind others
+				// though, so surface it explicitly -- otherwise the newly loaded game could end
+				// up showing behind other windows, unseen.
 				theWin->show();
 				theWin->raise();
 				theWin->activateWindow();
-				theWin->LoadGameFile(openEvent->file());
-			} else {
-				pendingOpenPath = openEvent->file();
+				theWin->LoadGameFile(path);
 			}
 			return true;
 		}
