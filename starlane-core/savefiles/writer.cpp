@@ -4,6 +4,8 @@
 
 #include "writer.h"
 
+#include <cstring>
+
 #include <miniz.h>
 
 #include "../error.h"
@@ -66,15 +68,30 @@ void Writer::WriteUnqouted(const char *str) {
 	}
 }
 
+// Whether this text would come back as something other than a string if it were written without
+// quotes. The lexer reads a bare word starting with a digit or '-' as an integer, and "yes"/"no"
+// as a boolean (savefiles/parser.cpp's Lex), so a text value that happens to look like one of
+// those changes type on the way back in unless it is quoted. Skybreak has text variables holding
+// "0", which is how this was found: restoring one rejected the whole save file.
+static bool WouldNotReadBackAsText(std::string_view sv) {
+	if (sv.empty()) return false;  // the empty string is quoted anyway
+	if ((sv[0] >= '0' && sv[0] <= '9') || sv[0] == '-') return true;
+	return sv == "yes" || sv == "YES" || sv == "no" || sv == "NO";
+}
+
 void Writer::WriteLiteralString(const char *str) {
 	// First pass: determine whether we need to escape this string:
-	bool needQuotes = false;
+	bool needQuotes = WouldNotReadBackAsText(str);
 	size_t cnt = 0;
-	for (const char *p = str; *p; ++p, ++cnt) {
-		if (!((*p >= 'a' && *p <= 'z') || (*p >= 'A' && *p <= 'Z') || (*p >= '0' && *p <= '9') || *p == '_') || cnt >= 64) {
-			needQuotes = true;
-			break;
+	if (!needQuotes) {
+		for (const char *p = str; *p; ++p, ++cnt) {
+			if (!((*p >= 'a' && *p <= 'z') || (*p >= 'A' && *p <= 'Z') || (*p >= '0' && *p <= '9') || *p == '_') || cnt >= 64) {
+				needQuotes = true;
+				break;
+			}
 		}
+	} else {
+		cnt = strlen(str);
 	}
 	if (cnt == 0) needQuotes = true;
 	// Now write out the string, adding quotes and escape sequences if necessary
@@ -107,7 +124,7 @@ void Writer::WriteLiteralString(const char *str) {
 
 void Writer::WriteLiteralString(const std::string_view &sv) {
 	// basically the same as the above but taking advantage of the fact that we know the length beforehand
-	bool needQuotes = (sv.size() >= 64 || sv.empty());
+	bool needQuotes = (sv.size() >= 64 || sv.empty() || WouldNotReadBackAsText(sv));
 	if (!needQuotes) {
 		for (char p : sv) {
 			if (!((p >= 'a' && p <= 'z') || (p >= 'A' && p <= 'Z') || (p >= '0' && p <= '9') || p == '_')) {

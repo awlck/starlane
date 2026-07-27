@@ -558,7 +558,7 @@ bool Game::Restore() {
 		}
 		auto *gameRevNode = metaNode->FindChildByName("game_revision");
 		auto *gameChecksumNode = metaNode->FindChildByName("game_checksum");
-		if (!gameRevNode || gameChecksumNode) return false;
+		if (!gameRevNode || !gameChecksumNode) return false;
 		if (gameRevNode->Str != staticData->gameLastUpdated || gameChecksumNode->sv.Int != staticData->gameCrc32) {
 			// todo: offer player the option to attempt restore anyways.
 			frontend->OutputText("<i>Restore failed: selected save file appears to belong to a different revision of this game.</i>");
@@ -566,7 +566,8 @@ bool Game::Restore() {
 		}
 	}
 	SaveUndo();  // so we can return in the event of a failure once game state has been modified
-	return Game::Get()->ContinueRestore(root);  // in the new instance post-save
+	// (SaveUndo files a copy away and leaves the current instance alone, so this is still `this`.)
+	return ContinueRestore(root);
 }
 
 bool Game::ContinueRestore(const Save::AstNode *root) {
@@ -656,11 +657,14 @@ bool Game::ContinueRestore(const Save::AstNode *root) {
 	{
 		const auto *tasksCompletedNode = root->FindChildByName("tasks_completed");
 		if (!tasksCompletedNode || !tasksCompletedNode->IsCollection(Save::NT_STRINGLIST)) return RollbackRestore();
+		// Save() writes only the completed ones, as a bare list of keys -- so a task's presence
+		// here is what says it is completed, and everything else stays at the zero filled in above.
+		// (A string list's members carry their text in `Str` and have no `myName`.)
 		std::fill(taskCompletedStorage.begin(), taskCompletedStorage.end(), (uint8_t) 0);
 		ITERATE_CHILDREN(tasksCompletedNode, taskNode) {
-			const auto *task = SafeMapGet(staticData->tasks, taskNode->myName);
+			const auto *task = SafeMapGet(staticData->tasks, taskNode->Str);
 			if (!task) return RollbackRestore();  // no such task
-			taskCompletedStorage[task->StateIndex()] = taskNode->sv.Bool ? 1 : 0;
+			taskCompletedStorage[task->StateIndex()] = 1;
 		}
 	}
 	// finally, discard all previous undo states because UNDOing a restore would be a bit silly

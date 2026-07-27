@@ -34,7 +34,10 @@ namespace Starlane::Save {
 // descriptions_shown already did).
 // Bumped to -992 when Events and Walks gained a saved `triggering_task` (ADRIFT's sTriggeringTask),
 // the per-cycle memory that suppresses a child task's re-trigger of a control its parent handles.
-constexpr int currentSaveFileVer = -992;
+// Bumped to -991 when text values that look like numbers or booleans ("0", "yes") started being
+// quoted: without that they read back as an int or a bool and a restore rejected the whole file.
+// Files written before this carry the ambiguity, so they are not readable either way.
+constexpr int currentSaveFileVer = -991;
 
 namespace {
 // Helper to determine whether there's a const_iterator for T.

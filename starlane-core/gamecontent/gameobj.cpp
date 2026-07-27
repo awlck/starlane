@@ -271,6 +271,9 @@ bool GameObj::RestoreState(const Save::AstNode *node) {
 	relation = tmpRelation.value();
 	const auto *grpNode = htNode->nextSibling;
 	if (!grpNode) return false;
+	// Replaced rather than added to: the file lists every group this object is in, so an object
+	// that has since left one must not keep it.
+	groupMembership.clear();
 	for (const auto *grp = grpNode->sv.Child.first; grp; grp = grp->nextSibling)
 		groupMembership.insert(grp->Str);
 	const auto *propsNode = grpNode->nextSibling;
