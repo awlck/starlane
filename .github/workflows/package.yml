@@ -36,9 +36,9 @@ jobs:
         with:
           arch: x64
 
-      - uses: jurplel/install-qt-action@v4
+      - uses: jurplel/install-qt-action@v4.3.1
         with:
-          version: ${{ env.QT_VERSION }}
+          version: 6.10.*
           host: windows
           target: desktop
           arch: win64_msvc2022_64
