@@ -93,10 +93,12 @@ SLC_API bool RestoreGame();
 struct SLC_API StatusBar {
 	std::string location;
 	std::string userStatus;
+	int32_t score;
+	bool scoringUsed;
 };
 // Get the current status bar.
 // Call this after every time you call Begin(), ProcessInput(), or TimeTick().
-SLC_API bool GetStatusBar(StatusBar *statusBar);
+SLC_API bool GetStatusBar(StatusBar &statusBar);
 
 // Bibliographic and display info about the current game, as read from the game file itself.
 struct SLC_API GameInfo {

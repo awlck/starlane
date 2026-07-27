@@ -128,7 +128,7 @@ bool RestoreGame() {
 	return g->Restore();
 }
 
-bool GetStatusBar(StatusBar *statusBar) {
+bool GetStatusBar(StatusBar &statusBar) {
 	auto *g = Game::Get();
 	if (!g) return false;
 	return g->GetStatusBar(statusBar);

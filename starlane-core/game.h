@@ -265,7 +265,7 @@ public:
 	// Restore a saved game.
 	bool Restore();
 	// Get status bar info
-	bool GetStatusBar(StatusBar *statusBar);
+	bool GetStatusBar(StatusBar &statusBar);
 	void ApplyOverrides(std::string &t) const;
 
 	ReferralPerson GetCurrentReferralPerson() const {

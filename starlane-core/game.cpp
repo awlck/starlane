@@ -660,15 +660,26 @@ bool Game::RollbackRestore() {
 	return false;
 }
 
-bool Game::GetStatusBar(StatusBar *statusBar) {
+bool Game::GetStatusBar(StatusBar &statusBar) {
 	if (!gameHasBegun) return false;
 	try {
 		auto locationName = GetObject(GetPlayerLocationKey())->GetDisplayName();
 		ApplyOverrides(locationName);
-		statusBar->location = locationName;
+		statusBar.location = locationName;
 		auto userStatus = GetDescription(staticData->userStatusBar)->Build();
 		ApplyOverrides(userStatus);
-		statusBar->userStatus = userStatus;
+		statusBar.userStatus = userStatus;
+		// MaxScore is a variable and can theoretically be changed (although I'm not sure
+		// the ADRIFT Runner would pick up on a game trying that)
+		const auto *mscore = GetVarByName("MaxScore");
+		if (mscore && mscore->GetValue<int32_t>() > 0) {
+			if (const auto *score = GetVarByName("Score"); score) {
+				statusBar.scoringUsed = true;
+				statusBar.score = score->GetValue<int32_t>();
+			} else {
+				statusBar.scoringUsed = false;
+			}
+		} else statusBar.scoringUsed = false;
 	} catch (std::exception &e) { return false; }
 	return true;
 }
