@@ -66,12 +66,12 @@ void TimeTick() {
 		return;
 	// A real-time tick advances the world just like a turn; catch anything it throws so the app
 	// doesn't die, rolling the tick back if it managed to record a snapshot before failing.
-	size_t undoBefore = Game::UndoDepth();
+	uint64_t undoBefore = Game::TopUndoGeneration();
 	try {
 		theGame->Tick();
 	} catch (const std::exception &e) {
 		LogCaught("Uncaught error during real-time tick", e);
-		if (Game::Get() && Game::UndoDepth() > undoBefore)
+		if (Game::Get() && Game::TopUndoGeneration() > undoBefore)
 			Game::Get()->RestoreUndo();
 	}
 }
@@ -80,11 +80,13 @@ void ProcessInput(const std::string &cmd) {
 	auto theGame = Game::Get();
 	if (!theGame)
 		return;
-	// The undo stack depth as it stands before the turn: if the turn records a snapshot (it does so
-	// just before running the matched task) and then throws, we roll back to that snapshot so the
-	// half-applied turn doesn't stick. A throw from before the snapshot -- e.g. while merely testing
-	// task restrictions, which mutate nothing -- leaves the world clean, so there is nothing to undo.
-	size_t undoBefore = Game::UndoDepth();
+	// Which undo state was newest before the turn: if the turn records one (it does so just before
+	// running the matched task) and then throws, we roll back to it so the half-applied turn doesn't
+	// stick. A throw from before the snapshot -- e.g. while merely testing task restrictions, which
+	// mutate nothing -- leaves the world clean, so there is nothing to undo. A mid-turn UNDO or
+	// RESTART leaves the newest generation lower than it was, not higher, so neither is mistaken for
+	// a snapshot this turn recorded.
+	uint64_t undoBefore = Game::TopUndoGeneration();
 	try {
 		theGame->ProcessInput(cmd);
 	} catch (const std::exception &e) {
@@ -92,7 +94,7 @@ void ProcessInput(const std::string &cmd) {
 		// Get() may name a different instance than `theGame` now: a mid-turn RESTART/UNDO can swap
 		// or delete the game before the throw. Operate only on whatever is current.
 		bool rolledBack = false;
-		if (Game::Get() && Game::UndoDepth() > undoBefore) {
+		if (Game::Get() && Game::TopUndoGeneration() > undoBefore) {
 			Game::Get()->RestoreUndo();
 			rolledBack = true;
 		}

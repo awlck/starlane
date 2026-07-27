@@ -87,6 +87,7 @@ bool AutoCapitalize(std::string &s) {
 Game *Game::theGame = nullptr;
 std::deque<Game *> Game::undoStates;
 Game *Game::startupState = nullptr;
+uint64_t Game::undoGenerationCounter = 0;
 bool Game::inputInFlight = false;
 
 /* Copy constructor for game instances. Needs to create copies of all
@@ -219,6 +220,7 @@ size_t Game::TaskStateIndex(const std::string &key) const {
 
 void Game::SaveUndo() {
 	auto storedGame = new Game(*this);
+	storedGame->undoGeneration = ++undoGenerationCounter;
 	undoStates.push_back(storedGame);
 	while (undoStates.size() > kMaxUndoStates)
 		DiscardUndo();

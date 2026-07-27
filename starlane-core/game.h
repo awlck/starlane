@@ -268,8 +268,15 @@ public:
 	static void DiscardUndo();
 	// Is there at least one undo state available?
 	bool UndoAvailable() const { return !undoStates.empty(); }
-	// Number of saved undo states. Used by the top-level backstop (starlane-core.cpp) to tell
-	// whether a turn recorded a snapshot before it threw, and hence whether to roll it back.
+	// Identifies the newest saved undo state, or 0 when there is none. Used by the top-level
+	// backstop (starlane-core.cpp) to tell whether a turn recorded a snapshot before it threw, and
+	// hence whether to roll it back: the counter only ever goes up, so a value *greater* than the
+	// one read before the turn means "a state recorded during this turn is still the newest one".
+	// A plain count will not do -- SaveUndo pushes before trimming to kMaxUndoStates, so once the
+	// history is full the depth is the same before and after and a failed turn was never rolled
+	// back.
+	static uint64_t TopUndoGeneration() { return undoStates.empty() ? 0 : undoStates.back()->undoGeneration; }
+	// Number of saved undo states, for anything that genuinely wants the count.
 	static size_t UndoDepth() { return undoStates.size(); }
 	// Restart the game.
 	void Restart();
@@ -683,6 +690,11 @@ private:
 	static Game *theGame;
 	// The list of former game states maintained for use with the UNDO command.
 	static std::deque<Game *> undoStates;
+	// Which SaveUndo recorded this state; 0 for a state that is not on the undo list. See
+	// TopUndoGeneration.
+	uint64_t undoGeneration = 0;
+	// Handed out by SaveUndo, never reused.
+	static uint64_t undoGenerationCounter;
 	// How many of them to keep around: each one is a full copy of the mutable game state, so
 	// they are not cheap. (ADRIFT 5 settles on 100 as well.)
 	static constexpr size_t kMaxUndoStates = 100;
