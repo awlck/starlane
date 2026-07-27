@@ -19,10 +19,16 @@
 
 class OutputFormatter {
 public:
-	// The command colour used for both echoed player input and <c> tags.
+	// The command colour used for both echoed player input and <c> tags: the current game's own
+	// InputColour, if it specifies one, or a default red otherwise.
 	static QColor CommandColor();
 
 	OutputFormatter(QTextBrowser *browser, std::function<void()> waitKeyHandler);
+
+	// Re-derives the base text color/font from the current game's FontName/OutputColour, if it
+	// specifies any. Call once after CreateGame() (and before the first output) -- none of that is
+	// known yet when the formatter is constructed alongside the rest of the window.
+	void ApplyGameDefaults();
 
 	// Called before the first OutputText call of a new "batch" (BeginGame(),
 	// ProcessInput(), or TimeTick()): resets formatting to defaults (ADRIFT's

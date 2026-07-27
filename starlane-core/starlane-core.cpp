@@ -98,7 +98,7 @@ void ProcessInput(const std::string &cmd) {
 		}
 		if (Game *now = Game::Get())
 			now->OutputFiltered(rolledBack
-				? "An internal error occurred; the last action was undone.\n"
+				? "An internal error occurred; the attempted action was undone.\n"
 				: "An internal error occurred.\n");
 	}
 }
@@ -132,5 +132,20 @@ bool GetStatusBar(StatusBar *statusBar) {
 	auto *g = Game::Get();
 	if (!g) return false;
 	return g->GetStatusBar(statusBar);
+}
+
+bool GetGameInfo(GameInfo *info) {
+	auto *g = Game::Get();
+	if (!g) return false;
+	info->title = g->GetTitle();
+	info->author = g->GetAuthor();
+	info->fontName = g->GetFontName();
+	auto inputColour = g->GetInputColour();
+	info->hasInputColour = inputColour.has_value();
+	info->inputColour = inputColour.value_or(0);
+	auto outputColour = g->GetOutputColour();
+	info->hasOutputColour = outputColour.has_value();
+	info->outputColour = outputColour.value_or(0);
+	return true;
 }
 }
