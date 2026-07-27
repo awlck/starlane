@@ -26,6 +26,15 @@ template<typename K, typename V> V *SafeMapGet(const std::unordered_map<K, V *> 
 	return f == map.end() ? nullptr : f->second;
 }
 
+// Look something up by key in one of the load-order tables (Game::objects and friends): the key
+// names a slot, via an index table that lives in the immutable GameStatic, and the slot holds the
+// thing. Returns nullptr for a key the game hasn't got.
+template<typename T> T *IndexedGet(const std::unordered_map<std::string, size_t> &index,
+                                   const std::vector<T *> &table, const std::string &key) {
+	auto f = index.find(key);
+	return f == index.end() ? nullptr : table[f->second];
+}
+
 enum class ReferralPerson {
 	FirstPerson,
 	SecondPerson,
@@ -66,7 +75,8 @@ class GameStatic {
 	std::unordered_map<RestrRef, Restriction *> restrictions;
 	std::unordered_map<std::string, Property *> properties;
 	std::unordered_map<std::string, Task *> tasks;
-	std::unordered_map<std::string, std::string> varNames;
+	// Variable name (lowercased) -> that variable's slot in Game::variables.
+	std::unordered_map<std::string, size_t> varNames;
 	std::unordered_map<ExprRef, Expression *> expressions;
 	std::unordered_map<std::string, UserFunction *> userFunctions;
 	std::unordered_map<std::string, std::string> userFuncNames;
@@ -81,14 +91,19 @@ class GameStatic {
 	ExecutionPolicy executionPolicy = ExecutionPolicy::HighestPrio;
 	// The mapping of file path -> Blorb resource ID, if applicable.
 	std::unordered_map<std::string, uint32_t> blorbResMap;
-	// The keys of all game objects in the order they appear in the game file, since
-	// listing objects in a stable order requires it (the objects map is unordered).
-	std::vector<std::string> objectLoadOrder;
-	// The same for events, and for much the same reason: they are held in an unordered map, but
-	// the order they tick in is observable -- one event's subevent can run a task that starts or
-	// stops another -- so it has to be the order the game file lists them in, which is the order
-	// ADRIFT ticks them in too.
-	std::vector<std::string> eventLoadOrder;
+	// Where to find a thing by key. The mutable state these index into (Game::objects and
+	// friends) is a flat vector in load order rather than a hash map, for two reasons: the whole
+	// of it is deep-copied into an undo snapshot once per turn, and a map's worth of nodes and
+	// copied key strings was one of the more expensive parts of that; and load order is an order
+	// the engine needs constantly anyway -- it is the order things are listed to the player in,
+	// and the order ADRIFT ticks events in -- so the vector's own order is the useful one.
+	//
+	// Every one of these tables is filled during load and never added to or removed from
+	// afterwards, which is what makes a thing's index a stable name for it.
+	std::unordered_map<std::string, size_t> objectIndex;
+	std::unordered_map<std::string, size_t> eventIndex;
+	std::unordered_map<std::string, size_t> variableIndex;
+	std::unordered_map<std::string, size_t> groupIndex;
 
 	// Tasks in priority order
 	std::set<Task *, TaskPrioLess> prioOrderedTasks;
@@ -131,19 +146,19 @@ public:
 		if (d == 0 || d >= descriptions.size()) throw std::out_of_range("no such description");
 		return descriptions[d];
 	}
-	Event *GetEvent(const std::string &key) { return SafeMapGet(events, key); }
-	Group *GetGroup(const std::string &key) { return SafeMapGet(groups, key); }
+	Event *GetEvent(const std::string &key) { return IndexedGet(staticData->eventIndex, events, key); }
+	Group *GetGroup(const std::string &key) { return IndexedGet(staticData->groupIndex, groups, key); }
 	// Look up an object by key, returning nullptr if none exists. Use this only where a missing
 	// key is a legitimate, expected answer -- existence/type probes (`dynamic_cast<Location *>(...)`)
 	// and explicit `if (TryGetObject(k))` guards.
-	GameObj *TryGetObject(const std::string &key) { return SafeMapGet(objects, key); }
+	GameObj *TryGetObject(const std::string &key) { return IndexedGet(staticData->objectIndex, objects, key); }
 	// Look up an object by key that the caller expects to exist. Throws MissingObjectException
 	// (logging the key) rather than returning a dangling nullptr to be dereferenced -- either the
 	// game file is malformed or a reference was evaluated while unset. Callers that cannot tolerate
 	// this sit under a funnel-level try/catch (restriction/action evaluation) or the top-level
 	// backstop in starlane-core.cpp.
 	GameObj *GetObject(const std::string &key) {
-		GameObj *o = SafeMapGet(objects, key);
+		GameObj *o = TryGetObject(key);
 		if (!o) throw MissingObjectException(key);
 		return o;
 	}
@@ -170,8 +185,10 @@ public:
 	void RunTriggeredTasks();
 	const Property *GetPropMeta(const std::string &key) const { return SafeMapGet(staticData->properties, key); }
 	const Restriction *GetRestriction(RestrRef key) const { return staticData->restrictions.at(key); }
-	Variable *GetVariable(const std::string &key) { return SafeMapGet(variables, key); }
-	Variable *GetVarByName(const std::string &name) { const auto f = staticData->varNames.find(Util::ToLower(name)); return f == staticData->varNames.end() ? nullptr : variables.at(f->second); }
+	Variable *GetVariable(const std::string &key) { return IndexedGet(staticData->variableIndex, variables, key); }
+	// varNames maps straight to the slot, so looking a variable up by the name a game writes it
+	// under ("%Seabonus%") costs the same single lookup as looking it up by key.
+	Variable *GetVarByName(const std::string &name) { const auto f = staticData->varNames.find(Util::ToLower(name)); return f == staticData->varNames.end() ? nullptr : variables[f->second]; }
 	const UserFunction *GetUserFunction(const std::string &key) const { return SafeMapGet(staticData->userFunctions, key); }
 	const UserFunction *GetUserFuncByName(const std::string &name) const { const auto f = staticData->userFuncNames.find(name); return f == staticData->userFuncNames.end() ? nullptr : staticData->userFunctions.at(f->second); }
 	Expression *GetExpression(ExprRef ref) { return staticData->expressions.at(ref); }
@@ -182,18 +199,18 @@ public:
 	// naming those is called "OnlyApplyAt" and holds either sort of key. A key naming neither a
 	// location nor a group matches nowhere.
 	bool PlayerIsInLocationOrGroup(const std::string &key) const;
-	bool GroupExists(const std::string &key) const { return groups.find(key) != groups.end(); }
-	bool ObjectExists(const std::string &key) const { return objects.find(key) != objects.end(); }
+	bool GroupExists(const std::string &key) const { return staticData->groupIndex.count(key) > 0; }
+	bool ObjectExists(const std::string &key) const { return staticData->objectIndex.count(key) > 0; }
 	bool PropExists(const std::string &key) const { return staticData->properties.find(key) != staticData->properties.end(); }
 	bool VarOfNameExists(const std::string &name) const { return staticData->varNames.find(Util::ToLower(name)) != staticData->varNames.end(); }
-	const std::unordered_map<std::string, GameObj *> &GetAllObjects() const { return objects; }
-	// All object keys, in the order the objects appear in the game file.
-	const std::vector<std::string> &GetObjectLoadOrder() const { return staticData->objectLoadOrder; }
-	// All event keys, in the order the events appear in the game file -- used to walk every
-	// event's LookOverrideText the way ADRIFT's ViewLocation walks Adventure.htblEvents.
-	const std::vector<std::string> &GetEventLoadOrder() const { return staticData->eventLoadOrder; }
-	GameObj *GetPlayerChar() const { return objects.at(playerKey); }
-	// The player's key, for asking "is this the player?" without a map lookup -- and without the
+	// Every object in the game, in the order they appear in the game file. That order is the one
+	// callers want: it is how things are listed to the player, and how ADRIFT itself enumerates.
+	const std::vector<GameObj *> &GetAllObjects() const { return objects; }
+	// The same for events -- the order they tick in is observable, since one event's subevent can
+	// start or stop another, and it is the order ADRIFT ticks them in too.
+	const std::vector<Event *> &GetAllEvents() const { return events; }
+	GameObj *GetPlayerChar() const { return objects[staticData->objectIndex.at(playerKey)]; }
+	// The player's key, for asking "is this the player?" without a lookup -- and without the
 	// throw GetPlayerChar() would give for a question asked before the player has been picked.
 	const std::string &GetPlayerKey() const { return playerKey; }
 	// Make `newPlayerKey` the character the player is playing as, per `MoveCharacter ...
@@ -488,11 +505,13 @@ private:
 	// nothing left to act on. Same caution as AttemptMatchSystemCommand: may `delete this`.
 	bool AttemptMatchEndOfGameCommand();
 
-	// mutable game state (objects copied for undo state)
-	std::unordered_map<std::string, GameObj *> objects;
-	std::unordered_map<std::string, Event *> events;
-	std::unordered_map<std::string, Variable *> variables;
-	std::unordered_map<std::string, Group *> groups;
+	// Mutable game state (deep-copied for the undo state). Each of these is in load order, and a
+	// thing's position in it is fixed for the life of the game -- see the index tables in
+	// GameStatic, which are how a key gets turned into a position.
+	std::vector<GameObj *> objects;
+	std::vector<Event *> events;
+	std::vector<Variable *> variables;
+	std::vector<Group *> groups;
 	// Indexed by DescrRef; slot 0 is the "no description" sentinel and stays null.
 	std::vector<Description *> descriptions{nullptr};
 	// Stores the completed-ness of tasks to avoid needing to copy the entire tasks for saves.

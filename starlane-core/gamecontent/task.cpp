@@ -1137,9 +1137,9 @@ void Task::Action::PerformImpl() const {
 		case ActionRefType::CharsAtLocation: {
 			auto &allObjs = g->GetAllObjects();
 			auto ht = ActionRefToHoldingType(refType);
-			for (auto &o : allObjs) {
-				if (ObjIsAppropriate(refType, o.second) && o.second->GetParentKey() == lhs && o.second->GetParentRelation() == ht)
-					(grp->*addOrRemove)(o.second);
+			for (GameObj *o : allObjs) {
+				if (ObjIsAppropriate(refType, o) && o->GetParentKey() == lhs && o->GetParentRelation() == ht)
+					(grp->*addOrRemove)(o);
 			}
 		}
 			break;
@@ -1149,34 +1149,34 @@ void Task::Action::PerformImpl() const {
 			auto propType = g->GetPropMeta(prop)->Type();
 			switch (propType) {
 			case Property::ValueType::Bool:
-				for (auto &o : allObjs) {
-					if (ObjIsAppropriate(refType, o.second) && o.second->GetBoolProp(prop))
-						(grp->*addOrRemove)(o.second);
+				for (GameObj *o : allObjs) {
+					if (ObjIsAppropriate(refType, o) && o->GetBoolProp(prop))
+						(grp->*addOrRemove)(o);
 				}
 				break;
 			// The comparison value lives in propCmpValue, not rhs -- rhs holds the destination
 			// group's key here (set once, above, for every case of this switch).
 			case Property::ValueType::Object:
 			case Property::ValueType::Enum:
-				for (auto &o : allObjs) {
-					if (ObjIsAppropriate(refType, o.second) && o.second->GetStrProp(prop) == propCmpValue)
-						(grp->*addOrRemove)(o.second);
+				for (GameObj *o : allObjs) {
+					if (ObjIsAppropriate(refType, o) && o->GetStrProp(prop) == propCmpValue)
+						(grp->*addOrRemove)(o);
 				}
 				break;
 			case Property::ValueType::Map:
 			case Property::ValueType::Int: {
 				auto tmpInt = propType == Property::ValueType::Map ? ParseInt(propCmpValue.c_str()) : g->GetExpression(expr)->EvaluateInt();
-				for (auto &o : allObjs) {
-					if (ObjIsAppropriate(refType, o.second) && o.second->GetIntProp(prop) == tmpInt)
-						(grp->*addOrRemove)(o.second);
+				for (GameObj *o : allObjs) {
+					if (ObjIsAppropriate(refType, o) && o->GetIntProp(prop) == tmpInt)
+						(grp->*addOrRemove)(o);
 				}
 				break;
 			}
 			case Property::ValueType::Text: {
 				std::string tmpTxt(g->GetExpression(expr)->EvaluateStr());
-				for (auto &o : allObjs) {
-					if (ObjIsAppropriate(refType, o.second) && o.second->GetStrProp(prop) == tmpTxt)
-						(grp->*addOrRemove)(o.second);
+				for (GameObj *o : allObjs) {
+					if (ObjIsAppropriate(refType, o) && o->GetStrProp(prop) == tmpTxt)
+						(grp->*addOrRemove)(o);
 				}
 				break;
 			}
@@ -1191,9 +1191,9 @@ void Task::Action::PerformImpl() const {
 		case ActionRefType::LocationsInGroup:
 		case ActionRefType::LocationsWithProp: {
 			auto &allObjs = g->GetAllObjects();
-			for (auto &o : allObjs) {
-				if (ObjIsAppropriate(refType, o.second) && o.second->IsMemberOfGroup(lhs))
-					(grp->*addOrRemove)(o.second);
+			for (GameObj *o : allObjs) {
+				if (ObjIsAppropriate(refType, o) && o->IsMemberOfGroup(lhs))
+					(grp->*addOrRemove)(o);
 			}
 		}
 			break;
@@ -1223,9 +1223,9 @@ void Task::Action::PerformImpl() const {
 		case ActionRefType::CharsOn: {
 			auto &allObjs = g->GetAllObjects();
 			auto ht = ActionRefToHoldingType(refType);
-			for (auto &o : allObjs) {
+			for (GameObj *o : allObjs) {
 				Character *c;
-				if ((c = AsCharacter(o.second)) && o.second->GetParentKey() == lhs && o.second->GetParentRelation() == ht)
+				if ((c = AsCharacter(o)) && o->GetParentKey() == lhs && o->GetParentRelation() == ht)
 					c->MakePosture(rhs, ActionTypeToPosture(type));
 			}
 		}
@@ -1236,31 +1236,31 @@ void Task::Action::PerformImpl() const {
 			Character *c;
 			switch (propType) {
 			case Property::ValueType::Bool:
-				for (auto &o : allObjs) {
-					if ((c = AsCharacter(o.second)) && o.second->GetBoolProp(prop))
+				for (GameObj *o : allObjs) {
+					if ((c = AsCharacter(o)) && o->GetBoolProp(prop))
 						c->MakePosture(rhs, ActionTypeToPosture(type));
 				}
 				break;
 			case Property::ValueType::Object:
 			case Property::ValueType::Enum:
-				for (auto &o : allObjs) {
-					if ((c = AsCharacter(o.second)) && o.second->GetStrProp(prop) == lhs)
+				for (GameObj *o : allObjs) {
+					if ((c = AsCharacter(o)) && o->GetStrProp(prop) == lhs)
 						c->MakePosture(rhs, ActionTypeToPosture(type));
 				}
 				break;
 			case Property::ValueType::Map:
 			case Property::ValueType::Int: {
 				auto tmpInt = propType == Property::ValueType::Map ? ParseInt(lhs.c_str()) : g->GetExpression(expr)->EvaluateInt();
-				for (auto &o : allObjs) {
-					if ((c = AsCharacter(o.second)) && o.second->GetIntProp(prop) == tmpInt)
+				for (GameObj *o : allObjs) {
+					if ((c = AsCharacter(o)) && o->GetIntProp(prop) == tmpInt)
 						c->MakePosture(rhs, ActionTypeToPosture(type));
 				}
 				break;
 			}
 			case Property::ValueType::Text: {
 				std::string tmpTxt(g->GetExpression(expr)->EvaluateStr());
-				for (auto &o : allObjs) {
-					if ((c = AsCharacter(o.second)) && o.second->GetStrProp(prop) == tmpTxt)
+				for (GameObj *o : allObjs) {
+					if ((c = AsCharacter(o)) && o->GetStrProp(prop) == tmpTxt)
 						c->MakePosture(rhs, ActionTypeToPosture(type));
 				}
 				break;
@@ -1272,9 +1272,9 @@ void Task::Action::PerformImpl() const {
 		}
 		case ActionRefType::CharsInGroup: {
 			auto &allObjs = g->GetAllObjects();
-			for (auto &o : allObjs) {
+			for (GameObj *o : allObjs) {
 				Character *c;
-				if ((c = AsCharacter(o.second)) && o.second->IsMemberOfGroup(lhs))
+				if ((c = AsCharacter(o)) && o->IsMemberOfGroup(lhs))
 					c->MakePosture(rhs, ActionTypeToPosture(type));
 			}
 		}
@@ -1293,9 +1293,9 @@ void Task::Action::PerformImpl() const {
 		case ActionRefType::CharsOn: {
 			auto &allObjs = g->GetAllObjects();
 			auto ht = ActionRefToHoldingType(refType);
-			for (auto &o : allObjs) {
-				if (AsCharacter(o.second) && o.second->GetParentKey() == lhs && o.second->GetParentRelation() == ht)
-					PerformSwitchWith(o.first);
+			for (GameObj *o : allObjs) {
+				if (AsCharacter(o) && o->GetParentKey() == lhs && o->GetParentRelation() == ht)
+					PerformSwitchWith(o->Key());
 			}
 		}
 			break;
@@ -1304,32 +1304,32 @@ void Task::Action::PerformImpl() const {
 			auto propType = g->GetPropMeta(prop)->Type();
 			switch (propType) {
 			case Property::ValueType::Bool:
-				for (auto &o : allObjs) {
-					if (AsCharacter(o.second) && o.second->GetBoolProp(prop))
-						PerformSwitchWith(o.first);
+				for (GameObj *o : allObjs) {
+					if (AsCharacter(o) && o->GetBoolProp(prop))
+						PerformSwitchWith(o->Key());
 				}
 				break;
 			case Property::ValueType::Object:
 			case Property::ValueType::Enum:
-				for (auto &o : allObjs) {
-					if (AsCharacter(o.second) && o.second->GetStrProp(prop) == lhs)
-						PerformSwitchWith(o.first);
+				for (GameObj *o : allObjs) {
+					if (AsCharacter(o) && o->GetStrProp(prop) == lhs)
+						PerformSwitchWith(o->Key());
 				}
 				break;
 			case Property::ValueType::Map:
 			case Property::ValueType::Int: {
 				auto tmpInt = propType == Property::ValueType::Map ? ParseInt(lhs.c_str()) : g->GetExpression(expr)->EvaluateInt();
-				for (auto &o : allObjs) {
-					if (AsCharacter(o.second) && o.second->GetIntProp(prop) == tmpInt)
-						PerformSwitchWith(o.first);
+				for (GameObj *o : allObjs) {
+					if (AsCharacter(o) && o->GetIntProp(prop) == tmpInt)
+						PerformSwitchWith(o->Key());
 				}
 				break;
 			}
 			case Property::ValueType::Text: {
 				std::string tmpTxt(g->GetExpression(expr)->EvaluateStr());
-				for (auto &o : allObjs) {
-					if (AsCharacter(o.second) && o.second->GetStrProp(prop) == tmpTxt)
-						PerformSwitchWith(o.first);
+				for (GameObj *o : allObjs) {
+					if (AsCharacter(o) && o->GetStrProp(prop) == tmpTxt)
+						PerformSwitchWith(o->Key());
 				}
 				break;
 			}
@@ -1340,9 +1340,9 @@ void Task::Action::PerformImpl() const {
 		}
 		case ActionRefType::CharsInGroup: {
 			auto &allObjs = g->GetAllObjects();
-			for (auto &o : allObjs) {
-				if (AsCharacter(o.second) && o.second->IsMemberOfGroup(lhs))
-					PerformSwitchWith(o.first);
+			for (GameObj *o : allObjs) {
+				if (AsCharacter(o) && o->IsMemberOfGroup(lhs))
+					PerformSwitchWith(o->Key());
 			}
 		}
 			break;
@@ -1502,9 +1502,9 @@ void Task::Action::PerformMoveTo(const std::string &moveTarget) const {
 	case ActionRefType::CharsAtLocation: {
 		auto &allObjs = g->GetAllObjects();
 		auto ht = ActionRefToHoldingType(refType);
-		for (auto &o : allObjs) {
-			if (ObjIsAppropriate(refType, o.second) && o.second->GetParentKey() == lhs && o.second->GetParentRelation() == ht)
-				o.second->MoveTo(moveTarget, ActionTypeToHoldingType(type));
+		for (GameObj *o : allObjs) {
+			if (ObjIsAppropriate(refType, o) && o->GetParentKey() == lhs && o->GetParentRelation() == ht)
+				o->MoveTo(moveTarget, ActionTypeToHoldingType(type));
 		}
 	}
 		break;
@@ -1514,32 +1514,32 @@ void Task::Action::PerformMoveTo(const std::string &moveTarget) const {
 		auto propType = g->GetPropMeta(prop)->Type();
 		switch (propType) {
 		case Property::ValueType::Bool:
-			for (auto &o : allObjs) {
-				if (ObjIsAppropriate(refType, o.second) && o.second->GetBoolProp(prop))
-					o.second->MoveTo(moveTarget, ActionTypeToHoldingType(type));
+			for (GameObj *o : allObjs) {
+				if (ObjIsAppropriate(refType, o) && o->GetBoolProp(prop))
+					o->MoveTo(moveTarget, ActionTypeToHoldingType(type));
 			}
 			break;
 		case Property::ValueType::Object:
 		case Property::ValueType::Enum:
-			for (auto &o : allObjs) {
-				if (ObjIsAppropriate(refType, o.second) && o.second->GetStrProp(prop) == propCmpValue)
-					o.second->MoveTo(moveTarget, ActionTypeToHoldingType(type));
+			for (GameObj *o : allObjs) {
+				if (ObjIsAppropriate(refType, o) && o->GetStrProp(prop) == propCmpValue)
+					o->MoveTo(moveTarget, ActionTypeToHoldingType(type));
 			}
 			break;
 		case Property::ValueType::Map:
 		case Property::ValueType::Int: {
 			auto tmpInt = propType == Property::ValueType::Map ? ParseInt(propCmpValue.c_str()) : g->GetExpression(expr)->EvaluateInt();
-			for (auto &o : allObjs) {
-				if (ObjIsAppropriate(refType, o.second) && o.second->GetIntProp(prop) == tmpInt)
-					o.second->MoveTo(moveTarget, ActionTypeToHoldingType(type));
+			for (GameObj *o : allObjs) {
+				if (ObjIsAppropriate(refType, o) && o->GetIntProp(prop) == tmpInt)
+					o->MoveTo(moveTarget, ActionTypeToHoldingType(type));
 			}
 			break;
 		}
 		case Property::ValueType::Text: {
 			std::string tmpTxt(g->GetExpression(expr)->EvaluateStr());
-			for (auto &o : allObjs) {
-				if (ObjIsAppropriate(refType, o.second) && o.second->GetStrProp(prop) == tmpTxt)
-					o.second->MoveTo(moveTarget, ActionTypeToHoldingType(type));
+			for (GameObj *o : allObjs) {
+				if (ObjIsAppropriate(refType, o) && o->GetStrProp(prop) == tmpTxt)
+					o->MoveTo(moveTarget, ActionTypeToHoldingType(type));
 			}
 			break;
 		}
@@ -1551,9 +1551,9 @@ void Task::Action::PerformMoveTo(const std::string &moveTarget) const {
 	case ActionRefType::ObjsInGroup:
 	case ActionRefType::CharsInGroup: {
 		auto &allObjs = g->GetAllObjects();
-		for (auto &o : allObjs) {
-			if (ObjIsAppropriate(refType, o.second) && o.second->IsMemberOfGroup(lhs))
-				o.second->MoveTo(moveTarget, ActionTypeToHoldingType(type));
+		for (GameObj *o : allObjs) {
+			if (ObjIsAppropriate(refType, o) && o->IsMemberOfGroup(lhs))
+				o->MoveTo(moveTarget, ActionTypeToHoldingType(type));
 		}
 	}
 		break;

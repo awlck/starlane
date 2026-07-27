@@ -111,13 +111,12 @@ GameObj *Character::Clone() const {
 void Character::MarkVisibleAsSeen() {
 	if (GetVisbilityCeiling().empty()) return;  // hidden characters see nothing
 	MarkSeen(key);  // we can always see ourselves
-	const auto &objs = Game::Get()->GetAllObjects();
-	std::for_each(objs.begin(), objs.end(), [this](const auto &o) {
+	for (const GameObj *o : Game::Get()->GetAllObjects()) {
 		// CanSee also covers the location itself: when we stand in a location,
 		// that location is our visibility ceiling.
-		if (CanSee(o.first))
-			MarkSeen(o.first);
-	});
+		if (CanSee(o->Key()))
+			MarkSeen(o->Key());
+	}
 }
 
 void Character::MoveTo(const std::string &newParent, HoldingType newRelation) {
@@ -147,16 +146,15 @@ std::string Character::GetPossessionsList(Starlane::Character::PossessionFilter 
 	size_t count = 0;
 	auto *g = Game::Get();
 	// Load order, not hash order: this list is shown to the player. See GetListOfChildren.
-	for (const auto &objKey: g->GetObjectLoadOrder()) {
-		GameObj *obj = g->GetObject(objKey);
-		if (!obj || obj->GetParentKey() != key) continue;
+	for (GameObj *obj: g->GetAllObjects()) {
+		if (obj->GetParentKey() != key) continue;
 		if (pf == PossessionFilter::Worn && obj->GetParentRelation() != GameObj::HoldingType::Worn)
 			continue;
 		if (pf == PossessionFilter::Held && obj->GetParentRelation() != GameObj::HoldingType::InObject)
 			continue;
 		if (count++ > 0)
 			result += '|';
-		result += objKey;
+		result += obj->Key();
 
 		if (recurse) {
 			auto tmp = obj->GetListOfChildren(GameObj::ChildFilter::All, GameObj::ChildRelFilter::OnAndIn, true);
@@ -198,7 +196,7 @@ void Character::NotifyWalk(int32_t idx, Util::Control::Condition cond, const std
 
 void Character::WriteState(Save::Writer &writer) const {
 	GameObj::WriteState(writer);
-	writer.WriteKV("seen", seenStorage);
+	writer.WriteSortedKV("seen", seenStorage);
 	writer.BeginNamedCompound("walks");
 	for (size_t i = 0; i < walks.size(); i++) {
 		writer.BeginNamedCompound(std::to_string(i).c_str());

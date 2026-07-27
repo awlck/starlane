@@ -343,12 +343,19 @@ Expr::Value Expression::AloneWithCharImpl(const ast_node_tag *args) const {
 	CHECK_ARGCOUNT("AloneWithChar", 0);
 	auto g = Game::Get();
 	auto player = g->GetPlayerChar();
-	for (const auto &objref : g->GetAllObjects()) {
-		if (Character *c = AsCharacter(objref.second)) {
-			if (objref.second != player && c->GetLocationKey() == player->GetLocationKey())
-				return c->Key();
-		}
+	// ADRIFT (clsCharacter.AloneWithChar) counts the characters sharing the player's location and
+	// answers only when there is exactly one: "alone with" nobody in particular is not an answer,
+	// so two or more characters present is the same as none. Returning whichever character turned
+	// up first, as this used to, meant the answer depended on the order the world was walked in.
+	const Character *found = nullptr;
+	for (GameObj *o : g->GetAllObjects()) {
+		Character *c = AsCharacter(o);
+		if (!c || c == player) continue;
+		if (c->GetLocationKey() != player->GetLocationKey()) continue;
+		if (found) return Expr::Value();  // more than one: not alone with anybody
+		found = c;
 	}
+	if (found) return found->Key();
 	return Expr::Value();  // invalid
 }
 

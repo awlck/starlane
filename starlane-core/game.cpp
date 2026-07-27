@@ -93,19 +93,21 @@ bool Game::inputInFlight = false;
  * the mutable game state objects.
  */
 Game::Game(const Game &rhs) {
+	// Slot for slot, so that every key already indexed against the original (see
+	// GameStatic::objectIndex and friends) names the same thing in the copy.
 	objects.reserve(rhs.objects.size());
 	// For objects, we also need to respect subclassing...
-	for (const auto &it : rhs.objects)
-		objects[it.first] = it.second->Clone();
+	for (const GameObj *o : rhs.objects)
+		objects.push_back(o->Clone());
 	events.reserve(rhs.events.size());
-	for (const auto &it : rhs.events)
-		events[it.first] = new Event(*it.second);
+	for (const Event *e : rhs.events)
+		events.push_back(new Event(*e));
 	variables.reserve(rhs.variables.size());
-	for (const auto &it : rhs.variables)
-		variables[it.first] = new Variable(*it.second);
+	for (const Variable *v : rhs.variables)
+		variables.push_back(new Variable(*v));
 	groups.reserve(rhs.groups.size());
-	for (const auto &it : rhs.groups)
-		groups[it.first] = new Group(*it.second);
+	for (const Group *g : rhs.groups)
+		groups.push_back(new Group(*g));
 	descriptions.resize(rhs.descriptions.size(), nullptr);
 	for (size_t i = 1; i < rhs.descriptions.size(); i++)  // slot 0 is the "none" sentinel
 		descriptions[i] = new Description(*rhs.descriptions[i]);
@@ -137,14 +139,14 @@ Game::Game(const Game &rhs) {
 Game::~Game() {
 	// destroy mutable game state
 	// (C++ fun fact: it is indeed valid to `delete` a `const Foo *`.)
-	for (const auto &it : objects)
-		delete it.second;
-	for (const auto &it : events)
-		delete it.second;
-	for (const auto &it : variables)
-		delete it.second;
-	for (const auto &it : groups)
-		delete it.second;
+	for (const GameObj *o : objects)
+		delete o;
+	for (const Event *e : events)
+		delete e;
+	for (const Variable *v : variables)
+		delete v;
+	for (const Group *g : groups)
+		delete g;
 	for (auto *d : descriptions)
 		delete d;
 
@@ -204,9 +206,9 @@ bool Game::PlayerIsInLocationOrGroup(const std::string &key) const {
 	const std::string &here = GetPlayerLocationKey();
 	// A key naming a location is only ever about that location, even if a group happens to share
 	// the name: ADRIFT checks its locations first and stops there.
-	if (AsLocation(SafeMapGet(objects, key)))
+	if (AsLocation(IndexedGet(staticData->objectIndex, objects, key)))
 		return here == key;
-	if (const Group *grp = SafeMapGet(groups, key))
+	if (const Group *grp = IndexedGet(staticData->groupIndex, groups, key))
 		return grp->ContainsObj(here);
 	return false;
 }
@@ -270,8 +272,8 @@ void Game::Begin() {
 		startupState = new Game(*this);
 	std::fill(taskCompletedStorage.begin(), taskCompletedStorage.end(), (uint8_t) 0);
 	// Every character has "seen" their initial surroundings.
-	for (const auto &it : objects) {
-		if (auto *c = AsCharacter(it.second))
+	for (GameObj *o : objects) {
+		if (auto *c = AsCharacter(o))
 			c->MarkVisibleAsSeen();
 	}
 	gameHasBegun = true;
@@ -293,10 +295,10 @@ void Game::Begin() {
 	// to turn-based instead: a "fifteen seconds later" event turned into "fifteen turns later" is
 	// a different game, not a lesser one. Said again on RESTART, which is right -- it is still true.
 	if (!frontend->timersAvailable) {
-		for (const auto &key : staticData->eventLoadOrder) {
+		for (const Event *evt : events) {
 			// Also true of a turn-based event with a seconds-measured subevent: that subevent
 			// still needs a wall clock, even though the event around it doesn't.
-			if (events.at(key)->IsRealTime() || events.at(key)->HasRealTimeSubEvents()) {
+			if (evt->IsRealTime() || evt->HasRealTimeSubEvents()) {
 				frontend->OutputText("<i>This game uses real-time events, which this interpreter "
 				                     "cannot run. Parts of it will not happen.</i>\n");
 				break;
@@ -322,8 +324,7 @@ void Game::Begin() {
 	// already been completed would find nothing to read. After the intro and initial room
 	// description too, as in ADRIFT -- an event started immediately runs, and can print, only
 	// once the game has finished introducing itself.
-	for (const auto &key : staticData->eventLoadOrder) {
-		Event *evt = events.at(key);
+	for (Event *evt : events) {
 		switch (evt->GetStartType()) {
 			case Event::StartType::TaskBased:
 				evt->SetNotYetStarted();
@@ -346,12 +347,12 @@ void Game::Begin() {
 	// Deliberately a second pass, as in ADRIFT. Start() leaves the "started on this tick" flag
 	// set so that an event doesn't also age on the tick it started; carried out of load and into
 	// the first real tick, that would have every immediate event sit out turn one.
-	for (const auto &key : staticData->eventLoadOrder)
-		events.at(key)->ClearJustStarted();
+	for (Event *evt : events)
+		evt->ClearJustStarted();
 	// Walks that begin active start now, after the events, as in ADRIFT. Starting one moves its
 	// character to the walk's first step and may run its opening sub-walks.
-	for (const auto &key : staticData->objectLoadOrder)
-		if (auto *c = AsCharacter(objects.at(key)))
+	for (GameObj *o : objects)
+		if (auto *c = AsCharacter(o))
 			c->StartActiveWalks();
 }
 
@@ -415,9 +416,9 @@ void Game::RunEventTick(bool realTime) {
 	// exactly where ADRIFT drives them. Only on the turn clock: walks have no real-time variety. In
 	// object load order so two ticks of the same state move the same characters in the same sequence.
 	if (!realTime) {
-		for (const auto &key : staticData->objectLoadOrder) {
+		for (GameObj *o : objects) {
 			if (!gameHasBegun) return;
-			if (auto *c = AsCharacter(objects.at(key)))
+			if (auto *c = AsCharacter(o))
 				c->TickWalks();
 		}
 	}
@@ -431,9 +432,8 @@ void Game::RunEventTick(bool realTime) {
 		explicit RunningGuard(Game *game) : g(game), prev(game->eventsRunning) { g->eventsRunning = true; }
 		~RunningGuard() { g->eventsRunning = prev; }
 	} runningGuard(this);
-	for (const auto &key : staticData->eventLoadOrder) {
+	for (Event *evt : events) {
 		if (!gameHasBegun) break;
-		Event *evt = events.at(key);
 		if (evt->IsRealTime() == realTime) evt->IncrementTimer();
 		// A turn-based event's seconds-measured subevents ride the wall clock on their own,
 		// independently of the turn clock the rest of the event runs on -- so they get serviced
@@ -444,8 +444,7 @@ void Game::RunEventTick(bool realTime) {
 	// can run a task that starts one earlier in the order, which has already had its tick; if the
 	// "don't age on the turn you started" flag survived into the next tick, that event would sit
 	// out a turn it ought to have counted.
-	for (const auto &key : staticData->eventLoadOrder) {
-		Event *evt = events.at(key);
+	for (Event *evt : events) {
 		if (evt->IsRealTime() == realTime) evt->ClearJustStarted();
 	}
 }
@@ -458,34 +457,34 @@ bool Game::Save() {
 	writer.WriteKV("player", playerKey);
 	writer.WriteKV("turns", turnCount);
 
+	// Everything below walks the state in load order, so that two saves of the same game state
+	// produce the same bytes.
 	writer.BeginNamedCompound("objects");
-	for (const auto &obj: objects) {
-		writer.BeginNamedCompound(obj.first.c_str());
-		obj.second->WriteState(writer);
+	for (const GameObj *obj: objects) {
+		writer.BeginNamedCompound(obj->Key().c_str());
+		obj->WriteState(writer);
 		writer.EndCompound();
 	}
 	writer.EndCompound();
 
 	writer.BeginNamedCompound("events");
-	// In load order rather than whatever the map hands us, so that two saves of the same game
-	// state produce the same bytes.
-	for (const auto &key: staticData->eventLoadOrder) {
-		writer.BeginNamedCompound(key.c_str());
-		events.at(key)->WriteState(writer);
+	for (const Event *evt: events) {
+		writer.BeginNamedCompound(evt->Key().c_str());
+		evt->WriteState(writer);
 		writer.EndCompound();
 	}
 	writer.EndCompound();
 
 	writer.BeginNamedCompound("variables");
-	for (const auto &var: variables) {
-		switch (var.second->GetType()) {
+	for (const Variable *var: variables) {
+		switch (var->GetType()) {
 		case Variable::Type::Int:
 		case Variable::Type::IntArray:
-			writer.WriteKV(var.first.c_str(), var.second->GetIntArray());
+			writer.WriteKV(var->Key().c_str(), var->GetIntArray());
 			break;
 		case Variable::Type::String:
 		case Variable::Type::StringArray:
-			writer.WriteKV(var.first.c_str(), var.second->GetStrArray());
+			writer.WriteKV(var->Key().c_str(), var->GetStrArray());
 			break;
 		}
 	}
@@ -495,10 +494,10 @@ bool Game::Save() {
 	// "no properties of its own" is the initial state, so only save anything for groups that have
 	// diverged from it -- ContinueRestore resets every group to that state before applying the
 	// file's exceptions, mirroring descriptions_shown just below.
-	for (const auto &grp: groups) {
-		if (!grp.second->HasOwnProperties()) continue;
-		writer.BeginNamedCompound(grp.first.c_str());
-		grp.second->WriteState(writer);
+	for (const Group *grp: groups) {
+		if (!grp->HasOwnProperties()) continue;
+		writer.BeginNamedCompound(grp->Key().c_str());
+		grp->WriteState(writer);
 		writer.EndCompound();
 	}
 	writer.EndCompound();
@@ -628,8 +627,8 @@ bool Game::ContinueRestore(const Save::AstNode *root) {
 		if (!grpsNode || !grpsNode->IsCollection(Save::NT_COMPOUND)) return RollbackRestore();
 		// Only groups with properties of their own get written out, so reset the lot to "none" and
 		// let the file fill in the exceptions -- see the matching comment on descriptions_shown below.
-		for (const auto &grp: groups)
-			grp.second->ResetState();
+		for (Group *grp: groups)
+			grp->ResetState();
 		ITERATE_CHILDREN(grpsNode, grpN) {
 			auto *grp = GetGroup(grpN->myName);
 			if (!grp || !grp->RestoreState(grpN)) return RollbackRestore();

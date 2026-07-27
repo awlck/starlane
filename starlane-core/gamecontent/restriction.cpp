@@ -342,11 +342,11 @@ bool Restriction::Single::PassObjectCond(const std::string &lhs, const std::stri
 	for (const std::string *side: { &lhs, &rhs }) {
 		if (*side != "AnyObject" && *side != "AnyCharacter") continue;
 		bool wantChar = (*side == "AnyCharacter");
-		for (const auto &o: g->GetAllObjects()) {
-			if (AsLocation(o.second)) continue;
-			if ((AsCharacter(o.second) != nullptr) != wantChar) continue;
-			bool pass = (side == &lhs) ? PassObjectCond(o.first, rhs, out)
-			                           : PassObjectCond(lhs, o.first, out);
+		for (const GameObj *o: g->GetAllObjects()) {
+			if (o->IsLocation()) continue;
+			if (o->IsCharacter() != wantChar) continue;
+			bool pass = (side == &lhs) ? PassObjectCond(o->Key(), rhs, out)
+			                           : PassObjectCond(lhs, o->Key(), out);
 			if (pass) return true;
 		}
 		return false;
@@ -437,16 +437,16 @@ bool Restriction::Single::PassObjectCond(const std::string &lhs, const std::stri
 		break;
 	case ConditionType::Alone:
 	    // "Alone" meaning "no other character is in the same location as the lhs"
-		return !std::any_of(g->GetAllObjects().cbegin(), g->GetAllObjects().cend(), [&](const auto &o) {
-			return o.first != lhs && AsCharacter(o.second)
-				&& o.second->GetLocationKey() != Game::Get()->GetObject(lhs)->GetLocationKey();
+		return !std::any_of(g->GetAllObjects().cbegin(), g->GetAllObjects().cend(), [&](const GameObj *o) {
+			return o->Key() != lhs && o->IsCharacter()
+				&& o->GetLocationKey() != Game::Get()->GetObject(lhs)->GetLocationKey();
 		});
 	case ConditionType::AloneWith:
 	    // "Alone with" meaning "no other character except rhs is in the same location as the lhs"
 		if (g->GetObject(lhs)->GetLocationKey() != g->GetObject(rhs)->GetLocationKey()) return false;
-		return !std::any_of(g->GetAllObjects().cbegin(), g->GetAllObjects().cend(), [&](const auto &o) {
-			return o.first != lhs && o.first != rhs && AsCharacter(o.second)
-				&& o.second->GetLocationKey() != Game::Get()->GetObject(lhs)->GetLocationKey();
+		return !std::any_of(g->GetAllObjects().cbegin(), g->GetAllObjects().cend(), [&](const GameObj *o) {
+			return o->Key() != lhs && o->Key() != rhs && o->IsCharacter()
+				&& o->GetLocationKey() != Game::Get()->GetObject(lhs)->GetLocationKey();
 		});
 	case Starlane::Restriction::ConditionType::InConversationWith:
 		break;  // TODO (once the conversations system is in place)

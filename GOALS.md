@@ -418,3 +418,32 @@
       ADRIFT's compass order, as `Global.vb`'s own `Case "Exits"` does (and as `GetExitsLine`
       already did). Changes the wording of "There is no route up, only east and west." style
       messages in `alien-diver`, `be-there` and `tests/renamedirtest`.
+- [x] index the mutable game state by position rather than by key. `Game::objects`, `events`,
+      `variables` and `groups` were `unordered_map<string, T *>`, so each of the ~2000-2500 entries
+      a game has cost a hash node and a copied key string every time the world was snapshotted for
+      UNDO -- once a turn. They are now flat `std::vector`s in load order, with the key -> slot
+      tables living in the immutable `GameStatic` (`objectIndex` and friends), which is what makes a
+      slot a stable name for a thing: nothing is ever added to or removed from these tables after
+      load. About 11% off the corpus benchmark on top of the previous pass.
+      * The keyed lookups (`GetObject`, `TryGetObject`, `GetEvent`, `GetGroup`, `GetVariable`,
+        `ObjectExists`, `GroupExists`) keep their signatures; only their bodies change, to
+        `IndexedGet` (game.h). `varNames` maps a variable's name straight to its slot, so looking one
+        up by name costs the same single lookup as by key.
+      * This reverses the previous arrangement, where a load-order vector of *keys* was kept
+        alongside the map and every ordered walk paid a hash lookup per element. `objectLoadOrder`
+        and `eventLoadOrder` are gone, and `GetObjectLoadOrder()`/`GetAllObjects()` -- which were
+        the same set of things in two different orders -- collapse into one accessor.
+      * Save files gained the same guarantee the events section already had: every section is now
+        written in load order, and `seen`/`groups` (unordered sets) are written sorted
+        (`Writer::WriteSortedKV`), so a save file's bytes depend only on the game state and not on
+        how the game arrived at it. Save contents are unchanged.
+      * For the record, the previous entry's "over a third of all CPU time" for `SaveUndo` was an
+        undercount: profiles attribute the copy and the matching destruction to two separate
+        frames, and it is closer to 70%. After both passes it is still the largest single cost;
+        what remains is the per-object `Clone()` and the per-variable copy, since a Variable carries
+        its value arrays by value.
+- [x] fixed: `AloneWithChar` returned whichever character it happened to find first in the player's
+      location. ADRIFT's `clsCharacter.AloneWithChar` counts them and answers only when there is
+      exactly one -- being "alone with" two people is not a thing -- so with more than one present
+      it returns nothing. Ours now does the same, which also makes the answer independent of the
+      order the world is walked in.

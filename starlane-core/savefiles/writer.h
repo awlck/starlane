@@ -61,6 +61,24 @@ public:
 		WriteKey(key);
 		WriteValue(val);
 	}
+	// Write an unordered collection of strings as a list, in sorted order, for the same reason as
+	// WriteSortedMap below: an unordered_set hands its contents out in an order that depends on how
+	// the set was built, so writing it as-is would make a save file's bytes depend on the route the
+	// game took to its state rather than on the state itself.
+	template<typename Container> void WriteSortedKV(const char *key, const Container &values) {
+		std::vector<const std::string *> items;
+		items.reserve(values.size());
+		for (const auto &v : values) items.push_back(&v);
+		std::sort(items.begin(), items.end(),
+		          [](const std::string *a, const std::string *b) { return *a < *b; });
+		WriteKey(key);
+		WriteUnqouted("{ ");
+		for (const std::string *v : items) {
+			WriteValue(*v);
+			AcceptChar(' ');
+		}
+		AcceptChar('}');
+	}
 	// Write every entry of a string-keyed map, in key order. Property tables are unordered_maps
 	// whose iteration order is an implementation detail -- and, now that PropHolder shares them
 	// copy-on-write, not even stable between two games that reached the same state by different

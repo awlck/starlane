@@ -196,9 +196,8 @@ std::string Location::GetDescription(bool forDisplay) const {
 	// remaining listable objects are collected into a single "Also here is ..." /
 	// "There is ... here." sentence.
 	std::vector<std::string> generalListed;
-	for (const auto &objKey: theGame->GetObjectLoadOrder()) {
-		const auto *obj = theGame->GetObject(objKey);
-		if (AsCharacter(obj) || AsLocation(obj))
+	for (const GameObj *obj: theGame->GetAllObjects()) {
+		if (obj->IsCharacter() || obj->IsLocation())
 			continue;
 		if (!HoldsDirectly(obj))
 			continue;
@@ -229,8 +228,8 @@ std::string Location::GetDescription(bool forDisplay) const {
 	// objects, before character "is here" lines. Events contribute in load order, same as ADRIFT
 	// walking htblEvents.Values; more than one applying at once is a corner ADRIFT itself leaves
 	// as "whatever order the hashtable gives you", so load order is as good a tiebreak as any.
-	for (const auto &evKey: theGame->GetEventLoadOrder()) {
-		std::string lookText = theGame->GetEvent(evKey)->LookOverrideText();
+	for (const Event *ev: theGame->GetAllEvents()) {
+		std::string lookText = ev->LookOverrideText();
 		if (lookText.empty()) continue;
 		PadForAppend(result);
 		result += lookText;
@@ -243,10 +242,10 @@ std::string Location::GetDescription(bool forDisplay) const {
 	// so two bystanders become "Bob and Alice are here." rather than two sentences.
 	const std::string &playerKey = theGame->GetPlayerChar()->Key();
 	std::vector<std::pair<std::string, std::vector<std::string>>> charDescs;
-	for (const auto &objKey: theGame->GetObjectLoadOrder()) {
-		if (objKey == playerKey)  // you are never listed to yourself
+	for (const GameObj *obj: theGame->GetAllObjects()) {
+		if (obj->Key() == playerKey)  // you are never listed to yourself
 			continue;
-		const auto *ch = AsCharacter(theGame->GetObject(objKey));
+		const auto *ch = AsCharacter(obj);
 		if (!ch || !IsCharVisibleHere(ch))
 			continue;
 		std::string name = ch->GetDisplayName(false);

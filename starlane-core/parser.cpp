@@ -200,19 +200,17 @@ std::vector<std::string> Game::MatchListForReference(const std::string &from, co
 	// provisional pick and any disambiguation prompt list candidates as the game defines them --
 	// "the red ball or the green ball", the order the author wrote them, as ADRIFT does.
 	std::vector<std::string> result;
-	for (const auto &key : staticData->objectLoadOrder) {
-		auto it = objects.find(key);
-		if (it == objects.end()) continue;
+	for (const GameObj *o : objects) {
 		switch (rt) {
 			case ReferenceType::Object:
-				if (AsCharacter(it->second)) continue;
+				if (o->IsCharacter()) continue;
 				break;
 			case ReferenceType::Character:
-				if (!AsCharacter(it->second)) continue;
+				if (!o->IsCharacter()) continue;
 				break;
 		}
-		if (std::regex_match(from, it->second->GetMatchExpr()))
-			result.push_back(key);
+		if (std::regex_match(from, o->GetMatchExpr()))
+			result.push_back(o->Key());
 	}
 
 	// Narrow the name matches down by scope, preferring the narrowest scope that still
@@ -453,12 +451,10 @@ bool Game::DescribeUnmatchedThing() {
 	// Load order, as everywhere else things are listed for the player -- and so that if the input
 	// somehow names more than one currently-visible thing, the one mentioned wins the same way it
 	// would in a disambiguation prompt.
-	for (const auto &key : staticData->objectLoadOrder) {
-		auto it = objects.find(key);
-		if (it == objects.end()) continue;
-		if (!player->CanSee(key)) continue;
-		if (!std::regex_match(currentCommand, it->second->GetMatchExpr())) continue;
-		OutputFiltered("I don't understand what you want to do with " + it->second->GetDisplayName(true) + ".\n");
+	for (const GameObj *o : objects) {
+		if (!player->CanSee(o->Key())) continue;
+		if (!std::regex_match(currentCommand, o->GetMatchExpr())) continue;
+		OutputFiltered("I don't understand what you want to do with " + o->GetDisplayName(true) + ".\n");
 		return true;
 	}
 	return false;

@@ -161,9 +161,9 @@ Game *Game::LoadFromXML(const std::string &gameTxt, uint32_t gameCrc32) {
 	// history) inherits the placement rather than each having to rediscover it.
 	if (auto *player = AsCharacter(result->TryGetObject(result->playerKey));
 	    player && player->GetLocationKey().empty()) {
-		for (const auto &key : rStatic->objectLoadOrder) {
-			if (AsLocation(result->TryGetObject(key))) {
-				player->SetInitialLocation(key);
+		for (GameObj *o : result->objects) {
+			if (o->IsLocation()) {
+				player->SetInitialLocation(o->Key());
 				break;
 			}
 		}
@@ -199,8 +199,8 @@ Game *Game::LoadFromXML(const std::string &gameTxt, uint32_t gameCrc32) {
 	// Character walks name the tasks that start and stop them; those tasks have just finished
 	// loading, so wire each walk up to them now. The characters themselves loaded earlier, before any
 	// task existed, which is why this can't happen while a character is being built.
-	for (const auto &key : rStatic->objectLoadOrder)
-		if (auto *c = AsCharacter(result->TryGetObject(key)))
+	for (GameObj *o : result->objects)
+		if (auto *c = AsCharacter(o))
 			c->RegisterWalkNotifications();
 
 	LOAD_STAGE("Loading Events");
@@ -266,8 +266,10 @@ size_t Game::CreateDescFromText(const std::string &text) {
 void Game::CreateObjFromXML(const pugi::xml_node &objNode) {
 	auto result = GameObj::CreateFromXML(objNode);
 	assert(result);
-	objects[result->Key()] = result;
-	const_cast<GameStatic *>(staticData)->objectLoadOrder.push_back(result->Key());
+	// Appending gives the object its slot, and the slot is its position in load order -- which is
+	// the order everything that walks the world wants to see things in.
+	const_cast<GameStatic *>(staticData)->objectIndex[result->Key()] = objects.size();
+	objects.push_back(result);
 }
 
 void Game::CreatePropertyFromXML(const pugi::xml_node &propNode) {
@@ -298,25 +300,28 @@ Task *Game::CreateTaskFromXML(const pugi::xml_node &propNode) {
 void Game::CreateEventFromXML(const pugi::xml_node &evtNode) {
 	auto result = Event::CreateFromXML(evtNode);
 	assert(result);
-	events[result->Key()] = result;
-	const_cast<GameStatic *>(staticData)->eventLoadOrder.push_back(result->Key());
+	const_cast<GameStatic *>(staticData)->eventIndex[result->Key()] = events.size();
+	events.push_back(result);
 }
 
 void Game::CreateVariableFromXML(const pugi::xml_node &varNode) {
 	auto result = Variable::CreateFromXML(varNode);
 	assert(result);
-	variables[result->Key()] = result;
 	auto s = const_cast<GameStatic *>(staticData);
-	// Keyed by the lowercased name: ADRIFT matches a %name% reference against a variable's name
-	// case-insensitively (ReplaceFunctions uses CompareMethod.Text), and games rely on it -- one
-	// variable is named "seabonus" but referenced as "%Seabonus%".
-	s->varNames[Util::ToLower(result->Name())] = result->Key();
+	const size_t slot = variables.size();
+	s->variableIndex[result->Key()] = slot;
+	// Also findable by the lowercased name: ADRIFT matches a %name% reference against a variable's
+	// name case-insensitively (ReplaceFunctions uses CompareMethod.Text), and games rely on it --
+	// one variable is named "seabonus" but referenced as "%Seabonus%".
+	s->varNames[Util::ToLower(result->Name())] = slot;
+	variables.push_back(result);
 }
 
 void Game::CreateGroupFromXML(const pugi::xml_node &grpNode) {
     auto result = Group::CreateFromXML(grpNode);
 	assert(result);
-    groups[result->Key()] = result;
+    const_cast<GameStatic *>(staticData)->groupIndex[result->Key()] = groups.size();
+    groups.push_back(result);
 }
 
 void Game::CreateFunctionFromXML(const pugi::xml_node &funcNode) {

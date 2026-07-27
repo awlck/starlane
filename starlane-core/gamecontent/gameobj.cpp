@@ -156,8 +156,8 @@ void GameObj::MoveTo(const std::string &newParent, HoldingType newRelation) {
 	relation = newRelation;
 
 	// Anyone watching this object arrive at its new position has now seen it.
-	for (const auto &o: Game::Get()->GetAllObjects()) {
-		auto *c = AsCharacter(o.second);
+	for (GameObj *o: Game::Get()->GetAllObjects()) {
+		auto *c = AsCharacter(o);
 		if (c && c->CanSee(key))
 			c->MarkSeen(key);
 	}
@@ -187,12 +187,11 @@ std::string GameObj::GetListOfChildren(GameObj::ChildFilter f1, GameObj::ChildRe
 	auto *g = Game::Get();
 	// In the order the game file lists them: that is the order ADRIFT itself writes lists in, and
 	// the player sees it ("a set of fatigues and a pair of boots", not the other way around).
-	for (const auto &childKey: g->GetObjectLoadOrder()) {
-		GameObj *child = g->TryGetObject(childKey);
-		if (!child || child->GetParentKey() != key) continue;
-		if (f1 == ChildFilter::Objects && AsCharacter(child))
+	for (GameObj *child: g->GetAllObjects()) {
+		if (child->GetParentKey() != key) continue;
+		if (f1 == ChildFilter::Objects && child->IsCharacter())
 			continue;
-		if (f1 == ChildFilter::Characters && !AsCharacter(child))
+		if (f1 == ChildFilter::Characters && !child->IsCharacter())
 			continue;
 		switch (f2) {
 			case ChildRelFilter::On:
@@ -210,7 +209,7 @@ std::string GameObj::GetListOfChildren(GameObj::ChildFilter f1, GameObj::ChildRe
 		}
 		if (count++ > 0)
 			result += '|';
-		result += childKey;
+		result += child->Key();
 
 		if (recurse) {
 			std::string tmp = child->GetListOfChildren(f1, f2, true);
@@ -250,7 +249,7 @@ void GameObj::WriteState(Save::Writer &writer) const {
 	writer.WriteKV("parent", parent);
 	writer.WriteKV("dynamic", dynamic);
 	writer.WriteKV("holding_type", magic_enum::enum_name(relation));
-	writer.WriteKV("groups", groupMembership);
+	writer.WriteSortedKV("groups", groupMembership);
 	writer.BeginNamedCompound("properties");
 	// make sure not to consult the groups here
 	writer.WriteSortedMap(PropHolder::GetAllIntProps());
