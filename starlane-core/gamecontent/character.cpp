@@ -18,7 +18,7 @@ Character *Character::CreateFromXML(const pugi::xml_node &xmlNode) {
 	// A character's parser nouns are its descriptors ("me", "myself", "guard"); unlike an object,
 	// its <Name> is the proper name, handled separately.
 	for (const auto &it : xmlNode.children("Descriptor"))
-		result->nouns.emplace_back(it.child_value());
+		result->MutableNouns().emplace_back(it.child_value());
 	result->description = Game::Get()->CreateDescFromXML(xmlNode.child("Description"));
 
 	auto ht = ParseHoldingType(result->GetStrProp("CharacterLocation").c_str());
@@ -61,7 +61,9 @@ std::string Character::GetDescription(bool forDisplay) const {
 }
 
 void Character::SetPropValue(const std::string &key, const std::string &value) {
-	if (key == "CharacterProperName") {
+	// Only when it actually changes: recompiling both match expressions for a name being set to
+	// what it already was is pure waste, and the base class skips an unchanged write too.
+	if (key == "CharacterProperName" && value != properName) {
 		properName = value;
 		MakeMatchExpr();
 	}
@@ -111,13 +113,12 @@ GameObj *Character::Clone() const {
 void Character::MarkVisibleAsSeen() {
 	if (GetVisbilityCeiling().empty()) return;  // hidden characters see nothing
 	MarkSeen(key);  // we can always see ourselves
-	const auto &objs = Game::Get()->GetAllObjects();
-	std::for_each(objs.begin(), objs.end(), [this](const auto &o) {
+	for (const GameObj *o : Game::Get()->GetAllObjects()) {
 		// CanSee also covers the location itself: when we stand in a location,
 		// that location is our visibility ceiling.
-		if (CanSee(o.first))
-			MarkSeen(o.first);
-	});
+		if (CanSee(o->Key()))
+			MarkSeen(o->Key());
+	}
 }
 
 void Character::MoveTo(const std::string &newParent, HoldingType newRelation) {
@@ -147,16 +148,15 @@ std::string Character::GetPossessionsList(Starlane::Character::PossessionFilter 
 	size_t count = 0;
 	auto *g = Game::Get();
 	// Load order, not hash order: this list is shown to the player. See GetListOfChildren.
-	for (const auto &objKey: g->GetObjectLoadOrder()) {
-		GameObj *obj = g->GetObject(objKey);
-		if (!obj || obj->GetParentKey() != key) continue;
+	for (const GameObj *obj: g->GetAllObjects()) {
+		if (obj->GetParentKey() != key) continue;
 		if (pf == PossessionFilter::Worn && obj->GetParentRelation() != GameObj::HoldingType::Worn)
 			continue;
 		if (pf == PossessionFilter::Held && obj->GetParentRelation() != GameObj::HoldingType::InObject)
 			continue;
 		if (count++ > 0)
 			result += '|';
-		result += objKey;
+		result += obj->Key();
 
 		if (recurse) {
 			auto tmp = obj->GetListOfChildren(GameObj::ChildFilter::All, GameObj::ChildRelFilter::OnAndIn, true);
@@ -198,7 +198,7 @@ void Character::NotifyWalk(int32_t idx, Util::Control::Condition cond, const std
 
 void Character::WriteState(Save::Writer &writer) const {
 	GameObj::WriteState(writer);
-	writer.WriteKV("seen", seenStorage);
+	writer.WriteSortedKV("seen", *seenStorage);
 	writer.BeginNamedCompound("walks");
 	for (size_t i = 0; i < walks.size(); i++) {
 		writer.BeginNamedCompound(std::to_string(i).c_str());
@@ -212,9 +212,9 @@ bool Character::RestoreState(const Save::AstNode *node) {
 	if (!GameObj::RestoreState(node)) return false;
 	const auto *seenNode = node->FindChildByName("seen");
 	if (!seenNode) return false;
-	seenStorage.clear();
+	MutableSeen().clear();
 	ITERATE_CHILDREN(seenNode, s) {
-		seenStorage.insert(s->Str);
+		MutableSeen().insert(s->Str);
 	}
 	const auto *walksNode = node->FindChildByName("walks");
 	if (!walksNode) return false;
@@ -242,16 +242,16 @@ void Character::MakeMatchExpr() {
 			expr += n;
 		}
 		expr += ") ?)+";
-		return std::regex(expr, std::regex_constants::icase);
+		return std::make_shared<const std::regex>(expr, std::regex_constants::icase);
 	};
 
 	auto properNameComponents = Util::SplitString(properName, " ");
-	std::vector<std::string> unknownNames(nouns);
+	std::vector<std::string> unknownNames(*nouns);
 	if (unknownNames.empty())
 		unknownNames = properNameComponents;
 	matchRegex = buildExpr(unknownNames);
 
-	std::vector<std::string> knownNames(nouns);
+	std::vector<std::string> knownNames(*nouns);
 	knownNames.insert(knownNames.end(), properNameComponents.begin(), properNameComponents.end());
 	matchWhenKnownRegex = buildExpr(knownNames);
 }

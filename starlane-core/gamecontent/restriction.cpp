@@ -184,12 +184,12 @@ std::pair<bool, DescrRef> Restriction::PassRestrictionBlock(size_t &tidx, size_t
 			}
 			if (passed) {
 				state = { true, 0 };
-			} else if (txt && !Game::Get()->GetDescription(txt)->Build(false).empty()) {
+			} else if (txt && !Game::Get()->GetDescription(txt)->Build().empty()) {
 				// If the failure message was overridden and the override message doesn't
 				// come out empty, use that.
 				state = { false, txt };
 				// ... but still mark the original text as displayed.
-				(void) Game::Get()->GetDescription(restrs[ridx].failureMsg)->Build(true);
+				(void) Game::Get()->MutableDescription(restrs[ridx].failureMsg)->BuildAndCommit();
 			} else {
 				state = { false, restrs[ridx].failureMsg };
 			}
@@ -269,7 +269,7 @@ bool Restriction::Single::PassImpl(DescrRef *out, bool ignoreUnsetRefs) const {
 				strVal = obj->GetStrProp(prop);
 				break;
 			case Property::ValueType::Text:
-				strVal = Game::Get()->GetDescription(obj->GetIntProp(prop))->Build(false);
+				strVal = Game::Get()->GetDescription(obj->GetIntProp(prop))->Build();
 				break;
 			default:
 				throw std::runtime_error("Invalid property type while evaluating restriction.");
@@ -342,11 +342,11 @@ bool Restriction::Single::PassObjectCond(const std::string &lhs, const std::stri
 	for (const std::string *side: { &lhs, &rhs }) {
 		if (*side != "AnyObject" && *side != "AnyCharacter") continue;
 		bool wantChar = (*side == "AnyCharacter");
-		for (const auto &o: g->GetAllObjects()) {
-			if (dynamic_cast<Location *>(o.second)) continue;
-			if ((dynamic_cast<Character *>(o.second) != nullptr) != wantChar) continue;
-			bool pass = (side == &lhs) ? PassObjectCond(o.first, rhs, out)
-			                           : PassObjectCond(lhs, o.first, out);
+		for (const GameObj *o: g->GetAllObjects()) {
+			if (o->IsLocation()) continue;
+			if (o->IsCharacter() != wantChar) continue;
+			bool pass = (side == &lhs) ? PassObjectCond(o->Key(), rhs, out)
+			                           : PassObjectCond(lhs, o->Key(), out);
 			if (pass) return true;
 		}
 		return false;
@@ -360,7 +360,7 @@ bool Restriction::Single::PassObjectCond(const std::string &lhs, const std::stri
 		return g->ObjectExists(lhs);
 	case ConditionType::SeenByChar:
 	{
-		const Character *c = dynamic_cast<Character *>(g->GetObject(rhs));
+		const Character *c = AsCharacter(g->GetObject(rhs));
 		// The ADRIFT Developer application shouldn't generate files in which
 		// rhs is not of type character, but better safe than sorry...
 		// We'll have to see whether we should throw an error here, or just silently return false.
@@ -370,7 +370,7 @@ bool Restriction::Single::PassObjectCond(const std::string &lhs, const std::stri
 	}
 	case ConditionType::VisibleTo:
 	{
-		const Character *c = dynamic_cast<Character *>(g->GetObject(rhs));
+		const Character *c = AsCharacter(g->GetObject(rhs));
 		if (!c)
 			throw std::runtime_error("Restriction on characters references an object which isn't a character: " + rhs);
 		return c->CanSee(lhs);
@@ -379,7 +379,7 @@ bool Restriction::Single::PassObjectCond(const std::string &lhs, const std::stri
 		return g->GetObject(lhs)->IsMemberOfGroup(rhs);
 	case ConditionType::WithinGroup:
 	{
-		auto *loc = (GameObj *) g->GetObject(lhs)->GetLocation();
+		const GameObj *loc = g->GetObject(lhs)->GetLocation();
 		if (!loc) return false;
 		return loc->IsMemberOfGroup(rhs);
 	}
@@ -425,34 +425,38 @@ bool Restriction::Single::PassObjectCond(const std::string &lhs, const std::stri
 	case ConditionType::InObject:
 	case ConditionType::HeldBy:  // Starlane treats `held by` simply as `in`.
 	{
-		GameObj *l = g->GetObject(lhs);
+		const GameObj *l = g->GetObject(lhs);
 		return l->GetParentKey() == rhs && l->GetParentRelation() == GameObj::HoldingType::InObject;
 	}
 	case ConditionType::OnObject:
 	{
-		GameObj *l = g->GetObject(lhs);
+		const GameObj *l = g->GetObject(lhs);
 		return l->GetParentKey() == rhs && l->GetParentRelation() == GameObj::HoldingType::OnObject;
 	}
 	case Starlane::Restriction::ConditionType::OfType:  // ?
 		break;
-	case ConditionType::Alone:
-	    // "Alone" meaning "no other character is in the same location as the lhs"
-		return !std::any_of(g->GetAllObjects().cbegin(), g->GetAllObjects().cend(), [&](const auto &o) {
-			return o.first != lhs && dynamic_cast<Character *>(o.second)
-				&& o.second->GetLocationKey() != Game::Get()->GetObject(lhs)->GetLocationKey();
+	case ConditionType::Alone: {
+		// "Alone" meaning "no other character is in the same location as the lhs"
+		const auto *lhsLocation = g->GetObject(lhs)->GetLocation();
+		return !std::any_of(g->GetAllObjects().cbegin(), g->GetAllObjects().cend(), [&lhs, &lhsLocation](const GameObj *o) {
+			return o->Key() != lhs && o->IsCharacter()
+				&& o->GetLocation() == lhsLocation;
 		});
-	case ConditionType::AloneWith:
-	    // "Alone with" meaning "no other character except rhs is in the same location as the lhs"
-		if (g->GetObject(lhs)->GetLocationKey() != g->GetObject(rhs)->GetLocationKey()) return false;
-		return !std::any_of(g->GetAllObjects().cbegin(), g->GetAllObjects().cend(), [&](const auto &o) {
-			return o.first != lhs && o.first != rhs && dynamic_cast<Character *>(o.second)
-				&& o.second->GetLocationKey() != Game::Get()->GetObject(lhs)->GetLocationKey();
+	}
+	case ConditionType::AloneWith: {
+		// "Alone with" meaning "no other character except rhs is in the same location as the lhs"
+		const auto *lhsLocation = g->GetObject(lhs)->GetLocation();
+		if (lhsLocation != g->GetObject(rhs)->GetLocation()) return false;
+		return !std::any_of(g->GetAllObjects().cbegin(), g->GetAllObjects().cend(), [&lhs, &rhs, &lhsLocation](const GameObj *o) {
+			return o->Key() != lhs && o->Key() != rhs && o->IsCharacter()
+				&& lhsLocation == Game::Get()->GetObject(lhs)->GetLocation();
 		});
+	}
 	case Starlane::Restriction::ConditionType::InConversationWith:
 		break;  // TODO (once the conversations system is in place)
 	case ConditionType::HaveRoute:
 	{
-		auto ch = dynamic_cast<Character *>(g->GetObject(lhs));
+		auto ch = AsCharacter(g->GetObject(lhs));
 		if (!ch)
 			throw std::runtime_error("Restriction on characters references an object which isn't a character: " + lhs);
 		auto result = ch->HasRoute(rhs);
@@ -498,7 +502,7 @@ bool Restriction::Single::PassObjectCond(const std::string &lhs, const std::stri
 		return g->GetObject(lhs)->GetLocationKey().empty();
 	case ConditionType::WornBy:
 	{
-		GameObj *l = g->GetObject(lhs);
+		const GameObj *l = g->GetObject(lhs);
 		return l->GetParentKey() == rhs && l->GetParentRelation() == GameObj::HoldingType::Worn;
 	}
 	case ConditionType::InState:
@@ -506,7 +510,7 @@ bool Restriction::Single::PassObjectCond(const std::string &lhs, const std::stri
 		// ...except one that merely appends its states to another's: "LockStatus" holds "Locked"
 		// on every object that has it, whether or not the object is actually locked, because the
 		// state that matters lives in "OpenStatus". ADRIFT skips those here for the same reason.
-		GameObj *l = g->GetObject(lhs);
+		const GameObj *l = g->GetObject(lhs);
 		// One call, one reference: GetAllStrProps rebuilds the cache it hands back, so taking
 		// begin() and end() from separate calls would compare iterators into different containers.
 		const auto &props = l->GetAllStrProps();
@@ -518,7 +522,7 @@ bool Restriction::Single::PassObjectCond(const std::string &lhs, const std::stri
 	}
 	case ConditionType::PartOf:
 	{
-		GameObj *l = g->GetObject(lhs);
+		const GameObj *l = g->GetObject(lhs);
 		return l->GetParentKey() == rhs && l->GetParentRelation() == GameObj::HoldingType::PartOf;
 	}
 	default:

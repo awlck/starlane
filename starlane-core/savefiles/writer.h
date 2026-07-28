@@ -6,7 +6,12 @@
 #ifndef SLC_SAVEFILES_WRITER_H
 #define SLC_SAVEFILES_WRITER_H
 
+#include <algorithm>
+#include <string>
 #include <type_traits>
+#include <unordered_map>
+#include <utility>
+#include <vector>
 
 #include "../slc_private.h"
 
@@ -29,7 +34,10 @@ namespace Starlane::Save {
 // descriptions_shown already did).
 // Bumped to -992 when Events and Walks gained a saved `triggering_task` (ADRIFT's sTriggeringTask),
 // the per-cycle memory that suppresses a child task's re-trigger of a control its parent handles.
-constexpr int currentSaveFileVer = -992;
+// Bumped to -991 when text values that look like numbers or booleans ("0", "yes") started being
+// quoted: without that they read back as an int or a bool and a restore rejected the whole file.
+// Files written before this carry the ambiguity, so they are not readable either way.
+constexpr int currentSaveFileVer = -991;
 
 namespace {
 // Helper to determine whether there's a const_iterator for T.
@@ -48,6 +56,12 @@ public:
 class Writer {
 public:
 	Writer(void *target, const Game *game);
+	// A Writer that appends the plain text form to a string instead of compressing it into a file,
+	// and writes no `meta` header. The undo audit uses this to fingerprint a piece of game state:
+	// going through the same WriteState methods a save file does means the fingerprint covers
+	// exactly the fields the game considers state, rather than a second hand-kept list of them
+	// that could quietly fall out of step.
+	explicit Writer(std::string &target);
 	~Writer();
 	void Indent() { indentLevel += 1; }
 	void Dedent() { if (indentLevel > 0) indentLevel -= 1; }
@@ -55,6 +69,36 @@ public:
 	template<typename T> void WriteKV(const char *key, const T &val) {
 		WriteKey(key);
 		WriteValue(val);
+	}
+	// Write an unordered collection of strings as a list, in sorted order, for the same reason as
+	// WriteSortedMap below: an unordered_set hands its contents out in an order that depends on how
+	// the set was built, so writing it as-is would make a save file's bytes depend on the route the
+	// game took to its state rather than on the state itself.
+	template<typename Container> void WriteSortedKV(const char *key, const Container &values) {
+		std::vector<const std::string *> items;
+		items.reserve(values.size());
+		for (const auto &v : values) items.push_back(&v);
+		std::sort(items.begin(), items.end(),
+		          [](const std::string *a, const std::string *b) { return *a < *b; });
+		WriteKey(key);
+		WriteUnqouted("{ ");
+		for (const std::string *v : items) {
+			WriteValue(*v);
+			AcceptChar(' ');
+		}
+		AcceptChar('}');
+	}
+	// Write every entry of a string-keyed map, in key order. Property tables are unordered_maps
+	// whose iteration order is an implementation detail -- and, now that PropHolder shares them
+	// copy-on-write, not even stable between two games that reached the same state by different
+	// routes. Sorting here keeps a save file's bytes a function of the game state alone.
+	template<typename V> void WriteSortedMap(const std::unordered_map<std::string, V> &map) {
+		std::vector<const std::pair<const std::string, V> *> entries;
+		entries.reserve(map.size());
+		for (const auto &kv : map) entries.push_back(&kv);
+		std::sort(entries.begin(), entries.end(),
+		          [](const auto *a, const auto *b) { return a->first < b->first; });
+		for (const auto *kv : entries) WriteKV(kv->first.c_str(), kv->second);
 	}
 	// Write out a string value
 	void WriteValue(const std::string &str) { WriteLiteralString(str); }
@@ -100,7 +144,9 @@ public:
 	void WriteUnqouted(const char *str);
 
 private:
-	void *hFile;
+	void *hFile = nullptr;
+	// Set for the string-backed form above; when it is, nothing is compressed and no file is touched.
+	std::string *memTarget = nullptr;
 	size_t indentLevel = 0;
 
 	void WriteKey(const char *key) {
@@ -114,9 +160,9 @@ private:
 	void AcceptChar(char c);
 	void RunCompressor(bool finish);
 
-	uint8_t *textbuf, *zbuf;
+	uint8_t *textbuf = nullptr, *zbuf = nullptr;
 	size_t position = 0;
-	mz_stream_s *stream;
+	mz_stream_s *stream = nullptr;
 };
 
 }

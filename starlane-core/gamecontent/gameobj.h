@@ -6,6 +6,7 @@
 #include "../slc_private.h"
 
 #include <algorithm>
+#include <memory>
 #include <optional>
 #include <regex>
 #include <string>
@@ -30,12 +31,25 @@ std::string PrefixRegexFragment(const std::string &prefix);
 
 class GameObj: public PropHolder {
 public:
+	// Which of the three kinds of thing this is. GameObj has exactly two subclasses and the
+	// engine asks "is this a character?"/"is this a location?" constantly -- on nearly every
+	// object in the game, several times a turn -- so the answer is a stored tag rather than a
+	// dynamic_cast, which showed up as a real cost in profiles. See AsCharacter/AsLocation.
+	enum class Kind : uint8_t {
+		Object,
+		Character,
+		Location
+	};
+	[[nodiscard]] Kind GetKind() const { return kind; }
+	[[nodiscard]] bool IsCharacter() const { return kind == Kind::Character; }
+	[[nodiscard]] bool IsLocation() const { return kind == Kind::Location; }
+
 	std::string GetStrProp(const std::string &key) const override;
 	int64_t GetIntProp(const std::string &key) const override;
 	bool GetBoolProp(const std::string &key) const override;
 	const std::unordered_map<std::string, std::string> &GetAllStrProps() const override;
 	const std::unordered_map<std::string, int64_t> &GetAllIntProps() const override;
-	virtual const std::regex &GetMatchExpr() const { return matchRegex; }
+	virtual const std::regex &GetMatchExpr() const { return *matchRegex; }
 	// Whether `word` (matched case-insensitively) is one of this object's naming words for
 	// disambiguation purposes: its article, one of its prefix (adjective) words, or one of its
 	// nouns. Deliberately distinct from GetMatchExpr(), whose pattern requires a noun and so
@@ -45,6 +59,11 @@ public:
 	virtual bool MatchesNameWord(const std::string &word) const;
 	static GameObj *CreateFromXML(const pugi::xml_node &xmlNode);
 	virtual GameObj *Clone() const;  // sort of a copy constructor that respects subclassing.
+	// Replace this object's contents with another's, without moving it. The counterpart to Clone
+	// for putting a saved state back: everything in the engine holds objects by pointer, so
+	// restoring has to write through the pointers that already exist rather than swap in new ones.
+	// `other` is always the same kind of thing as `this` -- it came out of the same slot.
+	virtual void AssignFrom(const GameObj &other) { *this = other; }
     virtual ~GameObj() = default;
 
 	[[nodiscard]] const std::string &Key() const { return key; }
@@ -75,7 +94,7 @@ public:
 	// Get the location of this object as an object pointer rather than a key.
 	// A null pointer is returned if this object is hidden, or if the ultimate location somehow
 	// isn't of type `Location` after all.
-	Location *GetLocation() const;
+	const Location *GetLocation() const;
 	// Get the visibility ceiling (usually the location, but when in a closed container
 	// this would be that container).
 	const std::string &GetVisbilityCeiling() const;
@@ -147,8 +166,11 @@ public:
 	virtual bool RestoreState(const Save::AstNode *node);
 
 protected:
+	explicit GameObj(Kind k = Kind::Object) : kind(k) {}
 	void MakeCommonValues(const pugi::xml_node &xmlNode);
 
+	// Set once, by the constructor of whichever subclass (if any) this really is.
+	Kind kind;
 	std::string key;
 	// The immediate parent holding this object.
 	std::string parent;
@@ -161,12 +183,25 @@ protected:
 	bool dynamic = false;
 	std::string article;
 	std::string prefix;
-	std::vector<std::string> nouns;
+	// The words this thing answers to. Copy-on-write: an object a turn changes is cloned into that
+	// turn's undo record, and this is the only part of an object's naming that is not a short (and
+	// so allocation-free) string -- but it changes only when the player switches character (see
+	// TransferPronounNouns), so the clone shares one list until then.
+	std::shared_ptr<std::vector<std::string>> nouns = std::make_shared<std::vector<std::string>>();
+	// The list to write to: our own if nobody else is looking at it, otherwise a private copy.
+	std::vector<std::string> &MutableNouns() {
+		if (nouns.use_count() > 1) nouns = std::make_shared<std::vector<std::string>>(*nouns);
+		return *nouns;
+	}
 	DescrRef description;
 	// The keys of all the groups this object is a member of.
 	std::unordered_set<std::string> groupMembership;
-	// A regular expression that matches this object's name.
-	std::regex matchRegex;
+	// A regular expression that matches this object's name. Held by pointer and shared rather than
+	// held by value: a std::regex copy is a deep copy of the compiled state machine, an object a
+	// turn changes is cloned into that turn's undo record, and this only ever changes when
+	// MakeMatchExpr recompiles it (a rename, or the player switching character). Never written
+	// through -- MakeMatchExpr replaces the pointer -- so sharing it needs no copy-on-write dance.
+	std::shared_ptr<const std::regex> matchRegex = std::make_shared<const std::regex>();
 	virtual void MakeMatchExpr();
 
 	// A name component can itself hold a %function% call -- Return to the Stars names its rifle

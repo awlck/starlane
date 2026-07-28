@@ -1,18 +1,73 @@
 #include "utility.h"
 
+#include <cstring>
 #include <regex>
 
-// see: https://stackoverflow.com/a/9437426
-std::vector<std::string> Starlane::Util::SplitString(const std::string &s, const std::string &delimRegex) {
-	std::regex re(delimRegex);
+namespace {
+// Whether `pattern` matches exactly one fixed string -- i.e. contains no ECMAScript regex
+// operator -- and if so what that string is. Almost every delimiter this file is asked to split
+// on is one of these (" ", ",", "\n", "\\|"), and a literal split beats building and running a
+// std::regex by well over an order of magnitude; SplitString sits in the per-turn path via
+// SplitList/SplitLines/ContainsWholeWord, so that difference is worth having.
+bool LiteralDelimiter(const std::string &pattern, std::string &out) {
+	out.clear();
+	for (size_t i = 0; i < pattern.size(); i++) {
+		const char c = pattern[i];
+		if (c == '\\') {
+			if (++i >= pattern.size()) return false;
+			const unsigned char esc = (unsigned char) pattern[i];
+			// Only an escaped punctuation character stands for itself; the alphanumeric escapes
+			// are character classes (\s, \d) or control characters (\n as written in a pattern).
+			if (isalnum(esc)) return false;
+			out += (char) esc;
+		} else if (std::strchr("^$.*+?()[]{}|", c) != nullptr) {
+			return false;
+		} else {
+			out += c;
+		}
+	}
+	return !out.empty();
+}
+
+std::vector<std::string> SplitByRegex(const std::string &s, const std::regex &re) {
 	std::sregex_token_iterator first(s.begin(), s.end(), re, -1), last;
 	// implicitly initialise vector from iterator, since this is just what you probably wouldn't expect:
 	return { first, last };
 }
 
-std::vector<std::string> Starlane::Util::SplitObjectList(const std::string &s) {
+// A literal-delimiter split reproducing std::sregex_token_iterator's -1 ("everything between the
+// matches") behaviour exactly: an empty input yields one empty piece, a leading or doubled
+// delimiter yields an empty piece, and a single trailing delimiter does *not* (the iterator
+// suppresses an empty suffix).
+std::vector<std::string> SplitLiteral(const std::string &s, const std::string &delim) {
 	std::vector<std::string> result;
-	for (auto &piece : SplitString(s, R"(\s*,\s*|\s+and\s+)")) {
+	size_t pos = 0;
+	for (;;) {
+		const size_t hit = s.find(delim, pos);
+		if (hit == std::string::npos) break;
+		result.emplace_back(s, pos, hit - pos);
+		pos = hit + delim.size();
+	}
+	result.emplace_back(s, pos, s.size() - pos);
+	if (result.size() > 1 && result.back().empty()) result.pop_back();
+	return result;
+}
+}  // namespace
+
+// see: https://stackoverflow.com/a/9437426
+std::vector<std::string> Starlane::Util::SplitString(const std::string &s, const std::string &delimRegex) {
+	std::string literal;
+	if (LiteralDelimiter(delimRegex, literal))
+		return SplitLiteral(s, literal);
+	return SplitByRegex(s, std::regex(delimRegex));
+}
+
+std::vector<std::string> Starlane::Util::SplitObjectList(const std::string &s) {
+	// One of the two delimiters in the codebase that really is a regex, and the only one on a
+	// per-command path, so it is compiled once rather than per call.
+	static const std::regex kSeparator(R"(\s*,\s*|\s+and\s+)");
+	std::vector<std::string> result;
+	for (auto &piece : SplitByRegex(s, kSeparator)) {
 		// A trailing "," before "and" ("a, b, and c") leaves an empty piece behind.
 		size_t first = piece.find_first_not_of(" \t");
 		if (first == std::string::npos) continue;

@@ -143,7 +143,7 @@ void Game::UpdatePronounAntecedents() {
 		std::string result;
 		for (size_t i = 0; i < keys.size(); i++) {
 			if (i != 0) result += (i + 1 == keys.size()) ? " and " : ", ";
-			GameObj *ob = TryGetObject(keys[i]);
+			const GameObj *ob = TryGetObject(keys[i]);
 			result += ob ? ob->GetDisplayName(true) : keys[i];
 		}
 		return result;
@@ -166,7 +166,7 @@ void Game::UpdatePronounAntecedents() {
 
 		auto refIt = currentRefs.find(Util::CanonicalizeRefName(token));
 		if (refIt == currentRefs.end() || refIt->second.empty()) continue;
-		GameObj *ob = TryGetObject(refIt->second);
+		const GameObj *ob = TryGetObject(refIt->second);
 		if (!ob) continue;
 
 		if (isCharFamily && ob->HasProp("Gender")) {
@@ -200,19 +200,17 @@ std::vector<std::string> Game::MatchListForReference(const std::string &from, co
 	// provisional pick and any disambiguation prompt list candidates as the game defines them --
 	// "the red ball or the green ball", the order the author wrote them, as ADRIFT does.
 	std::vector<std::string> result;
-	for (const auto &key : staticData->objectLoadOrder) {
-		auto it = objects.find(key);
-		if (it == objects.end()) continue;
+	for (const GameObj *o : objects) {
 		switch (rt) {
 			case ReferenceType::Object:
-				if (dynamic_cast<Character *>(it->second)) continue;
+				if (o->IsCharacter()) continue;
 				break;
 			case ReferenceType::Character:
-				if (!dynamic_cast<Character *>(it->second)) continue;
+				if (!o->IsCharacter()) continue;
 				break;
 		}
-		if (std::regex_match(from, it->second->GetMatchExpr()))
-			result.push_back(key);
+		if (std::regex_match(from, o->GetMatchExpr()))
+			result.push_back(o->Key());
 	}
 
 	// Narrow the name matches down by scope, preferring the narrowest scope that still
@@ -220,7 +218,7 @@ std::vector<std::string> Game::MatchListForReference(const std::string &from, co
 	// then things they have seen at some point. If neither yields anything, keep the
 	// full list; the matched task's own restrictions will then produce a sensible
 	// failure message (e.g. "You see no such thing.").
-	const auto *player = dynamic_cast<const Character *>(GetPlayerChar());
+	const auto *player = AsCharacter(GetPlayerChar());
 	if (!player) return result;
 	std::vector<std::string> visible, seen;
 	for (const auto &k : result) {
@@ -334,14 +332,24 @@ Task *Game::FindMatchingTask() {
 	Task *noRefTask = nullptr;
 	std::vector<std::string> noRefTokens;
 
+	// Folded once here for Task::GetCmdLiterals below, which holds its literals folded the same
+	// way. The command usually arrives folded already, but not always: SubstitutePronouns splices
+	// in a thing's display name ("take it" -> "take the Brass Lantern") as the game spells it.
+	const std::string foldedCommand = Util::ToLower(currentCommand);
+
 	for (Task *task : staticData->prioOrderedTasks) {
 		if (task->GetType() != Task::Type::General) continue;
 		// A completed, non-repeatable task is not a candidate at all.
 		if (task->Completed() && !task->IsRepeatable()) continue;
 
 		const auto &regexes = task->GetCmdRegexes();
+		const auto &literals = task->GetCmdLiterals();
 		const auto &groupCoding = task->GetGroupCoding();
 		for (size_t cmdIdx = 0; cmdIdx < regexes.size(); cmdIdx++) {
+			// Cheap first: a pattern whose mandatory literal text isn't in the input cannot match,
+			// and a game has thousands of patterns for every command the player types.
+			const std::string &required = literals[cmdIdx];
+			if (!required.empty() && foldedCommand.find(required) == std::string::npos) continue;
 			std::smatch matches;
 			if (!std::regex_match(currentCommand, matches, regexes[cmdIdx])) continue;
 
@@ -438,17 +446,15 @@ bool Game::PromptForIncompleteVerb() {
 }
 
 bool Game::DescribeUnmatchedThing() {
-	const auto *player = dynamic_cast<const Character *>(GetPlayerChar());
+	const auto *player = AsCharacter(GetPlayerChar());
 	if (!player) return false;
 	// Load order, as everywhere else things are listed for the player -- and so that if the input
 	// somehow names more than one currently-visible thing, the one mentioned wins the same way it
 	// would in a disambiguation prompt.
-	for (const auto &key : staticData->objectLoadOrder) {
-		auto it = objects.find(key);
-		if (it == objects.end()) continue;
-		if (!player->CanSee(key)) continue;
-		if (!std::regex_match(currentCommand, it->second->GetMatchExpr())) continue;
-		OutputFiltered("I don't understand what you want to do with " + it->second->GetDisplayName(true) + ".\n");
+	for (const GameObj *o : objects) {
+		if (!player->CanSee(o->Key())) continue;
+		if (!std::regex_match(currentCommand, o->GetMatchExpr())) continue;
+		OutputFiltered("I don't understand what you want to do with " + o->GetDisplayName(true) + ".\n");
 		return true;
 	}
 	return false;
@@ -518,13 +524,13 @@ bool Game::RunTaskAndCapture(Task *task, bool showText, bool runActions) {
 	bool anyText = false;
 	auto emit = [&] {
 		if (!showText || task->GetCompletionMsg() == 0) return;
-		Description *desc = GetDescription(task->GetCompletionMsg());
+		const Description *desc = GetDescription(task->GetCompletionMsg());
 
 		if (!activeResponseBuffer) {
 			// Out-of-command path (event, walk, triggered task): unchanged from before -- build and
 			// commit the message now (so a sequential/return-to-default description advances its
 			// shown-state as it always did), dedup on the evaluated text turn-wide, emit immediately.
-			std::string text = desc->Build();
+			std::string text = MutableDescription(task->GetCompletionMsg())->BuildAndCommit();
 			if (!text.empty()) anyText = true;
 			if (completionMessagesThisTurn.insert(text).second)
 				OutputFiltered(std::move(text));
@@ -534,7 +540,7 @@ bool Game::RunTaskAndCapture(Task *task, bool showText, bool runActions) {
 		// Buffering: the message is rendered (and its shown-state committed) once, at flush time; here
 		// we only measure whether it has anything to say -- which drives Specific-override /
 		// AlwaysContinues control flow -- without committing, using commit=false.
-		std::string evaluated = desc->Build(false);
+		std::string evaluated = desc->Build();
 		if (!evaluated.empty()) anyText = true;
 		// Nothing to say: record nothing (mirrors ADRIFT's bHasOutput filter).
 		if (evaluated.empty()) return;
@@ -606,7 +612,7 @@ static size_t PickCommandAlternate(Game *g,
 		for (size_t j = 0; j < args.size(); j++) {
 			const std::string &family = SplitRefName(coding[i][j]).family;
 			const GameObj *ob = g->TryGetObject(args[j]);
-			const bool isChar = dynamic_cast<const Character *>(ob) != nullptr;
+			const bool isChar = AsCharacter(ob) != nullptr;
 			const bool isObj = ob && !isChar;
 			if (IsObjectPronounFamily(family) ? isObj
 			    : IsCharacterPronounFamily(family) ? isChar
@@ -663,7 +669,7 @@ void Game::ExecuteTaskByKey(const std::string &key, const std::vector<std::strin
 	auto result = task->CheckRestrictions();
 	if (!result.first) {
 		if (result.second != 0)
-			OutputFiltered(GetDescription(result.second)->Build());
+			OutputFiltered(MutableDescription(result.second)->BuildAndCommit());
 		return;
 	}
 	// A task reached through an "Execute" action still gets its Specific overrides applied,
@@ -733,7 +739,7 @@ void Game::ExecuteMatchedTask(Task *general) {
 
 		auto parentResult = general->CheckRestrictions();
 		if (!parentResult.first)
-			OutputFiltered(parentResult.second != 0 ? GetDescription(parentResult.second)->Build() : "You can't do that right now.\n");
+			OutputFiltered(parentResult.second != 0 ? MutableDescription(parentResult.second)->BuildAndCommit() : "You can't do that right now.\n");
 		else
 			RunTaskWithSpecifics(general, currentMatchedRefTokens);
 
@@ -762,7 +768,7 @@ void Game::FlushResponseBuffer(ResponseBuffer &buffer) {
 			if (keys.size() < 2) continue;
 			currentRefs[name] = JoinKeys(keys);
 		}
-		std::string text = GetDescription(resp.descr)->Build();
+		std::string text = MutableDescription(resp.descr)->BuildAndCommit();
 		currentRefs = std::move(savedRefs);
 		// Record it against the turn-wide set so a later out-of-command message (a triggered task or
 		// event this turn) with the same text stays suppressed, as it was before buffering existed.
@@ -801,7 +807,7 @@ void Game::RunTaskWithSpecifics(Task *general, const std::vector<std::string> &r
 		} else if (childResult.second != 0) {
 			// The child failed, but produced restriction-failure text of its own: that takes
 			// precedence over the parent, same as if the child had passed.
-			std::string text = GetDescription(childResult.second)->Build();
+			std::string text = MutableDescription(childResult.second)->BuildAndCommit();
 			childHadSomethingToSay = !text.empty();
 			OutputFiltered(std::move(text));
 			if (childHadSomethingToSay) {
@@ -823,7 +829,7 @@ void Game::RunTaskWithSpecifics(Task *general, const std::vector<std::string> &r
 		if (childResult.first) {
 			childHadSomethingToSay = RunTaskAndCapture(child);
 		} else if (childResult.second != 0) {
-			std::string text = GetDescription(childResult.second)->Build();
+			std::string text = MutableDescription(childResult.second)->BuildAndCommit();
 			childHadSomethingToSay = !text.empty();
 			OutputFiltered(std::move(text));
 		}
@@ -836,7 +842,7 @@ std::vector<std::string> Game::NarrowByAnswer(const std::vector<std::string> &ca
 	auto answerWords = Util::SplitString(frontend->StrToLowerCase(answer), " ");
 	std::vector<std::string> result;
 	for (const auto &key : candidates) {
-		GameObj *ob = TryGetObject(key);
+		const GameObj *ob = TryGetObject(key);
 		if (!ob) continue;
 		bool matchesAll = true;
 		for (const auto &word : answerWords) {
@@ -858,7 +864,7 @@ void Game::DisplayAmbiguityQuestion(const RefMatchInfo &info) {
 		if (w.empty()) continue;
 		bool inAll = true;
 		for (const auto &key : info.candidates) {
-			GameObj *ob = TryGetObject(key);
+			const GameObj *ob = TryGetObject(key);
 			if (!ob || !ob->MatchesNameWord(w)) { inAll = false; break; }
 		}
 		if (inAll) { word = w; break; }
@@ -868,7 +874,7 @@ void Game::DisplayAmbiguityQuestion(const RefMatchInfo &info) {
 	std::string list;
 	for (size_t i = 0; i < info.candidates.size(); i++) {
 		if (i != 0) list += (i + 1 == info.candidates.size()) ? " or " : ", ";
-		GameObj *ob = TryGetObject(info.candidates[i]);
+		const GameObj *ob = TryGetObject(info.candidates[i]);
 		list += ob ? ob->GetDisplayName(true) : info.candidates[i];
 	}
 	OutputFiltered("Which " + word + "? " + list + ".\n");
@@ -998,12 +1004,13 @@ void Game::ResolveDisambiguation(const std::string &answer) {
 		TurnTick();
 		return;
 	}
-	// A system command both tests and runs in one call, and some of them (UNDO/RESTART) replace
-	// `this` outright -- after which its members must not be touched. So clear the pending state
-	// first; if it turns out not to be a system command after all, put it back and re-ask.
+	// A system command both tests and runs in one call, so the pending state is cleared first and
+	// put back if it turns out not to have been one after all. (This used to be about UNDO and
+	// RESTART replacing `this` outright; they work in place now, but abandoning the disambiguation
+	// before running the command is still the right order.)
 	auto savedPending = std::move(pendingDisambig);
 	pendingDisambig.reset();
-	if (AttemptMatchSystemCommand()) return;  // matched and ran (abandoning the disambiguation); `this` may be gone
+	if (AttemptMatchSystemCommand()) return;  // matched and ran, abandoning the disambiguation
 	pendingDisambig = std::move(savedPending);
 	DisplayAmbiguityQuestion(askAgain);
 }
@@ -1091,16 +1098,12 @@ bool Game::AttemptMatchEndOfGameCommand() {
 	const std::string cmd = NormalizeSystemCommand(currentCommand);
 
 	if (cmd == "restart") {
-		// Restart() puts a fresh copy of the game's starting state in our place and destroys
-		// this instance, so there is nothing left here to say afterwards -- and nothing of
-		// `this` left to say it with.
-		Restart();
+		Restart();  // in place: `this` and everything in it survives
 		return true;
 	}
 	if (cmd == "restore") {
-		// Restore() reports its own failures, and a failed restore rolls the game back to a
-		// snapshot taken before it started meddling -- which destroys this instance. So the
-		// success message has to come from whatever instance is current afterwards.
+		// Restore() reports its own failures, and a failed restore rolls the game back to the
+		// state recorded before it started meddling.
 		if (Restore())
 			Game::Get()->OutputFiltered("Restored.\n");
 		return true;
@@ -1122,16 +1125,15 @@ bool Game::AttemptMatchEndOfGameCommand() {
 			OutputFiltered("Sorry, <c>undo</c> is not currently available.\n");
 			return true;
 		}
-		// As with RESTART, `this` is gone once RestoreUndo() has put the previous state back.
-		RestoreUndo();
-		Game::Get()->OutputFiltered("Undone.\n");
+		RestoreUndo();  // in place, like RESTART
+		OutputFiltered("Undone.\n");
 		return true;
 	}
 	return false;
 }
 
 bool Game::AttemptMatchSystemCommand() {
-	// Caution: may `delete this` (RESTART, UNDO) or end the session (QUIT) -- see above.
+	// May end the session (QUIT), but no longer replaces the Game instance -- see above.
 	if (AttemptMatchEndOfGameCommand()) return true;
 
 	const std::string cmd = NormalizeSystemCommand(currentCommand);

@@ -19,6 +19,8 @@
 #include "gamecontent/userfunc.h"
 #include "gamecontent/variable.h"
 #include "savefiles/parser.h"
+#include <cstring>
+
 #include "savefiles/writer.h"
 #include "valueparsers.h"
 
@@ -52,49 +54,69 @@ void StripSeamMarkers(std::string &s) {
 // [a-z]: prose in any language passes through intact.
 // Returns whether anything was raised.
 bool AutoCapitalize(std::string &s) {
-	static const std::regex kSentenceStart(R"(^([a-z])|\n([a-z])|[a-z][.!?] {1,2}([a-z]))");
+	// Written out by hand rather than handed to std::regex. ADRIFT rescans from the start of the
+	// text after every letter it raises, which is quadratic in the length of a long message, and
+	// this runs over every line the game prints. A single left-to-right pass gives the same answer:
+	// raising a letter can only ever destroy a potential match (all three alternatives need a
+	// *lowercase* letter where they act), never create an earlier one, so the matches come out in
+	// the same order either way.
+	auto isLower = [](char c) { return c >= 'a' && c <= 'z'; };
 	bool changed = false;
-	std::smatch m;
-	// Rescanning from the start each time, as ADRIFT does. It terminates because every
-	// alternative ends on the lowercase letter it raises, so a given match never matches twice.
-	while (std::regex_search(s, m, kSentenceStart)) {
-		const size_t group = m[1].matched ? 1 : (m[2].matched ? 2 : 3);
-		const auto at = (size_t) m.position(group);
+	for (size_t i = 0; i < s.size(); i++) {
+		size_t at = std::string::npos;
+		if (i == 0 && isLower(s[0])) {
+			at = 0;                                        // ^([a-z])
+		} else if (s[i] == '\n' && i + 1 < s.size() && isLower(s[i + 1])) {
+			at = i + 1;                                    // \n([a-z])
+		} else if (isLower(s[i]) && i + 3 < s.size() && (s[i + 1] == '.' || s[i + 1] == '!' ||
+				s[i + 1] == '?') && s[i + 2] == ' ') {     // [a-z][.!?] {1,2}([a-z])
+			if (isLower(s[i + 3])) at = i + 3;
+			else if (i + 4 < s.size() && s[i + 3] == ' ' && isLower(s[i + 4])) at = i + 4;
+		}
+		if (at == std::string::npos) continue;
 		// The match guarantees an ASCII 'a'-'z', so raise it directly. std::toupper would ask
 		// the locale, which the Qt frontend sets -- and a Turkish one does not raise 'i' to 'I'.
 		s[at] = (char) (s[at] - 'a' + 'A');
 		changed = true;
+		// Nothing between here and the letter just raised can start a match of its own (it is
+		// punctuation or a space), and the letter itself is no longer lowercase.
+		i = at;
 	}
 	return changed;
 }
 }  // anonymous namespace
 
 Game *Game::theGame = nullptr;
-std::deque<Game *> Game::undoStates;
 Game *Game::startupState = nullptr;
+std::deque<Game::UndoRecord> Game::undoStates;
+Game::UndoRecord Game::openRecord;
+uint64_t Game::undoSeqCounter = 0;
+uint64_t Game::undoGenerationCounter = 0;
+bool Game::undoRecording = false;
 bool Game::inputInFlight = false;
 
 /* Copy constructor for game instances. Needs to create copies of all
  * the mutable game state objects.
  */
 Game::Game(const Game &rhs) {
+	// Slot for slot, so that every key already indexed against the original (see
+	// GameStatic::objectIndex and friends) names the same thing in the copy.
 	objects.reserve(rhs.objects.size());
 	// For objects, we also need to respect subclassing...
-	for (const auto &it : rhs.objects)
-		objects[it.first] = it.second->Clone();
+	for (const GameObj *o : rhs.objects)
+		objects.push_back(o->Clone());
 	events.reserve(rhs.events.size());
-	for (const auto &it : rhs.events)
-		events[it.first] = new Event(*it.second);
+	for (const Event *e : rhs.events)
+		events.push_back(new Event(*e));
 	variables.reserve(rhs.variables.size());
-	for (const auto &it : rhs.variables)
-		variables[it.first] = new Variable(*it.second);
+	for (const Variable *v : rhs.variables)
+		variables.push_back(new Variable(*v));
 	groups.reserve(rhs.groups.size());
-	for (const auto &it : rhs.groups)
-		groups[it.first] = new Group(*it.second);
-	descriptions.reserve(rhs.descriptions.size());
-	for (const auto &it : rhs.descriptions) {
-		descriptions[it.first] = new Description(*it.second);
-	}
+	for (const Group *g : rhs.groups)
+		groups.push_back(new Group(*g));
+	descriptions.resize(rhs.descriptions.size(), nullptr);
+	for (size_t i = 1; i < rhs.descriptions.size(); i++)  // slot 0 is the "none" sentinel
+		descriptions[i] = new Description(*rhs.descriptions[i]);
 
 	// just bools, so a vector copy is sufficient.
 	taskCompletedStorage = rhs.taskCompletedStorage;
@@ -109,7 +131,6 @@ Game::Game(const Game &rhs) {
 	turnCount = rhs.turnCount;
 	gameHasBegun = rhs.gameHasBegun;
 	sessionActive = rhs.sessionActive;
-	descriptionsSoFar = rhs.descriptionsSoFar;
 	restrictionsSoFar = rhs.restrictionsSoFar;
 	textSnippetsSoFar = rhs.textSnippetsSoFar;
 	expressionsSoFar = rhs.expressionsSoFar;
@@ -124,16 +145,16 @@ Game::Game(const Game &rhs) {
 Game::~Game() {
 	// destroy mutable game state
 	// (C++ fun fact: it is indeed valid to `delete` a `const Foo *`.)
-	for (const auto &it : objects)
-		delete it.second;
-	for (const auto &it : events)
-		delete it.second;
-	for (const auto &it : variables)
-		delete it.second;
-	for (const auto &it : groups)
-		delete it.second;
-	for (const auto &it : descriptions)
-		delete it.second;
+	for (const GameObj *o : objects)
+		delete o;
+	for (const Event *e : events)
+		delete e;
+	for (const Variable *v : variables)
+		delete v;
+	for (const Group *g : groups)
+		delete g;
+	for (auto *d : descriptions)
+		delete d;
 
 	if (theGame == this) {
 		// We are the current (presumably last) game instance -- destroy everything.
@@ -180,8 +201,8 @@ void Game::SwitchPlayerCharacter(const std::string &newPlayerKey) {
 	case ReferralPerson::ThirdPerson: break;
 	}
 	if (pronouns) {
-		if (GameObj *oldPlayer = TryGetObject(playerKey))
-			if (GameObj *newPlayer = TryGetObject(newPlayerKey))
+		if (GameObj *oldPlayer = MutableObject(playerKey))
+			if (GameObj *newPlayer = MutableObject(newPlayerKey))
 				oldPlayer->TransferPronounNouns(*newPlayer, *pronouns);
 	}
 	playerKey = newPlayerKey;
@@ -191,16 +212,195 @@ bool Game::PlayerIsInLocationOrGroup(const std::string &key) const {
 	const std::string &here = GetPlayerLocationKey();
 	// A key naming a location is only ever about that location, even if a group happens to share
 	// the name: ADRIFT checks its locations first and stops there.
-	if (dynamic_cast<const Location *>(SafeMapGet(objects, key)))
+	if (AsLocation(IndexedGet(staticData->objectIndex, objects, key)))
 		return here == key;
-	if (const Group *grp = SafeMapGet(groups, key))
+	if (const Group *grp = IndexedGet(staticData->groupIndex, groups, key))
 		return grp->ContainsObj(here);
 	return false;
 }
 
+size_t Game::TaskStateIndex(const std::string &key) const {
+	return staticData->tasks.at(key)->StateIndex();
+}
+
+void Game::PrepareUndoBookkeeping() {
+	objectStamp.assign(objects.size(), 0);
+	eventStamp.assign(events.size(), 0);
+	variableStamp.assign(variables.size(), 0);
+	groupStamp.assign(groups.size(), 0);
+	descriptionStamp.assign(descriptions.size(), 0);
+	taskFlagStamp.assign(taskCompletedStorage.size(), 0);
+}
+
+// The five of these differ only in which table and which stamp array they touch; an object needs
+// Clone() rather than a copy constructor because it may really be a Character or a Location.
+void Game::PreserveObject(size_t slot) {
+	if (!undoRecording || objectStamp[slot] == openRecord.generation) return;
+	objectStamp[slot] = openRecord.generation;
+	openRecord.objects.emplace_back((uint32_t) slot, objects[slot]->Clone());
+}
+void Game::PreserveEvent(size_t slot) {
+	if (!undoRecording || eventStamp[slot] == openRecord.generation) return;
+	eventStamp[slot] = openRecord.generation;
+	openRecord.events.emplace_back((uint32_t) slot, new Event(*events[slot]));
+}
+void Game::PreserveVariable(size_t slot) {
+	if (!undoRecording || variableStamp[slot] == openRecord.generation) return;
+	variableStamp[slot] = openRecord.generation;
+	openRecord.variables.emplace_back((uint32_t) slot, new Variable(*variables[slot]));
+}
+void Game::PreserveGroup(size_t slot) {
+	if (!undoRecording || groupStamp[slot] == openRecord.generation) return;
+	groupStamp[slot] = openRecord.generation;
+	openRecord.groups.emplace_back((uint32_t) slot, new Group(*groups[slot]));
+}
+void Game::PreserveDescription(size_t slot) {
+	if (!undoRecording || descriptionStamp[slot] == openRecord.generation) return;
+	descriptionStamp[slot] = openRecord.generation;
+	openRecord.descriptions.emplace_back((uint32_t) slot, new Description(*descriptions[slot]));
+}
+void Game::PreserveTaskFlag(size_t slot) {
+	if (!undoRecording || taskFlagStamp[slot] == openRecord.generation) return;
+	taskFlagStamp[slot] = openRecord.generation;
+	openRecord.taskFlags.emplace_back((uint32_t) slot, taskCompletedStorage[slot]);
+}
+
+void Game::ClearRecord(UndoRecord &rec) {
+	for (auto &e : rec.objects) delete e.second;
+	for (auto &e : rec.events) delete e.second;
+	for (auto &e : rec.variables) delete e.second;
+	for (auto &e : rec.groups) delete e.second;
+	for (auto &e : rec.descriptions) delete e.second;
+	rec.objects.clear();
+	rec.events.clear();
+	rec.variables.clear();
+	rec.groups.clear();
+	rec.descriptions.clear();
+	rec.taskFlags.clear();
+#ifdef SL_UNDO_AUDIT
+	delete rec.shadow;
+	rec.shadow = nullptr;
+#endif
+}
+
+void Game::ApplyRecord(UndoRecord &rec) {
+	// Written back through the pointers that already exist, so nothing in the engine that is
+	// holding a piece of game content finds it moved underneath.
+	for (auto &e : rec.objects) Unconst(objects[e.first])->AssignFrom(*e.second);
+	for (auto &e : rec.events) *Unconst(events[e.first]) = *e.second;
+	for (auto &e : rec.variables) *Unconst(variables[e.first]) = *e.second;
+	for (auto &e : rec.groups) *Unconst(groups[e.first]) = *e.second;
+	for (auto &e : rec.descriptions) *Unconst(descriptions[e.first]) = *e.second;
+	for (auto &e : rec.taskFlags) taskCompletedStorage[e.first] = e.second;
+
+	playerKey = rec.playerKey;
+	mostRecentlyMentioned = rec.mostRecentlyMentioned;
+	pronounItText = rec.pronounItText;
+	pronounThemText = rec.pronounThemText;
+	pronounHimText = rec.pronounHimText;
+	pronounHerText = rec.pronounHerText;
+	turnCount = rec.turnCount;
+	gameHasBegun = rec.gameHasBegun;
+	sessionActive = rec.sessionActive;
+}
+
+void Game::RestampOpenRecord() {
+	openRecord.generation = ++undoGenerationCounter;
+	for (auto &e : openRecord.objects) objectStamp[e.first] = openRecord.generation;
+	for (auto &e : openRecord.events) eventStamp[e.first] = openRecord.generation;
+	for (auto &e : openRecord.variables) variableStamp[e.first] = openRecord.generation;
+	for (auto &e : openRecord.groups) groupStamp[e.first] = openRecord.generation;
+	for (auto &e : openRecord.descriptions) descriptionStamp[e.first] = openRecord.generation;
+	for (auto &e : openRecord.taskFlags) taskFlagStamp[e.first] = openRecord.generation;
+}
+
+#ifdef SL_UNDO_AUDIT
+// A canonical text form of one slot's mutable state, taken through the same WriteState methods a
+// save file goes through -- so it covers exactly the fields the game considers state rather than a
+// second list of them kept by hand, which could quietly fall out of step with the first.
+std::string Game::SlotFingerprint(const char *kind, size_t slot) const {
+	std::string out;
+	Save::Writer w(out);
+	if (strcmp(kind, "object") == 0) objects[slot]->WriteState(w);
+	else if (strcmp(kind, "event") == 0) events[slot]->WriteState(w);
+	else if (strcmp(kind, "group") == 0) groups[slot]->WriteState(w);
+	else if (strcmp(kind, "variable") == 0) {
+		const Variable *v = variables[slot];
+		if (v->HoldsText()) w.WriteKV("v", v->GetStrArray());
+		else w.WriteKV("v", v->GetIntArray());
+	} else if (strcmp(kind, "description") == 0) {
+		w.WriteKV("v", descriptions[slot]->GetState());
+	}
+	return out;
+}
+
+// Check the world we have just restored in place against the whole-world copy taken when this
+// record was opened. A missed preserve shows up here as a slot that differs, named, rather than as
+// a wrong description three turns later.
+void Game::AuditRestore(const UndoRecord &rec) const {
+	if (!rec.shadow) return;
+	const Game &want = *rec.shadow;
+	auto complain = [&](const char *kind, size_t slot, const std::string &a, const std::string &b) {
+		LogError(std::string("UNDO AUDIT: ") + kind + " slot " + std::to_string(slot) +
+			" was not restored correctly.\n  got:  " + a + "\n  want: " + b);
+		frontend->FatalError("Undo audit failed; see the log.");
+	};
+	for (size_t i = 0; i < objects.size(); i++) {
+		std::string a = SlotFingerprint("object", i), b = want.SlotFingerprint("object", i);
+		if (a != b) complain("object", i, a, b);
+	}
+	for (size_t i = 0; i < events.size(); i++) {
+		std::string a = SlotFingerprint("event", i), b = want.SlotFingerprint("event", i);
+		if (a != b) complain("event", i, a, b);
+	}
+	for (size_t i = 0; i < variables.size(); i++) {
+		std::string a = SlotFingerprint("variable", i), b = want.SlotFingerprint("variable", i);
+		if (a != b) complain("variable", i, a, b);
+	}
+	for (size_t i = 0; i < groups.size(); i++) {
+		std::string a = SlotFingerprint("group", i), b = want.SlotFingerprint("group", i);
+		if (a != b) complain("group", i, a, b);
+	}
+	for (size_t i = 1; i < descriptions.size(); i++) {
+		std::string a = SlotFingerprint("description", i), b = want.SlotFingerprint("description", i);
+		if (a != b) complain("description", i, a, b);
+	}
+	if (taskCompletedStorage != want.taskCompletedStorage)
+		complain("task-completion", 0, "(differs)", "(differs)");
+	if (playerKey != want.playerKey || turnCount != want.turnCount ||
+			gameHasBegun != want.gameHasBegun || sessionActive != want.sessionActive ||
+			mostRecentlyMentioned != want.mostRecentlyMentioned ||
+			pronounItText != want.pronounItText || pronounThemText != want.pronounThemText ||
+			pronounHimText != want.pronounHimText || pronounHerText != want.pronounHerText)
+		complain("session state", 0, playerKey, want.playerKey);
+}
+#endif  // SL_UNDO_AUDIT
+
 void Game::SaveUndo() {
-	auto storedGame = new Game(*this);
-	undoStates.push_back(storedGame);
+	// Everything the last turn changed is already in the open record, so closing it is all there
+	// is to do. The new one starts out empty and remembers the scalars as they stand now.
+	openRecord.seq = ++undoSeqCounter;
+	undoStates.push_back(std::move(openRecord));
+
+	openRecord = UndoRecord{};
+	openRecord.generation = ++undoGenerationCounter;
+#ifdef SL_UNDO_AUDIT
+	// The world as it stands at this undo point. Applying the record now being opened is supposed
+	// to reproduce exactly this, which is what AuditRestore checks -- so the copy belongs to the
+	// record being opened, not to the one just closed.
+	openRecord.shadow = new Game(*this);
+#endif
+	openRecord.playerKey = playerKey;
+	openRecord.mostRecentlyMentioned = mostRecentlyMentioned;
+	openRecord.pronounItText = pronounItText;
+	openRecord.pronounThemText = pronounThemText;
+	openRecord.pronounHimText = pronounHimText;
+	openRecord.pronounHerText = pronounHerText;
+	openRecord.turnCount = turnCount;
+	openRecord.gameHasBegun = gameHasBegun;
+	openRecord.sessionActive = sessionActive;
+	undoRecording = true;
+
 	while (undoStates.size() > kMaxUndoStates)
 		DiscardUndo();
 }
@@ -208,19 +408,27 @@ void Game::SaveUndo() {
 bool Game::RestoreUndo() {
 	if (undoStates.empty())
 		return false;
-	auto gameToBe = undoStates.back();
-	theGame = gameToBe;
+	ApplyRecord(openRecord);
+#ifdef SL_UNDO_AUDIT
+	AuditRestore(openRecord);
+#endif
+	ClearRecord(openRecord);
+	// The record closed at the point we have just come back to becomes the open one again, so
+	// that anything written between now and the next turn is covered by the next UNDO too.
+	openRecord = std::move(undoStates.back());
 	undoStates.pop_back();
-	delete this;
+	RestampOpenRecord();
 	return true;
 }
 
 void Game::Discard() {
-	// Drop any undo history first: those states share the current game's static data, and once the
-	// current instance is gone (taking that static data with it) they would dangle.
-	for (auto *state : undoStates)
-		delete state;
+	// Drop any undo history first: the objects it holds belong to the game being torn down.
+	for (auto &state : undoStates)
+		ClearRecord(state);
 	undoStates.clear();
+	ClearRecord(openRecord);
+	openRecord = UndoRecord{};
+	undoRecording = false;
 	// ~Game() frees startupState itself (it's a snapshot sharing theGame's staticData), but only
 	// the object it points to -- the static pointer would otherwise dangle rather than read as
 	// "none yet", so a subsequently loaded game's first Begin() would skip creating its own.
@@ -232,31 +440,57 @@ void Game::Discard() {
 void Game::DiscardUndo() {
 	if (undoStates.empty())
 		return;
-	auto gameToDelete = undoStates.front();
-	delete gameToDelete;
+	ClearRecord(undoStates.front());
 	undoStates.pop_front();
 }
 
+void Game::AssignStateFrom(const Game &src) {
+	// Slot for slot, writing through the pointers that already exist rather than replacing them.
+	for (size_t i = 0; i < objects.size(); i++)
+		MutableObject(i)->AssignFrom(*src.objects[i]);
+	for (size_t i = 0; i < events.size(); i++)
+		*MutableEvent(i) = *src.events[i];
+	for (size_t i = 0; i < variables.size(); i++)
+		*MutableVariable(i) = *src.variables[i];
+	for (size_t i = 0; i < groups.size(); i++)
+		*MutableGroup(i) = *src.groups[i];
+	for (size_t i = 1; i < descriptions.size(); i++)  // slot 0 is the "none" sentinel
+		*MutableDescription(i) = *src.descriptions[i];
+
+	taskCompletedStorage = src.taskCompletedStorage;
+	playerKey = src.playerKey;
+	mostRecentlyMentioned = src.mostRecentlyMentioned;
+	pronounItText = src.pronounItText;
+	pronounThemText = src.pronounThemText;
+	pronounHimText = src.pronounHimText;
+	pronounHerText = src.pronounHerText;
+	turnCount = src.turnCount;
+	gameHasBegun = src.gameHasBegun;
+	sessionActive = src.sessionActive;
+}
+
 void Game::Restart() {
-	theGame = new Game(*startupState);
-	for (auto i : undoStates)
-		delete i;
-	// The states belonged to the game that just ended: leaving the (now dangling) pointers in
-	// the list would have the next UNDO reach straight into freed memory.
+	// Cleared before the state goes back, not after: a restart is a fresh start with nothing
+	// before it to return to, and there is no point recording the way back to a game that is
+	// being thrown away.
+	for (auto &rec : undoStates)
+		ClearRecord(rec);
 	undoStates.clear();
-	delete this;
-	theGame->Begin();
+	ClearRecord(openRecord);
+	openRecord = UndoRecord{};
+	undoRecording = false;
+
+	AssignStateFrom(*startupState);
+	Begin();
 }
 
 void Game::Begin() {
 	if (!startupState)
 		startupState = new Game(*this);
-	taskCompletedStorage.reserve(staticData->tasks.size());
-	for (const auto &it : staticData->tasks)
-		taskCompletedStorage[it.first] = false;
+	std::fill(taskCompletedStorage.begin(), taskCompletedStorage.end(), (uint8_t) 0);
 	// Every character has "seen" their initial surroundings.
-	for (const auto &it : objects) {
-		if (auto *c = dynamic_cast<Character *>(it.second))
+	for (size_t i = 0; i < objects.size(); i++) {
+		if (auto *c = AsCharacter(MutableObject(i)))
 			c->MarkVisibleAsSeen();
 	}
 	gameHasBegun = true;
@@ -278,10 +512,10 @@ void Game::Begin() {
 	// to turn-based instead: a "fifteen seconds later" event turned into "fifteen turns later" is
 	// a different game, not a lesser one. Said again on RESTART, which is right -- it is still true.
 	if (!frontend->timersAvailable) {
-		for (const auto &key : staticData->eventLoadOrder) {
+		for (const Event *evt : events) {
 			// Also true of a turn-based event with a seconds-measured subevent: that subevent
 			// still needs a wall clock, even though the event around it doesn't.
-			if (events.at(key)->IsRealTime() || events.at(key)->HasRealTimeSubEvents()) {
+			if (evt->IsRealTime() || evt->HasRealTimeSubEvents()) {
 				frontend->OutputText("<i>This game uses real-time events, which this interpreter "
 				                     "cannot run. Parts of it will not happen.</i>\n");
 				break;
@@ -289,14 +523,14 @@ void Game::Begin() {
 		}
 	}
 	if (staticData->gameIntro != 0) {
-		std::string intro = GetDescription(staticData->gameIntro)->Build();
+		std::string intro = MutableDescription(staticData->gameIntro)->BuildAndCommit();
 		StripSeamMarkers(intro);
 		frontend->OutputText(intro.c_str());
 	}
 	// As in ADRIFT: the initial room description, if the game asks for one, follows the intro
 	// rather than being left for the player's first LOOK.
 	if (staticData->showFirstLocation) {
-		if (auto *loc = dynamic_cast<Location *>(TryGetObject(GetPlayerLocationKey()))) {
+		if (auto *loc = AsLocation(TryGetObject(GetPlayerLocationKey()))) {
 			std::string desc = "\n" + loc->GetDescription();
 			StripSeamMarkers(desc);
 			frontend->OutputText(desc.c_str());
@@ -307,8 +541,8 @@ void Game::Begin() {
 	// already been completed would find nothing to read. After the intro and initial room
 	// description too, as in ADRIFT -- an event started immediately runs, and can print, only
 	// once the game has finished introducing itself.
-	for (const auto &key : staticData->eventLoadOrder) {
-		Event *evt = events.at(key);
+	for (size_t i = 0; i < events.size(); i++) {
+		Event *evt = MutableEvent(i);
 		switch (evt->GetStartType()) {
 			case Event::StartType::TaskBased:
 				evt->SetNotYetStarted();
@@ -331,12 +565,12 @@ void Game::Begin() {
 	// Deliberately a second pass, as in ADRIFT. Start() leaves the "started on this tick" flag
 	// set so that an event doesn't also age on the tick it started; carried out of load and into
 	// the first real tick, that would have every immediate event sit out turn one.
-	for (const auto &key : staticData->eventLoadOrder)
-		events.at(key)->ClearJustStarted();
+	for (size_t i = 0; i < events.size(); i++)
+		if (events[i]->JustStarted()) MutableEvent(i)->ClearJustStarted();
 	// Walks that begin active start now, after the events, as in ADRIFT. Starting one moves its
 	// character to the walk's first step and may run its opening sub-walks.
-	for (const auto &key : staticData->objectLoadOrder)
-		if (auto *c = dynamic_cast<Character *>(objects.at(key)))
+	for (size_t i = 0; i < objects.size(); i++)
+		if (auto *c = AsCharacter(MutableObject(i)))
 			c->StartActiveWalks();
 }
 
@@ -400,10 +634,14 @@ void Game::RunEventTick(bool realTime) {
 	// exactly where ADRIFT drives them. Only on the turn clock: walks have no real-time variety. In
 	// object load order so two ticks of the same state move the same characters in the same sequence.
 	if (!realTime) {
-		for (const auto &key : staticData->objectLoadOrder) {
+		for (size_t i = 0; i < objects.size(); i++) {
 			if (!gameHasBegun) return;
-			if (auto *c = dynamic_cast<Character *>(objects.at(key)))
-				c->TickWalks();
+			// Tested on the read-only pointer: asking for a writable one is what copies the object
+			// into the undo record, and doing that for every object in the game every turn -- to
+			// find the handful that are characters with walks -- was most of what a turn cost.
+			const auto *c = AsCharacter(objects[i]);
+			if (!c || !c->HasWalks()) continue;
+			AsCharacter(MutableObject(i))->TickWalks();
 		}
 	}
 	// A "skip N turns" action can land us back in here while an outer tick is still going, so
@@ -416,22 +654,24 @@ void Game::RunEventTick(bool realTime) {
 		explicit RunningGuard(Game *game) : g(game), prev(game->eventsRunning) { g->eventsRunning = true; }
 		~RunningGuard() { g->eventsRunning = prev; }
 	} runningGuard(this);
-	for (const auto &key : staticData->eventLoadOrder) {
+	for (size_t i = 0; i < events.size(); i++) {
 		if (!gameHasBegun) break;
-		Event *evt = events.at(key);
-		if (evt->IsRealTime() == realTime) evt->IncrementTimer();
+		const Event *evt = events[i];
+		if (evt->IsRealTime() == realTime) {
+			if (!evt->TickWouldDoNothing()) MutableEvent(i)->IncrementTimer();
+		}
 		// A turn-based event's seconds-measured subevents ride the wall clock on their own,
 		// independently of the turn clock the rest of the event runs on -- so they get serviced
 		// on the real-time pass even though the event itself doesn't tick there.
-		else if (realTime) evt->TickRealTimeSubEvents();
+		else if (realTime) MutableEvent(i)->TickRealTimeSubEvents();
 	}
 	// Deliberately a second pass over the same events, as in ADRIFT. An event late in the order
 	// can run a task that starts one earlier in the order, which has already had its tick; if the
 	// "don't age on the turn you started" flag survived into the next tick, that event would sit
 	// out a turn it ought to have counted.
-	for (const auto &key : staticData->eventLoadOrder) {
-		Event *evt = events.at(key);
-		if (evt->IsRealTime() == realTime) evt->ClearJustStarted();
+	for (size_t i = 0; i < events.size(); i++) {
+		if (events[i]->IsRealTime() == realTime && events[i]->JustStarted())
+			MutableEvent(i)->ClearJustStarted();
 	}
 }
 
@@ -443,34 +683,34 @@ bool Game::Save() {
 	writer.WriteKV("player", playerKey);
 	writer.WriteKV("turns", turnCount);
 
+	// Everything below walks the state in load order, so that two saves of the same game state
+	// produce the same bytes.
 	writer.BeginNamedCompound("objects");
-	for (const auto &obj: objects) {
-		writer.BeginNamedCompound(obj.first.c_str());
-		obj.second->WriteState(writer);
+	for (const GameObj *obj: objects) {
+		writer.BeginNamedCompound(obj->Key().c_str());
+		obj->WriteState(writer);
 		writer.EndCompound();
 	}
 	writer.EndCompound();
 
 	writer.BeginNamedCompound("events");
-	// In load order rather than whatever the map hands us, so that two saves of the same game
-	// state produce the same bytes.
-	for (const auto &key: staticData->eventLoadOrder) {
-		writer.BeginNamedCompound(key.c_str());
-		events.at(key)->WriteState(writer);
+	for (const Event *evt: events) {
+		writer.BeginNamedCompound(evt->Key().c_str());
+		evt->WriteState(writer);
 		writer.EndCompound();
 	}
 	writer.EndCompound();
 
 	writer.BeginNamedCompound("variables");
-	for (const auto &var: variables) {
-		switch (var.second->GetType()) {
+	for (const Variable *var: variables) {
+		switch (var->GetType()) {
 		case Variable::Type::Int:
 		case Variable::Type::IntArray:
-			writer.WriteKV(var.first.c_str(), var.second->GetIntArray());
+			writer.WriteKV(var->Key().c_str(), var->GetIntArray());
 			break;
 		case Variable::Type::String:
 		case Variable::Type::StringArray:
-			writer.WriteKV(var.first.c_str(), var.second->GetStrArray());
+			writer.WriteKV(var->Key().c_str(), var->GetStrArray());
 			break;
 		}
 	}
@@ -480,18 +720,18 @@ bool Game::Save() {
 	// "no properties of its own" is the initial state, so only save anything for groups that have
 	// diverged from it -- ContinueRestore resets every group to that state before applying the
 	// file's exceptions, mirroring descriptions_shown just below.
-	for (const auto &grp: groups) {
-		if (!grp.second->HasOwnProperties()) continue;
-		writer.BeginNamedCompound(grp.first.c_str());
-		grp.second->WriteState(writer);
+	for (const Group *grp: groups) {
+		if (!grp->HasOwnProperties()) continue;
+		writer.BeginNamedCompound(grp->Key().c_str());
+		grp->WriteState(writer);
 		writer.EndCompound();
 	}
 	writer.EndCompound();
 
 	writer.BeginNamedCompound("descriptions_shown");
-	for (const auto &desc: descriptions) {
-		auto name = std::to_string(desc.first);
-		auto state = desc.second->GetState();
+	for (size_t i = 1; i < descriptions.size(); i++) {
+		auto name = std::to_string(i);
+		auto state = descriptions[i]->GetState();
 		// "not shown" is the initial state, so only save anything for those descriptions where at least one segment has been shown.
 		if (std::find(state.cbegin(), state.cend(), true) != state.cend())  // at least one true
 			writer.WriteKV(name.c_str(), state);
@@ -499,9 +739,9 @@ bool Game::Save() {
 	writer.EndCompound();
 
 	writer.BeginNamedCompound("tasks_completed", true);
-	for (const auto &state: taskCompletedStorage) {
-		if (state.second) {
-			writer.WriteLiteralString(state.first.c_str());
+	for (const auto &it: staticData->tasks) {
+		if (taskCompletedStorage[it.second->StateIndex()]) {
+			writer.WriteLiteralString(it.first.c_str());
 			writer.WriteUnqouted(" ");
 		}
 	}
@@ -544,7 +784,7 @@ bool Game::Restore() {
 		}
 		auto *gameRevNode = metaNode->FindChildByName("game_revision");
 		auto *gameChecksumNode = metaNode->FindChildByName("game_checksum");
-		if (!gameRevNode || gameChecksumNode) return false;
+		if (!gameRevNode || !gameChecksumNode) return false;
 		if (gameRevNode->Str != staticData->gameLastUpdated || gameChecksumNode->sv.Int != staticData->gameCrc32) {
 			// todo: offer player the option to attempt restore anyways.
 			frontend->OutputText("<i>Restore failed: selected save file appears to belong to a different revision of this game.</i>");
@@ -552,7 +792,8 @@ bool Game::Restore() {
 		}
 	}
 	SaveUndo();  // so we can return in the event of a failure once game state has been modified
-	return Game::Get()->ContinueRestore(root);  // in the new instance post-save
+	// (SaveUndo files a copy away and leaves the current instance alone, so this is still `this`.)
+	return ContinueRestore(root);
 }
 
 bool Game::ContinueRestore(const Save::AstNode *root) {
@@ -571,7 +812,7 @@ bool Game::ContinueRestore(const Save::AstNode *root) {
 		if (!objsNode || !objsNode->IsCollection(Save::NT_COMPOUND)) return RollbackRestore();
 		ITERATE_CHILDREN(objsNode, objN) {
 			// A save file naming something this game hasn't got is not one of ours.
-			auto *obj = TryGetObject(objN->myName);
+			auto *obj = MutableObject(objN->myName);
 			if (!obj || !obj->RestoreState(objN)) return RollbackRestore();
 		}
 	}
@@ -579,7 +820,7 @@ bool Game::ContinueRestore(const Save::AstNode *root) {
 		auto *evtsNode = root->FindChildByName("events");
 		if (!evtsNode || !evtsNode->IsCollection(Save::NT_COMPOUND)) return RollbackRestore();
 		ITERATE_CHILDREN(evtsNode, evtN) {
-			auto *evt = GetEvent(evtN->myName);
+			auto *evt = MutableEvent(evtN->myName);
 			if (!evt || !evt->RestoreState(evtN)) return RollbackRestore();
 		}
 	}
@@ -587,7 +828,7 @@ bool Game::ContinueRestore(const Save::AstNode *root) {
 		auto *varsNode = root->FindChildByName("variables");
 		if (!varsNode || !varsNode->IsCollection(Save::NT_COMPOUND)) return RollbackRestore();
 		ITERATE_CHILDREN(varsNode, varN) {
-			auto *var = GetVariable(varN->myName);
+			auto *var = MutableVariable(varN->myName);
 			if (!var) return RollbackRestore();
 			size_t counter = 0;
 			switch (var->GetType()) {
@@ -613,10 +854,10 @@ bool Game::ContinueRestore(const Save::AstNode *root) {
 		if (!grpsNode || !grpsNode->IsCollection(Save::NT_COMPOUND)) return RollbackRestore();
 		// Only groups with properties of their own get written out, so reset the lot to "none" and
 		// let the file fill in the exceptions -- see the matching comment on descriptions_shown below.
-		for (const auto &grp: groups)
-			grp.second->ResetState();
+		for (size_t i = 0; i < groups.size(); i++)
+			MutableGroup(i)->ResetState();
 		ITERATE_CHILDREN(grpsNode, grpN) {
-			auto *grp = GetGroup(grpN->myName);
+			auto *grp = MutableGroup(grpN->myName);
 			if (!grp || !grp->RestoreState(grpN)) return RollbackRestore();
 		}
 	}
@@ -627,25 +868,29 @@ bool Game::ContinueRestore(const Save::AstNode *root) {
 		// to "not shown" and let the file fill in the exceptions. The entries are written out
 		// of an unordered_map, so they arrive in no particular order -- hence resetting up
 		// front rather than filling the gaps between consecutive entries as we go.
-		for (const auto &desc: descriptions)
-			desc.second->RestoreState();
+		for (size_t i = 1; i < descriptions.size(); i++)
+			MutableDescription(i)->RestoreState();
 		ITERATE_CHILDREN(descsNode, descN) {
-			auto desc = descriptions.find(ParseInt(descN->myName.c_str()));
-			if (desc == descriptions.end()) return RollbackRestore();  // no such description
+			const auto idx = (size_t) ParseInt(descN->myName.c_str());
+			if (idx == 0 || idx >= descriptions.size()) return RollbackRestore();  // no such description
 			std::vector<bool> state;
 			ITERATE_CHILDREN(descN, entry) {
 				state.push_back(entry->sv.Bool);
 			}
-			desc->second->RestoreState(state);
+			MutableDescription(idx)->RestoreState(state);
 		}
 	}
 	{
 		const auto *tasksCompletedNode = root->FindChildByName("tasks_completed");
 		if (!tasksCompletedNode || !tasksCompletedNode->IsCollection(Save::NT_STRINGLIST)) return RollbackRestore();
-		for (auto &elem: taskCompletedStorage)
-			elem.second = false;
+		// Save() writes only the completed ones, as a bare list of keys -- so a task's presence
+		// here is what says it is completed, and everything else stays at the zero filled in above.
+		// (A string list's members carry their text in `Str` and have no `myName`.)
+		std::fill(taskCompletedStorage.begin(), taskCompletedStorage.end(), (uint8_t) 0);
 		ITERATE_CHILDREN(tasksCompletedNode, taskNode) {
-			taskCompletedStorage[taskNode->myName] = taskNode->sv.Bool;
+			const auto *task = SafeMapGet(staticData->tasks, taskNode->Str);
+			if (!task) return RollbackRestore();  // no such task
+			taskCompletedStorage[task->StateIndex()] = 1;
 		}
 	}
 	// finally, discard all previous undo states because UNDOing a restore would be a bit silly
@@ -666,7 +911,7 @@ bool Game::GetStatusBar(StatusBar &statusBar) {
 		auto locationName = GetObject(GetPlayerLocationKey())->GetDisplayName();
 		ApplyOverrides(locationName);
 		statusBar.location = locationName;
-		auto userStatus = GetDescription(staticData->userStatusBar)->Build();
+		auto userStatus = MutableDescription(staticData->userStatusBar)->BuildAndCommit();
 		ApplyOverrides(userStatus);
 		statusBar.userStatus = userStatus;
 		// MaxScore is a variable and can theoretically be changed (although I'm not sure
@@ -701,7 +946,7 @@ void Game::ApplyOverrides(std::string &t) const {
 			// tag to the same tag), which would otherwise loop forever.
 			size_t pos = 0;
 			while ((pos = t.find(f, pos)) != std::string::npos) {
-				std::string replacement(GetDescription(it.second->GetReplacement())->Build());
+				std::string replacement(Game::Get()->MutableDescription(it.second->GetReplacement())->BuildAndCommit());
 				t.replace(pos, f.size(), replacement);
 				pos += replacement.size();
 			}

@@ -59,6 +59,9 @@ public:
 	};
 
 	[[nodiscard]] const std::string &Key() const { return key; }
+	// This task's slot in the game's completed-ness vector (see Game::GetIsTaskCompleted).
+	// Assigned once at load, in the order tasks are created, and never changes.
+	[[nodiscard]] size_t StateIndex() const { return stateIndex; }
 	[[nodiscard]] bool IsRepeatable() const { return repeatable; }
 	bool Completed() const;
 	void Uncomplete();
@@ -111,6 +114,10 @@ public:
 	[[nodiscard]] bool RunsImmediately() const { return runImmediately; }
 
 	const std::vector<std::regex> &GetCmdRegexes() const { return commandRegexes; }
+	// For each of those, a lower-cased run of text that any matching input must contain (or "" if
+	// there is none). Checking it first lets the parser skip most patterns without running the
+	// regex engine at all -- see LongestRequiredLiteral in task.cpp.
+	const std::vector<std::string> &GetCmdLiterals() const { return commandLiterals; }
 	const std::vector<std::vector<std::string>> &GetGroupCoding() const { return groupNumToRef; }
 
 	void RegisterNotification(const std::string &evtKey, Util::Control::Condition cond);
@@ -263,6 +270,7 @@ private:
 	};
 
 	std::string key;
+	size_t stateIndex = 0;
 	//std::string descr;
 	uint64_t priority;
 	bool repeatable;
@@ -281,6 +289,7 @@ private:
 	// For general tasks, the command string, regex transformed string, and set of references.
 	// std::vector<std::string> commandStrs;
 	std::vector<std::regex> commandRegexes;
+	std::vector<std::string> commandLiterals;
 	std::vector<std::vector<std::string>> groupNumToRef;
 	// For System tasks: what makes this one run, given it has no command to match against.
 	// (A System task named by another task's or subevent's "execute" action needs neither.)
@@ -300,6 +309,8 @@ private:
 	std::vector<std::pair<std::string, int32_t>> walkUncompleteSubs;
 
 	friend struct TaskPrioLess;
+	// Game::CreateTaskFromXML hands out `stateIndex` as it registers each task.
+	friend class Game;
 };
 
 struct TaskPrioLess {

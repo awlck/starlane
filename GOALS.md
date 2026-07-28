@@ -375,3 +375,132 @@
       `DirectionTable::canonicalToDisplay` (gamecontent/utility.{h,cpp}) and lowercased for display.
       Verified against `testdata/tests/renamedirtest-expected.txt` ("Exits are clockwise and
       counterclockwise.") -- output now matches the real Runner transcript exactly.
+- [x] optimization pass over the interpreter core. Roughly 2.4x faster per turn and about half the
+      memory, measured over the whole `testdata` corpus; transcripts are byte-identical to before
+      except for the exit-ordering fix noted below, and the run is clean under ASan/UBSan.
+      * Snapshotting the world for UNDO (`Game::SaveUndo`, once per turn) was over a third of all
+        CPU time, because it deep-copied every object, description and property table in the game.
+        The parts of that state which do not change now share storage between snapshots instead:
+        `PropHolder`'s two property tables are copy-on-write (propholder.h), `Description` shares
+        one immutable segment list and keeps only the "which have been shown" bits per copy
+        (description.{h,cpp}), `Location::exits` is shared outright (nothing writes it after load),
+        and `GameObj::nouns` is copy-on-write (only a player switch changes it).
+      * `Game::descriptions` became a dense `std::vector` (DescrRefs are handed out sequentially, so
+        the hash map bought nothing), and `taskCompletedStorage` a `std::vector<uint8_t>` indexed by
+        the new `Task::StateIndex()` rather than a map keyed by task key -- that map was thousands
+        of string copies per snapshot.
+      * `AutoCapitalize` (game.cpp) no longer goes through `std::regex`. It rescanned the whole
+        message from the start after every letter it raised, which is quadratic; a single
+        left-to-right pass gives the same answer because raising a letter can only destroy a later
+        match, never create an earlier one.
+      * Matching player input against a game's several thousand `<Command>` patterns now runs a
+        substring test before the regex: each pattern carries the longest run of text any match must
+        contain (`LongestRequiredLiteral`, task.cpp; deliberately conservative -- it gives up rather
+        than risk excluding a pattern that would have matched).
+      * `dynamic_cast<Character *>`/`<Location *>`, used throughout as a type test on every object
+        in the game several times a turn, is now a stored `GameObj::Kind` tag behind
+        `AsCharacter`/`AsLocation`.
+      * `Util::SplitString` splits on a plain delimiter directly instead of building a `std::regex`
+        per call (nearly every delimiter in the codebase is a fixed string), and
+        `Description::Segment::Build` no longer compiles a regex per text snippet.
+- [x] fixed: saving a game with a lot of state failed partway through, leaving a truncated file.
+      `Save::Writer::RunCompressor` asked miniz for more output whenever the previous `mz_deflate`
+      call had produced any at all, so a chunk that happened to fill the output buffer to the byte
+      led to a call with no input left and no flush -- which is `MZ_BUF_ERROR`, thrown as "Save file
+      compression failed: buf error". It now stops once the compressor has taken all the input
+      (mid-stream) or reported `MZ_STREAM_END` (on the final flush). Lost Coastlines and all three
+      Skybreak versions could not be saved at all before this; their save files are now complete.
+      Property tables are also written in key order now (`Writer::WriteSortedMap`), so a save file's
+      bytes depend only on the game state and not on hash-table iteration order.
+- [x] fixed: `location.Exits` (`Location::GetListOfExits`) listed exits in hash-map order, which is
+      not merely arbitrary but unstable -- copying the table reverses it, so the same location could
+      report its exits in a different order after an undo or an internal-error rollback. It now walks
+      ADRIFT's compass order, as `Global.vb`'s own `Case "Exits"` does (and as `GetExitsLine`
+      already did). Changes the wording of "There is no route up, only east and west." style
+      messages in `alien-diver`, `be-there` and `tests/renamedirtest`.
+- [x] index the mutable game state by position rather than by key. `Game::objects`, `events`,
+      `variables` and `groups` were `unordered_map<string, T *>`, so each of the ~2000-2500 entries
+      a game has cost a hash node and a copied key string every time the world was snapshotted for
+      UNDO -- once a turn. They are now flat `std::vector`s in load order, with the key -> slot
+      tables living in the immutable `GameStatic` (`objectIndex` and friends), which is what makes a
+      slot a stable name for a thing: nothing is ever added to or removed from these tables after
+      load. About 11% off the corpus benchmark on top of the previous pass.
+      * The keyed lookups (`GetObject`, `TryGetObject`, `GetEvent`, `GetGroup`, `GetVariable`,
+        `ObjectExists`, `GroupExists`) keep their signatures; only their bodies change, to
+        `IndexedGet` (game.h). `varNames` maps a variable's name straight to its slot, so looking one
+        up by name costs the same single lookup as by key.
+      * This reverses the previous arrangement, where a load-order vector of *keys* was kept
+        alongside the map and every ordered walk paid a hash lookup per element. `objectLoadOrder`
+        and `eventLoadOrder` are gone, and `GetObjectLoadOrder()`/`GetAllObjects()` -- which were
+        the same set of things in two different orders -- collapse into one accessor.
+      * Save files gained the same guarantee the events section already had: every section is now
+        written in load order, and `seen`/`groups` (unordered sets) are written sorted
+        (`Writer::WriteSortedKV`), so a save file's bytes depend only on the game state and not on
+        how the game arrived at it. Save contents are unchanged.
+      * For the record, the previous entry's "over a third of all CPU time" for `SaveUndo` was an
+        undercount: profiles attribute the copy and the matching destruction to two separate
+        frames, and it is closer to 70%. After both passes it is still the largest single cost;
+        what remains is the per-object `Clone()` and the per-variable copy, since a Variable carries
+        its value arrays by value.
+- [x] fixed: `AloneWithChar` returned whichever character it happened to find first in the player's
+      location. ADRIFT's `clsCharacter.AloneWithChar` counts them and answers only when there is
+      exactly one -- being "alone with" two people is not a thing -- so with more than one present
+      it returns nothing. Ours now does the same, which also makes the answer independent of the
+      order the world is walked in.
+- [x] a Variable now holds its values in one `std::variant<vector<int64_t>, vector<string>>` rather
+      than a vector of each, and shares them copy-on-write. A game has hundreds of variables and
+      the whole lot was deep-copied into an undo snapshot every turn while a turn changes a handful
+      at most; a text variable's array of strings was the single most expensive thing in that copy.
+      The variant is the natural fit for "numbers or text, never both": a subclassing scheme would
+      need a virtual clone (Game's copy constructor builds a Variable with `new Variable(*v)`) and
+      virtual dispatch on every read, to express a distinction every caller already switches on at
+      run time -- and `Variable` stays a concrete type this way, so nothing outside variable.h
+      changes. Asking for the kind a variable hasn't got now throws `std::bad_variant_access` where
+      indexing the empty unused vector threw `std::out_of_range`; neither is a `std::runtime_error`,
+      so both land in the same handlers. About 15% off peak memory for a variable-heavy game;
+      the CPU saving is smaller (~2%), since what is left of a snapshot is the per-object and
+      per-variable allocation itself rather than what they contain.
+- [x] fixed: RESTORE had never worked. Four bugs, each hidden behind the one before it, so nothing
+      downstream of the first had ever run: `Game::Restore`'s meta check read
+      `if (!gameRevNode || gameChecksumNode) return false;` (missing a `!`) and the writer always
+      emits `game_checksum`, so every valid save file was rejected; `ContinueRestore` read the
+      `tasks_completed` entries via `myName`/`sv.Bool` when that section is a bare string *list*,
+      whose members carry their text in `Str` and have no name; `GameObj::RestoreState` added to
+      `groupMembership` without clearing it, so an object that had left a group kept it; and
+      `Writer::WriteLiteralString` wrote any alphanumeric string unquoted, while the lexer reads a
+      bare digit-leading word as an integer -- Skybreak has text variables holding "0", which came
+      back as an int and made the restore reject the whole file. Such text is now quoted (save
+      version -991). `scripts/check_save_roundtrip.py` checks this without needing a baseline: play,
+      save, play more, restore, save again, and require the two saves to agree.
+- [x] fixed: the top-level backstop's "did this turn record a state?" test compared undo *depth*,
+      but `SaveUndo` pushes before trimming to `kMaxUndoStates` -- so past the hundredth turn the
+      depth was identical before and after and a turn that threw was never rolled back. Replaced
+      with `Game::TopUndoGeneration()`, compared with `>`, which also gets the two awkward cases
+      right: a mid-turn UNDO or RESTART leaves the newest generation lower, not higher.
+- [x] UNDO records what a turn changed rather than a copy of the world. `Game::SaveUndo` used to
+      deep-copy every object, event, variable, group and description once per turn and keep a
+      hundred such copies -- about 70% of what a turn cost. Each object is now copied *backward*
+      into the open undo record the first time it is written to, `SaveUndo` is bookkeeping, and
+      `RestoreUndo` writes the record back through the pointers that already exist, so the Game
+      instance is no longer replaced (which removed a pile of "`this` may be gone" scaffolding from
+      parser.cpp).
+      * What makes it safe rather than a discipline problem: reading game state hands back a
+        `const T *`, and the only way to get a writable pointer is `Game`'s `Mutable*` accessors,
+        which is where the recording happens. The compiler points at every write. `-Wcast-qual` is
+        on for `starlane-core` so a C-style cast cannot quietly get round it.
+      * A record stays open across an UNDO rather than being discarded, so writes made between an
+        UNDO and the next turn (printing "Undone." commits description state, as does the status
+        bar) are still covered by the next UNDO, as whole-world snapshots were.
+      * `SL_UNDO_AUDIT` (on in Debug) keeps a whole-world copy at every undo point and checks the
+        in-place restore against it field by field, via a string-backed `Save::Writer` so the check
+        covers exactly what a save file records. All 37 corpus games pass, and deliberately
+        breaking a preserve makes it fail.
+      * Corpus benchmark 3.40s -> 2.16s, peak memory down 51-68%. Cumulatively over both
+        optimization passes: 9.90s -> 2.16s (4.6x) and 487MB -> 89MB on Lost Coastlines.
+      * Two transcripts changed, both only in spacing on the internal-error path: the failed
+        turn's output and the backstop's message are now separated by the usual two spaces.
+- [x] fixed: `Event::GetDuration()` handed out a mutable `Util::Range`, so `%event.Length%` --
+      a read -- settled and stored a random roll that is saved state. Replaced with
+      `Event::Length()`, which reads the settled value and only takes the writable path to roll.
+- [x] fixed: `AloneWithChar` returned whichever character it found first in the player's location.
+      ADRIFT's `clsCharacter.AloneWithChar` counts them and answers only when there is exactly one.

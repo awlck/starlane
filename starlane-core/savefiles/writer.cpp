@@ -4,6 +4,8 @@
 
 #include "writer.h"
 
+#include <cstring>
+
 #include <miniz.h>
 
 #include "../error.h"
@@ -32,7 +34,11 @@ Writer::Writer(void *target, const Starlane::Game *game)
 	EndCompound();
 }
 
+Writer::Writer(std::string &target) : memTarget(&target) {}
+
 Writer::~Writer() {
+	if (memTarget) return;  // nothing buffered, compressed or opened
+
 	// A throwing destructor is a hard std::terminate() away from happening (this runs during
 	// unwinding as often as not), so a compression failure on this final flush can only be logged,
 	// not propagated -- RunCompressor's other caller (AcceptChar, mid-write) is free to throw.
@@ -49,6 +55,10 @@ Writer::~Writer() {
 }
 
 void Writer::AcceptChar(char c) {
+	if (memTarget) {
+		*memTarget += c;
+		return;
+	}
 	textbuf[position++] = c;
 	if (position < WRITER_BUFSIZE) return;
 
@@ -66,15 +76,30 @@ void Writer::WriteUnqouted(const char *str) {
 	}
 }
 
+// Whether this text would come back as something other than a string if it were written without
+// quotes. The lexer reads a bare word starting with a digit or '-' as an integer, and "yes"/"no"
+// as a boolean (savefiles/parser.cpp's Lex), so a text value that happens to look like one of
+// those changes type on the way back in unless it is quoted. Skybreak has text variables holding
+// "0", which is how this was found: restoring one rejected the whole save file.
+static bool WouldNotReadBackAsText(std::string_view sv) {
+	if (sv.empty()) return false;  // the empty string is quoted anyway
+	if ((sv[0] >= '0' && sv[0] <= '9') || sv[0] == '-') return true;
+	return sv == "yes" || sv == "YES" || sv == "no" || sv == "NO";
+}
+
 void Writer::WriteLiteralString(const char *str) {
 	// First pass: determine whether we need to escape this string:
-	bool needQuotes = false;
+	bool needQuotes = WouldNotReadBackAsText(str);
 	size_t cnt = 0;
-	for (const char *p = str; *p; ++p, ++cnt) {
-		if (!((*p >= 'a' && *p <= 'z') || (*p >= 'A' && *p <= 'Z') || (*p >= '0' && *p <= '9') || *p == '_') || cnt >= 64) {
-			needQuotes = true;
-			break;
+	if (!needQuotes) {
+		for (const char *p = str; *p; ++p, ++cnt) {
+			if (!((*p >= 'a' && *p <= 'z') || (*p >= 'A' && *p <= 'Z') || (*p >= '0' && *p <= '9') || *p == '_') || cnt >= 64) {
+				needQuotes = true;
+				break;
+			}
 		}
+	} else {
+		cnt = strlen(str);
 	}
 	if (cnt == 0) needQuotes = true;
 	// Now write out the string, adding quotes and escape sequences if necessary
@@ -107,7 +132,7 @@ void Writer::WriteLiteralString(const char *str) {
 
 void Writer::WriteLiteralString(const std::string_view &sv) {
 	// basically the same as the above but taking advantage of the fact that we know the length beforehand
-	bool needQuotes = (sv.size() >= 64 || sv.empty());
+	bool needQuotes = (sv.size() >= 64 || sv.empty() || WouldNotReadBackAsText(sv));
 	if (!needQuotes) {
 		for (char p : sv) {
 			if (!((p >= 'a' && p <= 'z') || (p >= 'A' && p <= 'Z') || (p >= '0' && p <= '9') || p == '_')) {
@@ -146,7 +171,7 @@ void Writer::WriteLiteralString(const std::string_view &sv) {
 void Writer::RunCompressor(bool finish) {
 	stream->next_in = textbuf;
 	stream->avail_in = position;
-	do {
+	for (;;) {
 		stream->avail_out = WRITER_BUFSIZE;
 		stream->next_out = zbuf;
 		int status = mz_deflate(stream, finish ? MZ_FINISH : MZ_NO_FLUSH);
@@ -157,7 +182,15 @@ void Writer::RunCompressor(bool finish) {
 			throw Exception(std::string("Save file compression failed: ") + (mz_error(status) ? mz_error(status) : "unknown error"));
 		mz_ulong toWrite = WRITER_BUFSIZE - stream->avail_out;
 		frontend->WriteFile(hFile, zbuf, toWrite);
-	} while (stream->avail_in > 0 || stream->avail_out < WRITER_BUFSIZE);
+		// Mid-stream, our job is done as soon as the compressor has taken all the input: whatever
+		// it is still holding back comes out on a later call. Asking it for more with nothing left
+		// to give it is what MZ_BUF_ERROR means, and the previous loop condition ("go round again
+		// if the last call produced anything at all") did exactly that whenever a deflate happened
+		// to fill the output buffer to the byte -- which is why saving a game with a lot of state
+		// (Lost Coastlines, Skybreak) failed partway through and left a truncated file behind.
+		if (finish ? status == MZ_STREAM_END : stream->avail_in == 0)
+			break;
+	}
 	position = 0;
 }
 

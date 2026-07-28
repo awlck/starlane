@@ -24,7 +24,24 @@ import subprocess
 import sys
 from pathlib import Path
 
-DEFAULT_COMMANDS = "look\nwait\nz\nlook\nundo\nrestart\nlook\n"
+# The command sequence every game is put through. Deliberately exercises the awkward corners of
+# the undo machinery rather than just taking a couple of turns:
+#
+#   * two UNDOs in a row, and an UNDO / real turn / UNDO sandwich. A single UNDO at depth one is
+#     the easy case; consecutive ones are where an undo implementation that records changes rather
+#     than whole states can get its bookkeeping wrong.
+#   * enough turns to run past kMaxUndoStates (100), so the oldest states are being discarded while
+#     play continues -- and so that a turn which throws does so on a full history.
+#   * a RESTORE of a path that isn't there, for the cancelled/failed restore path.
+#   * a RESTART, which rebuilds the world from the startup state.
+DEFAULT_COMMANDS = (
+    "look\nwait\nz\nlook\nundo\nundo\nlook\n"
+    "wait\nundo\nwait\nz\nundo\n"
+    + "z\n" * 110
+    + "undo\nundo\nlook\n"
+    "restore\n/nonexistent/starlane-regression-no-such-save\n"
+    "look\nrestart\nlook\nundo\n"
+)
 DEFAULT_TIMEOUT = 25.0
 # A seed of 0 tells starlane-core to seed from the OS (nondeterministic), so
 # games with randomized text produce a different transcript on every run

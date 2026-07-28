@@ -83,8 +83,8 @@ constexpr uint8_t adriftKey[] = { 41, 236, 221, 117, 23, 189, 44, 187, 161, 96, 
 // Undo ADRIFT's obfuscation using the key above.
 // input: byte array to work with
 // count: how many bytes to process
-uint8_t *DeobfuscateByteArray(const uint8_t *input, size_t count) {
-	auto output = (uint8_t *) ::operator new(count);
+std::vector<uint8_t> DeobfuscateByteArray(const uint8_t *input, size_t count) {
+	std::vector<uint8_t> output(count);
 	for (size_t i = 0; i < count; i++)
 		output[i] = (uint8_t) (input[i] ^ adriftKey[i % sizeof(adriftKey)]);
 	return output;
@@ -226,9 +226,13 @@ std::string ExtractTaf(const uint8_t *input, size_t size) {
 		return "";
 	}
 
+	// The compressed bytes to hand on, and -- for the two formats that need it -- the buffer they
+	// were deobfuscated into. The oldest format needs no deobfuscation and reads straight out of
+	// the caller's data, which is why the two are separate: `deobf` is only ever a view, so it
+	// stays const and nothing has to cast the ownership question away.
+	std::vector<uint8_t> deobfBuffer;
 	const uint8_t *deobf;
 	size_t deobflen;
-	bool needToFreeDeobf = true;
 
 	if (memcmp("<ifindex", input + 0x10, 8) == 0) {
 		// current format
@@ -243,23 +247,20 @@ std::string ExtractTaf(const uint8_t *input, size_t size) {
 		*/
 		uint32_t babelLen = ParseHex(input + 0xc);
 		deobflen = size - 26 - babelLen - 4;
-		deobf = DeobfuscateByteArray(input + 16 + babelLen, deobflen);
+		deobfBuffer = DeobfuscateByteArray(input + 16 + babelLen, deobflen);
+		deobf = deobfBuffer.data();
 	} else if (memcmp("0000", input + 0xc, 4) == 0 && input[0x10] == (0x78 ^ adriftKey[0])) {
         // Current format but without Babel data (i.e., extracted from Blorb file)
         deobflen = size - 26;
-        deobf = DeobfuscateByteArray(input + 0x10, deobflen);
+        deobfBuffer = DeobfuscateByteArray(input + 0x10, deobflen);
+        deobf = deobfBuffer.data();
     } else {
 		// pre 5.0.20 format: simply strip the first 12 bytes and go
 		deobflen = size - 26;
 		deobf = input + 12;
-		needToFreeDeobf = false;
 	}
 
-	std::string decompressed = DoDecompression(deobf, deobflen);
-	
-	// free intermediary buffer of deobfuscated zlib data as necessary.
-	if (needToFreeDeobf) ::operator delete((void *) deobf);
-	return decompressed;
+	return DoDecompression(deobf, deobflen);
 }
 
 }  // namespace Starlane

@@ -159,11 +159,11 @@ Game *Game::LoadFromXML(const std::string &gameTxt, uint32_t gameCrc32) {
 	// as the ADRIFT Runner does -- otherwise the player would start nowhere, seeing nothing and
 	// unable to act on anything. Done here, once, so every later snapshot (startup state, undo
 	// history) inherits the placement rather than each having to rediscover it.
-	if (auto *player = dynamic_cast<Character *>(result->TryGetObject(result->playerKey));
+	if (auto *player = AsCharacter(result->MutableObject(result->playerKey));
 	    player && player->GetLocationKey().empty()) {
-		for (const auto &key : rStatic->objectLoadOrder) {
-			if (dynamic_cast<Location *>(result->TryGetObject(key))) {
-				player->SetInitialLocation(key);
+		for (const GameObj *o : result->objects) {
+			if (o->IsLocation()) {
+				player->SetInitialLocation(o->Key());
 				break;
 			}
 		}
@@ -199,8 +199,8 @@ Game *Game::LoadFromXML(const std::string &gameTxt, uint32_t gameCrc32) {
 	// Character walks name the tasks that start and stop them; those tasks have just finished
 	// loading, so wire each walk up to them now. The characters themselves loaded earlier, before any
 	// task existed, which is why this can't happen while a character is being built.
-	for (const auto &key : rStatic->objectLoadOrder)
-		if (auto *c = dynamic_cast<Character *>(result->TryGetObject(key)))
+	for (size_t i = 0; i < result->objects.size(); i++)
+		if (auto *c = AsCharacter(result->MutableObject(i)))
 			c->RegisterWalkNotifications();
 
 	LOAD_STAGE("Loading Events");
@@ -240,17 +240,18 @@ Game *Game::LoadFromXML(const std::string &gameTxt, uint32_t gameCrc32) {
 	// (This needs to happen after objects are loaded since we need to determine whether
 	//  'A.B' is indeed accessing property 'B' of object with key 'A' (if 'A' is a valid object key)
 	//  or just a period not followed by a space (if 'A' is not a valid object key).)
+	for (size_t i = 1; i < result->descriptions.size(); i++) {
 #ifndef NDEBUG
-	size_t count = 0;
-	for (auto &it : result->descriptions) {
-		if (++count % 250 == 0)
-			std::cout << count << "... ";
-		it.second->ResolveText();
-	}
-#else
-	for (auto &it : result->descriptions)
-		it.second->ResolveText();
+		if (i % 250 == 0)
+			std::cout << i << "... ";
 #endif
+		result->MutableDescription(i)->ResolveText();
+	}
+
+	// The world is built, so the undo bookkeeping can be sized to it. Nothing is recorded until
+	// the first SaveUndo regardless (see Game::undoRecording), which is what keeps loading from
+	// copying every object it touches on the way up.
+	result->PrepareUndoBookkeeping();
 
 	LOAD_STAGE("Done!");
 
@@ -258,20 +259,22 @@ Game *Game::LoadFromXML(const std::string &gameTxt, uint32_t gameCrc32) {
 }
 
 size_t Game::CreateDescFromXML(const pugi::xml_node &descNode) {
-	descriptions[++descriptionsSoFar] = Description::CreateFromXML(descNode);
-	return descriptionsSoFar;
+	descriptions.push_back(Description::CreateFromXML(descNode));
+	return descriptions.size() - 1;
 }
 
 size_t Game::CreateDescFromText(const std::string &text) {
-	descriptions[++descriptionsSoFar] = Description::CreateFromText(text);
-	return descriptionsSoFar;
+	descriptions.push_back(Description::CreateFromText(text));
+	return descriptions.size() - 1;
 }
 
 void Game::CreateObjFromXML(const pugi::xml_node &objNode) {
 	auto result = GameObj::CreateFromXML(objNode);
 	assert(result);
-	objects[result->Key()] = result;
-	const_cast<GameStatic *>(staticData)->objectLoadOrder.push_back(result->Key());
+	// Appending gives the object its slot, and the slot is its position in load order -- which is
+	// the order everything that walks the world wants to see things in.
+	const_cast<GameStatic *>(staticData)->objectIndex[result->Key()] = objects.size();
+	objects.push_back(result);
 }
 
 void Game::CreatePropertyFromXML(const pugi::xml_node &propNode) {
@@ -291,6 +294,10 @@ Task *Game::CreateTaskFromXML(const pugi::xml_node &propNode) {
 	auto result = Task::CreateFromXML(this, propNode);
 	assert(result);
 	auto s = const_cast<GameStatic *>(staticData);
+	// Give the task its slot in the completed-ness vector as it is registered, so that the vector
+	// stays dense and parallel to the (immutable) task table.
+	result->stateIndex = taskCompletedStorage.size();
+	taskCompletedStorage.push_back(0);
 	s->tasks[result->Key()] = result;
 	return result;
 }
@@ -298,25 +305,28 @@ Task *Game::CreateTaskFromXML(const pugi::xml_node &propNode) {
 void Game::CreateEventFromXML(const pugi::xml_node &evtNode) {
 	auto result = Event::CreateFromXML(evtNode);
 	assert(result);
-	events[result->Key()] = result;
-	const_cast<GameStatic *>(staticData)->eventLoadOrder.push_back(result->Key());
+	const_cast<GameStatic *>(staticData)->eventIndex[result->Key()] = events.size();
+	events.push_back(result);
 }
 
 void Game::CreateVariableFromXML(const pugi::xml_node &varNode) {
 	auto result = Variable::CreateFromXML(varNode);
 	assert(result);
-	variables[result->Key()] = result;
 	auto s = const_cast<GameStatic *>(staticData);
-	// Keyed by the lowercased name: ADRIFT matches a %name% reference against a variable's name
-	// case-insensitively (ReplaceFunctions uses CompareMethod.Text), and games rely on it -- one
-	// variable is named "seabonus" but referenced as "%Seabonus%".
-	s->varNames[Util::ToLower(result->Name())] = result->Key();
+	const size_t slot = variables.size();
+	s->variableIndex[result->Key()] = slot;
+	// Also findable by the lowercased name: ADRIFT matches a %name% reference against a variable's
+	// name case-insensitively (ReplaceFunctions uses CompareMethod.Text), and games rely on it --
+	// one variable is named "seabonus" but referenced as "%Seabonus%".
+	s->varNames[Util::ToLower(result->Name())] = slot;
+	variables.push_back(result);
 }
 
 void Game::CreateGroupFromXML(const pugi::xml_node &grpNode) {
     auto result = Group::CreateFromXML(grpNode);
 	assert(result);
-    groups[result->Key()] = result;
+    const_cast<GameStatic *>(staticData)->groupIndex[result->Key()] = groups.size();
+    groups.push_back(result);
 }
 
 void Game::CreateFunctionFromXML(const pugi::xml_node &funcNode) {
@@ -391,10 +401,9 @@ ExprRef Game::CreateExpression(const std::string &expr) {
 }
 
 void Game::StartupSanityCheck() const {
-    size_t sanityCheck = std::distance(descriptions.begin(), descriptions.end());
-    if (sanityCheck != descriptionsSoFar || sanityCheck != descriptions.size() || descriptionsSoFar != descriptions.size())
-        frontend->FatalError("Startup sanity check failed: description count mismatch.");
-    sanityCheck = std::distance(staticData->restrictions.begin(), staticData->restrictions.end());
+    // (Descriptions no longer need checking: they live in a dense vector indexed by DescrRef, so
+    // "every ref between 1 and the count names a description" holds by construction.)
+    size_t sanityCheck = std::distance(staticData->restrictions.begin(), staticData->restrictions.end());
     if (sanityCheck != restrictionsSoFar || sanityCheck != staticData->restrictions.size() || restrictionsSoFar != staticData->restrictions.size())
         frontend->FatalError("Startup sanity check failed: restriction count mismatch.");
 }

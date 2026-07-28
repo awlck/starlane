@@ -24,14 +24,18 @@ Location *Location::CreateFromXML(const pugi::xml_node &xmlNode) {
 	result->MakeCommonValues(xmlNode);
 	result->relation = HoldingType::Hidden;  // not really, but it also doesn't matter for locations at all.
 
-	for (const auto &m: xmlNode.children("Movement")) {
-		std::string direction = m.child_value("Direction");
-		std::string destination = m.child_value("Destination");
-		RestrRef restrs = 0;
-		const auto &r = m.child("Restrictions");
-		if (r.type() != pugi::node_null)
-			restrs = theGame->CreateRestrictionsFromXML(r);
-		result->exits[direction] = { destination, restrs };
+	{
+		auto exits = std::make_shared<std::unordered_map<std::string, ExitSpec>>();
+		for (const auto &m: xmlNode.children("Movement")) {
+			std::string direction = m.child_value("Direction");
+			std::string destination = m.child_value("Destination");
+			RestrRef restrs = 0;
+			const auto &r = m.child("Restrictions");
+			if (r.type() != pugi::node_null)
+				restrs = theGame->CreateRestrictionsFromXML(r);
+			(*exits)[direction] = { destination, restrs };
+		}
+		result->exits = std::move(exits);
 	}
 
 	result->MakeMatchExpr();
@@ -44,10 +48,10 @@ std::string Location::GetDisplayName([[maybe_unused]] bool defArt) const {
 	// each carry only a bookkeeping name of their own). A group's value wins, as it does for
 	// every other property.
 	if (const Group *grp = GetGroupWithProp("ShortLocationDescription"))
-		return Game::Get()->GetDescription((DescrRef) grp->GetIntProp("ShortLocationDescription"))->Build();
+		return Game::Get()->MutableDescription((DescrRef) grp->GetIntProp("ShortLocationDescription"))->BuildAndCommit();
 	if (locationName == (DescrRef) 0)
 		return "(BUG: Location without a name.)";
-	return Game::Get()->GetDescription(locationName)->Build();
+	return Game::Get()->MutableDescription(locationName)->BuildAndCommit();
 }
 
 GameObj *Location::Clone() const {
@@ -192,9 +196,8 @@ std::string Location::GetDescription(bool forDisplay) const {
 	// remaining listable objects are collected into a single "Also here is ..." /
 	// "There is ... here." sentence.
 	std::vector<std::string> generalListed;
-	for (const auto &objKey: theGame->GetObjectLoadOrder()) {
-		const auto *obj = theGame->GetObject(objKey);
-		if (dynamic_cast<const Character *>(obj) || dynamic_cast<const Location *>(obj))
+	for (const GameObj *obj: theGame->GetAllObjects()) {
+		if (obj->IsCharacter() || obj->IsLocation())
 			continue;
 		if (!HoldsDirectly(obj))
 			continue;
@@ -202,8 +205,11 @@ std::string Location::GetDescription(bool forDisplay) const {
 			continue;
 		const char *listProp = obj->IsDynamic() ? "ListDescriptionDynamic" : "ListDescription";
 		std::string listDesc;
-		if (obj->HasProp(listProp))
-			listDesc = theGame->GetDescription(obj->GetIntProp(listProp))->Build(forDisplay);
+		if (obj->HasProp(listProp)) {
+			const DescrRef ref = (DescrRef) obj->GetIntProp(listProp);
+			listDesc = forDisplay ? theGame->MutableDescription(ref)->BuildAndCommit()
+			                      : theGame->GetDescription(ref)->Build();
+		}
 		if (listDesc.empty()) {
 			generalListed.push_back(obj->GetDisplayName());
 		} else {
@@ -225,8 +231,8 @@ std::string Location::GetDescription(bool forDisplay) const {
 	// objects, before character "is here" lines. Events contribute in load order, same as ADRIFT
 	// walking htblEvents.Values; more than one applying at once is a corner ADRIFT itself leaves
 	// as "whatever order the hashtable gives you", so load order is as good a tiebreak as any.
-	for (const auto &evKey: theGame->GetEventLoadOrder()) {
-		std::string lookText = theGame->GetEvent(evKey)->LookOverrideText();
+	for (const Event *ev: theGame->GetAllEvents()) {
+		std::string lookText = ev->LookOverrideText();
 		if (lookText.empty()) continue;
 		PadForAppend(result);
 		result += lookText;
@@ -239,10 +245,10 @@ std::string Location::GetDescription(bool forDisplay) const {
 	// so two bystanders become "Bob and Alice are here." rather than two sentences.
 	const std::string &playerKey = theGame->GetPlayerChar()->Key();
 	std::vector<std::pair<std::string, std::vector<std::string>>> charDescs;
-	for (const auto &objKey: theGame->GetObjectLoadOrder()) {
-		if (objKey == playerKey)  // you are never listed to yourself
+	for (const GameObj *obj: theGame->GetAllObjects()) {
+		if (obj->Key() == playerKey)  // you are never listed to yourself
 			continue;
-		const auto *ch = dynamic_cast<const Character *>(theGame->GetObject(objKey));
+		const auto *ch = AsCharacter(obj);
 		if (!ch || !IsCharVisibleHere(ch))
 			continue;
 		std::string name = ch->GetDisplayName(false);
@@ -251,7 +257,9 @@ std::string Location::GetDescription(bool forDisplay) const {
 			// A CharHereDesc using %CharacterName% means this character, not the player -- same
 			// referral-character convention Character::GetDescription uses for its own text.
 			theGame->SetInternalReference("referral-character", ch->Key());
-			hereDesc = theGame->GetDescription(ch->GetIntProp("CharHereDesc"))->Build(forDisplay);
+			const DescrRef ref = (DescrRef) ch->GetIntProp("CharHereDesc");
+			hereDesc = forDisplay ? theGame->MutableDescription(ref)->BuildAndCommit()
+			                      : theGame->GetDescription(ref)->Build();
 			theGame->ClearInternalReference("referral-character");
 		} else {
 			hereDesc = name + " is here.";
@@ -292,23 +300,36 @@ std::string Location::GetDescription(bool forDisplay) const {
 	return result;
 }
 
+// ADRIFT's compass order (DirectionsEnum): N, E, S, W, U, D, In, Out, NE, SE, SW, NW. Everything
+// that lists a location's exits walks them in this order, as the original does.
+static const char *const kCompassOrder[] = {
+	"North", "East", "South", "West", "Up", "Down", "In", "Out",
+	"NorthEast", "SouthEast", "SouthWest", "NorthWest",
+};
+
 std::string Location::GetListOfExits() const {
 	std::string result;
 	size_t count = 0;
-	for (auto &e: exits) {
+	// In compass order, matching ADRIFT's own `location.Exits` (Global.vb), which walks
+	// DirectionsEnum from North to NorthWest. Iterating the exit table itself would leave the
+	// order up to the hash map -- which is not merely arbitrary but unstable, since it changes
+	// when the table is copied.
+	for (const char *canonical : kCompassOrder) {
+		auto e = exits->find(canonical);
+		if (e == exits->end()) continue;
 		// add to result if unrestricted
-		if (e.second.restr == 0) {
+		if (e->second.restr == 0) {
 			if (count++ > 0)
 				result += '|';
-			result += e.first;
+			result += e->first;
 			continue;
 		}
 		// otherwise check if restriction passes
-		const auto *restr = Game::Get()->GetRestriction(e.second.restr);
+		const auto *restr = Game::Get()->GetRestriction(e->second.restr);
 		if (restr->PassRestrictionBlock().first) {
 			if (count++ > 0)
 				result += '|';
-			result += e.first;
+			result += e->first;
 		}
 	}
 	return result;
@@ -317,15 +338,10 @@ std::string Location::GetListOfExits() const {
 std::string Location::GetExitsLine() const {
 	auto *theGame = Game::Get();
 	const auto &dirTable = theGame->GetDirectionTable();
-	// ADRIFT's compass order (DirectionsEnum): N, E, S, W, U, D, In, Out, NE, SE, SW, NW.
-	static const char *const kCompassOrder[] = {
-		"North", "East", "South", "West", "Up", "Down", "In", "Out",
-		"NorthEast", "SouthEast", "SouthWest", "NorthWest",
-	};
 	std::vector<std::string> available;
 	for (const char *canonical : kCompassOrder) {
-		auto it = exits.find(canonical);
-		if (it == exits.end())
+		auto it = exits->find(canonical);
+		if (it == exits->end())
 			continue;
 		// An exit with restrictions is only listed if they currently pass, mirroring
 		// clsCharacter.HasRouteInDirection (which evaluates each direction's restrictions).
@@ -343,7 +359,7 @@ std::string Location::GetExitsLine() const {
 }
 
 bool Location::IsAdjacent(const std::string &locKey) const {
-	for (const auto &e : exits)
+	for (const auto &e : *exits)
 		if (e.second.destination == locKey)
 			return true;
 	return false;
@@ -360,8 +376,8 @@ std::string Location::DirectionTo(const std::string &locKey) const {
 		{"SouthWest", "the south-west"}, {"NorthWest", "the north-west"},
 	};
 	for (const auto &d : kDirs) {
-		auto it = exits.find(d.first);
-		if (it != exits.end() && it->second.destination == locKey)
+		auto it = exits->find(d.first);
+		if (it != exits->end() && it->second.destination == locKey)
 			return d.second;
 	}
 	return "nowhere";
@@ -370,7 +386,9 @@ std::string Location::DirectionTo(const std::string &locKey) const {
 void Location::MakeMatchExpr() {
 	// This expression requires a string to both begin and not begin with the letter x,
 	// thus it can never match.
-	matchRegex = std::regex("^(?!x)x");
+	// The same "matches nothing" pattern for every location in the game, so they all share one.
+	static const auto kMatchesNothing = std::make_shared<const std::regex>("^(?!x)x");
+	matchRegex = kMatchesNothing;
 }
 
 }

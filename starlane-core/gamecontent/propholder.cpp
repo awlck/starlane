@@ -40,12 +40,14 @@ void PropHolder::ErasePropValue(const std::string &key) {
     switch (Game::Get()->GetPropMeta(key)->Type()) {
     case Property::ValueType::Object:
     case Property::ValueType::Enum:
-        if (strValuedProps.count(key))
-            strValuedProps.erase(key);
+        // Checking before detaching: erasing something we don't have would otherwise pay for a
+        // whole copy-on-write clone and change nothing.
+        if (props->strValued.count(key))
+            MutableProps().strValued.erase(key);
         break;
     default:
-        if (intValuedProps.count(key))
-            intValuedProps.erase(key);
+        if (props->intValued.count(key))
+            MutableProps().intValued.erase(key);
         break;
     }
 }

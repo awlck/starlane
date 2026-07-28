@@ -5,6 +5,9 @@
 
 #include "gameobj.h"
 
+#include <memory>
+#include <unordered_map>
+
 #include "../slc_private.h"
 
 namespace Starlane {
@@ -15,6 +18,7 @@ class Location: public GameObj {
 public:
 	static Location *CreateFromXML(const pugi::xml_node &xmlNode);
 	[[nodiscard]] GameObj *Clone() const override;
+	void AssignFrom(const GameObj &other) override { *this = static_cast<const Location &>(other); }
 
 	// Gets the display name (i.e. short location description) of this location
 	std::string GetDisplayName([[maybe_unused]] bool = false) const override;
@@ -37,8 +41,8 @@ public:
 		RestrRef restr;
 	};
 
-	const ExitSpec &GetExit(const std::string &dir) const { return exits.at(dir); }
-	bool HasExit(const std::string &dir) const { return exits.count(dir) > 0; }
+	const ExitSpec &GetExit(const std::string &dir) const { return exits->at(dir); }
+	bool HasExit(const std::string &dir) const { return exits->count(dir) > 0; }
 	std::string GetListOfExits() const;
 
 	// The "Exits are north and east." / "An exit leads north." sentence appended to a location
@@ -58,15 +62,27 @@ public:
 	std::string DirectionTo(const std::string &locKey) const;
 
 private:
-	Location() = default;
+	Location() : GameObj(Kind::Location) {}
 
 	DescrRef locationName;
-	std::unordered_map<std::string, ExitSpec> exits;
+	// Fixed once the game has loaded -- a location's exits are part of the map's shape, and
+	// nothing changes them at runtime. Held by shared pointer so that cloning a location (for an
+	// undo record, or for the startup state) shares one table instead of rebuilding it.
+	std::shared_ptr<const std::unordered_map<std::string, ExitSpec>> exits =
+		std::make_shared<const std::unordered_map<std::string, ExitSpec>>();
 
 protected:
 	// Locations can never be matched.
 	void MakeMatchExpr() override;
 };
+
+// The Location this object is, or nullptr if it is not one. See AsCharacter in character.h.
+inline Location *AsLocation(GameObj *o) {
+	return o && o->IsLocation() ? static_cast<Location *>(o) : nullptr;
+}
+inline const Location *AsLocation(const GameObj *o) {
+	return o && o->IsLocation() ? static_cast<const Location *>(o) : nullptr;
+}
 
 }
 

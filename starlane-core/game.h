@@ -26,6 +26,15 @@ template<typename K, typename V> V *SafeMapGet(const std::unordered_map<K, V *> 
 	return f == map.end() ? nullptr : f->second;
 }
 
+// Look something up by key in one of the load-order tables (Game::objects and friends): the key
+// names a slot, via an index table that lives in the immutable GameStatic, and the slot holds the
+// thing. Returns nullptr for a key the game hasn't got.
+template<typename T> T *IndexedGet(const std::unordered_map<std::string, size_t> &index,
+                                   const std::vector<T *> &table, const std::string &key) {
+	auto f = index.find(key);
+	return f == index.end() ? nullptr : table[f->second];
+}
+
 enum class ReferralPerson {
 	FirstPerson,
 	SecondPerson,
@@ -66,7 +75,8 @@ class GameStatic {
 	std::unordered_map<RestrRef, Restriction *> restrictions;
 	std::unordered_map<std::string, Property *> properties;
 	std::unordered_map<std::string, Task *> tasks;
-	std::unordered_map<std::string, std::string> varNames;
+	// Variable name (lowercased) -> that variable's slot in Game::variables.
+	std::unordered_map<std::string, size_t> varNames;
 	std::unordered_map<ExprRef, Expression *> expressions;
 	std::unordered_map<std::string, UserFunction *> userFunctions;
 	std::unordered_map<std::string, std::string> userFuncNames;
@@ -81,14 +91,19 @@ class GameStatic {
 	ExecutionPolicy executionPolicy = ExecutionPolicy::HighestPrio;
 	// The mapping of file path -> Blorb resource ID, if applicable.
 	std::unordered_map<std::string, uint32_t> blorbResMap;
-	// The keys of all game objects in the order they appear in the game file, since
-	// listing objects in a stable order requires it (the objects map is unordered).
-	std::vector<std::string> objectLoadOrder;
-	// The same for events, and for much the same reason: they are held in an unordered map, but
-	// the order they tick in is observable -- one event's subevent can run a task that starts or
-	// stops another -- so it has to be the order the game file lists them in, which is the order
-	// ADRIFT ticks them in too.
-	std::vector<std::string> eventLoadOrder;
+	// Where to find a thing by key. The mutable state these index into (Game::objects and
+	// friends) is a flat vector in load order rather than a hash map, for two reasons: the whole
+	// of it used to be deep-copied into an undo snapshot once per turn, and a map's worth of nodes
+	// and copied key strings was one of the more expensive parts of that; and load order is an order
+	// the engine needs constantly anyway -- it is the order things are listed to the player in,
+	// and the order ADRIFT ticks events in -- so the vector's own order is the useful one.
+	//
+	// Every one of these tables is filled during load and never added to or removed from
+	// afterwards, which is what makes a thing's index a stable name for it.
+	std::unordered_map<std::string, size_t> objectIndex;
+	std::unordered_map<std::string, size_t> eventIndex;
+	std::unordered_map<std::string, size_t> variableIndex;
+	std::unordered_map<std::string, size_t> groupIndex;
 
 	// Tasks in priority order
 	std::set<Task *, TaskPrioLess> prioOrderedTasks;
@@ -123,23 +138,79 @@ public:
 	PlainTextRef StorePlainTextSnippet(std::string_view snip);
 	ExprRef CreateExpression(const std::string &expr);
 
-	Description *GetDescription(DescrRef d) const { return descriptions.at(d); }
-	Event *GetEvent(const std::string &key) { return SafeMapGet(events, key); }
-	Group *GetGroup(const std::string &key) { return SafeMapGet(groups, key); }
+	// ---- Reading the world ------------------------------------------------------------------
+	// Everything below hands back a pointer you may not write through. To change something, ask
+	// for it by the matching Mutable* accessor further down instead; the compiler will tell you
+	// when you need one. That is the whole point: it is how "nothing changes the world without
+	// the undo machinery being told" stops being a rule people have to remember.
+	const Description *GetDescription(DescrRef d) const {
+		// DescrRefs are handed out sequentially from 1 (see CreateDescFromXML), so the table is a
+		// flat vector rather than a hash map: it is indexed on every description built, and it is
+		// indexed on every description built. 0 means "no description" and is not a
+		// valid subscript -- throw for it exactly as the map lookup this replaced did.
+		if (d == 0 || d >= descriptions.size()) throw std::out_of_range("no such description");
+		return descriptions[d];
+	}
+	const Event *GetEvent(const std::string &key) const { return IndexedGet(staticData->eventIndex, events, key); }
+	const Group *GetGroup(const std::string &key) const { return IndexedGet(staticData->groupIndex, groups, key); }
 	// Look up an object by key, returning nullptr if none exists. Use this only where a missing
-	// key is a legitimate, expected answer -- existence/type probes (`dynamic_cast<Location *>(...)`)
-	// and explicit `if (TryGetObject(k))` guards.
-	GameObj *TryGetObject(const std::string &key) { return SafeMapGet(objects, key); }
+	// key is a legitimate, expected answer -- existence/type probes (`AsLocation(...)`) and
+	// explicit `if (TryGetObject(k))` guards.
+	const GameObj *TryGetObject(const std::string &key) const { return IndexedGet(staticData->objectIndex, objects, key); }
 	// Look up an object by key that the caller expects to exist. Throws MissingObjectException
 	// (logging the key) rather than returning a dangling nullptr to be dereferenced -- either the
 	// game file is malformed or a reference was evaluated while unset. Callers that cannot tolerate
 	// this sit under a funnel-level try/catch (restriction/action evaluation) or the top-level
 	// backstop in starlane-core.cpp.
-	GameObj *GetObject(const std::string &key) {
-		GameObj *o = SafeMapGet(objects, key);
+	const GameObj *GetObject(const std::string &key) const {
+		const GameObj *o = TryGetObject(key);
 		if (!o) throw MissingObjectException(key);
 		return o;
 	}
+
+	// ---- Changing the world -----------------------------------------------------------------
+	// The only way to get a pointer you may write through. Today these do nothing but drop the
+	// const; the undo machinery hangs off them next, at which point asking for one is also what
+	// records the object's previous state.
+	// Asking for one of these is also what records the thing's current state for UNDO, the first
+	// time in a turn that anyone asks. Every write in the engine comes through here, which is what
+	// makes "nothing changes without undo being told" a property of the code rather than a habit.
+	GameObj *MutableObject(size_t slot) { PreserveObject(slot); return Unconst(objects[slot]); }
+	GameObj *MutableObject(const std::string &key) {
+		const auto f = staticData->objectIndex.find(key);
+		return f == staticData->objectIndex.end() ? nullptr : MutableObject(f->second);
+	}
+	// The must-exist form, matching GetObject.
+	GameObj *MutableObjectChecked(const std::string &key) {
+		GameObj *o = MutableObject(key);
+		if (!o) throw MissingObjectException(key);
+		return o;
+	}
+	Event *MutableEvent(size_t slot) { PreserveEvent(slot); return Unconst(events[slot]); }
+	Event *MutableEvent(const std::string &key) {
+		const auto f = staticData->eventIndex.find(key);
+		return f == staticData->eventIndex.end() ? nullptr : MutableEvent(f->second);
+	}
+	Group *MutableGroup(size_t slot) { PreserveGroup(slot); return Unconst(groups[slot]); }
+	Group *MutableGroup(const std::string &key) {
+		const auto f = staticData->groupIndex.find(key);
+		return f == staticData->groupIndex.end() ? nullptr : MutableGroup(f->second);
+	}
+	Variable *MutableVariable(size_t slot) { PreserveVariable(slot); return Unconst(variables[slot]); }
+	Variable *MutableVariable(const std::string &key) {
+		const auto f = staticData->variableIndex.find(key);
+		return f == staticData->variableIndex.end() ? nullptr : MutableVariable(f->second);
+	}
+	Variable *MutableVarByName(const std::string &name) {
+		const auto f = staticData->varNames.find(Util::ToLower(name));
+		return f == staticData->varNames.end() ? nullptr : MutableVariable(f->second);
+	}
+	Description *MutableDescription(DescrRef d) {
+		if (d == 0 || d >= descriptions.size()) throw std::out_of_range("no such description");
+		PreserveDescription(d);
+		return Unconst(descriptions[d]);
+	}
+	GameObj *MutablePlayerChar() { return MutableObject(PlayerSlot()); }
 	Task *GetTask(const std::string &key) const { return SafeMapGet(staticData->tasks, key); }
 	// Whether `childKey` is one of `parentKey`'s direct Specific children -- ADRIFT's task.Children,
 	// which an Event/Walk control uses to ignore a re-trigger by a child of the task it just handled.
@@ -163,8 +234,10 @@ public:
 	void RunTriggeredTasks();
 	const Property *GetPropMeta(const std::string &key) const { return SafeMapGet(staticData->properties, key); }
 	const Restriction *GetRestriction(RestrRef key) const { return staticData->restrictions.at(key); }
-	Variable *GetVariable(const std::string &key) { return SafeMapGet(variables, key); }
-	Variable *GetVarByName(const std::string &name) { const auto f = staticData->varNames.find(Util::ToLower(name)); return f == staticData->varNames.end() ? nullptr : variables.at(f->second); }
+	const Variable *GetVariable(const std::string &key) const { return IndexedGet(staticData->variableIndex, variables, key); }
+	// varNames maps straight to the slot, so looking a variable up by the name a game writes it
+	// under ("%Seabonus%") costs the same single lookup as looking it up by key.
+	const Variable *GetVarByName(const std::string &name) const { const auto f = staticData->varNames.find(Util::ToLower(name)); return f == staticData->varNames.end() ? nullptr : variables[f->second]; }
 	const UserFunction *GetUserFunction(const std::string &key) const { return SafeMapGet(staticData->userFunctions, key); }
 	const UserFunction *GetUserFuncByName(const std::string &name) const { const auto f = staticData->userFuncNames.find(name); return f == staticData->userFuncNames.end() ? nullptr : staticData->userFunctions.at(f->second); }
 	Expression *GetExpression(ExprRef ref) { return staticData->expressions.at(ref); }
@@ -175,18 +248,20 @@ public:
 	// naming those is called "OnlyApplyAt" and holds either sort of key. A key naming neither a
 	// location nor a group matches nowhere.
 	bool PlayerIsInLocationOrGroup(const std::string &key) const;
-	bool GroupExists(const std::string &key) const { return groups.find(key) != groups.end(); }
-	bool ObjectExists(const std::string &key) const { return objects.find(key) != objects.end(); }
+	bool GroupExists(const std::string &key) const { return staticData->groupIndex.count(key) > 0; }
+	bool ObjectExists(const std::string &key) const { return staticData->objectIndex.count(key) > 0; }
 	bool PropExists(const std::string &key) const { return staticData->properties.find(key) != staticData->properties.end(); }
 	bool VarOfNameExists(const std::string &name) const { return staticData->varNames.find(Util::ToLower(name)) != staticData->varNames.end(); }
-	const std::unordered_map<std::string, GameObj *> &GetAllObjects() const { return objects; }
-	// All object keys, in the order the objects appear in the game file.
-	const std::vector<std::string> &GetObjectLoadOrder() const { return staticData->objectLoadOrder; }
-	// All event keys, in the order the events appear in the game file -- used to walk every
-	// event's LookOverrideText the way ADRIFT's ViewLocation walks Adventure.htblEvents.
-	const std::vector<std::string> &GetEventLoadOrder() const { return staticData->eventLoadOrder; }
-	GameObj *GetPlayerChar() const { return objects.at(playerKey); }
-	// The player's key, for asking "is this the player?" without a map lookup -- and without the
+	// Every object in the game, in the order they appear in the game file. That order is the one
+	// callers want: it is how things are listed to the player, and how ADRIFT itself enumerates.
+	const std::vector<const GameObj *> &GetAllObjects() const { return objects; }
+	// The same for events -- the order they tick in is observable, since one event's subevent can
+	// start or stop another, and it is the order ADRIFT ticks them in too.
+	const std::vector<const Event *> &GetAllEvents() const { return events; }
+	const GameObj *GetPlayerChar() const { return objects[staticData->objectIndex.at(playerKey)]; }
+	// The player's slot, for the paths that need to change them rather than read them.
+	size_t PlayerSlot() const { return staticData->objectIndex.at(playerKey); }
+	// The player's key, for asking "is this the player?" without a lookup -- and without the
 	// throw GetPlayerChar() would give for a question asked before the player has been picked.
 	const std::string &GetPlayerKey() const { return playerKey; }
 	// Make `newPlayerKey` the character the player is playing as, per `MoveCharacter ...
@@ -195,8 +270,16 @@ public:
 	// in the original ADRIFT runner.
 	void SwitchPlayerCharacter(const std::string &newPlayerKey);
 
-	bool GetIsTaskCompleted(const std::string &key) const { return taskCompletedStorage.at(key); }
-	void SetTaskCompleted(const std::string &key, bool val) { taskCompletedStorage[key] = val; }
+	bool GetIsTaskCompleted(const std::string &key) const {
+		return taskCompletedStorage[TaskStateIndex(key)] != 0;
+	}
+	void SetTaskCompleted(const std::string &key, bool val) {
+		const size_t slot = TaskStateIndex(key);
+		const uint8_t v = val ? 1 : 0;
+		if (taskCompletedStorage[slot] == v) return;
+		PreserveTaskFlag(slot);
+		taskCompletedStorage[slot] = v;
+	}
 	// The key of the location the player is currently in. Out of line because it needs
 	// GameObj to be complete.
 	const std::string &GetPlayerLocationKey() const;
@@ -230,20 +313,46 @@ public:
 		currentRefs[Util::CanonicalizeRefName("<" + ref + ">")] = "";
 	}
 
-	// Save the current game state to the undo list, discarding the oldest state(s) if that
-	// would take the list over `kMaxUndoStates`.
+	// The one place in the interpreter that drops const from a piece of game state. Everything
+	// that changes the world goes through a Mutable* accessor above, and every one of those goes
+	// through here -- so this is the single door the undo machinery gets to stand in.
+	template<typename T> static T *Unconst(const T *p) { return const_cast<T *>(p); }
+
+	// Overwrite this game's mutable state with another's, in place. Every object keeps its
+	// address: everything in the engine holds game content by pointer, and a restart or an undo
+	// happening underneath a held pointer is exactly the kind of bug that does not show up until
+	// three turns later. See GameObj::AssignFrom.
+	void AssignStateFrom(const Game &src);
+
+	// Close the undo record now open and start a new one -- i.e. mark this moment as somewhere
+	// UNDO can come back to. Cheap: the record already holds everything the last turn changed,
+	// because each object was copied into it as it was first written to (see MutableObject and
+	// friends), so this is bookkeeping rather than a copy of the world.
 	void SaveUndo();
-	// If any undo states are available, discard the current state and go back one step.
+	// Put the world back as it stood at the last such point, in place: everything keeps its
+	// address, and the Game instance is not replaced. Returns false when there is nothing to go
+	// back to.
 	bool RestoreUndo();
 	// Discard the oldest saved game state.
 	// Does nothing if there currently aren't any undo states.
 	static void DiscardUndo();
 	// Is there at least one undo state available?
 	bool UndoAvailable() const { return !undoStates.empty(); }
-	// Number of saved undo states. Used by the top-level backstop (starlane-core.cpp) to tell
-	// whether a turn recorded a snapshot before it threw, and hence whether to roll it back.
+	// Record that this task's completed-ness is about to change, so UNDO can put it back.
+	void PreserveTaskFlag(size_t slot);
+	// Identifies the newest saved undo state, or 0 when there is none. Used by the top-level
+	// backstop (starlane-core.cpp) to tell whether a turn recorded a snapshot before it threw, and
+	// hence whether to roll it back: the counter only ever goes up, so a value *greater* than the
+	// one read before the turn means "a state recorded during this turn is still the newest one".
+	// A plain count will not do -- SaveUndo pushes before trimming to kMaxUndoStates, so once the
+	// history is full the depth is the same before and after and a failed turn was never rolled
+	// back.
+	static uint64_t TopUndoGeneration() { return undoStates.empty() ? 0 : undoStates.back().seq; }
+	// Number of saved undo states, for anything that genuinely wants the count.
 	static size_t UndoDepth() { return undoStates.size(); }
-	// Restart the game.
+	// Restart the game: put the starting state back and begin again. Works in place -- the Game
+	// instance, and every object in it, keeps its address -- so unlike UNDO there is nothing here
+	// for a caller to be careful about.
 	void Restart();
 
 	// This function must be called to start the game. It will start relevant events and
@@ -266,6 +375,10 @@ public:
 	bool Restore();
 	// Get status bar info
 	bool GetStatusBar(StatusBar &statusBar);
+	// Const, like OutputFiltered which calls it, even though building an override's replacement
+	// text records that its segments were shown. That write goes through MutableDescription like
+	// every other, which is what matters -- the undo machinery hangs off the accessor, not off
+	// whether the Game happened to be const at the call.
 	void ApplyOverrides(std::string &t) const;
 
 	ReferralPerson GetCurrentReferralPerson() const {
@@ -468,23 +581,33 @@ private:
 	// the game world (SAVE, QUIT, UNDO, ...), running it if so and returning whether it matched.
 	// Only consulted once no task has matched, so that a game remains free to define a task whose
 	// command shadows any of these.
-	// Caution: RESTART and UNDO replace the current Game instance wholesale, so this may well
-	// `delete this` -- the caller must not touch the instance afterwards.
+	// UNDO and RESTART work in place, so unlike before this leaves the instance intact; QUIT ends
+	// the session but does not destroy anything either.
 	bool AttemptMatchSystemCommand();
 	// The subset of AttemptMatchSystemCommand offered once the game has ended (see EndGame):
 	// RESTART, RESTORE, QUIT, or UNDO. Split out so that ProcessInput can restrict itself to
 	// exactly these once gameHasBegun is false, without also matching SAVE or WAIT, which have
-	// nothing left to act on. Same caution as AttemptMatchSystemCommand: may `delete this`.
+	// nothing left to act on. Like AttemptMatchSystemCommand, this leaves the instance intact.
 	bool AttemptMatchEndOfGameCommand();
 
-	// mutable game state (objects copied for undo state)
-	std::unordered_map<std::string, GameObj *> objects;
-	std::unordered_map<std::string, Event *> events;
-	std::unordered_map<std::string, Variable *> variables;
-	std::unordered_map<std::string, Group *> groups;
-	std::unordered_map<DescrRef, Description *> descriptions;
-	// stores the completed-ness of tasks to avoid needing to copy the entire tasks for saves.
-	std::unordered_map<std::string, bool> taskCompletedStorage;
+	// Mutable game state (what UNDO records the changes to). Each of these is in load order, and a
+	// thing's position in it is fixed for the life of the game -- see the index tables in
+	// GameStatic, which are how a key gets turned into a position.
+	std::vector<const GameObj *> objects;
+	std::vector<const Event *> events;
+	std::vector<const Variable *> variables;
+	std::vector<const Group *> groups;
+	// Indexed by DescrRef; slot 0 is the "no description" sentinel and stays null.
+	std::vector<const Description *> descriptions{nullptr};
+	// Stores the completed-ness of tasks to avoid needing to copy the entire tasks for saves.
+	// Indexed by Task::StateIndex() rather than keyed by task key: this is copied wholesale once
+	// per turn for the undo snapshot, and a map of one string key per task in the game made that
+	// one of the more expensive parts of a snapshot. (uint8_t rather than bool so that the copy
+	// is a plain memcpy instead of vector<bool>'s bit twiddling.)
+	std::vector<uint8_t> taskCompletedStorage;
+	// The slot in `taskCompletedStorage` belonging to the task with this key. Throws (as the map
+	// lookup this replaced did) if no such task exists.
+	size_t TaskStateIndex(const std::string &key) const;
 	// the current player character
 	std::string playerKey;
 	// most recently mentioned character and pronoun
@@ -635,7 +758,7 @@ private:
 	// instead. Same lifecycle as turnHasOutput above: reset every ProcessInput, never saved/undone.
 	mutable std::unordered_set<std::string> completionMessagesThisTurn;
 
-	size_t descriptionsSoFar = 0;
+	// (No descriptionsSoFar: `descriptions` is a dense vector, so its size is the count.)
 	size_t restrictionsSoFar = 0;
 	ptrdiff_t textSnippetsSoFar = 0;
 	ptrdiff_t expressionsSoFar = 0;
@@ -643,10 +766,76 @@ private:
 	// The Game instance holding the current state of the game, for the benefit of any
 	// functions that might need it (restrictions, descriptions, action processing)
 	static Game *theGame;
-	// The list of former game states maintained for use with the UNDO command.
-	static std::deque<Game *> undoStates;
-	// How many of them to keep around: each one is a full copy of the mutable game state, so
-	// they are not cheap. (ADRIFT 5 settles on 100 as well.)
+	// What UNDO needs in order to put one step back: for every piece of state changed since this
+	// record was opened, a copy of it as it was beforehand. Nothing else -- a turn touches a
+	// handful of things out of the thousands a game has, and copying the rest was the single most
+	// expensive thing the interpreter did.
+	struct UndoRecord {
+		// Which SaveUndo closed this record (see TopUndoGeneration), and which generation its
+		// entries are stamped with while it is the open one.
+		uint64_t seq = 0;
+		uint64_t generation = 0;
+		// slot -> the thing as it was. At most one entry per slot, which is what the stamps below
+		// are for.
+		std::vector<std::pair<uint32_t, GameObj *>> objects;
+		std::vector<std::pair<uint32_t, Event *>> events;
+		std::vector<std::pair<uint32_t, Variable *>> variables;
+		std::vector<std::pair<uint32_t, Group *>> groups;
+		std::vector<std::pair<uint32_t, Description *>> descriptions;
+		std::vector<std::pair<uint32_t, uint8_t>> taskFlags;
+		// The scalars, captured whole when the record was opened -- there are few enough of them
+		// that tracking which changed would cost more than copying the lot.
+		std::string playerKey;
+		std::pair<std::string, Pronoun> mostRecentlyMentioned;
+		std::string pronounItText, pronounThemText, pronounHimText, pronounHerText;
+		uint32_t turnCount = 0;
+		bool gameHasBegun = false;
+		bool sessionActive = false;
+#ifdef SL_UNDO_AUDIT
+		// The whole-world copy this record is checked against when it is applied. See AuditRestore.
+		Game *shadow = nullptr;
+#endif
+	};
+	// Closed records, oldest first: one per undo step available.
+	static std::deque<UndoRecord> undoStates;
+	// The record currently accepting pre-images -- everything changed since the last undo point.
+	// Always present: RestoreUndo applies this one and then reopens the newest closed record, so
+	// that writes made after an UNDO (printing "Undone." commits description state, for one) are
+	// still covered by the next one.
+	static UndoRecord openRecord;
+	// Handed out to records, never reused.
+	static uint64_t undoSeqCounter;
+	static uint64_t undoGenerationCounter;
+	// Per-slot "already preserved into the open record" marks: a slot whose stamp equals the open
+	// record's generation is already in it and must not be copied a second time, or the second
+	// copy would overwrite the older, correct one.
+	std::vector<uint64_t> objectStamp, eventStamp, variableStamp, groupStamp, descriptionStamp,
+		taskFlagStamp;
+	// Nothing is recorded before the first SaveUndo: there is nowhere to go back to, and loading a
+	// game would otherwise copy every object it touched on the way up.
+	static bool undoRecording;
+
+	void PreserveObject(size_t slot);
+	void PreserveEvent(size_t slot);
+	void PreserveVariable(size_t slot);
+	void PreserveGroup(size_t slot);
+	void PreserveDescription(size_t slot);
+	// Put a record's contents back and empty it.
+	void ApplyRecord(UndoRecord &rec);
+	static void ClearRecord(UndoRecord &rec);
+	// Give a reopened record a fresh generation and mark every slot it holds as already preserved.
+	void RestampOpenRecord();
+	// Size the stamp arrays once the world is built. Called at the end of loading.
+	void PrepareUndoBookkeeping();
+#ifdef SL_UNDO_AUDIT
+	// Compare the world against the whole-world copy taken when this record was opened, and abort
+	// naming the first thing that differs. Only built when SL_UNDO_AUDIT is on.
+	void AuditRestore(const UndoRecord &rec) const;
+	std::string SlotFingerprint(const char *kind, size_t slot) const;
+#endif
+	// How many undo steps to keep. A record now costs only what its turn changed, so this could
+	// be raised freely -- it stays at 100 because that is what ADRIFT 5 offers, and matching the
+	// original is the point.
 	static constexpr size_t kMaxUndoStates = 100;
 	// How deeply turn ticks may nest before we refuse to go further. Only a task's "skip N turns"
 	// action can nest them at all, and only a game that has one run from an event it also drives

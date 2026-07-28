@@ -119,8 +119,22 @@ public:
 	// Clear the "started on this very tick" flag. Done in a pass of its own once every event has
 	// ticked, rather than by the event itself -- see Game::RunEventTick.
 	void ClearJustStarted() { justStarted = false; }
+	// Whether this event started on the tick now finishing -- what ClearJustStarted clears. Lets a
+	// caller skip the call entirely when there is nothing to clear.
+	bool JustStarted() const { return justStarted; }
+	// Whether ticking this event could do anything at all. A game's events are mostly dormant at
+	// any given moment, and every one of them is offered a tick twice per turn.
+	bool TickWouldDoNothing() const {
+		return nextCommand == Command::None && !justStarted &&
+			(state == State::NotYetStarted || state == State::Paused || state == State::Finished);
+	}
 
-	Util::Range &GetDuration() { return duration; }
+	// How long this event runs for, in ticks of its own clock. Not a plain accessor: a duration
+	// written "3 to 7 turns" is a roll that gets settled the first time anyone asks, and the
+	// settled value is saved state -- so on that one path this has to go back through the game for
+	// an Event it may write to. Replaces a GetDuration() that handed out a mutable reference and
+	// let a read-shaped expression ("%event.Length%") quietly change the world.
+	uint32_t Length() const;
 	int32_t GetTimeSinceStart() const { return timeSinceStart; }
 
 	void WriteState(Save::Writer &writer) const;
@@ -203,7 +217,7 @@ private:
 	// queued command is applied in IncrementTimer, matching ADRIFT.
 	std::string triggeringTask;
 	// Which subevent ran most recently, or -1 if none has since this event last started. An index
-	// rather than a pointer because Game clones every Event wholesale for each undo state, with
+	// rather than a pointer because an Event is cloned wholesale into an undo record, with
 	// the compiler's own copy constructor -- a pointer would survive that copy aimed squarely at
 	// the previous Game's subevent.
 	int32_t lastSubEventIndex = -1;

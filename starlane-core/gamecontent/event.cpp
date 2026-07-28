@@ -241,7 +241,18 @@ void Event::ResumeImpl() {
 		state = State::Running;
 }
 
+uint32_t Event::Length() const {
+	const uint32_t settled = duration.CurrentState();
+	if (settled != (uint32_t) -1) return settled;
+	// Never put on the clock, so the roll is still open. Everything that starts an event settles
+	// it first (see StartImpl/BeginCountdown), so this only happens for one nothing has started.
+	return Game::Get()->MutableEvent(key)->duration.Value();
+}
+
 void Event::IncrementTimer() {
+	// Nothing queued, not just started, and not on any clock: every branch below is a no-op for
+	// such an event, down to the `justStarted = false` at the end, so say so once here instead.
+	if (TickWouldDoNothing()) return;
 	// Anything a task asked of us since our last tick happens now, ahead of everything else.
 	if (nextCommand != Command::None) {
 		// Cleared first: these run the same code a task would reach were it running inside the
@@ -329,7 +340,7 @@ void Event::RunSubEvent(int32_t idx) {
 			// An empty key means the message never shows at all, rather than showing everywhere:
 			// ADRIFT tests for a key before it tests where the player is, and so must we.
 			if (!se.onlyAtLocation.empty() && g->PlayerIsInLocationOrGroup(se.onlyAtLocation))
-				g->OutputFiltered(g->GetDescription(se.actionDescr)->Build());
+				g->OutputFiltered(g->MutableDescription(se.actionDescr)->BuildAndCommit());
 			break;
 		case SEType::ExecuteTask:
 			// Already does nothing for a task that doesn't exist, which is ADRIFT's behaviour
@@ -349,7 +360,7 @@ void Event::RunSubEvent(int32_t idx) {
 			// when LOOK later reads it back, and an empty onlyAtLocation is pushed too -- it will
 			// simply never match anywhere once LookOverrideText goes looking (mirrors ADRIFT,
 			// which pushes unconditionally and only tests the key when the stack is read).
-			lookOverrides.emplace_back(se.onlyAtLocation, g->GetDescription(se.actionDescr)->Build());
+			lookOverrides.emplace_back(se.onlyAtLocation, g->MutableDescription(se.actionDescr)->BuildAndCommit());
 			break;
 	}
 	lastSubEventTime = timeSinceStart;

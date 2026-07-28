@@ -153,7 +153,8 @@ static inline bool IsList(const std::string &o) {
 	return false;
 }
 
-// Split a string with the specified delimiter:
+// Split a string with the specified delimiter. A delimiter that is really just a fixed string
+// (which is nearly all of them) is recognized as such and split without involving std::regex.
 std::vector<std::string> SplitString(const std::string &s, const std::string &delimRegex);
 
 // Whether `word` appears as a whole space-delimited token within `phrase`, compared

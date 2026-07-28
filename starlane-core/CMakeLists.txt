@@ -66,6 +66,25 @@ add_library(starlane-core
 	# save files
     savefiles/writer.cpp savefiles/writer.h
 	savefiles/parser.cpp savefiles/parser.h)
+# Reading game state hands back a `const T *`; writing goes through Game's Mutable* accessors,
+# which is where the undo machinery lives (see game.h). A C-style cast quietly defeats that --
+# `(GameObj *) g->GetObject(k)->GetLocation()` compiled happily until this was turned on -- so
+# make dropping a qualifier that way an error rather than a habit. The deliberate route, the one
+# const_cast in Game::Unconst, is unaffected: -Wcast-qual does not flag it.
+if (NOT MSVC)
+	target_compile_options(starlane-core PRIVATE "-Wcast-qual" "-Werror=cast-qual")
+endif()
+
+# UNDO records only what a turn changed (see Game::SaveUndo). Missing one of those changes would
+# show up as an undo that quietly doesn't quite undo, three turns later -- so with this on, every
+# undo point *also* keeps a whole-world copy, and restoring checks itself against it and stops
+# dead, naming the slot, if the two disagree. Slow and memory-hungry by design; on in Debug, and
+# available in any build for running the regression corpus under.
+option(SL_UNDO_AUDIT "Cross-check every UNDO against a full snapshot" OFF)
+if (SL_UNDO_AUDIT OR CMAKE_BUILD_TYPE STREQUAL "Debug")
+	target_compile_definitions(starlane-core PRIVATE SL_UNDO_AUDIT)
+endif()
+
 target_link_libraries(starlane-core miniz pugixml slc_exprparser)
 if (WIN32)  # DbgHelp provides symbol resolution for captured backtraces
 	target_link_libraries(starlane-core dbghelp)
