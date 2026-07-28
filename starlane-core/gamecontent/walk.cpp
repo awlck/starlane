@@ -330,7 +330,7 @@ void Walk::AnnounceMove(Character &owner, const std::string &dest) const {
 		// The player watches the character arrive.
 		std::string verb = owner.HasProp("CharEnters") ? owner.GetStrProp("CharEnters") : "enters";
 		std::string msg = owner.GetDisplayName(false) + " " + verb;
-		if (const const Location *destLoc = AsLocation(g->TryGetObject(dest));
+		if (const Location *destLoc = AsLocation(g->TryGetObject(dest));
 				destLoc && destLoc->IsAdjacent(ownerLoc)) {
 			std::string dir = destLoc->DirectionTo(ownerLoc);
 			if (dir != "nowhere") msg += " from " + dir;
