@@ -275,6 +275,7 @@
       in `~/Library/Preferences/de.diepixelecke.Starlane.plist` under the `mainWindowGeometry`
       key. Verified end-to-end: resized and moved the window, closed it, relaunched, and confirmed
       the exact same geometry came back.
+- [ ] core: implement support for AGAIN/G
 - [ ] Qt frontend: actually implement StrToSentenceCase
 - [ ] implement dockable secondary windows in the Qt frontend
 - [ ] Qt frontend: redirect starlane-core debug output to a debug log window
