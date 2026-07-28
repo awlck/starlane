@@ -248,6 +248,11 @@ Game *Game::LoadFromXML(const std::string &gameTxt, uint32_t gameCrc32) {
 		result->MutableDescription(i)->ResolveText();
 	}
 
+	// The world is built, so the undo bookkeeping can be sized to it. Nothing is recorded until
+	// the first SaveUndo regardless (see Game::undoRecording), which is what keeps loading from
+	// copying every object it touches on the way up.
+	result->PrepareUndoBookkeeping();
+
 	LOAD_STAGE("Done!");
 
     return result;

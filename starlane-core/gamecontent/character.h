@@ -77,6 +77,9 @@ public:
 	void RegisterWalkNotifications() const;
 	// Advance every walk this character has by one turn. Called from the turn tick, ahead of events.
 	void TickWalks();
+	// Whether this character has any walks at all. Lets the turn tick skip asking for a writable
+	// Character -- which is also what records it for undo -- for the great majority that have none.
+	bool HasWalks() const { return !walks.empty(); }
 	// Start any of this character's walks that are marked to begin active. Called once, as the game
 	// begins.
 	void StartActiveWalks();

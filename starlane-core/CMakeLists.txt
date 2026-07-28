@@ -75,6 +75,16 @@ if (NOT MSVC)
 	target_compile_options(starlane-core PRIVATE "-Wcast-qual" "-Werror=cast-qual")
 endif()
 
+# UNDO records only what a turn changed (see Game::SaveUndo). Missing one of those changes would
+# show up as an undo that quietly doesn't quite undo, three turns later -- so with this on, every
+# undo point *also* keeps a whole-world copy, and restoring checks itself against it and stops
+# dead, naming the slot, if the two disagree. Slow and memory-hungry by design; on in Debug, and
+# available in any build for running the regression corpus under.
+option(SL_UNDO_AUDIT "Cross-check every UNDO against a full snapshot" OFF)
+if (SL_UNDO_AUDIT OR CMAKE_BUILD_TYPE STREQUAL "Debug")
+	target_compile_definitions(starlane-core PRIVATE SL_UNDO_AUDIT)
+endif()
+
 target_link_libraries(starlane-core miniz pugixml slc_exprparser)
 if (WIN32)  # DbgHelp provides symbol resolution for captured backtraces
 	target_link_libraries(starlane-core dbghelp)

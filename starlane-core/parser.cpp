@@ -1004,12 +1004,13 @@ void Game::ResolveDisambiguation(const std::string &answer) {
 		TurnTick();
 		return;
 	}
-	// A system command both tests and runs in one call, and some of them (UNDO/RESTART) replace
-	// `this` outright -- after which its members must not be touched. So clear the pending state
-	// first; if it turns out not to be a system command after all, put it back and re-ask.
+	// A system command both tests and runs in one call, so the pending state is cleared first and
+	// put back if it turns out not to have been one after all. (This used to be about UNDO and
+	// RESTART replacing `this` outright; they work in place now, but abandoning the disambiguation
+	// before running the command is still the right order.)
 	auto savedPending = std::move(pendingDisambig);
 	pendingDisambig.reset();
-	if (AttemptMatchSystemCommand()) return;  // matched and ran (abandoning the disambiguation); `this` may be gone
+	if (AttemptMatchSystemCommand()) return;  // matched and ran, abandoning the disambiguation
 	pendingDisambig = std::move(savedPending);
 	DisplayAmbiguityQuestion(askAgain);
 }
@@ -1101,9 +1102,8 @@ bool Game::AttemptMatchEndOfGameCommand() {
 		return true;
 	}
 	if (cmd == "restore") {
-		// Restore() reports its own failures, and a failed restore rolls the game back to a
-		// snapshot taken before it started meddling -- which destroys this instance. So the
-		// success message has to come from whatever instance is current afterwards.
+		// Restore() reports its own failures, and a failed restore rolls the game back to the
+		// state recorded before it started meddling.
 		if (Restore())
 			Game::Get()->OutputFiltered("Restored.\n");
 		return true;
@@ -1125,16 +1125,15 @@ bool Game::AttemptMatchEndOfGameCommand() {
 			OutputFiltered("Sorry, <c>undo</c> is not currently available.\n");
 			return true;
 		}
-		// As with RESTART, `this` is gone once RestoreUndo() has put the previous state back.
-		RestoreUndo();
-		Game::Get()->OutputFiltered("Undone.\n");
+		RestoreUndo();  // in place, like RESTART
+		OutputFiltered("Undone.\n");
 		return true;
 	}
 	return false;
 }
 
 bool Game::AttemptMatchSystemCommand() {
-	// Caution: may `delete this` (RESTART, UNDO) or end the session (QUIT) -- see above.
+	// May end the session (QUIT), but no longer replaces the Game instance -- see above.
 	if (AttemptMatchEndOfGameCommand()) return true;
 
 	const std::string cmd = NormalizeSystemCommand(currentCommand);

@@ -56,6 +56,12 @@ public:
 class Writer {
 public:
 	Writer(void *target, const Game *game);
+	// A Writer that appends the plain text form to a string instead of compressing it into a file,
+	// and writes no `meta` header. The undo audit uses this to fingerprint a piece of game state:
+	// going through the same WriteState methods a save file does means the fingerprint covers
+	// exactly the fields the game considers state, rather than a second hand-kept list of them
+	// that could quietly fall out of step.
+	explicit Writer(std::string &target);
 	~Writer();
 	void Indent() { indentLevel += 1; }
 	void Dedent() { if (indentLevel > 0) indentLevel -= 1; }
@@ -138,7 +144,9 @@ public:
 	void WriteUnqouted(const char *str);
 
 private:
-	void *hFile;
+	void *hFile = nullptr;
+	// Set for the string-backed form above; when it is, nothing is compressed and no file is touched.
+	std::string *memTarget = nullptr;
 	size_t indentLevel = 0;
 
 	void WriteKey(const char *key) {
@@ -152,9 +160,9 @@ private:
 	void AcceptChar(char c);
 	void RunCompressor(bool finish);
 
-	uint8_t *textbuf, *zbuf;
+	uint8_t *textbuf = nullptr, *zbuf = nullptr;
 	size_t position = 0;
-	mz_stream_s *stream;
+	mz_stream_s *stream = nullptr;
 };
 
 }

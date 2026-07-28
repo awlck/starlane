@@ -34,7 +34,11 @@ Writer::Writer(void *target, const Starlane::Game *game)
 	EndCompound();
 }
 
+Writer::Writer(std::string &target) : memTarget(&target) {}
+
 Writer::~Writer() {
+	if (memTarget) return;  // nothing buffered, compressed or opened
+
 	// A throwing destructor is a hard std::terminate() away from happening (this runs during
 	// unwinding as often as not), so a compression failure on this final flush can only be logged,
 	// not propagated -- RunCompressor's other caller (AcceptChar, mid-write) is free to throw.
@@ -51,6 +55,10 @@ Writer::~Writer() {
 }
 
 void Writer::AcceptChar(char c) {
+	if (memTarget) {
+		*memTarget += c;
+		return;
+	}
 	textbuf[position++] = c;
 	if (position < WRITER_BUFSIZE) return;
 
