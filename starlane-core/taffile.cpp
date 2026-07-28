@@ -250,10 +250,15 @@ std::string ExtractTaf(const uint8_t *input, size_t size) {
 		deobfBuffer = DeobfuscateByteArray(input + 16 + babelLen, deobflen);
 		deobf = deobfBuffer.data();
 	} else if (memcmp("0000", input + 0xc, 4) == 0 && input[0x10] == (0x78 ^ adriftKey[0])) {
-        // Current format but without Babel data (i.e., extracted from Blorb file)
-        deobflen = size - 26;
-        deobfBuffer = DeobfuscateByteArray(input + 0x10, deobflen);
-        deobf = deobfBuffer.data();
+		// Current format but without Babel data (i.e., extracted from Blorb file)
+		deobflen = size - 26;
+		deobfBuffer = DeobfuscateByteArray(input + 0x10, deobflen);
+		deobf = deobfBuffer.data();
+	} else if (input[0x0C] == (0x78 ^ adriftKey[0])) {
+		// Almost-current format without Babel data, circa 5.0.20
+		deobflen = size - 22;
+		deobfBuffer = DeobfuscateByteArray(input + 0x0C, deobflen);
+		deobf = deobfBuffer.data();
     } else {
 		// pre 5.0.20 format: simply strip the first 12 bytes and go
 		deobflen = size - 26;
