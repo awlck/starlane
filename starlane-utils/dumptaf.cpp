@@ -1,7 +1,16 @@
 #include <starlane-core.h>
 #include <cstdio>
 #include <cstdlib>
+
+void FatalError(const char *msg) {
+	fprintf(stderr, "%s\n", msg);
+}
+
 int main(int argc, char **argv) {
+	Starlane::Frontend fe;
+	memset(&fe, 0, sizeof(fe));
+	fe.FatalError = &FatalError;
+	Starlane::InitBackend(&fe);
 	FILE *f = fopen(argv[1], "rb");
 	fseek(f, 0, SEEK_END);
 	long sz = ftell(f);
