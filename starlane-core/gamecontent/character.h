@@ -21,6 +21,7 @@ class Character: public GameObj {
 public:
 	static Character *CreateFromXML(const pugi::xml_node &xmlNode);
 	[[nodiscard]] GameObj *Clone() const override;
+	void AssignFrom(const GameObj &other) override { *this = static_cast<const Character &>(other); }
 
 	// Implements `character.Name`.
 	// Returns the proper name if the character is known, or the property known doesn't exist.

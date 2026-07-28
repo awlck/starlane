@@ -288,6 +288,12 @@ public:
 	// through here -- so this is the single door the undo machinery gets to stand in.
 	template<typename T> static T *Unconst(const T *p) { return const_cast<T *>(p); }
 
+	// Overwrite this game's mutable state with another's, in place. Every object keeps its
+	// address: everything in the engine holds game content by pointer, and a restart or an undo
+	// happening underneath a held pointer is exactly the kind of bug that does not show up until
+	// three turns later. See GameObj::AssignFrom.
+	void AssignStateFrom(const Game &src);
+
 	// Save the current game state to the undo list, discarding the oldest state(s) if that
 	// would take the list over `kMaxUndoStates`.
 	void SaveUndo();
@@ -308,7 +314,9 @@ public:
 	static uint64_t TopUndoGeneration() { return undoStates.empty() ? 0 : undoStates.back()->undoGeneration; }
 	// Number of saved undo states, for anything that genuinely wants the count.
 	static size_t UndoDepth() { return undoStates.size(); }
-	// Restart the game.
+	// Restart the game: put the starting state back and begin again. Works in place -- the Game
+	// instance, and every object in it, keeps its address -- so unlike UNDO there is nothing here
+	// for a caller to be careful about.
 	void Restart();
 
 	// This function must be called to start the game. It will start relevant events and
@@ -537,8 +545,8 @@ private:
 	// the game world (SAVE, QUIT, UNDO, ...), running it if so and returning whether it matched.
 	// Only consulted once no task has matched, so that a game remains free to define a task whose
 	// command shadows any of these.
-	// Caution: RESTART and UNDO replace the current Game instance wholesale, so this may well
-	// `delete this` -- the caller must not touch the instance afterwards.
+	// Caution: UNDO still replaces the current Game instance wholesale, so this may `delete this`
+	// -- the caller must not touch the instance afterwards. (RESTART no longer does.)
 	bool AttemptMatchSystemCommand();
 	// The subset of AttemptMatchSystemCommand offered once the game has ended (see EndGame):
 	// RESTART, RESTORE, QUIT, or UNDO. Split out so that ProcessInput can restrict itself to

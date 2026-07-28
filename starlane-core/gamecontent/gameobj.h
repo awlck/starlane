@@ -59,6 +59,11 @@ public:
 	virtual bool MatchesNameWord(const std::string &word) const;
 	static GameObj *CreateFromXML(const pugi::xml_node &xmlNode);
 	virtual GameObj *Clone() const;  // sort of a copy constructor that respects subclassing.
+	// Replace this object's contents with another's, without moving it. The counterpart to Clone
+	// for putting a saved state back: everything in the engine holds objects by pointer, so
+	// restoring has to write through the pointers that already exist rather than swap in new ones.
+	// `other` is always the same kind of thing as `this` -- it came out of the same slot.
+	virtual void AssignFrom(const GameObj &other) { *this = other; }
     virtual ~GameObj() = default;
 
 	[[nodiscard]] const std::string &Key() const { return key; }

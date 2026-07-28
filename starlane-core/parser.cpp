@@ -1097,10 +1097,7 @@ bool Game::AttemptMatchEndOfGameCommand() {
 	const std::string cmd = NormalizeSystemCommand(currentCommand);
 
 	if (cmd == "restart") {
-		// Restart() puts a fresh copy of the game's starting state in our place and destroys
-		// this instance, so there is nothing left here to say afterwards -- and nothing of
-		// `this` left to say it with.
-		Restart();
+		Restart();  // in place: `this` and everything in it survives
 		return true;
 	}
 	if (cmd == "restore") {

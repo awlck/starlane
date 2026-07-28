@@ -18,6 +18,7 @@ class Location: public GameObj {
 public:
 	static Location *CreateFromXML(const pugi::xml_node &xmlNode);
 	[[nodiscard]] GameObj *Clone() const override;
+	void AssignFrom(const GameObj &other) override { *this = static_cast<const Location &>(other); }
 
 	// Gets the display name (i.e. short location description) of this location
 	std::string GetDisplayName([[maybe_unused]] bool = false) const override;

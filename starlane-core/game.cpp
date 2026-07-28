@@ -258,15 +258,38 @@ void Game::DiscardUndo() {
 	undoStates.pop_front();
 }
 
+void Game::AssignStateFrom(const Game &src) {
+	// Slot for slot, writing through the pointers that already exist rather than replacing them.
+	for (size_t i = 0; i < objects.size(); i++)
+		MutableObject(i)->AssignFrom(*src.objects[i]);
+	for (size_t i = 0; i < events.size(); i++)
+		*MutableEvent(i) = *src.events[i];
+	for (size_t i = 0; i < variables.size(); i++)
+		*MutableVariable(i) = *src.variables[i];
+	for (size_t i = 0; i < groups.size(); i++)
+		*MutableGroup(i) = *src.groups[i];
+	for (size_t i = 1; i < descriptions.size(); i++)  // slot 0 is the "none" sentinel
+		*MutableDescription(i) = *src.descriptions[i];
+
+	taskCompletedStorage = src.taskCompletedStorage;
+	playerKey = src.playerKey;
+	mostRecentlyMentioned = src.mostRecentlyMentioned;
+	pronounItText = src.pronounItText;
+	pronounThemText = src.pronounThemText;
+	pronounHimText = src.pronounHimText;
+	pronounHerText = src.pronounHerText;
+	turnCount = src.turnCount;
+	gameHasBegun = src.gameHasBegun;
+	sessionActive = src.sessionActive;
+}
+
 void Game::Restart() {
-	theGame = new Game(*startupState);
-	for (auto i : undoStates)
+	AssignStateFrom(*startupState);
+	for (auto *i : undoStates)
 		delete i;
-	// The states belonged to the game that just ended: leaving the (now dangling) pointers in
-	// the list would have the next UNDO reach straight into freed memory.
+	// A restart is a fresh start: there is nothing before it to go back to.
 	undoStates.clear();
-	delete this;
-	theGame->Begin();
+	Begin();
 }
 
 void Game::Begin() {
