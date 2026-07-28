@@ -24,7 +24,7 @@ Group *Group::CreateFromXML(const pugi::xml_node &xmlNode) {
 void Group::AddObj(const std::string &key) {
 	// A group that lists a member key naming no object is malformed; skip it rather than
 	// dereferencing a missing object.
-	GameObj *obj = Game::Get()->TryGetObject(key);
+	GameObj *obj = Game::Get()->MutableObject(key);
 	if (!obj) {
 		LogError("Group '" + key_ + "' names nonexistent member '" + key + "'; skipping.");
 		return;
@@ -38,7 +38,7 @@ void Group::AddObj(GameObj *obj) {
 }
 
 void Group::RemoveObj(const std::string &key) {
-	if (GameObj *obj = Game::Get()->TryGetObject(key))
+	if (GameObj *obj = Game::Get()->MutableObject(key))
 		obj->CeaseBeingGroupMember(this->key_);
 	LetGoOfObj(key);
 }

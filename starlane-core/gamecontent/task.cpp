@@ -879,24 +879,24 @@ void Task::MarkCompleted() {
 // time would be aimed at whichever Game happened to be current back then.
 void Task::SendCompleteNotifications() const {
 	for (const auto &it: completeSubs) {
-		if (auto *evt = Game::Get()->GetEvent(it))
+		if (auto *evt = Game::Get()->MutableEvent(it))
 			evt->ReceiveTaskNotification(Util::Control::Condition::Completion, key);
 	}
 	// Walks resolve the same way, and for the same reason: they belong to a Game instance that gets
 	// cloned for undo, so the character is looked up afresh through the live Game each time.
 	for (const auto &it: walkCompleteSubs) {
-		if (auto *c = AsCharacter(Game::Get()->TryGetObject(it.first)))
+		if (auto *c = AsCharacter(Game::Get()->MutableObject(it.first)))
 			c->NotifyWalk(it.second, Util::Control::Condition::Completion, key);
 	}
 }
 
 void Task::SendUncompleteNotifications() const {
 	for (const auto &it: uncompleteSubs) {
-		if (auto *evt = Game::Get()->GetEvent(it))
+		if (auto *evt = Game::Get()->MutableEvent(it))
 			evt->ReceiveTaskNotification(Util::Control::Condition::Uncompletion, key);
 	}
 	for (const auto &it: walkUncompleteSubs) {
-		if (auto *c = AsCharacter(Game::Get()->TryGetObject(it.first)))
+		if (auto *c = AsCharacter(Game::Get()->MutableObject(it.first)))
 			c->NotifyWalk(it.second, Util::Control::Condition::Uncompletion, key);
 	}
 }
@@ -1012,7 +1012,7 @@ static inline constexpr GameObj::HoldingType ActionRefToHoldingType(Task::Action
 	}
 }
 
-static inline constexpr bool ObjIsAppropriate(Task::ActionRefType t, GameObj *o) {
+static inline constexpr bool ObjIsAppropriate(Task::ActionRefType t, const GameObj *o) {
 	switch (t) {
 	case Task::ActionRefType::ObjsHeldBy:
 	case Task::ActionRefType::ObjsInside:
@@ -1060,8 +1060,8 @@ void Task::Action::PerformImpl() const {
 			// room, out of a duct inside a crate, inside the crate. PerformMoveTo can't help
 			// here -- it reads the relation off the action's own type, which for this action
 			// says nothing about where the object is coming from.
-			GameObj *self = g->TryGetObject(lhs);
-			GameObj *parent = self ? g->TryGetObject(self->GetParentKey()) : nullptr;
+			GameObj *self = g->MutableObject(lhs);
+			const GameObj *parent = self ? g->TryGetObject(self->GetParentKey()) : nullptr;
 			if (parent && !parent->GetParentKey().empty())
 				self->MoveTo(parent->GetParentKey(), parent->GetParentRelation());
 		}
@@ -1075,7 +1075,7 @@ void Task::Action::PerformImpl() const {
 		// already knows how to answer for the AtLocationGroup relation; there is no single
 		// member to pick, and unlike an object, a character can never be spread across a
 		// whole group of locations at once.
-		GameObj *mover = g->TryGetObject(lhs);
+		GameObj *mover = g->MutableObject(lhs);
 		if (!mover) break;
 		if (!mover->IsDynamic() && !AsCharacter(mover)) {
 			mover->MoveTo(rhs, GameObj::HoldingType::AtLocationGroup);
@@ -1096,7 +1096,7 @@ void Task::Action::PerformImpl() const {
 		// the route in their own restrictions first, but we re-check here so that
 		// running this action directly can never teleport a character through a
 		// nonexistent or blocked (e.g. closed-door) exit.
-		auto *mover = AsCharacter(g->TryGetObject(lhs));
+		auto *mover = AsCharacter(g->MutableObject(lhs));
 		if (!mover)
 			break;
 		const auto *loc = mover->GetLocation();
@@ -1122,10 +1122,10 @@ void Task::Action::PerformImpl() const {
 		// The only difference between these two types of actions is which function we call on the group,
 		// so shorten this by storing the appropriate pointer now and then using it later:
 		auto addOrRemove = type == ActionType::AddToGroup ? static_cast<void (Group:: *)(GameObj *)>(&Group::AddObj) : static_cast<void (Group:: *)(GameObj *)>(&Group::RemoveObj);
-		auto grp = g->GetGroup(rhs);
+		auto grp = g->MutableGroup(rhs);
 		switch (refType) {
 		case ActionRefType::SingleObj:
-			if (auto *o = g->TryGetObject(lhs)) (grp->*addOrRemove)(o);
+			if (g->TryGetObject(lhs)) (grp->*addOrRemove)(g->MutableObject(lhs));
 			break;
 		case ActionRefType::ObjsHeldBy:
 		case ActionRefType::ObjsInside:
@@ -1137,9 +1137,10 @@ void Task::Action::PerformImpl() const {
 		case ActionRefType::CharsAtLocation: {
 			auto &allObjs = g->GetAllObjects();
 			auto ht = ActionRefToHoldingType(refType);
-			for (GameObj *o : allObjs) {
+			for (size_t oi = 0; oi < allObjs.size(); oi++) {
+				const GameObj *o = allObjs[oi];
 				if (ObjIsAppropriate(refType, o) && o->GetParentKey() == lhs && o->GetParentRelation() == ht)
-					(grp->*addOrRemove)(o);
+					(grp->*addOrRemove)(g->MutableObject(oi));
 			}
 		}
 			break;
@@ -1149,34 +1150,38 @@ void Task::Action::PerformImpl() const {
 			auto propType = g->GetPropMeta(prop)->Type();
 			switch (propType) {
 			case Property::ValueType::Bool:
-				for (GameObj *o : allObjs) {
+				for (size_t oi = 0; oi < allObjs.size(); oi++) {
+					const GameObj *o = allObjs[oi];
 					if (ObjIsAppropriate(refType, o) && o->GetBoolProp(prop))
-						(grp->*addOrRemove)(o);
+						(grp->*addOrRemove)(g->MutableObject(oi));
 				}
 				break;
 			// The comparison value lives in propCmpValue, not rhs -- rhs holds the destination
 			// group's key here (set once, above, for every case of this switch).
 			case Property::ValueType::Object:
 			case Property::ValueType::Enum:
-				for (GameObj *o : allObjs) {
+				for (size_t oi = 0; oi < allObjs.size(); oi++) {
+					const GameObj *o = allObjs[oi];
 					if (ObjIsAppropriate(refType, o) && o->GetStrProp(prop) == propCmpValue)
-						(grp->*addOrRemove)(o);
+						(grp->*addOrRemove)(g->MutableObject(oi));
 				}
 				break;
 			case Property::ValueType::Map:
 			case Property::ValueType::Int: {
 				auto tmpInt = propType == Property::ValueType::Map ? ParseInt(propCmpValue.c_str()) : g->GetExpression(expr)->EvaluateInt();
-				for (GameObj *o : allObjs) {
+				for (size_t oi = 0; oi < allObjs.size(); oi++) {
+					const GameObj *o = allObjs[oi];
 					if (ObjIsAppropriate(refType, o) && o->GetIntProp(prop) == tmpInt)
-						(grp->*addOrRemove)(o);
+						(grp->*addOrRemove)(g->MutableObject(oi));
 				}
 				break;
 			}
 			case Property::ValueType::Text: {
 				std::string tmpTxt(g->GetExpression(expr)->EvaluateStr());
-				for (GameObj *o : allObjs) {
+				for (size_t oi = 0; oi < allObjs.size(); oi++) {
+					const GameObj *o = allObjs[oi];
 					if (ObjIsAppropriate(refType, o) && o->GetStrProp(prop) == tmpTxt)
-						(grp->*addOrRemove)(o);
+						(grp->*addOrRemove)(g->MutableObject(oi));
 				}
 				break;
 			}
@@ -1191,9 +1196,10 @@ void Task::Action::PerformImpl() const {
 		case ActionRefType::LocationsInGroup:
 		case ActionRefType::LocationsWithProp: {
 			auto &allObjs = g->GetAllObjects();
-			for (GameObj *o : allObjs) {
+			for (size_t oi = 0; oi < allObjs.size(); oi++) {
+				const GameObj *o = allObjs[oi];
 				if (ObjIsAppropriate(refType, o) && o->IsMemberOfGroup(lhs))
-					(grp->*addOrRemove)(o);
+					(grp->*addOrRemove)(g->MutableObject(oi));
 			}
 		}
 			break;
@@ -1211,7 +1217,7 @@ void Task::Action::PerformImpl() const {
 	case ActionType::MakeLyingOn:
 		switch (refType) {
 		case ActionRefType::SingleObj: {
-			GameObj *theObj = Game::Get()->GetObject(lhs);
+			GameObj *theObj = Game::Get()->MutableObjectChecked(lhs);
 			Character *c;
 			if (!(c = AsCharacter(theObj)))
 				throw std::runtime_error("Tried to set the posture of a non-character");
@@ -1223,45 +1229,48 @@ void Task::Action::PerformImpl() const {
 		case ActionRefType::CharsOn: {
 			auto &allObjs = g->GetAllObjects();
 			auto ht = ActionRefToHoldingType(refType);
-			for (GameObj *o : allObjs) {
-				Character *c;
-				if ((c = AsCharacter(o)) && o->GetParentKey() == lhs && o->GetParentRelation() == ht)
-					c->MakePosture(rhs, ActionTypeToPosture(type));
+			for (size_t oi = 0; oi < allObjs.size(); oi++) {
+				const GameObj *o = allObjs[oi];
+				if (AsCharacter(o) && o->GetParentKey() == lhs && o->GetParentRelation() == ht)
+					AsCharacter(g->MutableObject(oi))->MakePosture(rhs, ActionTypeToPosture(type));
 			}
 		}
 			break;
 		case ActionRefType::CharsWithProp: {
 			auto &allObjs = g->GetAllObjects();
 			auto propType = g->GetPropMeta(prop)->Type();
-			Character *c;
 			switch (propType) {
 			case Property::ValueType::Bool:
-				for (GameObj *o : allObjs) {
-					if ((c = AsCharacter(o)) && o->GetBoolProp(prop))
-						c->MakePosture(rhs, ActionTypeToPosture(type));
+				for (size_t oi = 0; oi < allObjs.size(); oi++) {
+					const GameObj *o = allObjs[oi];
+					if (AsCharacter(o) && o->GetBoolProp(prop))
+						AsCharacter(g->MutableObject(oi))->MakePosture(rhs, ActionTypeToPosture(type));
 				}
 				break;
 			case Property::ValueType::Object:
 			case Property::ValueType::Enum:
-				for (GameObj *o : allObjs) {
-					if ((c = AsCharacter(o)) && o->GetStrProp(prop) == lhs)
-						c->MakePosture(rhs, ActionTypeToPosture(type));
+				for (size_t oi = 0; oi < allObjs.size(); oi++) {
+					const GameObj *o = allObjs[oi];
+					if (AsCharacter(o) && o->GetStrProp(prop) == lhs)
+						AsCharacter(g->MutableObject(oi))->MakePosture(rhs, ActionTypeToPosture(type));
 				}
 				break;
 			case Property::ValueType::Map:
 			case Property::ValueType::Int: {
 				auto tmpInt = propType == Property::ValueType::Map ? ParseInt(lhs.c_str()) : g->GetExpression(expr)->EvaluateInt();
-				for (GameObj *o : allObjs) {
-					if ((c = AsCharacter(o)) && o->GetIntProp(prop) == tmpInt)
-						c->MakePosture(rhs, ActionTypeToPosture(type));
+				for (size_t oi = 0; oi < allObjs.size(); oi++) {
+					const GameObj *o = allObjs[oi];
+					if (AsCharacter(o) && o->GetIntProp(prop) == tmpInt)
+						AsCharacter(g->MutableObject(oi))->MakePosture(rhs, ActionTypeToPosture(type));
 				}
 				break;
 			}
 			case Property::ValueType::Text: {
 				std::string tmpTxt(g->GetExpression(expr)->EvaluateStr());
-				for (GameObj *o : allObjs) {
-					if ((c = AsCharacter(o)) && o->GetStrProp(prop) == tmpTxt)
-						c->MakePosture(rhs, ActionTypeToPosture(type));
+				for (size_t oi = 0; oi < allObjs.size(); oi++) {
+					const GameObj *o = allObjs[oi];
+					if (AsCharacter(o) && o->GetStrProp(prop) == tmpTxt)
+						AsCharacter(g->MutableObject(oi))->MakePosture(rhs, ActionTypeToPosture(type));
 				}
 				break;
 			}
@@ -1272,10 +1281,10 @@ void Task::Action::PerformImpl() const {
 		}
 		case ActionRefType::CharsInGroup: {
 			auto &allObjs = g->GetAllObjects();
-			for (GameObj *o : allObjs) {
-				Character *c;
-				if ((c = AsCharacter(o)) && o->IsMemberOfGroup(lhs))
-					c->MakePosture(rhs, ActionTypeToPosture(type));
+			for (size_t oi = 0; oi < allObjs.size(); oi++) {
+				const GameObj *o = allObjs[oi];
+				if (AsCharacter(o) && o->IsMemberOfGroup(lhs))
+					AsCharacter(g->MutableObject(oi))->MakePosture(rhs, ActionTypeToPosture(type));
 			}
 		}
 			break;
@@ -1293,7 +1302,8 @@ void Task::Action::PerformImpl() const {
 		case ActionRefType::CharsOn: {
 			auto &allObjs = g->GetAllObjects();
 			auto ht = ActionRefToHoldingType(refType);
-			for (GameObj *o : allObjs) {
+			for (size_t oi = 0; oi < allObjs.size(); oi++) {
+				const GameObj *o = allObjs[oi];
 				if (AsCharacter(o) && o->GetParentKey() == lhs && o->GetParentRelation() == ht)
 					PerformSwitchWith(o->Key());
 			}
@@ -1304,14 +1314,16 @@ void Task::Action::PerformImpl() const {
 			auto propType = g->GetPropMeta(prop)->Type();
 			switch (propType) {
 			case Property::ValueType::Bool:
-				for (GameObj *o : allObjs) {
+				for (size_t oi = 0; oi < allObjs.size(); oi++) {
+					const GameObj *o = allObjs[oi];
 					if (AsCharacter(o) && o->GetBoolProp(prop))
 						PerformSwitchWith(o->Key());
 				}
 				break;
 			case Property::ValueType::Object:
 			case Property::ValueType::Enum:
-				for (GameObj *o : allObjs) {
+				for (size_t oi = 0; oi < allObjs.size(); oi++) {
+					const GameObj *o = allObjs[oi];
 					if (AsCharacter(o) && o->GetStrProp(prop) == lhs)
 						PerformSwitchWith(o->Key());
 				}
@@ -1319,7 +1331,8 @@ void Task::Action::PerformImpl() const {
 			case Property::ValueType::Map:
 			case Property::ValueType::Int: {
 				auto tmpInt = propType == Property::ValueType::Map ? ParseInt(lhs.c_str()) : g->GetExpression(expr)->EvaluateInt();
-				for (GameObj *o : allObjs) {
+				for (size_t oi = 0; oi < allObjs.size(); oi++) {
+					const GameObj *o = allObjs[oi];
 					if (AsCharacter(o) && o->GetIntProp(prop) == tmpInt)
 						PerformSwitchWith(o->Key());
 				}
@@ -1327,7 +1340,8 @@ void Task::Action::PerformImpl() const {
 			}
 			case Property::ValueType::Text: {
 				std::string tmpTxt(g->GetExpression(expr)->EvaluateStr());
-				for (GameObj *o : allObjs) {
+				for (size_t oi = 0; oi < allObjs.size(); oi++) {
+					const GameObj *o = allObjs[oi];
 					if (AsCharacter(o) && o->GetStrProp(prop) == tmpTxt)
 						PerformSwitchWith(o->Key());
 				}
@@ -1340,7 +1354,8 @@ void Task::Action::PerformImpl() const {
 		}
 		case ActionRefType::CharsInGroup: {
 			auto &allObjs = g->GetAllObjects();
-			for (GameObj *o : allObjs) {
+			for (size_t oi = 0; oi < allObjs.size(); oi++) {
+				const GameObj *o = allObjs[oi];
 				if (AsCharacter(o) && o->IsMemberOfGroup(lhs))
 					PerformSwitchWith(o->Key());
 			}
@@ -1356,7 +1371,7 @@ void Task::Action::PerformImpl() const {
 		Variable *var;
 		uint32_t idx = 1;
 		if (size_t bracket = lhs.find_first_of('['); bracket != std::string::npos) {
-			var = g->GetVariable(lhs.substr(0, bracket));
+			var = g->MutableVariable(lhs.substr(0, bracket));
 			auto idxStr = lhs.substr(bracket+1, lhs.length() - (bracket+2));
 			// The index itself can be a variable name rather than a literal integer.
 			if (IsDigits(idxStr.c_str())) {
@@ -1364,7 +1379,7 @@ void Task::Action::PerformImpl() const {
 			} else {
 				idx = g->GetVariable(idxStr)->GetValue<int64_t>();
 			}
-		} else var = g->GetVariable(lhs);
+		} else var = g->MutableVariable(lhs);
 		
 		if (type == ActionType::SetVarTo) {
 			switch (var->GetType()) {
@@ -1389,7 +1404,7 @@ void Task::Action::PerformImpl() const {
 	}
 		break;
 	case ActionType::SetPropTo: {
-		auto *target = g->GetObject(lhs);
+		auto *target = g->MutableObjectChecked(lhs);
 		switch (Game::Get()->GetPropMeta(prop)->Type()) {
 		case Property::ValueType::Object:
 		case Property::ValueType::Enum:
@@ -1477,7 +1492,7 @@ void Task::Action::PerformImpl() const {
 	case Starlane::Task::ActionType::GameContinue:
 		break;
 	case ActionType::SpecialSetDynamic: {
-		auto *target = g->GetObject(lhs);
+		auto *target = g->MutableObjectChecked(lhs);
 		target->SetDynamic(ParseBool(rhs.c_str()));
 	}
 		break;
@@ -1490,7 +1505,7 @@ void Task::Action::PerformMoveTo(const std::string &moveTarget) const {
 	auto *g = Game::Get();
 	switch (refType) {
 	case ActionRefType::SingleObj:
-		g->GetObject(lhs)->MoveTo(moveTarget, ActionTypeToHoldingType(type));
+		g->MutableObjectChecked(lhs)->MoveTo(moveTarget, ActionTypeToHoldingType(type));
 		break;
 	case ActionRefType::ObjsHeldBy:
 	case ActionRefType::ObjsInside:
@@ -1502,9 +1517,10 @@ void Task::Action::PerformMoveTo(const std::string &moveTarget) const {
 	case ActionRefType::CharsAtLocation: {
 		auto &allObjs = g->GetAllObjects();
 		auto ht = ActionRefToHoldingType(refType);
-		for (GameObj *o : allObjs) {
+		for (size_t oi = 0; oi < allObjs.size(); oi++) {
+			const GameObj *o = allObjs[oi];
 			if (ObjIsAppropriate(refType, o) && o->GetParentKey() == lhs && o->GetParentRelation() == ht)
-				o->MoveTo(moveTarget, ActionTypeToHoldingType(type));
+				g->MutableObject(oi)->MoveTo(moveTarget, ActionTypeToHoldingType(type));
 		}
 	}
 		break;
@@ -1514,32 +1530,36 @@ void Task::Action::PerformMoveTo(const std::string &moveTarget) const {
 		auto propType = g->GetPropMeta(prop)->Type();
 		switch (propType) {
 		case Property::ValueType::Bool:
-			for (GameObj *o : allObjs) {
+			for (size_t oi = 0; oi < allObjs.size(); oi++) {
+				const GameObj *o = allObjs[oi];
 				if (ObjIsAppropriate(refType, o) && o->GetBoolProp(prop))
-					o->MoveTo(moveTarget, ActionTypeToHoldingType(type));
+					g->MutableObject(oi)->MoveTo(moveTarget, ActionTypeToHoldingType(type));
 			}
 			break;
 		case Property::ValueType::Object:
 		case Property::ValueType::Enum:
-			for (GameObj *o : allObjs) {
+			for (size_t oi = 0; oi < allObjs.size(); oi++) {
+				const GameObj *o = allObjs[oi];
 				if (ObjIsAppropriate(refType, o) && o->GetStrProp(prop) == propCmpValue)
-					o->MoveTo(moveTarget, ActionTypeToHoldingType(type));
+					g->MutableObject(oi)->MoveTo(moveTarget, ActionTypeToHoldingType(type));
 			}
 			break;
 		case Property::ValueType::Map:
 		case Property::ValueType::Int: {
 			auto tmpInt = propType == Property::ValueType::Map ? ParseInt(propCmpValue.c_str()) : g->GetExpression(expr)->EvaluateInt();
-			for (GameObj *o : allObjs) {
+			for (size_t oi = 0; oi < allObjs.size(); oi++) {
+				const GameObj *o = allObjs[oi];
 				if (ObjIsAppropriate(refType, o) && o->GetIntProp(prop) == tmpInt)
-					o->MoveTo(moveTarget, ActionTypeToHoldingType(type));
+					g->MutableObject(oi)->MoveTo(moveTarget, ActionTypeToHoldingType(type));
 			}
 			break;
 		}
 		case Property::ValueType::Text: {
 			std::string tmpTxt(g->GetExpression(expr)->EvaluateStr());
-			for (GameObj *o : allObjs) {
+			for (size_t oi = 0; oi < allObjs.size(); oi++) {
+				const GameObj *o = allObjs[oi];
 				if (ObjIsAppropriate(refType, o) && o->GetStrProp(prop) == tmpTxt)
-					o->MoveTo(moveTarget, ActionTypeToHoldingType(type));
+					g->MutableObject(oi)->MoveTo(moveTarget, ActionTypeToHoldingType(type));
 			}
 			break;
 		}
@@ -1551,9 +1571,10 @@ void Task::Action::PerformMoveTo(const std::string &moveTarget) const {
 	case ActionRefType::ObjsInGroup:
 	case ActionRefType::CharsInGroup: {
 		auto &allObjs = g->GetAllObjects();
-		for (GameObj *o : allObjs) {
+		for (size_t oi = 0; oi < allObjs.size(); oi++) {
+			const GameObj *o = allObjs[oi];
 			if (ObjIsAppropriate(refType, o) && o->IsMemberOfGroup(lhs))
-				o->MoveTo(moveTarget, ActionTypeToHoldingType(type));
+				g->MutableObject(oi)->MoveTo(moveTarget, ActionTypeToHoldingType(type));
 		}
 	}
 		break;
@@ -1583,8 +1604,8 @@ void Task::Action::PerformSwitchWith(const std::string &chKey) const {
 	// bookkeeping a proper move would do. `chKey` itself never goes anywhere -- ADRIFT's own
 	// implementation swaps both characters' locations and then immediately moves `chKey` back to
 	// where it started, which nets out to exactly this.
-	GameObj *ch = g->TryGetObject(chKey);
-	GameObj *other = g->TryGetObject(rhs);
+	const GameObj *ch = g->TryGetObject(chKey);
+	GameObj *other = g->MutableObject(rhs);
 	if (!ch || !other) return;
 	other->CopyLocationFrom(*ch);
 	other->SetPropValue("CharacterPosition", ch->GetStrProp("CharacterPosition"));

@@ -146,7 +146,7 @@ std::string LanguageNumber(int64_t num, bool f = false) {
 				result += obj->GetDisplayName(transform == ListTransformType::DefName);
 				// Displaying a thing's name to the player means the player has now seen it.
 				// (This is how, e.g., the contents of a just-opened container become "seen".)
-				if (auto *pc = AsCharacter(Game::Get()->GetPlayerChar()))
+				if (auto *pc = AsCharacter(Game::Get()->MutablePlayerChar()))
 					pc->MarkSeen(entries[i]);
 				break;
 			}
@@ -348,8 +348,8 @@ Expr::Value Expression::AloneWithCharImpl(const ast_node_tag *args) const {
 	// so two or more characters present is the same as none. Returning whichever character turned
 	// up first, as this used to, meant the answer depended on the order the world was walked in.
 	const Character *found = nullptr;
-	for (GameObj *o : g->GetAllObjects()) {
-		Character *c = AsCharacter(o);
+	for (const GameObj *o : g->GetAllObjects()) {
+		const Character *c = AsCharacter(o);
 		if (!c || c == player) continue;
 		if (c->GetLocationKey() != player->GetLocationKey()) continue;
 		if (found) return Expr::Value();  // more than one: not alone with anybody

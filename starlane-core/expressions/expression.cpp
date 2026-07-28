@@ -753,7 +753,7 @@ Expr::Value Expression::EvalItemfuncSingle(const std::string &key, const Expr::V
 	if (Expr::IsListedIn(listOfEventFunctions, toCall_.Str.c_str())) {
 		auto *theEvt = g->GetEvent(key);
 		if (!theEvt) return std::string();
-		if (toCall_.Str == "Length") return theEvt->GetDuration().Value();
+		if (toCall_.Str == "Length") return (int64_t) theEvt->Length();
 		if (toCall_.Str == "Position") return theEvt->GetTimeSinceStart();
 	}
 
@@ -774,7 +774,7 @@ Expr::Value Expression::EvalItemfuncSingle(const std::string &key, const Expr::V
 		case Property::ValueType::Object:
 			return theObj->GetStrProp(toCall_.Str);
 		case Property::ValueType::Text:
-			return g->GetDescription(theObj->GetIntProp(toCall_.Str))->BuildAndCommit();
+			return g->MutableDescription(theObj->GetIntProp(toCall_.Str))->BuildAndCommit();
 	}
 	return Expr::Value();
 }

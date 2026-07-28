@@ -148,7 +148,7 @@ std::string Character::GetPossessionsList(Starlane::Character::PossessionFilter 
 	size_t count = 0;
 	auto *g = Game::Get();
 	// Load order, not hash order: this list is shown to the player. See GetListOfChildren.
-	for (GameObj *obj: g->GetAllObjects()) {
+	for (const GameObj *obj: g->GetAllObjects()) {
 		if (obj->GetParentKey() != key) continue;
 		if (pf == PossessionFilter::Worn && obj->GetParentRelation() != GameObj::HoldingType::Worn)
 			continue;

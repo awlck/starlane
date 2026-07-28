@@ -189,7 +189,7 @@ std::pair<bool, DescrRef> Restriction::PassRestrictionBlock(size_t &tidx, size_t
 				// come out empty, use that.
 				state = { false, txt };
 				// ... but still mark the original text as displayed.
-				(void) Game::Get()->GetDescription(restrs[ridx].failureMsg)->BuildAndCommit();
+				(void) Game::Get()->MutableDescription(restrs[ridx].failureMsg)->BuildAndCommit();
 			} else {
 				state = { false, restrs[ridx].failureMsg };
 			}
@@ -379,7 +379,7 @@ bool Restriction::Single::PassObjectCond(const std::string &lhs, const std::stri
 		return g->GetObject(lhs)->IsMemberOfGroup(rhs);
 	case ConditionType::WithinGroup:
 	{
-		auto *loc = (GameObj *) g->GetObject(lhs)->GetLocation();
+		const GameObj *loc = g->GetObject(lhs)->GetLocation();
 		if (!loc) return false;
 		return loc->IsMemberOfGroup(rhs);
 	}
@@ -425,12 +425,12 @@ bool Restriction::Single::PassObjectCond(const std::string &lhs, const std::stri
 	case ConditionType::InObject:
 	case ConditionType::HeldBy:  // Starlane treats `held by` simply as `in`.
 	{
-		GameObj *l = g->GetObject(lhs);
+		const GameObj *l = g->GetObject(lhs);
 		return l->GetParentKey() == rhs && l->GetParentRelation() == GameObj::HoldingType::InObject;
 	}
 	case ConditionType::OnObject:
 	{
-		GameObj *l = g->GetObject(lhs);
+		const GameObj *l = g->GetObject(lhs);
 		return l->GetParentKey() == rhs && l->GetParentRelation() == GameObj::HoldingType::OnObject;
 	}
 	case Starlane::Restriction::ConditionType::OfType:  // ?
@@ -502,7 +502,7 @@ bool Restriction::Single::PassObjectCond(const std::string &lhs, const std::stri
 		return g->GetObject(lhs)->GetLocationKey().empty();
 	case ConditionType::WornBy:
 	{
-		GameObj *l = g->GetObject(lhs);
+		const GameObj *l = g->GetObject(lhs);
 		return l->GetParentKey() == rhs && l->GetParentRelation() == GameObj::HoldingType::Worn;
 	}
 	case ConditionType::InState:
@@ -510,7 +510,7 @@ bool Restriction::Single::PassObjectCond(const std::string &lhs, const std::stri
 		// ...except one that merely appends its states to another's: "LockStatus" holds "Locked"
 		// on every object that has it, whether or not the object is actually locked, because the
 		// state that matters lives in "OpenStatus". ADRIFT skips those here for the same reason.
-		GameObj *l = g->GetObject(lhs);
+		const GameObj *l = g->GetObject(lhs);
 		// One call, one reference: GetAllStrProps rebuilds the cache it hands back, so taking
 		// begin() and end() from separate calls would compare iterators into different containers.
 		const auto &props = l->GetAllStrProps();
@@ -522,7 +522,7 @@ bool Restriction::Single::PassObjectCond(const std::string &lhs, const std::stri
 	}
 	case ConditionType::PartOf:
 	{
-		GameObj *l = g->GetObject(lhs);
+		const GameObj *l = g->GetObject(lhs);
 		return l->GetParentKey() == rhs && l->GetParentRelation() == GameObj::HoldingType::PartOf;
 	}
 	default:

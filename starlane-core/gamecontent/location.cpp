@@ -48,10 +48,10 @@ std::string Location::GetDisplayName([[maybe_unused]] bool defArt) const {
 	// each carry only a bookkeeping name of their own). A group's value wins, as it does for
 	// every other property.
 	if (const Group *grp = GetGroupWithProp("ShortLocationDescription"))
-		return Game::Get()->GetDescription((DescrRef) grp->GetIntProp("ShortLocationDescription"))->BuildAndCommit();
+		return Game::Get()->MutableDescription((DescrRef) grp->GetIntProp("ShortLocationDescription"))->BuildAndCommit();
 	if (locationName == (DescrRef) 0)
 		return "(BUG: Location without a name.)";
-	return Game::Get()->GetDescription(locationName)->BuildAndCommit();
+	return Game::Get()->MutableDescription(locationName)->BuildAndCommit();
 }
 
 GameObj *Location::Clone() const {
@@ -206,8 +206,9 @@ std::string Location::GetDescription(bool forDisplay) const {
 		const char *listProp = obj->IsDynamic() ? "ListDescriptionDynamic" : "ListDescription";
 		std::string listDesc;
 		if (obj->HasProp(listProp)) {
-			auto *ld = theGame->GetDescription(obj->GetIntProp(listProp));
-			listDesc = forDisplay ? ld->BuildAndCommit() : ld->Build();
+			const DescrRef ref = (DescrRef) obj->GetIntProp(listProp);
+			listDesc = forDisplay ? theGame->MutableDescription(ref)->BuildAndCommit()
+			                      : theGame->GetDescription(ref)->Build();
 		}
 		if (listDesc.empty()) {
 			generalListed.push_back(obj->GetDisplayName());
@@ -256,8 +257,9 @@ std::string Location::GetDescription(bool forDisplay) const {
 			// A CharHereDesc using %CharacterName% means this character, not the player -- same
 			// referral-character convention Character::GetDescription uses for its own text.
 			theGame->SetInternalReference("referral-character", ch->Key());
-			auto *hd = theGame->GetDescription(ch->GetIntProp("CharHereDesc"));
-			hereDesc = forDisplay ? hd->BuildAndCommit() : hd->Build();
+			const DescrRef ref = (DescrRef) ch->GetIntProp("CharHereDesc");
+			hereDesc = forDisplay ? theGame->MutableDescription(ref)->BuildAndCommit()
+			                      : theGame->GetDescription(ref)->Build();
 			theGame->ClearInternalReference("referral-character");
 		} else {
 			hereDesc = name + " is here.";

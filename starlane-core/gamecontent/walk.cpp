@@ -138,7 +138,8 @@ void Walk::RegisterNotifications(int32_t selfIndex) const {
 }
 
 Character *Walk::Owner() const {
-	return AsCharacter(Game::Get()->TryGetObject(ownerKey));
+	// Mutable: a walk exists to move its owner about, so every caller of this changes them.
+	return AsCharacter(Game::Get()->MutableObject(ownerKey));
 }
 
 void Walk::Start(bool force) {
@@ -263,7 +264,7 @@ void Walk::DoAnySteps() {
 			if (g->GroupExists(dest)) {
 				// Wander to a member of the group, preferring one adjacent to where the character is.
 				const auto &members = Game::Get()->GetGroup(dest)->GetAllMembers();
-				Location *cur = owner->GetLocation();  // null if the character is hidden
+				const Location *cur = owner->GetLocation();  // null if the character is hidden
 				bool hasAdjacent = false;
 				if (cur) {
 					for (const auto &m : members)
@@ -281,7 +282,7 @@ void Walk::DoAnySteps() {
 				// Follow a character, but only if they are in an adjacent room.
 				const std::string &targetLoc = g->GetObject(dest)->GetLocationKey();
 				if (owner->GetLocationKey() != targetLoc) {
-					Location *cur = owner->GetLocation();
+					const Location *cur = owner->GetLocation();
 					if (cur && cur->IsAdjacent(targetLoc)) resolved = targetLoc;
 				}
 			} else {
@@ -315,7 +316,7 @@ void Walk::AnnounceMove(Character &owner, const std::string &dest) const {
 		// The player watches the character leave.
 		std::string verb = owner.HasProp("CharExits") ? owner.GetStrProp("CharExits") : "exits";
 		std::string msg = owner.GetDisplayName(false) + " " + verb;
-		if (Location *from = owner.GetLocation(); from && from->IsAdjacent(dest)) {
+		if (const Location *from = owner.GetLocation(); from && from->IsAdjacent(dest)) {
 			std::string dir = from->DirectionTo(dest);
 			if (dir != "nowhere") {
 				// "inside"/"outside" read as bare adverbs; the compass directions want a "to".
@@ -329,7 +330,7 @@ void Walk::AnnounceMove(Character &owner, const std::string &dest) const {
 		// The player watches the character arrive.
 		std::string verb = owner.HasProp("CharEnters") ? owner.GetStrProp("CharEnters") : "enters";
 		std::string msg = owner.GetDisplayName(false) + " " + verb;
-		if (Location *destLoc = AsLocation(g->TryGetObject(dest));
+		if (const const Location *destLoc = AsLocation(g->TryGetObject(dest));
 				destLoc && destLoc->IsAdjacent(ownerLoc)) {
 			std::string dir = destLoc->DirectionTo(ownerLoc);
 			if (dir != "nowhere") msg += " from " + dir;
@@ -390,7 +391,7 @@ void Walk::RunSubWalk(int32_t idx) {
 			// tests for the key before it tests where the player is. `descr` of 0 is the no-message
 			// sub-walk the loader leaves behind for an <Activity> with no <Action> -- nothing to show.
 			if (sw.descr != 0 && !sw.onlyAtLocation.empty() && g->PlayerIsInLocationOrGroup(sw.onlyAtLocation))
-				g->OutputFiltered(g->GetDescription(sw.descr)->BuildAndCommit());
+				g->OutputFiltered(g->MutableDescription(sw.descr)->BuildAndCommit());
 			break;
 		case SubWhat::ExecuteTask:
 			g->ExecuteTaskByKey(sw.taskKey);

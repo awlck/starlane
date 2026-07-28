@@ -143,7 +143,7 @@ void Game::UpdatePronounAntecedents() {
 		std::string result;
 		for (size_t i = 0; i < keys.size(); i++) {
 			if (i != 0) result += (i + 1 == keys.size()) ? " and " : ", ";
-			GameObj *ob = TryGetObject(keys[i]);
+			const GameObj *ob = TryGetObject(keys[i]);
 			result += ob ? ob->GetDisplayName(true) : keys[i];
 		}
 		return result;
@@ -166,7 +166,7 @@ void Game::UpdatePronounAntecedents() {
 
 		auto refIt = currentRefs.find(Util::CanonicalizeRefName(token));
 		if (refIt == currentRefs.end() || refIt->second.empty()) continue;
-		GameObj *ob = TryGetObject(refIt->second);
+		const GameObj *ob = TryGetObject(refIt->second);
 		if (!ob) continue;
 
 		if (isCharFamily && ob->HasProp("Gender")) {
@@ -524,13 +524,13 @@ bool Game::RunTaskAndCapture(Task *task, bool showText, bool runActions) {
 	bool anyText = false;
 	auto emit = [&] {
 		if (!showText || task->GetCompletionMsg() == 0) return;
-		Description *desc = GetDescription(task->GetCompletionMsg());
+		const Description *desc = GetDescription(task->GetCompletionMsg());
 
 		if (!activeResponseBuffer) {
 			// Out-of-command path (event, walk, triggered task): unchanged from before -- build and
 			// commit the message now (so a sequential/return-to-default description advances its
 			// shown-state as it always did), dedup on the evaluated text turn-wide, emit immediately.
-			std::string text = desc->BuildAndCommit();
+			std::string text = MutableDescription(task->GetCompletionMsg())->BuildAndCommit();
 			if (!text.empty()) anyText = true;
 			if (completionMessagesThisTurn.insert(text).second)
 				OutputFiltered(std::move(text));
@@ -669,7 +669,7 @@ void Game::ExecuteTaskByKey(const std::string &key, const std::vector<std::strin
 	auto result = task->CheckRestrictions();
 	if (!result.first) {
 		if (result.second != 0)
-			OutputFiltered(GetDescription(result.second)->BuildAndCommit());
+			OutputFiltered(MutableDescription(result.second)->BuildAndCommit());
 		return;
 	}
 	// A task reached through an "Execute" action still gets its Specific overrides applied,
@@ -739,7 +739,7 @@ void Game::ExecuteMatchedTask(Task *general) {
 
 		auto parentResult = general->CheckRestrictions();
 		if (!parentResult.first)
-			OutputFiltered(parentResult.second != 0 ? GetDescription(parentResult.second)->BuildAndCommit() : "You can't do that right now.\n");
+			OutputFiltered(parentResult.second != 0 ? MutableDescription(parentResult.second)->BuildAndCommit() : "You can't do that right now.\n");
 		else
 			RunTaskWithSpecifics(general, currentMatchedRefTokens);
 
@@ -768,7 +768,7 @@ void Game::FlushResponseBuffer(ResponseBuffer &buffer) {
 			if (keys.size() < 2) continue;
 			currentRefs[name] = JoinKeys(keys);
 		}
-		std::string text = GetDescription(resp.descr)->BuildAndCommit();
+		std::string text = MutableDescription(resp.descr)->BuildAndCommit();
 		currentRefs = std::move(savedRefs);
 		// Record it against the turn-wide set so a later out-of-command message (a triggered task or
 		// event this turn) with the same text stays suppressed, as it was before buffering existed.
@@ -807,7 +807,7 @@ void Game::RunTaskWithSpecifics(Task *general, const std::vector<std::string> &r
 		} else if (childResult.second != 0) {
 			// The child failed, but produced restriction-failure text of its own: that takes
 			// precedence over the parent, same as if the child had passed.
-			std::string text = GetDescription(childResult.second)->BuildAndCommit();
+			std::string text = MutableDescription(childResult.second)->BuildAndCommit();
 			childHadSomethingToSay = !text.empty();
 			OutputFiltered(std::move(text));
 			if (childHadSomethingToSay) {
@@ -829,7 +829,7 @@ void Game::RunTaskWithSpecifics(Task *general, const std::vector<std::string> &r
 		if (childResult.first) {
 			childHadSomethingToSay = RunTaskAndCapture(child);
 		} else if (childResult.second != 0) {
-			std::string text = GetDescription(childResult.second)->BuildAndCommit();
+			std::string text = MutableDescription(childResult.second)->BuildAndCommit();
 			childHadSomethingToSay = !text.empty();
 			OutputFiltered(std::move(text));
 		}
@@ -842,7 +842,7 @@ std::vector<std::string> Game::NarrowByAnswer(const std::vector<std::string> &ca
 	auto answerWords = Util::SplitString(frontend->StrToLowerCase(answer), " ");
 	std::vector<std::string> result;
 	for (const auto &key : candidates) {
-		GameObj *ob = TryGetObject(key);
+		const GameObj *ob = TryGetObject(key);
 		if (!ob) continue;
 		bool matchesAll = true;
 		for (const auto &word : answerWords) {
@@ -864,7 +864,7 @@ void Game::DisplayAmbiguityQuestion(const RefMatchInfo &info) {
 		if (w.empty()) continue;
 		bool inAll = true;
 		for (const auto &key : info.candidates) {
-			GameObj *ob = TryGetObject(key);
+			const GameObj *ob = TryGetObject(key);
 			if (!ob || !ob->MatchesNameWord(w)) { inAll = false; break; }
 		}
 		if (inAll) { word = w; break; }
@@ -874,7 +874,7 @@ void Game::DisplayAmbiguityQuestion(const RefMatchInfo &info) {
 	std::string list;
 	for (size_t i = 0; i < info.candidates.size(); i++) {
 		if (i != 0) list += (i + 1 == info.candidates.size()) ? " or " : ", ";
-		GameObj *ob = TryGetObject(info.candidates[i]);
+		const GameObj *ob = TryGetObject(info.candidates[i]);
 		list += ob ? ob->GetDisplayName(true) : info.candidates[i];
 	}
 	OutputFiltered("Which " + word + "? " + list + ".\n");

@@ -159,9 +159,9 @@ Game *Game::LoadFromXML(const std::string &gameTxt, uint32_t gameCrc32) {
 	// as the ADRIFT Runner does -- otherwise the player would start nowhere, seeing nothing and
 	// unable to act on anything. Done here, once, so every later snapshot (startup state, undo
 	// history) inherits the placement rather than each having to rediscover it.
-	if (auto *player = AsCharacter(result->TryGetObject(result->playerKey));
+	if (auto *player = AsCharacter(result->MutableObject(result->playerKey));
 	    player && player->GetLocationKey().empty()) {
-		for (GameObj *o : result->objects) {
+		for (const GameObj *o : result->objects) {
 			if (o->IsLocation()) {
 				player->SetInitialLocation(o->Key());
 				break;
@@ -199,8 +199,8 @@ Game *Game::LoadFromXML(const std::string &gameTxt, uint32_t gameCrc32) {
 	// Character walks name the tasks that start and stop them; those tasks have just finished
 	// loading, so wire each walk up to them now. The characters themselves loaded earlier, before any
 	// task existed, which is why this can't happen while a character is being built.
-	for (GameObj *o : result->objects)
-		if (auto *c = AsCharacter(o))
+	for (size_t i = 0; i < result->objects.size(); i++)
+		if (auto *c = AsCharacter(result->MutableObject(i)))
 			c->RegisterWalkNotifications();
 
 	LOAD_STAGE("Loading Events");
@@ -245,7 +245,7 @@ Game *Game::LoadFromXML(const std::string &gameTxt, uint32_t gameCrc32) {
 		if (i % 250 == 0)
 			std::cout << i << "... ";
 #endif
-		result->descriptions[i]->ResolveText();
+		result->MutableDescription(i)->ResolveText();
 	}
 
 	LOAD_STAGE("Done!");

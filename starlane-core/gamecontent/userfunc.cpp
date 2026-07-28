@@ -24,12 +24,12 @@ UserFunction *UserFunction::CreateFromXML(const pugi::xml_node &xmlNode) {
 	// The output text refers to the arguments as `%name%`; without this, resolution has no way of
 	// telling those apart from stray percent signs and leaves them in the text verbatim.
 	if (!argNames.empty())
-		Game::Get()->GetDescription(result->output)->SetUserFuncArgNames(std::move(argNames));
+		Game::Get()->MutableDescription(result->output)->SetUserFuncArgNames(std::move(argNames));
 	return result;
 }
 
 std::string UserFunction::Evaluate(const UserFuncContext &args) const {
-	return Game::Get()->GetDescription(output)->BuildAndCommit(&args);
+	return Game::Get()->MutableDescription(output)->BuildAndCommit(&args);
 }
 
 }  // namespace Starlane

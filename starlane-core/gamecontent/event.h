@@ -129,7 +129,12 @@ public:
 			(state == State::NotYetStarted || state == State::Paused || state == State::Finished);
 	}
 
-	Util::Range &GetDuration() { return duration; }
+	// How long this event runs for, in ticks of its own clock. Not a plain accessor: a duration
+	// written "3 to 7 turns" is a roll that gets settled the first time anyone asks, and the
+	// settled value is saved state -- so on that one path this has to go back through the game for
+	// an Event it may write to. Replaces a GetDuration() that handed out a mutable reference and
+	// let a read-shaped expression ("%event.Length%") quietly change the world.
+	uint32_t Length() const;
 	int32_t GetTimeSinceStart() const { return timeSinceStart; }
 
 	void WriteState(Save::Writer &writer) const;

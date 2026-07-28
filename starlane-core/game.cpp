@@ -196,8 +196,8 @@ void Game::SwitchPlayerCharacter(const std::string &newPlayerKey) {
 	case ReferralPerson::ThirdPerson: break;
 	}
 	if (pronouns) {
-		if (GameObj *oldPlayer = TryGetObject(playerKey))
-			if (GameObj *newPlayer = TryGetObject(newPlayerKey))
+		if (GameObj *oldPlayer = MutableObject(playerKey))
+			if (GameObj *newPlayer = MutableObject(newPlayerKey))
 				oldPlayer->TransferPronounNouns(*newPlayer, *pronouns);
 	}
 	playerKey = newPlayerKey;
@@ -274,8 +274,8 @@ void Game::Begin() {
 		startupState = new Game(*this);
 	std::fill(taskCompletedStorage.begin(), taskCompletedStorage.end(), (uint8_t) 0);
 	// Every character has "seen" their initial surroundings.
-	for (GameObj *o : objects) {
-		if (auto *c = AsCharacter(o))
+	for (size_t i = 0; i < objects.size(); i++) {
+		if (auto *c = AsCharacter(MutableObject(i)))
 			c->MarkVisibleAsSeen();
 	}
 	gameHasBegun = true;
@@ -308,7 +308,7 @@ void Game::Begin() {
 		}
 	}
 	if (staticData->gameIntro != 0) {
-		std::string intro = GetDescription(staticData->gameIntro)->BuildAndCommit();
+		std::string intro = MutableDescription(staticData->gameIntro)->BuildAndCommit();
 		StripSeamMarkers(intro);
 		frontend->OutputText(intro.c_str());
 	}
@@ -326,7 +326,8 @@ void Game::Begin() {
 	// already been completed would find nothing to read. After the intro and initial room
 	// description too, as in ADRIFT -- an event started immediately runs, and can print, only
 	// once the game has finished introducing itself.
-	for (Event *evt : events) {
+	for (size_t i = 0; i < events.size(); i++) {
+		Event *evt = MutableEvent(i);
 		switch (evt->GetStartType()) {
 			case Event::StartType::TaskBased:
 				evt->SetNotYetStarted();
@@ -349,12 +350,12 @@ void Game::Begin() {
 	// Deliberately a second pass, as in ADRIFT. Start() leaves the "started on this tick" flag
 	// set so that an event doesn't also age on the tick it started; carried out of load and into
 	// the first real tick, that would have every immediate event sit out turn one.
-	for (Event *evt : events)
-		if (evt->JustStarted()) evt->ClearJustStarted();
+	for (size_t i = 0; i < events.size(); i++)
+		if (events[i]->JustStarted()) MutableEvent(i)->ClearJustStarted();
 	// Walks that begin active start now, after the events, as in ADRIFT. Starting one moves its
 	// character to the walk's first step and may run its opening sub-walks.
-	for (GameObj *o : objects)
-		if (auto *c = AsCharacter(o))
+	for (size_t i = 0; i < objects.size(); i++)
+		if (auto *c = AsCharacter(MutableObject(i)))
 			c->StartActiveWalks();
 }
 
@@ -418,9 +419,9 @@ void Game::RunEventTick(bool realTime) {
 	// exactly where ADRIFT drives them. Only on the turn clock: walks have no real-time variety. In
 	// object load order so two ticks of the same state move the same characters in the same sequence.
 	if (!realTime) {
-		for (GameObj *o : objects) {
+		for (size_t i = 0; i < objects.size(); i++) {
 			if (!gameHasBegun) return;
-			if (auto *c = AsCharacter(o))
+			if (auto *c = AsCharacter(MutableObject(i)))
 				c->TickWalks();
 		}
 	}
@@ -434,22 +435,24 @@ void Game::RunEventTick(bool realTime) {
 		explicit RunningGuard(Game *game) : g(game), prev(game->eventsRunning) { g->eventsRunning = true; }
 		~RunningGuard() { g->eventsRunning = prev; }
 	} runningGuard(this);
-	for (Event *evt : events) {
+	for (size_t i = 0; i < events.size(); i++) {
 		if (!gameHasBegun) break;
+		const Event *evt = events[i];
 		if (evt->IsRealTime() == realTime) {
-			if (!evt->TickWouldDoNothing()) evt->IncrementTimer();
+			if (!evt->TickWouldDoNothing()) MutableEvent(i)->IncrementTimer();
 		}
 		// A turn-based event's seconds-measured subevents ride the wall clock on their own,
 		// independently of the turn clock the rest of the event runs on -- so they get serviced
 		// on the real-time pass even though the event itself doesn't tick there.
-		else if (realTime) evt->TickRealTimeSubEvents();
+		else if (realTime) MutableEvent(i)->TickRealTimeSubEvents();
 	}
 	// Deliberately a second pass over the same events, as in ADRIFT. An event late in the order
 	// can run a task that starts one earlier in the order, which has already had its tick; if the
 	// "don't age on the turn you started" flag survived into the next tick, that event would sit
 	// out a turn it ought to have counted.
-	for (Event *evt : events) {
-		if (evt->IsRealTime() == realTime && evt->JustStarted()) evt->ClearJustStarted();
+	for (size_t i = 0; i < events.size(); i++) {
+		if (events[i]->IsRealTime() == realTime && events[i]->JustStarted())
+			MutableEvent(i)->ClearJustStarted();
 	}
 }
 
@@ -590,7 +593,7 @@ bool Game::ContinueRestore(const Save::AstNode *root) {
 		if (!objsNode || !objsNode->IsCollection(Save::NT_COMPOUND)) return RollbackRestore();
 		ITERATE_CHILDREN(objsNode, objN) {
 			// A save file naming something this game hasn't got is not one of ours.
-			auto *obj = TryGetObject(objN->myName);
+			auto *obj = MutableObject(objN->myName);
 			if (!obj || !obj->RestoreState(objN)) return RollbackRestore();
 		}
 	}
@@ -598,7 +601,7 @@ bool Game::ContinueRestore(const Save::AstNode *root) {
 		auto *evtsNode = root->FindChildByName("events");
 		if (!evtsNode || !evtsNode->IsCollection(Save::NT_COMPOUND)) return RollbackRestore();
 		ITERATE_CHILDREN(evtsNode, evtN) {
-			auto *evt = GetEvent(evtN->myName);
+			auto *evt = MutableEvent(evtN->myName);
 			if (!evt || !evt->RestoreState(evtN)) return RollbackRestore();
 		}
 	}
@@ -606,7 +609,7 @@ bool Game::ContinueRestore(const Save::AstNode *root) {
 		auto *varsNode = root->FindChildByName("variables");
 		if (!varsNode || !varsNode->IsCollection(Save::NT_COMPOUND)) return RollbackRestore();
 		ITERATE_CHILDREN(varsNode, varN) {
-			auto *var = GetVariable(varN->myName);
+			auto *var = MutableVariable(varN->myName);
 			if (!var) return RollbackRestore();
 			size_t counter = 0;
 			switch (var->GetType()) {
@@ -632,10 +635,10 @@ bool Game::ContinueRestore(const Save::AstNode *root) {
 		if (!grpsNode || !grpsNode->IsCollection(Save::NT_COMPOUND)) return RollbackRestore();
 		// Only groups with properties of their own get written out, so reset the lot to "none" and
 		// let the file fill in the exceptions -- see the matching comment on descriptions_shown below.
-		for (Group *grp: groups)
-			grp->ResetState();
+		for (size_t i = 0; i < groups.size(); i++)
+			MutableGroup(i)->ResetState();
 		ITERATE_CHILDREN(grpsNode, grpN) {
-			auto *grp = GetGroup(grpN->myName);
+			auto *grp = MutableGroup(grpN->myName);
 			if (!grp || !grp->RestoreState(grpN)) return RollbackRestore();
 		}
 	}
@@ -647,7 +650,7 @@ bool Game::ContinueRestore(const Save::AstNode *root) {
 		// of an unordered_map, so they arrive in no particular order -- hence resetting up
 		// front rather than filling the gaps between consecutive entries as we go.
 		for (size_t i = 1; i < descriptions.size(); i++)
-			descriptions[i]->RestoreState();
+			MutableDescription(i)->RestoreState();
 		ITERATE_CHILDREN(descsNode, descN) {
 			const auto idx = (size_t) ParseInt(descN->myName.c_str());
 			if (idx == 0 || idx >= descriptions.size()) return RollbackRestore();  // no such description
@@ -655,7 +658,7 @@ bool Game::ContinueRestore(const Save::AstNode *root) {
 			ITERATE_CHILDREN(descN, entry) {
 				state.push_back(entry->sv.Bool);
 			}
-			descriptions[idx]->RestoreState(state);
+			MutableDescription(idx)->RestoreState(state);
 		}
 	}
 	{
@@ -689,7 +692,7 @@ bool Game::GetStatusBar(StatusBar &statusBar) {
 		auto locationName = GetObject(GetPlayerLocationKey())->GetDisplayName();
 		ApplyOverrides(locationName);
 		statusBar.location = locationName;
-		auto userStatus = GetDescription(staticData->userStatusBar)->BuildAndCommit();
+		auto userStatus = MutableDescription(staticData->userStatusBar)->BuildAndCommit();
 		ApplyOverrides(userStatus);
 		statusBar.userStatus = userStatus;
 		// MaxScore is a variable and can theoretically be changed (although I'm not sure
@@ -724,7 +727,7 @@ void Game::ApplyOverrides(std::string &t) const {
 			// tag to the same tag), which would otherwise loop forever.
 			size_t pos = 0;
 			while ((pos = t.find(f, pos)) != std::string::npos) {
-				std::string replacement(GetDescription(it.second->GetReplacement())->BuildAndCommit());
+				std::string replacement(Game::Get()->MutableDescription(it.second->GetReplacement())->BuildAndCommit());
 				t.replace(pos, f.size(), replacement);
 				pos += replacement.size();
 			}

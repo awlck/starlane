@@ -138,7 +138,12 @@ public:
 	PlainTextRef StorePlainTextSnippet(std::string_view snip);
 	ExprRef CreateExpression(const std::string &expr);
 
-	Description *GetDescription(DescrRef d) const {
+	// ---- Reading the world ------------------------------------------------------------------
+	// Everything below hands back a pointer you may not write through. To change something, ask
+	// for it by the matching Mutable* accessor further down instead; the compiler will tell you
+	// when you need one. That is the whole point: it is how "nothing changes the world without
+	// the undo machinery being told" stops being a rule people have to remember.
+	const Description *GetDescription(DescrRef d) const {
 		// DescrRefs are handed out sequentially from 1 (see CreateDescFromXML), so the table is a
 		// flat vector rather than a hash map: it is indexed on every description built, and it is
 		// deep-copied once per turn for the undo snapshot. 0 means "no description" and is not a
@@ -146,22 +151,40 @@ public:
 		if (d == 0 || d >= descriptions.size()) throw std::out_of_range("no such description");
 		return descriptions[d];
 	}
-	Event *GetEvent(const std::string &key) { return IndexedGet(staticData->eventIndex, events, key); }
-	Group *GetGroup(const std::string &key) { return IndexedGet(staticData->groupIndex, groups, key); }
+	const Event *GetEvent(const std::string &key) const { return IndexedGet(staticData->eventIndex, events, key); }
+	const Group *GetGroup(const std::string &key) const { return IndexedGet(staticData->groupIndex, groups, key); }
 	// Look up an object by key, returning nullptr if none exists. Use this only where a missing
-	// key is a legitimate, expected answer -- existence/type probes (`dynamic_cast<Location *>(...)`)
-	// and explicit `if (TryGetObject(k))` guards.
-	GameObj *TryGetObject(const std::string &key) { return IndexedGet(staticData->objectIndex, objects, key); }
+	// key is a legitimate, expected answer -- existence/type probes (`AsLocation(...)`) and
+	// explicit `if (TryGetObject(k))` guards.
+	const GameObj *TryGetObject(const std::string &key) const { return IndexedGet(staticData->objectIndex, objects, key); }
 	// Look up an object by key that the caller expects to exist. Throws MissingObjectException
 	// (logging the key) rather than returning a dangling nullptr to be dereferenced -- either the
 	// game file is malformed or a reference was evaluated while unset. Callers that cannot tolerate
 	// this sit under a funnel-level try/catch (restriction/action evaluation) or the top-level
 	// backstop in starlane-core.cpp.
-	GameObj *GetObject(const std::string &key) {
-		GameObj *o = TryGetObject(key);
+	const GameObj *GetObject(const std::string &key) const {
+		const GameObj *o = TryGetObject(key);
 		if (!o) throw MissingObjectException(key);
 		return o;
 	}
+
+	// ---- Changing the world -----------------------------------------------------------------
+	// The only way to get a pointer you may write through. Today these do nothing but drop the
+	// const; the undo machinery hangs off them next, at which point asking for one is also what
+	// records the object's previous state.
+	GameObj *MutableObject(const std::string &key) { return Unconst(TryGetObject(key)); }
+	GameObj *MutableObject(size_t slot) { return Unconst(objects[slot]); }
+	// The must-exist form, matching GetObject.
+	GameObj *MutableObjectChecked(const std::string &key) { return Unconst(GetObject(key)); }
+	Event *MutableEvent(const std::string &key) { return Unconst(GetEvent(key)); }
+	Event *MutableEvent(size_t slot) { return Unconst(events[slot]); }
+	Group *MutableGroup(const std::string &key) { return Unconst(GetGroup(key)); }
+	Group *MutableGroup(size_t slot) { return Unconst(groups[slot]); }
+	Variable *MutableVariable(const std::string &key) { return Unconst(GetVariable(key)); }
+	Variable *MutableVariable(size_t slot) { return Unconst(variables[slot]); }
+	Variable *MutableVarByName(const std::string &name) { return Unconst(GetVarByName(name)); }
+	Description *MutableDescription(DescrRef d) { return Unconst(GetDescription(d)); }
+	GameObj *MutablePlayerChar() { return Unconst(GetPlayerChar()); }
 	Task *GetTask(const std::string &key) const { return SafeMapGet(staticData->tasks, key); }
 	// Whether `childKey` is one of `parentKey`'s direct Specific children -- ADRIFT's task.Children,
 	// which an Event/Walk control uses to ignore a re-trigger by a child of the task it just handled.
@@ -185,10 +208,10 @@ public:
 	void RunTriggeredTasks();
 	const Property *GetPropMeta(const std::string &key) const { return SafeMapGet(staticData->properties, key); }
 	const Restriction *GetRestriction(RestrRef key) const { return staticData->restrictions.at(key); }
-	Variable *GetVariable(const std::string &key) { return IndexedGet(staticData->variableIndex, variables, key); }
+	const Variable *GetVariable(const std::string &key) const { return IndexedGet(staticData->variableIndex, variables, key); }
 	// varNames maps straight to the slot, so looking a variable up by the name a game writes it
 	// under ("%Seabonus%") costs the same single lookup as looking it up by key.
-	Variable *GetVarByName(const std::string &name) { const auto f = staticData->varNames.find(Util::ToLower(name)); return f == staticData->varNames.end() ? nullptr : variables[f->second]; }
+	const Variable *GetVarByName(const std::string &name) const { const auto f = staticData->varNames.find(Util::ToLower(name)); return f == staticData->varNames.end() ? nullptr : variables[f->second]; }
 	const UserFunction *GetUserFunction(const std::string &key) const { return SafeMapGet(staticData->userFunctions, key); }
 	const UserFunction *GetUserFuncByName(const std::string &name) const { const auto f = staticData->userFuncNames.find(name); return f == staticData->userFuncNames.end() ? nullptr : staticData->userFunctions.at(f->second); }
 	Expression *GetExpression(ExprRef ref) { return staticData->expressions.at(ref); }
@@ -205,11 +228,13 @@ public:
 	bool VarOfNameExists(const std::string &name) const { return staticData->varNames.find(Util::ToLower(name)) != staticData->varNames.end(); }
 	// Every object in the game, in the order they appear in the game file. That order is the one
 	// callers want: it is how things are listed to the player, and how ADRIFT itself enumerates.
-	const std::vector<GameObj *> &GetAllObjects() const { return objects; }
+	const std::vector<const GameObj *> &GetAllObjects() const { return objects; }
 	// The same for events -- the order they tick in is observable, since one event's subevent can
 	// start or stop another, and it is the order ADRIFT ticks them in too.
-	const std::vector<Event *> &GetAllEvents() const { return events; }
-	GameObj *GetPlayerChar() const { return objects[staticData->objectIndex.at(playerKey)]; }
+	const std::vector<const Event *> &GetAllEvents() const { return events; }
+	const GameObj *GetPlayerChar() const { return objects[staticData->objectIndex.at(playerKey)]; }
+	// The player's slot, for the paths that need to change them rather than read them.
+	size_t PlayerSlot() const { return staticData->objectIndex.at(playerKey); }
 	// The player's key, for asking "is this the player?" without a lookup -- and without the
 	// throw GetPlayerChar() would give for a question asked before the player has been picked.
 	const std::string &GetPlayerKey() const { return playerKey; }
@@ -258,6 +283,11 @@ public:
 		currentRefs[Util::CanonicalizeRefName("<" + ref + ">")] = "";
 	}
 
+	// The one place in the interpreter that drops const from a piece of game state. Everything
+	// that changes the world goes through a Mutable* accessor above, and every one of those goes
+	// through here -- so this is the single door the undo machinery gets to stand in.
+	template<typename T> static T *Unconst(const T *p) { return const_cast<T *>(p); }
+
 	// Save the current game state to the undo list, discarding the oldest state(s) if that
 	// would take the list over `kMaxUndoStates`.
 	void SaveUndo();
@@ -301,6 +331,10 @@ public:
 	bool Restore();
 	// Get status bar info
 	bool GetStatusBar(StatusBar &statusBar);
+	// Const, like OutputFiltered which calls it, even though building an override's replacement
+	// text records that its segments were shown. That write goes through MutableDescription like
+	// every other, which is what matters -- the undo machinery hangs off the accessor, not off
+	// whether the Game happened to be const at the call.
 	void ApplyOverrides(std::string &t) const;
 
 	ReferralPerson GetCurrentReferralPerson() const {
@@ -515,12 +549,12 @@ private:
 	// Mutable game state (deep-copied for the undo state). Each of these is in load order, and a
 	// thing's position in it is fixed for the life of the game -- see the index tables in
 	// GameStatic, which are how a key gets turned into a position.
-	std::vector<GameObj *> objects;
-	std::vector<Event *> events;
-	std::vector<Variable *> variables;
-	std::vector<Group *> groups;
+	std::vector<const GameObj *> objects;
+	std::vector<const Event *> events;
+	std::vector<const Variable *> variables;
+	std::vector<const Group *> groups;
 	// Indexed by DescrRef; slot 0 is the "no description" sentinel and stays null.
-	std::vector<Description *> descriptions{nullptr};
+	std::vector<const Description *> descriptions{nullptr};
 	// Stores the completed-ness of tasks to avoid needing to copy the entire tasks for saves.
 	// Indexed by Task::StateIndex() rather than keyed by task key: this is copied wholesale once
 	// per turn for the undo snapshot, and a map of one string key per task in the game made that

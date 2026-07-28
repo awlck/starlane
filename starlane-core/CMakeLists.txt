@@ -66,6 +66,15 @@ add_library(starlane-core
 	# save files
     savefiles/writer.cpp savefiles/writer.h
 	savefiles/parser.cpp savefiles/parser.h)
+# Reading game state hands back a `const T *`; writing goes through Game's Mutable* accessors,
+# which is where the undo machinery lives (see game.h). A C-style cast quietly defeats that --
+# `(GameObj *) g->GetObject(k)->GetLocation()` compiled happily until this was turned on -- so
+# make dropping a qualifier that way an error rather than a habit. The deliberate route, the one
+# const_cast in Game::Unconst, is unaffected: -Wcast-qual does not flag it.
+if (NOT MSVC)
+	target_compile_options(starlane-core PRIVATE "-Wcast-qual" "-Werror=cast-qual")
+endif()
+
 target_link_libraries(starlane-core miniz pugixml slc_exprparser)
 if (WIN32)  # DbgHelp provides symbol resolution for captured backtraces
 	target_link_libraries(starlane-core dbghelp)
