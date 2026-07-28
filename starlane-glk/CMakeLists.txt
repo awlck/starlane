@@ -90,8 +90,11 @@ if(NOT ${SLGLK_LIB_ONLY} AND NOT ${SLGLK_USE_BUILTIN_CHEAPGLK})
             "${SLGLK_EXTERNAL_GLK_INCLUDEDIR}"
             "${SLGLK_EXTERNAL_GLK_INCLUDEDIR}/${SLGLK_GLK_LIB_NAME}")
 
+    # Apparently we need to do this terribleness or GNU ld will refuse to find all of our symbols:
+    set(SLGLK_LIBS_TO_LINK "starlane-glk-base;$<TARGET_PROPERTY:PkgConfig::SLGLK_EXTERNAL_GLK,INTERFACE_LINK_LIBRARIES>")
     add_executable(starlane-glk external-glk-placeholder.cpp)
-    target_link_libraries(starlane-glk PRIVATE starlane-glk-base PkgConfig::SLGLK_EXTERNAL_GLK)
+    target_link_libraries(starlane-glk PRIVATE
+            "$<LINK_GROUP:RESCAN,${SLGLK_LIBS_TO_LINK}>")
 
     # A shared libgarglk built outside of any system library directory (the common case for a
     # locally-built checkout) needs an explicit runtime search path, or the linked executable
