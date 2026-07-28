@@ -183,10 +183,10 @@ protected:
 	bool dynamic = false;
 	std::string article;
 	std::string prefix;
-	// The words this thing answers to. Copy-on-write: every object in the world is cloned into
-	// the undo snapshot once a turn, and this is the only part of an object's naming that is not
-	// a short (and so allocation-free) string -- but it changes only when the player switches
-	// character (see TransferPronounNouns), so snapshots share one list until then.
+	// The words this thing answers to. Copy-on-write: an object a turn changes is cloned into that
+	// turn's undo record, and this is the only part of an object's naming that is not a short (and
+	// so allocation-free) string -- but it changes only when the player switches character (see
+	// TransferPronounNouns), so the clone shares one list until then.
 	std::shared_ptr<std::vector<std::string>> nouns = std::make_shared<std::vector<std::string>>();
 	// The list to write to: our own if nobody else is looking at it, otherwise a private copy.
 	std::vector<std::string> &MutableNouns() {
@@ -197,8 +197,8 @@ protected:
 	// The keys of all the groups this object is a member of.
 	std::unordered_set<std::string> groupMembership;
 	// A regular expression that matches this object's name. Held by pointer and shared rather than
-	// held by value: a std::regex copy is a deep copy of the compiled state machine, every object
-	// in the world is cloned into the undo snapshot each turn, and this only ever changes when
+	// held by value: a std::regex copy is a deep copy of the compiled state machine, an object a
+	// turn changes is cloned into that turn's undo record, and this only ever changes when
 	// MakeMatchExpr recompiles it (a rename, or the player switching character). Never written
 	// through -- MakeMatchExpr replaces the pointer -- so sharing it needs no copy-on-write dance.
 	std::shared_ptr<const std::regex> matchRegex = std::make_shared<const std::regex>();

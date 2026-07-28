@@ -217,7 +217,7 @@ private:
 	// queued command is applied in IncrementTimer, matching ADRIFT.
 	std::string triggeringTask;
 	// Which subevent ran most recently, or -1 if none has since this event last started. An index
-	// rather than a pointer because Game clones every Event wholesale for each undo state, with
+	// rather than a pointer because an Event is cloned wholesale into an undo record, with
 	// the compiler's own copy constructor -- a pointer would survive that copy aimed squarely at
 	// the previous Game's subevent.
 	int32_t lastSubEventIndex = -1;

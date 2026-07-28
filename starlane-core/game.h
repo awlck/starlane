@@ -93,8 +93,8 @@ class GameStatic {
 	std::unordered_map<std::string, uint32_t> blorbResMap;
 	// Where to find a thing by key. The mutable state these index into (Game::objects and
 	// friends) is a flat vector in load order rather than a hash map, for two reasons: the whole
-	// of it is deep-copied into an undo snapshot once per turn, and a map's worth of nodes and
-	// copied key strings was one of the more expensive parts of that; and load order is an order
+	// of it used to be deep-copied into an undo snapshot once per turn, and a map's worth of nodes
+	// and copied key strings was one of the more expensive parts of that; and load order is an order
 	// the engine needs constantly anyway -- it is the order things are listed to the player in,
 	// and the order ADRIFT ticks events in -- so the vector's own order is the useful one.
 	//
@@ -146,7 +146,7 @@ public:
 	const Description *GetDescription(DescrRef d) const {
 		// DescrRefs are handed out sequentially from 1 (see CreateDescFromXML), so the table is a
 		// flat vector rather than a hash map: it is indexed on every description built, and it is
-		// deep-copied once per turn for the undo snapshot. 0 means "no description" and is not a
+		// indexed on every description built. 0 means "no description" and is not a
 		// valid subscript -- throw for it exactly as the map lookup this replaced did.
 		if (d == 0 || d >= descriptions.size()) throw std::out_of_range("no such description");
 		return descriptions[d];
@@ -590,7 +590,7 @@ private:
 	// nothing left to act on. Like AttemptMatchSystemCommand, this leaves the instance intact.
 	bool AttemptMatchEndOfGameCommand();
 
-	// Mutable game state (deep-copied for the undo state). Each of these is in load order, and a
+	// Mutable game state (what UNDO records the changes to). Each of these is in load order, and a
 	// thing's position in it is fixed for the life of the game -- see the index tables in
 	// GameStatic, which are how a key gets turned into a position.
 	std::vector<const GameObj *> objects;
@@ -833,8 +833,9 @@ private:
 	void AuditRestore(const UndoRecord &rec) const;
 	std::string SlotFingerprint(const char *kind, size_t slot) const;
 #endif
-	// How many of them to keep around: each one is a full copy of the mutable game state, so
-	// they are not cheap. (ADRIFT 5 settles on 100 as well.)
+	// How many undo steps to keep. A record now costs only what its turn changed, so this could
+	// be raised freely -- it stays at 100 because that is what ADRIFT 5 offers, and matching the
+	// original is the point.
 	static constexpr size_t kMaxUndoStates = 100;
 	// How deeply turn ticks may nest before we refuse to go further. Only a task's "skip N turns"
 	// action can nest them at all, and only a game that has one run from an event it also drives

@@ -460,3 +460,47 @@
       so both land in the same handlers. About 15% off peak memory for a variable-heavy game;
       the CPU saving is smaller (~2%), since what is left of a snapshot is the per-object and
       per-variable allocation itself rather than what they contain.
+- [x] fixed: RESTORE had never worked. Four bugs, each hidden behind the one before it, so nothing
+      downstream of the first had ever run: `Game::Restore`'s meta check read
+      `if (!gameRevNode || gameChecksumNode) return false;` (missing a `!`) and the writer always
+      emits `game_checksum`, so every valid save file was rejected; `ContinueRestore` read the
+      `tasks_completed` entries via `myName`/`sv.Bool` when that section is a bare string *list*,
+      whose members carry their text in `Str` and have no name; `GameObj::RestoreState` added to
+      `groupMembership` without clearing it, so an object that had left a group kept it; and
+      `Writer::WriteLiteralString` wrote any alphanumeric string unquoted, while the lexer reads a
+      bare digit-leading word as an integer -- Skybreak has text variables holding "0", which came
+      back as an int and made the restore reject the whole file. Such text is now quoted (save
+      version -991). `scripts/check_save_roundtrip.py` checks this without needing a baseline: play,
+      save, play more, restore, save again, and require the two saves to agree.
+- [x] fixed: the top-level backstop's "did this turn record a state?" test compared undo *depth*,
+      but `SaveUndo` pushes before trimming to `kMaxUndoStates` -- so past the hundredth turn the
+      depth was identical before and after and a turn that threw was never rolled back. Replaced
+      with `Game::TopUndoGeneration()`, compared with `>`, which also gets the two awkward cases
+      right: a mid-turn UNDO or RESTART leaves the newest generation lower, not higher.
+- [x] UNDO records what a turn changed rather than a copy of the world. `Game::SaveUndo` used to
+      deep-copy every object, event, variable, group and description once per turn and keep a
+      hundred such copies -- about 70% of what a turn cost. Each object is now copied *backward*
+      into the open undo record the first time it is written to, `SaveUndo` is bookkeeping, and
+      `RestoreUndo` writes the record back through the pointers that already exist, so the Game
+      instance is no longer replaced (which removed a pile of "`this` may be gone" scaffolding from
+      parser.cpp).
+      * What makes it safe rather than a discipline problem: reading game state hands back a
+        `const T *`, and the only way to get a writable pointer is `Game`'s `Mutable*` accessors,
+        which is where the recording happens. The compiler points at every write. `-Wcast-qual` is
+        on for `starlane-core` so a C-style cast cannot quietly get round it.
+      * A record stays open across an UNDO rather than being discarded, so writes made between an
+        UNDO and the next turn (printing "Undone." commits description state, as does the status
+        bar) are still covered by the next UNDO, as whole-world snapshots were.
+      * `SL_UNDO_AUDIT` (on in Debug) keeps a whole-world copy at every undo point and checks the
+        in-place restore against it field by field, via a string-backed `Save::Writer` so the check
+        covers exactly what a save file records. All 37 corpus games pass, and deliberately
+        breaking a preserve makes it fail.
+      * Corpus benchmark 3.40s -> 2.16s, peak memory down 51-68%. Cumulatively over both
+        optimization passes: 9.90s -> 2.16s (4.6x) and 487MB -> 89MB on Lost Coastlines.
+      * Two transcripts changed, both only in spacing on the internal-error path: the failed
+        turn's output and the backstop's message are now separated by the usual two spaces.
+- [x] fixed: `Event::GetDuration()` handed out a mutable `Util::Range`, so `%event.Length%` --
+      a read -- settled and stored a random roll that is saved state. Replaced with
+      `Event::Length()`, which reads the settled value and only takes the writable path to roll.
+- [x] fixed: `AloneWithChar` returned whichever character it found first in the player's location.
+      ADRIFT's `clsCharacter.AloneWithChar` counts them and answers only when there is exactly one.

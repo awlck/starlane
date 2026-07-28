@@ -108,15 +108,14 @@ private:
 	Description() = default;
 
 	// Whether segment `idx` has been shown, and setting it. `shown` stays empty until something
-	// is actually shown, which for most descriptions is never: every Description in the game is
-	// copied into the undo snapshot once per turn, so a description nobody has read costs nothing
-	// to copy.
+	// is actually shown, which for most descriptions is never -- so a description nobody has read
+	// costs nothing to clone into an undo record.
 	bool IsShown(size_t idx) const { return idx < shown.size() && shown[idx]; }
 	void SetShown(size_t idx, bool value);
 
 	// The segments are fixed once the game has loaded -- only which of them have been shown ever
-	// changes -- so snapshots share one list rather than each deep-copying it. Built (and resolved)
-	// during load, before the first copy of the Game exists.
+	// changes -- so a clone shares one list rather than deep-copying it. Built (and resolved)
+	// during load, before any copy of a Description exists.
 	std::shared_ptr<std::vector<Segment>> segments = std::make_shared<std::vector<Segment>>();
 	// Parallel to *segments where non-empty; see IsShown/SetShown.
 	std::vector<bool> shown;

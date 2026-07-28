@@ -80,9 +80,9 @@ private:
 	// before: neither is a std::runtime_error, so both fall past the local "treat as failed"
 	// catches in restriction and task evaluation to the top-level backstop.
 	using Values = std::variant<std::vector<int64_t>, std::vector<std::string>>;
-	// Copy-on-write, for the same reason as PropHolder's property tables: a game has hundreds of
-	// variables, the whole lot is cloned into an undo snapshot every turn, and a turn changes a
-	// handful of them at most.
+	// Copy-on-write, for the same reason as PropHolder's property tables: a variable that a turn
+	// changes is cloned into that turn's undo record, and this keeps the clone to a pointer copy
+	// for the (common) case of a value nothing has touched since.
 	std::shared_ptr<Values> values = std::make_shared<Values>();
 
 	const std::vector<int64_t> &Ints() const { return std::get<std::vector<int64_t>>(*values); }

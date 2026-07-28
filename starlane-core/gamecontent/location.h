@@ -66,8 +66,8 @@ private:
 
 	DescrRef locationName;
 	// Fixed once the game has loaded -- a location's exits are part of the map's shape, and
-	// nothing changes them at runtime. Held by shared pointer so that the copy of every location
-	// in the world that Game::SaveUndo makes each turn shares one table instead of rebuilding it.
+	// nothing changes them at runtime. Held by shared pointer so that cloning a location (for an
+	// undo record, or for the startup state) shares one table instead of rebuilding it.
 	std::shared_ptr<const std::unordered_map<std::string, ExitSpec>> exits =
 		std::make_shared<const std::unordered_map<std::string, ExitSpec>>();
 

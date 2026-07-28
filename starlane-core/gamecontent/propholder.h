@@ -78,13 +78,11 @@ private:
 		std::unordered_map<std::string, std::string> strValued;
 	};
 
-	// Copy-on-write. Every turn Game::SaveUndo clones the entire world (see Game::Game(const
-	// Game &)), and an object's property tables are the bulk of what an object is -- so copying
-	// them eagerly made snapshotting by far the most expensive thing a turn did, in time and in
-	// memory both. Sharing them until somebody writes reduces a snapshot to one refcount bump
-	// per object, and charges the deep copy only to the handful of objects a turn actually
-	// changes. Correct because a PropHolder only ever mutates through the members below: nothing
-	// hands out a non-const reference into the tables.
+	// Copy-on-write. An object's property tables are the bulk of what an object is, and an object
+	// a turn changes is cloned into that turn's undo record -- so sharing the tables until somebody
+	// writes keeps that clone to a refcount bump, and charges the deep copy only when the
+	// properties themselves change. Correct because a PropHolder only ever mutates through the
+	// members below: nothing hands out a non-const reference into the tables.
 	std::shared_ptr<Properties> props = std::make_shared<Properties>();
 
 	// The tables to write to: our own if nobody else is looking at them, otherwise a private
