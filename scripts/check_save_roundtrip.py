@@ -11,8 +11,16 @@ BIN = sys.argv[1] if len(sys.argv) > 1 else "cmake-build-relwithdebinfo/starlane
 PLAY = ["look", "x me", "take all", "north", "wait", "open door", "i", "search"]
 MORE = ["drop all", "south", "east", "wait", "z", "take all", "look"]
 
+# "turns" counts lines the player has submitted, so it is *expected* to differ between the two
+# saves: SAVE is itself a submitted line, and B is written one SAVE later than A. Everything else
+# in the file describes world state and must match exactly.
+EXPECTED_TO_DIFFER = ("turns = ",)
+
 def load(p):
     return zlib.decompressobj().decompress(open(p, "rb").read()).decode("utf-8", "replace")
+
+def state(p):
+    return [l for l in load(p).split("\n") if not l.strip().startswith(EXPECTED_TO_DIFFER)]
 
 ok = bad = skipped = 0
 for g in sorted(pathlib.Path("testdata").rglob("*.taf")):
@@ -31,12 +39,12 @@ for g in sorted(pathlib.Path("testdata").rglob("*.taf")):
         continue
     if "Restored." not in p.stdout:
         print("RESTORE DID NOT SUCCEED:", g); bad += 1; continue
-    if load(a) == load(b):
+    ta, tb = state(a), state(b)
+    if ta == tb:
         ok += 1
     else:
         bad += 1
         print("ROUND TRIP DIFFERS:", g)
-        ta, tb = load(a).split("\n"), load(b).split("\n")
         import difflib
         print("\n".join(list(difflib.unified_diff(ta, tb, lineterm="", n=0))[:12]))
 print(f"{ok} round-trip clean, {bad} broken, {skipped} never reached a save prompt")

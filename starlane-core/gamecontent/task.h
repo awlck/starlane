@@ -209,6 +209,10 @@ private:
 		// wouldn't compile). A faulty action is skipped rather than performed -- see RunActions.
 		// Read by the enclosing Task, hence public.
 		bool faulty = false;
+		// The task this action belongs to, filled in as the task loads. Needed because a change to
+		// the score is allowed once per task and has to be recorded against it -- see Game's
+		// GetIsTaskScored. Set by the enclosing Task, hence public.
+		std::string ownerTaskKey;
 	private:
 		// One argument of an `Execute <task> (<arg>|<arg>...)` action, bound positionally to the
 		// called task's own %ref% tokens. Which of the three forms it takes is settled at load

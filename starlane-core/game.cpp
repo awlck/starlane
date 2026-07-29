@@ -119,7 +119,7 @@ Game::Game(const Game &rhs) {
 		descriptions[i] = new Description(*rhs.descriptions[i]);
 
 	// just bools, so a vector copy is sufficient.
-	taskCompletedStorage = rhs.taskCompletedStorage;
+	taskFlagStorage = rhs.taskFlagStorage;
 
 	// Finally, the simple data copies.
 	playerKey = rhs.playerKey;
@@ -233,7 +233,7 @@ void Game::PrepareUndoBookkeeping() {
 	variableStamp.assign(variables.size(), 0);
 	groupStamp.assign(groups.size(), 0);
 	descriptionStamp.assign(descriptions.size(), 0);
-	taskFlagStamp.assign(taskCompletedStorage.size(), 0);
+	taskFlagStamp.assign(taskFlagStorage.size(), 0);
 }
 
 // The five of these differ only in which table and which stamp array they touch; an object needs
@@ -266,7 +266,7 @@ void Game::PreserveDescription(size_t slot) {
 void Game::PreserveTaskFlag(size_t slot) {
 	if (!undoRecording || taskFlagStamp[slot] == openRecord.generation) return;
 	taskFlagStamp[slot] = openRecord.generation;
-	openRecord.taskFlags.emplace_back((uint32_t) slot, taskCompletedStorage[slot]);
+	openRecord.taskFlags.emplace_back((uint32_t) slot, taskFlagStorage[slot]);
 }
 
 void Game::ClearRecord(UndoRecord &rec) {
@@ -295,7 +295,7 @@ void Game::ApplyRecord(UndoRecord &rec) {
 	for (auto &e : rec.variables) *Unconst(variables[e.first]) = *e.second;
 	for (auto &e : rec.groups) *Unconst(groups[e.first]) = *e.second;
 	for (auto &e : rec.descriptions) *Unconst(descriptions[e.first]) = *e.second;
-	for (auto &e : rec.taskFlags) taskCompletedStorage[e.first] = e.second;
+	for (auto &e : rec.taskFlags) taskFlagStorage[e.first] = e.second;
 
 	playerKey = rec.playerKey;
 	mostRecentlyMentioned = rec.mostRecentlyMentioned;
@@ -370,7 +370,7 @@ void Game::AuditRestore(const UndoRecord &rec) const {
 		std::string a = SlotFingerprint("description", i), b = want.SlotFingerprint("description", i);
 		if (a != b) complain("description", i, a, b);
 	}
-	if (taskCompletedStorage != want.taskCompletedStorage)
+	if (taskFlagStorage != want.taskFlagStorage)
 		complain("task-completion", 0, "(differs)", "(differs)");
 	if (playerKey != want.playerKey || turnCount != want.turnCount ||
 			gameHasBegun != want.gameHasBegun || sessionActive != want.sessionActive ||
@@ -464,7 +464,7 @@ void Game::AssignStateFrom(const Game &src) {
 	for (size_t i = 1; i < descriptions.size(); i++)  // slot 0 is the "none" sentinel
 		*MutableDescription(i) = *src.descriptions[i];
 
-	taskCompletedStorage = src.taskCompletedStorage;
+	taskFlagStorage = src.taskFlagStorage;
 	playerKey = src.playerKey;
 	mostRecentlyMentioned = src.mostRecentlyMentioned;
 	pronounItText = src.pronounItText;
@@ -495,7 +495,7 @@ void Game::Restart() {
 void Game::Begin() {
 	if (!startupState)
 		startupState = new Game(*this);
-	std::fill(taskCompletedStorage.begin(), taskCompletedStorage.end(), (uint8_t) 0);
+	std::fill(taskFlagStorage.begin(), taskFlagStorage.end(), (uint8_t) 0);
 	// Every character has "seen" their initial surroundings.
 	MarkVisibleThingsSeen();
 	gameHasBegun = true;
@@ -543,7 +543,7 @@ void Game::Begin() {
 			frontend->OutputText(desc.c_str());
 		}
 	}
-	// Must come after taskCompletedStorage is populated above: an immediate, zero-length event
+	// Must come after taskFlagStorage is populated above: an immediate, zero-length event
 	// fires its subevents from inside Start(), those run tasks, and a task asking whether it has
 	// already been completed would find nothing to read. After the intro and initial room
 	// description too, as in ADRIFT -- an event started immediately runs, and can print, only
@@ -761,12 +761,21 @@ bool Game::Save() {
 
 	writer.BeginNamedCompound("tasks_completed", true);
 	for (const auto &it: staticData->tasks) {
-		if (taskCompletedStorage[it.second->StateIndex()]) {
+		if (GetIsTaskCompleted(it.first)) {
 			writer.WriteLiteralString(it.first.c_str());
 			writer.WriteUnqouted(" ");
 		}
 	}
-	writer.WriteUnqouted("}");  // sneaky! (Avoiding the trailing space added by `EndCompound`)
+	writer.WriteUnqouted("} ");  // sneaky! (Avoiding the trailing space added by `EndCompound`)
+
+	writer.BeginNamedCompound("tasks_scored", true);
+	for (const auto &it: staticData->tasks) {
+		if (GetIsTaskScored(it.first)) {
+			writer.WriteLiteralString(it.first.c_str());
+			writer.WriteUnqouted(" ");
+		}
+	}
+	writer.WriteUnqouted("}");
 	return true;
 }
 
@@ -907,11 +916,19 @@ bool Game::ContinueRestore(const Save::AstNode *root) {
 		// Save() writes only the completed ones, as a bare list of keys -- so a task's presence
 		// here is what says it is completed, and everything else stays at the zero filled in above.
 		// (A string list's members carry their text in `Str` and have no `myName`.)
-		std::fill(taskCompletedStorage.begin(), taskCompletedStorage.end(), (uint8_t) 0);
+		std::fill(taskFlagStorage.begin(), taskFlagStorage.end(), (uint8_t) 0);
 		ITERATE_CHILDREN(tasksCompletedNode, taskNode) {
 			const auto *task = SafeMapGet(staticData->tasks, taskNode->Str);
 			if (!task) return RollbackRestore();  // no such task
-			taskCompletedStorage[task->StateIndex()] = 1;
+			taskFlagStorage[task->StateIndex()] |= kTaskCompleted;
+		}
+		// ...and the same again for the tasks that have already had their say on the score.
+		const auto *tasksScoredNode = root->FindChildByName("tasks_scored");
+		if (!tasksScoredNode || !tasksScoredNode->IsCollection(Save::NT_STRINGLIST)) return RollbackRestore();
+		ITERATE_CHILDREN(tasksScoredNode, taskNode) {
+			const auto *task = SafeMapGet(staticData->tasks, taskNode->Str);
+			if (!task) return RollbackRestore();
+			taskFlagStorage[task->StateIndex()] |= kTaskScored;
 		}
 	}
 	// finally, discard all previous undo states because UNDOing a restore would be a bit silly

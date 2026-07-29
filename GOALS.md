@@ -316,9 +316,15 @@
       every 16 (which is what had Alyas's patrolling guard permanently out of phase). `%Turns%`
       counts submitted input lines, as ADRIFT's frontend-driven Adventure.Turns does. Alyas now
       differs on one command of 607, Bug Hunt on none but the harness's own end-of-game line.
-- [ ] core: Alyas finishes on 615 points where ADRIFT gives 620 -- one 5-point award among its 166
-      scoring tasks, with no difference in any of the text. Needs an ADRIFT-side score trace to
-      pin down; a console harness over the FrankenDrift engine assembly would do it.
+- [x] core: a task may change the score once and once only, as ADRIFT's clsTask.Scored has it: the
+      second time a repeatable scoring task runs, its Score action is skipped outright. This is as
+      true of a penalty as of an award -- Alyas docks five points for leaving the hammer behind,
+      and docks them once however often the player walks back in. Found by building a console
+      harness over the FrankenDrift engine (it reproduces the recorded transcript exactly) and
+      diffing its score trace against ours: the sequences agreed task-for-task, differing only
+      where ADRIFT skipped a repeat. Alyas now ends on ADRIFT's 620 of 650, in 607 turns.
+      `Scored` is per-task state, saved and undone alongside `Completed` -- both now live as bits
+      in one flag byte, and the save format gained a `tasks_scored` list (version -992).
 - [x] core: the `AppendToPreviousDescription` menus were never really wrong. FrankenDrift's
       transcript recorder was stripping the `<>` seam ADRIFT inserts between appended parts as if
       it were an HTML tag, taking the following part with it; fixed upstream, and the regenerated

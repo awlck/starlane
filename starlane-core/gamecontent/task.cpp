@@ -484,7 +484,9 @@ Task *Task::CreateFromXML(Game *g, const pugi::xml_node &xmlNode) {
 		// A malformed action (an argument expression that won't compile, say) must not abort the
 		// whole load. Record it as a faulty placeholder that RunActions skips over.
 		try {
-			result->actions.push_back(Action::CreateFromXML(it));
+			Action act = Action::CreateFromXML(it);
+			act.ownerTaskKey = result->key;
+			result->actions.push_back(std::move(act));
 		} catch (const std::exception &e) {
 			LogError("Faulty action in task '" + result->key + "' (" + e.what() + "); it will be skipped.");
 			Action faultyAct;
@@ -1423,7 +1425,18 @@ void Task::Action::PerformImpl() const {
 				idx = g->GetVariable(idxStr)->GetValue<int64_t>();
 			}
 		} else var = g->MutableVariable(lhs);
-		
+
+		// ADRIFT lets a task touch the score once and once only (clsUserSession's
+		// "If var.Key <> ""Score"" OrElse Not task.Scored"). A repeatable task that awards points
+		// therefore awards them the first time it runs and never again -- and one that docks them,
+		// like Alyas's "you left the hammer behind" penalty, only docks them once however often the
+		// player walks back in. An action with no task behind it never scores at all, as in ADRIFT.
+		if (var->Key() == "Score") {
+			if (ownerTaskKey.empty() || g->GetIsTaskScored(ownerTaskKey))
+				break;
+			g->SetTaskScored(ownerTaskKey, true);
+		}
+
 		if (type == ActionType::SetVarTo) {
 			switch (var->GetType()) {
 			case Variable::Type::Int:

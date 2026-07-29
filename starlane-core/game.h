@@ -271,14 +271,19 @@ public:
 	void SwitchPlayerCharacter(const std::string &newPlayerKey);
 
 	bool GetIsTaskCompleted(const std::string &key) const {
-		return taskCompletedStorage[TaskStateIndex(key)] != 0;
+		return (taskFlagStorage[TaskStateIndex(key)] & kTaskCompleted) != 0;
 	}
 	void SetTaskCompleted(const std::string &key, bool val) {
-		const size_t slot = TaskStateIndex(key);
-		const uint8_t v = val ? 1 : 0;
-		if (taskCompletedStorage[slot] == v) return;
-		PreserveTaskFlag(slot);
-		taskCompletedStorage[slot] = v;
+		SetTaskFlag(TaskStateIndex(key), kTaskCompleted, val);
+	}
+	// Whether this task has already changed the score. ADRIFT lets each task do that once and once
+	// only (clsTask.Scored): the second time a repeatable scoring task runs, its Score action is
+	// skipped outright -- which is as true of a task that docks points as of one that awards them.
+	bool GetIsTaskScored(const std::string &key) const {
+		return (taskFlagStorage[TaskStateIndex(key)] & kTaskScored) != 0;
+	}
+	void SetTaskScored(const std::string &key, bool val) {
+		SetTaskFlag(TaskStateIndex(key), kTaskScored, val);
 	}
 	// The key of the location the player is currently in. Out of line because it needs
 	// GameObj to be complete.
@@ -636,8 +641,19 @@ private:
 	// per turn for the undo snapshot, and a map of one string key per task in the game made that
 	// one of the more expensive parts of a snapshot. (uint8_t rather than bool so that the copy
 	// is a plain memcpy instead of vector<bool>'s bit twiddling.)
-	std::vector<uint8_t> taskCompletedStorage;
-	// The slot in `taskCompletedStorage` belonging to the task with this key. Throws (as the map
+	// One byte of flags per task -- see kTaskCompleted/kTaskScored. Kept as a single array so that
+	// the undo machinery (PreserveTaskFlag, which saves the whole byte) covers every flag at once.
+	std::vector<uint8_t> taskFlagStorage;
+	static constexpr uint8_t kTaskCompleted = 1u << 0;
+	static constexpr uint8_t kTaskScored = 1u << 1;
+	void SetTaskFlag(size_t slot, uint8_t bit, bool val) {
+		const uint8_t updated = val ? (uint8_t) (taskFlagStorage[slot] | bit)
+		                            : (uint8_t) (taskFlagStorage[slot] & ~bit);
+		if (taskFlagStorage[slot] == updated) return;
+		PreserveTaskFlag(slot);
+		taskFlagStorage[slot] = updated;
+	}
+	// The slot in `taskFlagStorage` belonging to the task with this key. Throws (as the map
 	// lookup this replaced did) if no such task exists.
 	size_t TaskStateIndex(const std::string &key) const;
 	// the current player character

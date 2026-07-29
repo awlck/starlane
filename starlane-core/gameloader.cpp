@@ -301,8 +301,8 @@ Task *Game::CreateTaskFromXML(const pugi::xml_node &propNode) {
 	auto s = const_cast<GameStatic *>(staticData);
 	// Give the task its slot in the completed-ness vector as it is registered, so that the vector
 	// stays dense and parallel to the (immutable) task table.
-	result->stateIndex = taskCompletedStorage.size();
-	taskCompletedStorage.push_back(0);
+	result->stateIndex = taskFlagStorage.size();
+	taskFlagStorage.push_back(0);
 	s->tasks[result->Key()] = result;
 	return result;
 }

@@ -37,7 +37,7 @@ namespace Starlane::Save {
 // Bumped to -991 when text values that look like numbers or booleans ("0", "yes") started being
 // quoted: without that they read back as an int or a bool and a restore rejected the whole file.
 // Files written before this carry the ambiguity, so they are not readable either way.
-constexpr int currentSaveFileVer = -991;
+constexpr int currentSaveFileVer = -992;
 
 namespace {
 // Helper to determine whether there's a const_iterator for T.
