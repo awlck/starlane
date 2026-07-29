@@ -305,22 +305,36 @@
       sweeping command with "ReferencedObjects MustNot BeExactText All" -- by the generic name,
       while the task's own Command called it "%objects%". Alyas: 538 of 607 commands differing
       before this work, 48 after.
-- [ ] core: a menu built out of `AppendToPreviousDescription` parts shows more entries than ADRIFT
-      shows. Alyas's conversation menus (command 153 on) and Bug Hunt's "Available characters are:"
-      list (command 16 on) are both built this way -- a header part followed by one restricted part
-      per entry -- and in both games ADRIFT displays a strict subset of the parts whose restrictions
-      we make pass. Worth chasing as one bug: it is the single biggest remaining source of
-      divergence in both transcripts. FrankenDrift's Description.ToString is byte-identical to
-      stock ADRIFT's, so the difference is in what the restrictions see, not in how the parts are
-      assembled.
-- [ ] core: nested `<# ... #>` expression output is not re-scanned for `%Function[...]%` calls, so
-      a game that builds a function call out of string concatenation (Alyas's "There is no route
-      <dir>, only %ListExits[%Player%]%.") prints the call verbatim. ADRIFT's ReplaceFunctions
-      loops until the text stops changing.
-- [ ] core: a command that runs the same task twice (a move that triggers another move, each
-      ending in `Execute Look`) prints the room description once, not twice: both runs collapse
-      into one aggregated response. ADRIFT keeps a separate response set per top-level task
-      execution. See Alyas command 43.
+- [x] core: chase the last of the three test transcripts. Task completion is now marked after a
+      Before-placement message is read, not before, so a message part gated on "this task must be
+      complete" belongs to the next run; a task whose only output comes from an `Execute` action
+      reports having spoken, which stops the search through its Specific siblings; failing items
+      are dropped from any plural reference, not only from ALL; location-triggered and
+      run-immediately System tasks run in file order, as ADRIFT walks htblTasks; `%PropertyValue%`
+      builds a Text property's description instead of printing the handle behind it; and the walk
+      clock decrements before stepping, so a 15-step walk comes round every 15 turns rather than
+      every 16 (which is what had Alyas's patrolling guard permanently out of phase). `%Turns%`
+      counts submitted input lines, as ADRIFT's frontend-driven Adventure.Turns does. Alyas now
+      differs on one command of 607, Bug Hunt on none but the harness's own end-of-game line.
+- [ ] core: Alyas finishes on 615 points where ADRIFT gives 620 -- one 5-point award among its 166
+      scoring tasks, with no difference in any of the text. Needs an ADRIFT-side score trace to
+      pin down; a console harness over the FrankenDrift engine assembly would do it.
+- [x] core: the `AppendToPreviousDescription` menus were never really wrong. FrankenDrift's
+      transcript recorder was stripping the `<>` seam ADRIFT inserts between appended parts as if
+      it were an HTML tag, taking the following part with it; fixed upstream, and the regenerated
+      transcripts agree with us. The one genuine bug the hunt turned up was in the restriction
+      parser: `BeLessThan` was mapped to `LessOrEqual`, so Bug Hunt's character menu still offered
+      a choice on the turn the last of them was used up.
+- [x] core: a complete `%Function[...]%` call written inside a quoted string in an expression is
+      evaluated (Alyas's "There is no route <dir>, only %ListExits[%Player%]%."). ADRIFT replaces
+      functions across the raw text before the expression is parsed, so a call that appears whole
+      in the source is substituted wherever it sits -- but one *assembled* out of pieces
+      (`"%LCase" & "[x]%"`) is not, and neither is `%<#...#>[x]%`. Handled in InterpolateRefs,
+      not by re-scanning our own output, so both non-cases stay literal as they should.
+- [x] core: a command that runs the same task twice now prints both room descriptions. The
+      already-said-this-turn set that suppressed the second was turn-wide; ADRIFT clears its
+      response tables on entering any top-level task execution, so a location-triggered task
+      running after a command may repeat what the command said. Scoped by Game::ResponseScope.
 - [ ] Qt frontend: actually implement StrToSentenceCase
 - [ ] implement dockable secondary windows in the Qt frontend
 - [ ] Qt frontend: redirect starlane-core debug output to a debug log window
