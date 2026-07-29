@@ -80,17 +80,30 @@ std::string Description::Build(const UserFuncContext *context, bool rawExpressio
 	return const_cast<Description *>(this)->BuildImpl(false, context, rawExpressions);
 }
 
-std::string Description::BuildAndCommit(const UserFuncContext *context) {
-	return BuildImpl(true, context, /*rawExpressions =*/ false);
+std::string Description::BuildAndCommit(const UserFuncContext *context, Description *appended) {
+	// A commit reached from inside a measuring build is not a real one: the text is being weighed,
+	// not shown, and marking a "display once" part as displayed here would cheat the player out of
+	// it. (This happens whenever a message names an object -- "%object%.Description" evaluates the
+	// object's own description, which asks to commit -- and the measuring build above it has no way
+	// to pass its intent down through the expression evaluator.)
+	return BuildImpl(!Game::Get()->IsMeasuringOutput(), context, /*rawExpressions =*/ false, appended);
 }
 
-std::string Description::BuildImpl(bool commit, const UserFuncContext *context, bool rawExpressions) {
-	// The ADRIFT Runner's way of handling descriptions goes something like this:
-	// "Build the text. If some segment wants to be first and passes restrictions,
-	//  throw the already-built text away and start over."
-	// This mode of action is probably fine for the ADRIFT Runner since it doesn't
-	// evaluate expressions in the text until it is actually sent to the screen, but
-	// I think we should take a bit more care since we will evaluate expressions right now.
+std::string Description::BuildImpl(bool commit, const UserFuncContext *context, bool rawExpressions,
+                                   Description *appended) {
+	// One left-to-right pass over the segments, exactly as ADRIFT's Description.ToString does it.
+	// Each eligible segment either replaces what has been built so far (BeginHere), replaces it
+	// with the default description plus itself (AfterDefault), or is appended to it (Append) -- so
+	// the last eligible BeginHere naturally wins, without needing to be sought out in advance.
+	// What does need the single ordered pass is DisplayOnce: a segment marked that way ends the
+	// description there and then, so an unshown one earlier in the list beats every later segment,
+	// however unrestricted those are. ("You find an access card." on the first search, "nothing
+	// left" on every one after.)
+	//
+	// Unlike ADRIFT this evaluates each segment's expressions as it goes rather than at print time,
+	// so a segment that turns out to be discarded has still been evaluated. That is only a concern
+	// for expressions with side effects, of which there are none.
+	//
 	// The ADRIFT code also handles the case when a segment's restrictions fail but that
 	// restriction failure outputs some text. We won't handle that case here, since the
 	// ADRIFT Developer doesn't actually allow you to enter restriction failure text
@@ -99,44 +112,42 @@ std::string Description::BuildImpl(bool commit, const UserFuncContext *context, 
 	// do nothing if there is no text
 	if (segments->empty()) return "";
 
-	// A commit=false pass is a throwaway measurement (see the comment above and this function's
-	// declaration) -- so besides not committing segment shown-state below, it must not let any
-	// %CharacterName%/character.Name evaluated along the way commit its mention either, or the
-	// real, printed Build() that follows would wrongly see the character as already named this
-	// turn and print a pronoun instead of their name.
-	Game::MentionTrackingSuppressGuard mentionGuard(Game::Get(), !commit);
-
-	// First, find the rightmost segment with "BeginHere" mode that passes restrictions
-	size_t beginning = NPOS;
-	for (size_t i = segments->size() - 1; i != NPOS; i--) {
-		const auto &s = segments->at(i);
-		// note that this is guaranteed to exist: the very first segment always fulfills
-		// these conditions by definition, the ADRIFT Developer will not allow you to
-		// set restrictions on it or change its display mode.
-		if (s.displayWhen == Display::BeginHere && SEGMENT_ELIGIBLE(s, i)) {
-			beginning = i;
-			break;
+	// `appended`, if given, continues this description's segment list -- so index `i` past our own
+	// count names one of its segments, and its shown-state is recorded against it rather than us.
+	const size_t ownCount = segments->size();
+	const size_t total = ownCount + (appended ? appended->segments->size() : 0);
+	auto segmentAt = [&](size_t i) -> const Segment & {
+		return i < ownCount ? segments->at(i) : appended->segments->at(i - ownCount);
+	};
+	auto segmentShown = [&](size_t i) {
+		return i < ownCount ? IsShown(i) : appended->IsShown(i - ownCount);
+	};
+	auto noteSegmentShown = [&](size_t i) {
+		if (i < ownCount) {
+			HandleSegmentShown(i);
+			return;
 		}
-	}
-
-	// Second, find the rightmost segment with "AfterDefault" mode that passes restrictions,
-	// but no further to the left than the value of 'beginning' we just determined.
-	// Confusingly, if this exists we need to set 'beginning' back to 0
-	// (meaning we will go back to showing the 'default' description).
-	size_t continuation = NPOS;
-	for (size_t i = segments->size() - 1; i > beginning; i--) {
-		const auto &s = segments->at(i);
-		if (s.displayWhen == Display::AfterDefault && SEGMENT_ELIGIBLE(s, i)) {
-			continuation = i;
-			beginning = 0;
-			break;
+		appended->HandleSegmentShown(i - ownCount);
+		// "Return to default" clears the shown flags of everything to the left, which for an
+		// appended segment reaches back across the seam into our own list.
+		if (appended->segments->at(i - ownCount).returnToDefault) {
+			for (size_t j = 0; j < ownCount; j++)
+				SetShown(j, false);
 		}
-	}
+	};
 
+	// A commit=false pass is a throwaway measurement (see this function's declaration) -- so besides
+	// not committing segment shown-state below, it must not let any %CharacterName%/character.Name
+	// evaluated along the way commit its mention either, or the real, printed Build() that follows
+	// would wrongly see the character as already named this turn and print a pronoun instead of
+	// their name.
+	Game::MeasuringOutputGuard measuringGuard(Game::Get(), !commit);
+
+	std::string result;
 	// Whether anything shown so far would make ADRIFT's AddSpace say yes on grounds the finished
 	// text no longer shows -- see Description::Segment.
-	std::string result(segments->at(beginning).Build(context, rawExpressions));
-	bool rawWantsSpace = segments->at(beginning).rawEndsWithFunc || segments->at(beginning).rawHasPropChain;
+	bool rawWantsSpace = false;
+	auto wantsSpace = [](const Segment &s) { return s.rawEndsWithFunc || s.rawHasPropChain; };
 	auto joinSpace = [&](const Segment &s, bool mark) {
 		if (NeedSpace(result) || (rawWantsSpace && !result.empty()
 				&& result.back() != ' ' && result.back() != '\n'))
@@ -146,24 +157,55 @@ std::string Description::BuildImpl(bool commit, const UserFuncContext *context, 
 		// start of a new sentence -- "...to the south.  an airlock." stays lowercase. A part that
 		// continues the default description gets no such marker, and does get capitalised.
 		if (mark) result += "<>";
-		rawWantsSpace = rawWantsSpace || s.rawEndsWithFunc || s.rawHasPropChain;
+		rawWantsSpace = rawWantsSpace || wantsSpace(s);
 	};
 
-	if (commit) HandleSegmentShown(beginning);
-	size_t nextSegment = beginning + 1;
-	if (continuation != NPOS) {
-		joinSpace(segments->at(continuation), false);
-		result.append(segments->at(continuation).Build(context, rawExpressions));
-		if (commit) HandleSegmentShown(continuation);
-		nextSegment = continuation + 1;
-	}
-	for (size_t i = nextSegment; i < segments->size(); i++) {
-		const auto &s = segments->at(i);
-		if (s.displayWhen == Display::Append && SEGMENT_ELIGIBLE(s, i)) {
+	for (size_t i = 0; i < total; i++) {
+		const auto &s = segmentAt(i);
+		// A DisplayOnce segment already shown is passed over entirely -- it neither contributes
+		// text nor ends the pass.
+		if (s.onceOnly && segmentShown(i)) continue;
+		bool passes = RESTRICTION_PASSES(s.restrictionId);
+		if (!passes) {
+			// A DisplayOnce segment ends the description whether or not it got to speak: ADRIFT
+			// returns from inside its DisplayOnce branch without consulting the restriction result.
+			if (s.onceOnly) break;
+			continue;
+		}
+
+		switch (s.displayWhen) {
+		case Display::Append:
 			joinSpace(s, true);
 			result.append(s.Build(context, rawExpressions));
-			if (commit) HandleSegmentShown(i);
+			break;
+		case Display::AfterDefault:
+			// "Start after the default description": the text so far is discarded in favour of
+			// segment 0 followed by this one. (Segment 0 being itself an AfterDefault segment is
+			// possible and means simply "start here".)
+			if (i == 0) {
+				result = s.Build(context, rawExpressions);
+				rawWantsSpace = wantsSpace(s);
+			} else {
+				const auto &def = segmentAt(0);
+				result = def.Build(context, rawExpressions);
+				rawWantsSpace = wantsSpace(def);
+				joinSpace(s, false);
+				result.append(s.Build(context, rawExpressions));
+			}
+			break;
+		case Display::BeginHere:
+			result = s.Build(context, rawExpressions);
+			rawWantsSpace = wantsSpace(s);
+			break;
 		}
+
+		// Only a DisplayOnce segment records having been shown -- that flag is what stops it coming
+		// round again, and nothing else consults it. (ReturnToDefault, which clears the flags to the
+		// left, likewise only applies to one, matching where ADRIFT handles it.)
+		if (commit && s.onceOnly) { noteSegmentShown(i); }
+		// A DisplayOnce segment that did display ends the description here: nothing further down
+		// the list gets a say this time round.
+		if (s.onceOnly) break;
 	}
 
 	return result;

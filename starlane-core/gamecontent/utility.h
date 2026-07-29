@@ -201,6 +201,15 @@ std::vector<std::string> SplitObjectList(const std::string &s);
 
 // Take an ADRIFT-style textual list (e.g., "foo|bar|baz") and turn it into a vector of strings.
 inline std::vector<std::string> SplitList(const std::string &lst) { return SplitString(lst, "\\|"); }
+// ...and back again.
+inline std::string JoinList(const std::vector<std::string> &parts) {
+	std::string result;
+	for (const auto &p : parts) {
+		if (!result.empty()) result += '|';
+		result += p;
+	}
+	return result;
+}
 // and the same for splitting a string at each newline:
 inline std::vector<std::string> SplitLines(const std::string &str) { return SplitString(str, "\n"); }
 

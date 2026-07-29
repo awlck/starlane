@@ -47,11 +47,15 @@ std::string Location::GetDisplayName([[maybe_unused]] bool defArt) const {
 	// supply one for all its members ("At the Bottom of the Ocean" for four ocean locations that
 	// each carry only a bookkeeping name of their own). A group's value wins, as it does for
 	// every other property.
-	if (const Group *grp = GetGroupWithProp("ShortLocationDescription"))
-		return Game::Get()->MutableDescription((DescrRef) grp->GetIntProp("ShortLocationDescription"))->BuildAndCommit();
 	if (locationName == (DescrRef) 0)
 		return "(BUG: Location without a name.)";
-	return Game::Get()->MutableDescription(locationName)->BuildAndCommit();
+	// The group's parts continue the location's own rather than replacing them, per
+	// clsLocation.ShortDescription -- so a group part restricted to (say) darkness only speaks up
+	// when those restrictions pass, and the room's real name stands the rest of the time.
+	Description *fromGroup = nullptr;
+	if (const Group *grp = GetGroupWithProp("ShortLocationDescription"))
+		fromGroup = Game::Get()->MutableDescription((DescrRef) grp->GetIntProp("ShortLocationDescription"));
+	return Game::Get()->MutableDescription(locationName)->BuildAndCommit(nullptr, fromGroup);
 }
 
 GameObj *Location::Clone() const {
@@ -175,9 +179,19 @@ std::string Location::GetDescription(bool forDisplay) const {
 	// The ADRIFT Runner gives the player (not the author!) the ability to
 	// disable showing the location name before the description. I don't feel
 	// that feature is worth wiring an entire user settings mechanism into the
-	// interpreter core, so I'm just not going to bother and always display them:
-	std::string result = "<b>" + GetDisplayName() + "</b>\n";
-	std::string ownDescription = GameObj::GetDescription(forDisplay);
+	// interpreter core, so I'm just not going to bother and always display them.
+	// The leading blank line is ADRIFT's too: clsLocation.ViewLocation prepends one for v5
+	// adventures, so a room description always starts a paragraph of its own rather than running
+	// on from whatever message preceded it ("You move east." + the room).
+	std::string result = "\n<b>" + GetDisplayName() + "</b>\n";
+	// As with the name above, a location group may contribute further parts to the long description
+	// (clsLocation.LongDescription), continuing the location's own list rather than replacing it.
+	Description *fromGroup = nullptr;
+	if (const Group *grp = GetGroupWithProp("LongLocationDescription"))
+		fromGroup = theGame->MutableDescription((DescrRef) grp->GetIntProp("LongLocationDescription"));
+	std::string ownDescription = fromGroup
+		? theGame->MutableDescription(description)->BuildAndCommit(nullptr, fromGroup)
+		: GameObj::GetDescription(forDisplay);
 	result += ownDescription;
 
 	// Whether any descriptive content precedes the general object list: the location's own
@@ -335,7 +349,7 @@ std::string Location::GetListOfExits() const {
 	return result;
 }
 
-std::string Location::GetExitsLine() const {
+std::vector<std::string> Location::GetAvailableExitNames() const {
 	auto *theGame = Game::Get();
 	const auto &dirTable = theGame->GetDirectionTable();
 	std::vector<std::string> available;
@@ -351,6 +365,11 @@ std::string Location::GetExitsLine() const {
 		available.push_back(frontend->StrToLowerCase(
 			disp != dirTable.canonicalToDisplay.end() ? disp->second : std::string(canonical)));
 	}
+	return available;
+}
+
+std::string Location::GetExitsLine() const {
+	std::vector<std::string> available = GetAvailableExitNames();
 	if (available.empty())
 		return "";
 	if (available.size() == 1)

@@ -275,6 +275,30 @@
       in `~/Library/Preferences/de.diepixelecke.Starlane.plist` under the `mainWindowGeometry`
       key. Verified end-to-end: resized and moved the window, closed it, relaunched, and confirmed
       the exact same geometry came back.
+- [x] core: work through the recorded transcripts of Bug Hunt on Menelaus, Race Against Time and
+      Alyas of Starhollow, command by command, and fix what made our output differ. The big ones
+      were: a task's "before" completion message has to be evaluated *ahead* of its actions and
+      keep that reading if the actions change it (this is what "(from %objects%.Parent.Name)" is
+      for, and it was naming the player instead of the container); description parts are chosen in
+      one left-to-right pass with `DisplayOnce` ending it, not by hunting for the rightmost
+      eligible part; an ambiguous reference is narrowed by the task's own restrictions before the
+      player is ever asked "Which pin?", and a task that stays ambiguous is passed over rather than
+      stopping the search; `{a/the}` and friends must absorb the following space even when the
+      preceding block already became an optional group; and `object.Children(Objects, On)` read its
+      second argument from the wrong node and validated it with an inverted test, so every capacity
+      check built on it threw. Also implemented: the ALL keyword, `%ListExits%`/`%ListObjectsOn%`/
+      `%ListCharactersIn%`/`%ListObjectsAtLocation%`/`%ObjectName%`/`%PropertyValue%`, and
+      per-turn "has been seen by" bookkeeping. Race Against Time now runs to its winning ending
+      with 3 of 131 commands differing (was 103); Bug Hunt 11 of 75 (was 26); Alyas 388 of 607
+      (was 538), with the first divergence moved from command 5 to command 43.
+- [ ] core: nested `<# ... #>` expression output is not re-scanned for `%Function[...]%` calls, so
+      a game that builds a function call out of string concatenation (Alyas's "There is no route
+      <dir>, only %ListExits[%Player%]%.") prints the call verbatim. ADRIFT's ReplaceFunctions
+      loops until the text stops changing.
+- [ ] core: a command that runs the same task twice (a move that triggers another move, each
+      ending in `Execute Look`) prints the room description once, not twice: both runs collapse
+      into one aggregated response. ADRIFT keeps a separate response set per top-level task
+      execution. See Alyas command 43.
 - [ ] core: implement support for AGAIN/G
 - [ ] Qt frontend: actually implement StrToSentenceCase
 - [ ] implement dockable secondary windows in the Qt frontend

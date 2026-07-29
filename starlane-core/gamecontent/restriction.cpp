@@ -206,6 +206,14 @@ bool Restriction::Single::PassImpl(DescrRef *out, bool ignoreUnsetRefs) const {
 	// Yes, this shadows the fields `lhs` and `rhs`. That's sort of the point.
 	// (The "unset reference" skips must only apply to actual references: e.g. property
 	//  restrictions always leave `rhs` empty, but still need to be evaluated.)
+	// "ReferencedObjects Must BeExactText All" asks about the *words the player typed*, not about
+	// whatever object the reference ended up bound to: it is how the standard library tells "put all
+	// in bag" from "put the ball in bag". ADRIFT special-cases it the same way (clsUserSession's
+	// restriction evaluator consults the reference's sCommandReference), because by this point the
+	// word ALL has already been expanded into the things it stood for.
+	if (lhsIsRef && cond == ConditionType::EqualTo && Util::ToLower(this->rhs) == "all")
+		return Game::Get()->ReferenceWasAll(Util::CanonicalizeRefName(this->lhs));
+
 	const std::string &lhs = lhsIsRef ? Game::Get()->GetReference(this->lhs) : this->lhs;
 	if (ignoreUnsetRefs && lhsIsRef && lhs.empty())
 		return true;
@@ -402,8 +410,16 @@ bool Restriction::Single::PassObjectCond(const std::string &lhs, const std::stri
 		// should never be able to get here since the above enum is exhaustive, but gcc apparently thinks we can...
 		return false;
 	}
-	case ConditionType::AtLocation:
-		return g->GetObject(lhs)->GetLocationKey() == rhs;
+	case ConditionType::AtLocation: {
+		const GameObj *l = g->GetObject(lhs);
+		if (l->GetLocationKey() == rhs) return true;
+		// A static object spread over a whole location group is at every one of those locations at
+		// once and so has no single location key of its own; the location itself is what can answer
+		// for it. (Alyas moves the oak tree's door "to location group" and then asks whether it is
+		// at the particular clearing the player is standing in.)
+		const Location *loc = AsLocation(g->TryGetObject(rhs));
+		return loc && loc->HoldsDirectly(l);
+	}
 	case ConditionType::InSameLocationAs:
 	{
 		const std::string &here = g->GetObject(lhs)->GetLocationKey();

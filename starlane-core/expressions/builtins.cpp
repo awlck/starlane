@@ -303,7 +303,19 @@ Expr::Value Expression::PCaseImpl(const ast_node_tag *args) const {
 	if (theArg.ty == Expr::ValueType::Integer)
 		return std::to_string(theArg.Int);
 	else if (theArg.ty == Expr::ValueType::String) {
-		return frontend->StrToSentenceCase(theArg.Str);
+		// Only the first character is touched: ADRIFT's PCase takes bStrictLower=False here, so
+		// the rest of the text keeps whatever case it already had. That is what makes
+		// "%PCase[%direction%]%" read "SouthEast" rather than flattening it to "Southeast".
+		const std::string &s = theArg.Str;
+		size_t start = s.find_first_not_of(" \t\r\n");
+		if (start == std::string::npos) return s;
+		// Uppercase exactly one character, which means finding where it ends: a UTF-8 lead byte
+		// says how many continuation bytes follow it.
+		auto lead = (unsigned char) s[start];
+		size_t len = lead < 0x80 ? 1 : lead < 0xE0 ? 2 : lead < 0xF0 ? 3 : 4;
+		if (start + len > s.size()) len = s.size() - start;
+		return s.substr(0, start) + frontend->StrToUpperCase(s.substr(start, len))
+		       + s.substr(start + len);
 	} else throw std::runtime_error("Invalid value.");
 }
 
@@ -402,16 +414,37 @@ Expr::Value Expression::ListRelatedImpl(const ast_node_tag *args, ListRelation r
 		                              false);
 		break;
 	}
+	case ListRelation::ObjectsOn:
 	case ListRelation::ObjectsIn:
 	case ListRelation::ObjectsOnAndIn:
+	case ListRelation::CharactersOn:
+	case ListRelation::CharactersIn:
 	case ListRelation::CharactersOnAndIn: {
 		const auto *obj = g->TryGetObject(theArg.Str);
 		if (!obj) return std::string("nothing");
-		auto filter = rel == ListRelation::CharactersOnAndIn ? GameObj::ChildFilter::Characters
-		                                                     : GameObj::ChildFilter::Objects;
-		auto relFilter = rel == ListRelation::ObjectsIn ? GameObj::ChildRelFilter::In
-		                                                : GameObj::ChildRelFilter::OnAndIn;
+		bool wantChars = rel == ListRelation::CharactersOn || rel == ListRelation::CharactersIn
+		                 || rel == ListRelation::CharactersOnAndIn;
+		auto filter = wantChars ? GameObj::ChildFilter::Characters : GameObj::ChildFilter::Objects;
+		auto relFilter = GameObj::ChildRelFilter::OnAndIn;
+		if (rel == ListRelation::ObjectsOn || rel == ListRelation::CharactersOn)
+			relFilter = GameObj::ChildRelFilter::On;
+		else if (rel == ListRelation::ObjectsIn || rel == ListRelation::CharactersIn)
+			relFilter = GameObj::ChildRelFilter::In;
 		keys = obj->GetListOfChildren(filter, relFilter, false);
+		break;
+	}
+	case ListRelation::ObjectsAtLocation: {
+		// ADRIFT's WhichObjectsToListEnum.AllObjects with bDirectly=False: everything whose
+		// containment chain bottoms out at this location, listed or not, held or not.
+		const auto *loc = AsLocation(g->TryGetObject(theArg.Str));
+		if (!loc) return std::string("nothing");
+		size_t count = 0;
+		for (const GameObj *obj : g->GetAllObjects()) {
+			if (obj->IsCharacter() || obj->IsLocation()) continue;
+			if (obj->GetLocation() != loc) continue;
+			if (count++ > 0) keys += '|';
+			keys += obj->Key();
+		}
 		break;
 	}
 	}
@@ -427,6 +460,10 @@ Expr::Value Expression::ListWornImpl(const ast_node_tag *args) const {
 	return ListRelatedImpl(args, ListRelation::Worn);
 }
 
+Expr::Value Expression::ListObjectsOnImpl(const ast_node_tag *args) const {
+	return ListRelatedImpl(args, ListRelation::ObjectsOn);
+}
+
 Expr::Value Expression::ListObjectsInImpl(const ast_node_tag *args) const {
 	return ListRelatedImpl(args, ListRelation::ObjectsIn);
 }
@@ -435,8 +472,70 @@ Expr::Value Expression::ListObjectsOnAndInImpl(const ast_node_tag *args) const {
 	return ListRelatedImpl(args, ListRelation::ObjectsOnAndIn);
 }
 
+Expr::Value Expression::ListCharactersOnImpl(const ast_node_tag *args) const {
+	return ListRelatedImpl(args, ListRelation::CharactersOn);
+}
+
+Expr::Value Expression::ListCharactersInImpl(const ast_node_tag *args) const {
+	return ListRelatedImpl(args, ListRelation::CharactersIn);
+}
+
 Expr::Value Expression::ListCharactersOnAndInImpl(const ast_node_tag *args) const {
 	return ListRelatedImpl(args, ListRelation::CharactersOnAndIn);
+}
+
+Expr::Value Expression::ListObjectsAtLocationImpl(const ast_node_tag *args) const {
+	return ListRelatedImpl(args, ListRelation::ObjectsAtLocation);
+}
+
+// %ListExits[character]%: the directions that character could currently walk in, phrased as
+// "north, east and down" -- or "nowhere" when there are none. Per clsCharacter.ListExits, the
+// names come from the game's own direction table and are lower-cased.
+Expr::Value Expression::ListExitsImpl(const ast_node_tag *args) const {
+	CHECK_ARGCOUNT("ListExits", 1);
+	EXTRACT_FIRST_ARG_STR(args, theArg);
+	auto *g = Game::Get();
+	const auto *ch = AsCharacter(g->TryGetObject(theArg.Str));
+	if (!ch) return std::string("nowhere");
+	const Location *loc = ch->GetLocation();
+	if (!loc) return std::string("nowhere");
+	auto exits = loc->GetAvailableExitNames();
+	if (exits.empty()) return std::string("nowhere");
+	return Expr::WriteListFrom(Util::JoinList(exits), Expr::ListTransformType::None,
+	                           Expr::ListJoinType::And, false);
+}
+
+// %ObjectName[...]%: names the objects the argument resolves to, indefinitely. Unlike
+// %TheObject[...]% this is the indefinite form ("a lamp"), per ADRIFT's htblObjects.List call.
+Expr::Value Expression::ObjectNameImpl(const ast_node_tag *args) const {
+	CHECK_ARGCOUNT("ObjectName", 1);
+	EXTRACT_FIRST_ARG_STR(args, theArg);
+	if (theArg.Str.empty()) return std::string("nothing");
+	return Expr::WriteListFrom(theArg.Str, Expr::ListTransformType::IndefName,
+	                           Expr::ListJoinType::And, false);
+}
+
+// %PropertyValue[key, property]%: the named property's value on each item the first argument
+// resolves to. Items that do not carry the property are skipped, as in ADRIFT (which merely
+// reports the omission to the author and moves on).
+Expr::Value Expression::PropertyValueImpl(const ast_node_tag *args) const {
+	CHECK_ARGCOUNT("PropertyValue", 2);
+	EXTRACT_FIRST_ARG_STR(args, theArg);
+	auto propArg = EvalAnyNode(args->child.last);
+	Expr::EnsureString(propArg);
+	const std::string &prop = propArg.Str;
+	auto *g = Game::Get();
+	std::vector<std::string> values;
+	for (const std::string &key : Util::SplitList(theArg.Str)) {
+		const GameObj *obj = g->TryGetObject(key);
+		if (!obj || !obj->HasProp(prop)) continue;
+		const auto &strProps = obj->GetAllStrProps();
+		auto s = strProps.find(prop);
+		values.push_back(s != strProps.end() ? s->second : std::to_string(obj->GetIntProp(prop)));
+	}
+	if (values.empty()) return std::string();
+	return Expr::WriteListFrom(Util::JoinList(values), Expr::ListTransformType::None,
+	                           Expr::ListJoinType::And, false);
 }
 
 void Expression::ApplyPronounKeyword(const std::string &kwRaw, Pronoun &pronoun, bool &force) const {
@@ -734,16 +833,16 @@ Expr::Value Expression::ObjChildrenImpl(const GameObj *obj, const ast_node_tag *
 			typeFilter = GameObj::ChildFilter::Characters;
 		else if (txt == "Objects" || txt == "objects")
 			typeFilter = GameObj::ChildFilter::Objects;
-		else if (txt != "All" || txt == "all")
+		else if (txt != "All" && txt != "all")
 			throw std::runtime_error("Invalid filter in call to obj.Children: " + txt);
-		auto tmp2 = EvalAnyNode(args->child.first);
+		auto tmp2 = EvalAnyNode(args->child.last);
 		Expr::EnsureString(tmp2);
-		const auto &txt2 = tmp1.Str;
+		const auto &txt2 = tmp2.Str;
 		if (txt2 == "In" || txt2 == "in")
 			relationFilter = GameObj::ChildRelFilter::In;
 		else if (txt2 == "On" || txt2 == "on")
 			relationFilter = GameObj::ChildRelFilter::On;
-		else if (txt2 != "OnAndIn" || txt2 == "onandin")
+		else if (txt2 != "OnAndIn" && txt2 != "onandin")
 			throw std::runtime_error("Invalid filter in call to obj.Children: " + txt2);
 	}
 	return obj->GetListOfChildren(typeFilter, relationFilter);

@@ -2,6 +2,7 @@
 
 #include <algorithm>
 #include <cctype>
+#include <cstring>
 #include <iostream>
 
 #include <pugixml.hpp>
@@ -246,6 +247,11 @@ void RestoreWildcards(std::string &s) {
 	ReplaceAll(s, std::string(1, kWcAny), ".*?");
 }
 
+bool EndsWith(const std::string &s, const char *suffix) {
+	size_t n = std::strlen(suffix);
+	return s.size() >= n && s.compare(s.size() - n, n, suffix) == 0;
+}
+
 std::string ProcessBlock(std::string_view block) {  //NOLINT(misc-no-recursion)
 	std::string_view nextBlock;
 	std::string result;
@@ -261,7 +267,13 @@ std::string ProcessBlock(std::string_view block) {  //NOLINT(misc-no-recursion)
 			// C++ and adapted to output regex. fml.
 			bool containsMandatory = ContainsMandatoryText(block);
 			if (containsMandatory && !block.empty() && block[0] == ' ') {
-				if (result.empty() || result[result.size()-1] == ' ' || result[result.size()-1] == '}') {
+				// ADRIFT asks whether what it has built so far ends in "}", i.e. in an optional
+				// group -- it assembles the whole pattern in the game's own brace syntax and only
+				// converts to a regex at the end, whereas this converts as it goes. The equivalent
+				// question here is whether `result` ends with the ")?" such a group turns into.
+				// (Getting this wrong strands the space *outside* a following optional group, so
+				// "[get/take] {down} {a/the} {woollen} blanket" stops matching a plain "get blanket".)
+				if (result.empty() || result[result.size()-1] == ' ' || EndsWith(result, ")?")) {
 					if (nextBlock.find('/') != std::string_view::npos) {
 						transformedBlock = "{[";
 						transformedBlock += nextBlock.substr(1, nextBlock.size()-2);
@@ -1047,12 +1059,41 @@ void Task::Action::PerformImpl() const {
 	case ActionType::MakePartOf:
 		PerformMoveTo(rhs);
 		break;
-	case ActionType::MoveToLocationOf:
-		// "to the same location as X": the room X is ultimately in, not whatever immediately holds
-		// it -- a thing in someone's pocket still puts you in the room, not the pocket.
-		if (const GameObj *other = g->TryGetObject(rhs))
-			PerformMoveTo(other->GetLocationKey());
+	case ActionType::MoveToLocationOf: {
+		// "to the same location as X" copies X's whole position, not merely the room it works out
+		// to: ADRIFT assigns `dest = obDest.Location.Copy`, so the thing lands held by the same
+		// character, or inside the same container, as X is. Games rely on that to swap one object
+		// for another in the player's hands (Alyas swaps a plain strip of cloth for a scented one).
+		const GameObj *other = g->TryGetObject(rhs);
+		if (!other) break;
+		// Hidden has no position to copy; neither has a static object, which is placed rather than
+		// held, so that one settles for the room it stands in.
+		if (other->GetParentKey().empty()) {
+			PerformMoveTo("Hidden", GameObj::HoldingType::Hidden);
+			break;
+		}
+		if (const Character *ch = AsCharacter(other)) {
+			// A character in or on something takes the object with them, but only if that thing
+			// can hold objects that way; otherwise the object goes to the room around them.
+			auto rel = ch->GetParentRelation();
+			bool inside = rel == GameObj::HoldingType::InObject;
+			if (inside || rel == GameObj::HoldingType::OnObject) {
+				const GameObj *seat = g->TryGetObject(ch->GetParentKey());
+				if (seat && seat->HasProp(inside ? "Container" : "Surface")) {
+					PerformMoveTo(ch->GetParentKey(), rel);
+					break;
+				}
+			}
+			PerformMoveTo(ch->GetLocationKey(), GameObj::HoldingType::AtLocation);
+			break;
+		}
+		if (!other->IsDynamic()) {
+			PerformMoveTo(other->GetLocationKey(), GameObj::HoldingType::AtLocation);
+			break;
+		}
+		PerformMoveTo(other->GetParentKey(), other->GetParentRelation());
 		break;
+	}
 	case ActionType::MoveToParent:  // moving a character "up" one level
 		{
 			// Where it lands is one thing, but so is *how* it is held there, and that can only
@@ -1501,11 +1542,13 @@ void Task::Action::PerformImpl() const {
 	}
 }
 
-void Task::Action::PerformMoveTo(const std::string &moveTarget) const {
+void Task::Action::PerformMoveTo(const std::string &moveTarget,
+                                 std::optional<GameObj::HoldingType> relation) const {
 	auto *g = Game::Get();
+	const GameObj::HoldingType landsAs = relation ? *relation : ActionTypeToHoldingType(type);
 	switch (refType) {
 	case ActionRefType::SingleObj:
-		g->MutableObjectChecked(lhs)->MoveTo(moveTarget, ActionTypeToHoldingType(type));
+		g->MutableObjectChecked(lhs)->MoveTo(moveTarget, landsAs);
 		break;
 	case ActionRefType::ObjsHeldBy:
 	case ActionRefType::ObjsInside:
@@ -1520,7 +1563,7 @@ void Task::Action::PerformMoveTo(const std::string &moveTarget) const {
 		for (size_t oi = 0; oi < allObjs.size(); oi++) {
 			const GameObj *o = allObjs[oi];
 			if (ObjIsAppropriate(refType, o) && o->GetParentKey() == lhs && o->GetParentRelation() == ht)
-				g->MutableObject(oi)->MoveTo(moveTarget, ActionTypeToHoldingType(type));
+				g->MutableObject(oi)->MoveTo(moveTarget, landsAs);
 		}
 	}
 		break;
@@ -1533,7 +1576,7 @@ void Task::Action::PerformMoveTo(const std::string &moveTarget) const {
 			for (size_t oi = 0; oi < allObjs.size(); oi++) {
 				const GameObj *o = allObjs[oi];
 				if (ObjIsAppropriate(refType, o) && o->GetBoolProp(prop))
-					g->MutableObject(oi)->MoveTo(moveTarget, ActionTypeToHoldingType(type));
+					g->MutableObject(oi)->MoveTo(moveTarget, landsAs);
 			}
 			break;
 		case Property::ValueType::Object:
@@ -1541,7 +1584,7 @@ void Task::Action::PerformMoveTo(const std::string &moveTarget) const {
 			for (size_t oi = 0; oi < allObjs.size(); oi++) {
 				const GameObj *o = allObjs[oi];
 				if (ObjIsAppropriate(refType, o) && o->GetStrProp(prop) == propCmpValue)
-					g->MutableObject(oi)->MoveTo(moveTarget, ActionTypeToHoldingType(type));
+					g->MutableObject(oi)->MoveTo(moveTarget, landsAs);
 			}
 			break;
 		case Property::ValueType::Map:
@@ -1550,7 +1593,7 @@ void Task::Action::PerformMoveTo(const std::string &moveTarget) const {
 			for (size_t oi = 0; oi < allObjs.size(); oi++) {
 				const GameObj *o = allObjs[oi];
 				if (ObjIsAppropriate(refType, o) && o->GetIntProp(prop) == tmpInt)
-					g->MutableObject(oi)->MoveTo(moveTarget, ActionTypeToHoldingType(type));
+					g->MutableObject(oi)->MoveTo(moveTarget, landsAs);
 			}
 			break;
 		}
@@ -1559,7 +1602,7 @@ void Task::Action::PerformMoveTo(const std::string &moveTarget) const {
 			for (size_t oi = 0; oi < allObjs.size(); oi++) {
 				const GameObj *o = allObjs[oi];
 				if (ObjIsAppropriate(refType, o) && o->GetStrProp(prop) == tmpTxt)
-					g->MutableObject(oi)->MoveTo(moveTarget, ActionTypeToHoldingType(type));
+					g->MutableObject(oi)->MoveTo(moveTarget, landsAs);
 			}
 			break;
 		}
@@ -1574,7 +1617,7 @@ void Task::Action::PerformMoveTo(const std::string &moveTarget) const {
 		for (size_t oi = 0; oi < allObjs.size(); oi++) {
 			const GameObj *o = allObjs[oi];
 			if (ObjIsAppropriate(refType, o) && o->IsMemberOfGroup(lhs))
-				g->MutableObject(oi)->MoveTo(moveTarget, ActionTypeToHoldingType(type));
+				g->MutableObject(oi)->MoveTo(moveTarget, landsAs);
 		}
 	}
 		break;

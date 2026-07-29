@@ -365,6 +365,9 @@ public:
 	// waited turn by WAIT, and repeatedly by a task's "skip N turns" action -- which is why it
 	// has to be reachable from Task::Action, via Game::Get(), as ExecuteTaskByKey is.
 	void TurnTick();
+	// Note, for every character, everything they can currently see as seen. Run once at the end of
+	// every turn, since a turn can make something visible without moving it -- see the definition.
+	void MarkVisibleThingsSeen();
 	uint32_t GetTurnCount() const { return turnCount; }
 	// Whether we are presently inside RunEventTick. An event asked to start or stop by a task
 	// consults this to decide whether to do so there and then or wait for its own next tick.
@@ -392,8 +395,8 @@ public:
 		// Suppressed while a Description::Build(false) frame (or anything nested within one) is
 		// evaluating -- that pass is a throwaway measurement never shown to the player, so it must
 		// not be able to make a *later*, real Build() print a pronoun instead of a name. See
-		// mentionTrackingSuppressed.
-		if (mentionTrackingSuppressed) return;
+		// measuringOutput.
+		if (measuringOutput) return;
 		mostRecentlyMentioned = {key, p};
 		charactersMentionedThisTurn[key] = p;
 	}
@@ -404,18 +407,20 @@ public:
 		if (it == charactersMentionedThisTurn.end()) return std::nullopt;
 		return it->second;
 	}
-	// RAII guard used by Description::Build to suppress MentionCharacter's writes for the duration
-	// of a commit=false ("measuring") build -- mirroring how that same commit flag already gates
-	// Description::HandleSegmentShown. Nests correctly (a counter, not a bool) since a measuring
-	// build can itself evaluate a nested Description::Build call. `active` is false for an ordinary
-	// commit=true build, which should have no effect on the ambient suppression state.
-	struct MentionTrackingSuppressGuard {
+	// Whether a commit=false ("measuring") Description build is in progress -- see measuringOutput.
+	bool IsMeasuringOutput() const { return measuringOutput > 0; }
+	// RAII guard used by Description::Build to mark a commit=false ("measuring") build, and
+	// everything evaluated within it, as not really being shown to the player. Nests correctly (a
+	// counter, not a bool) since a measuring build can itself evaluate a nested Description::Build
+	// call. `active` is false for an ordinary commit=true build, which should have no effect on the
+	// ambient state. ADRIFT does the same with its bTestingOutput flag, for the same reasons.
+	struct MeasuringOutputGuard {
 		Game *g;
 		bool active;
-		MentionTrackingSuppressGuard(Game *g, bool active) : g(g), active(active) {
-			if (active) g->mentionTrackingSuppressed++;
+		MeasuringOutputGuard(Game *g, bool active) : g(g), active(active) {
+			if (active) g->measuringOutput++;
 		}
-		~MentionTrackingSuppressGuard() { if (active) g->mentionTrackingSuppressed--; }
+		~MeasuringOutputGuard() { if (active) g->measuringOutput--; }
 	};
 
 	const std::string &GetTitle() const { return staticData->gameTitle; }
@@ -533,6 +538,12 @@ private:
 	// first such reference, and return true -- the command does not run and the world does not
 	// advance until they answer. Returns false (and does nothing) when every reference is unambiguous.
 	bool BeginDisambiguationIfNeeded(Task *chosen);
+	// Narrow each of `task`'s ambiguous references (per currentRefMatches/currentRefItemMatches) to
+	// the candidates its restrictions would accept, so the player is only ever asked to choose
+	// between things the command could really apply to. Returns false when an ambiguous reference
+	// has no acceptable candidate at all -- meaning this task should be passed over entirely.
+	// Leaves currentRefs bound to the surviving choice for each reference it narrowed.
+	bool RefineReferencesByRestrictions(const Task *task, const std::vector<std::string> &refTokens);
 	// Route a line of input that answers a pending disambiguation question. Narrows the current
 	// ambiguous reference by the answer; on full resolution it runs the held command, otherwise it
 	// asks about the next ambiguity, re-asks, or -- when the answer names no candidate but is itself
@@ -559,11 +570,17 @@ private:
 	// object/character references of runs whose (aggregated) message coincided so a multi-object
 	// command renders one combined sentence. See RunTaskAndCapture and ADRIFT's "Aggregate output".
 	void FlushResponseBuffer(ResponseBuffer &buffer);
+	// Queue a piece of already-evaluated text (a restriction-failure message, typically) behind the
+	// completion messages a command has recorded so far, so it is shown in the order it happened
+	// rather than jumping ahead of buffered messages. Prints straight away outside a command.
+	void RecordResponse(std::string text);
 	// Run `general` together with whichever of its Specific children currently apply, per their
 	// OverrideType. Assumes `general`'s own restrictions have already passed. `refTokens` names
 	// the references a child's positional constraints are checked against (see
 	// SpecificTaskMatches).
-	void RunTaskWithSpecifics(Task *general, const std::vector<std::string> &refTokens);
+	// Returns whether anything was said, by the task or by any of its children -- what a nested
+	// call owes the caller that ran it as somebody else's Specific child.
+	bool RunTaskWithSpecifics(Task *general, const std::vector<std::string> &refTokens);
 	// Run `task`'s actions and/or output its completion message, in whichever order that
 	// task's own MessagePlacement calls for. Assumes restrictions already passed. Output
 	// happens immediately (not buffered) so it interleaves correctly with any nested task
@@ -643,6 +660,10 @@ private:
 	// prints it. Mirrors an entry in ADRIFT's per-command response table. See RunTaskAndCapture.
 	struct AggregatedResponse {
 		DescrRef descr;                                             // the message to render at flush time
+		// Set when the message was read before its task's actions ran and those actions changed
+		// what it would say: the flush emits this text as it stands rather than rendering `descr`
+		// again against a world that has moved on. See RunTaskAndCapture.
+		std::string pinnedText;
 		// The references in effect when this message was first recorded; the flush re-renders against
 		// these (plus any merged overrides below).
 		std::unordered_map<std::string, std::string> refSnapshot;
@@ -672,8 +693,11 @@ private:
 	// the start of every ProcessInput, like turnHasOutput below: transient, never saved or undone.
 	std::unordered_map<std::string, Pronoun> charactersMentionedThisTurn;
 	// >0 while a Description::Build(false) frame -- or anything nested within one -- is evaluating.
-	// See MentionCharacter/MentionTrackingSuppressGuard.
-	int mentionTrackingSuppressed = 0;
+	// Such a build is a throwaway measurement, so nothing it touches may leave a mark the player
+	// would notice later: no character counts as having been mentioned (see MentionCharacter), and
+	// no description counts as having been displayed -- a "display once" part reached only through
+	// a measuring build must still be there for the real one. See MeasuringOutputGuard.
+	int measuringOutput = 0;
 
 	// For each object/character %ref% captured, the raw text the player typed for it and the full
 	// list of object keys that text could refer to. currentRefs keeps only the first of those (the
@@ -691,6 +715,19 @@ private:
 	// currentRefMatches/currentRefLists. Only plural references (pieces > 1) appear here; a
 	// single-piece reference still disambiguates through currentRefMatches as a singular one does.
 	std::unordered_map<std::string, std::vector<RefMatchInfo>> currentRefItemMatches;
+
+	// The canonical names of references the player filled in with the word ALL rather than by naming
+	// anything ("put all in bag"). The standard library asks about this directly -- "ReferencedObjects
+	// Must BeExactText All" gates the tasks that handle a sweeping command -- so which references were
+	// typed that way has to survive the expansion into the actual list of things. Same transient
+	// lifecycle as currentRefs.
+	std::unordered_set<std::string> currentAllRefs;
+public:
+	// Whether the named reference was filled in with the word ALL. See currentAllRefs.
+	bool ReferenceWasAll(const std::string &canonicalName) const {
+		return currentAllRefs.count(canonicalName) > 0;
+	}
+private:
 
 	// A command that matched a task but left one or more of its references ambiguous, held while we
 	// ask the player which object they meant. Their next line of input is routed to the resolver

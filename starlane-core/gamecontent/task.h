@@ -6,11 +6,13 @@
 #include "../slc_private.h"
 
 #include <cstdint>
+#include <optional>
 #include <regex>
 #include <string>
 #include <utility>
 #include <vector>
 
+#include "gameobj.h"  // for GameObj::HoldingType, named in PerformMoveTo's signature
 #include "utility.h"
 
 namespace Starlane {
@@ -76,6 +78,9 @@ public:
 	std::pair<bool, DescrRef> CheckRestrictions() const;
 	// Run this task's actions. Assumes the caller has already confirmed CheckRestrictions() passes.
 	void RunActions();
+	// Whether there are any -- i.e. whether running them could change what this task's completion
+	// message says about the world.
+	[[nodiscard]] bool HasActions() const { return !actions.empty(); }
 	[[nodiscard]] DescrRef GetCompletionMsg() const { return completionMsg; }
 
 	// Whether *this* task's own completion message displays before or after *this* task's own
@@ -263,7 +268,12 @@ private:
 		// Actually perform the action for concrete objects/values.
 		void PerformImpl() const;
 		// Perform a move
-		void PerformMoveTo(const std::string &moveTarget) const;
+		// Move whatever this action's reference names to `moveTarget`. The relation it lands in
+		// normally follows from the action's own type (MoveInsideObj puts it inside, and so on);
+		// `relation` overrides that for the one action -- "to the same location as X" -- whose
+		// destination decides how the thing is held as well as where.
+		void PerformMoveTo(const std::string &moveTarget,
+		                   std::optional<GameObj::HoldingType> relation = std::nullopt) const;
 		// MoveCharacter <chKey> ToSwitchWith <rhs>. See the case in PerformImpl for the (rather
 		// odd) semantics this reproduces from the original ADRIFT runner.
 		void PerformSwitchWith(const std::string &chKey) const;

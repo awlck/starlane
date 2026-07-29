@@ -117,10 +117,38 @@ std::map<std::string, decltype(&Expression::LCaseImpl)> Expression::tableOfBuilt
 	{ "Listworn", &Expression::ListWornImpl },
 	{ "listworn", &Expression::ListWornImpl },
 	{ "LISTWORN", &Expression::ListWornImpl },
+	{ "ListExits", &Expression::ListExitsImpl },
+	{ "Listexits", &Expression::ListExitsImpl },
+	{ "listexits", &Expression::ListExitsImpl },
+	{ "LISTEXITS", &Expression::ListExitsImpl },
+	{ "ListObjectsOn", &Expression::ListObjectsOnImpl },
+	{ "Listobjectson", &Expression::ListObjectsOnImpl },
+	{ "listobjectson", &Expression::ListObjectsOnImpl },
+	{ "LISTOBJECTSON", &Expression::ListObjectsOnImpl },
 	{ "ListObjectsIn", &Expression::ListObjectsInImpl },
 	{ "Listobjectsin", &Expression::ListObjectsInImpl },
 	{ "listobjectsin", &Expression::ListObjectsInImpl },
 	{ "LISTOBJECTSIN", &Expression::ListObjectsInImpl },
+	{ "ListObjectsAtLocation", &Expression::ListObjectsAtLocationImpl },
+	{ "Listobjectsatlocation", &Expression::ListObjectsAtLocationImpl },
+	{ "listobjectsatlocation", &Expression::ListObjectsAtLocationImpl },
+	{ "LISTOBJECTSATLOCATION", &Expression::ListObjectsAtLocationImpl },
+	{ "ListCharactersOn", &Expression::ListCharactersOnImpl },
+	{ "Listcharacterson", &Expression::ListCharactersOnImpl },
+	{ "listcharacterson", &Expression::ListCharactersOnImpl },
+	{ "LISTCHARACTERSON", &Expression::ListCharactersOnImpl },
+	{ "ListCharactersIn", &Expression::ListCharactersInImpl },
+	{ "Listcharactersin", &Expression::ListCharactersInImpl },
+	{ "listcharactersin", &Expression::ListCharactersInImpl },
+	{ "LISTCHARACTERSIN", &Expression::ListCharactersInImpl },
+	{ "ObjectName", &Expression::ObjectNameImpl },
+	{ "Objectname", &Expression::ObjectNameImpl },
+	{ "objectname", &Expression::ObjectNameImpl },
+	{ "OBJECTNAME", &Expression::ObjectNameImpl },
+	{ "PropertyValue", &Expression::PropertyValueImpl },
+	{ "Propertyvalue", &Expression::PropertyValueImpl },
+	{ "propertyvalue", &Expression::PropertyValueImpl },
+	{ "PROPERTYVALUE", &Expression::PropertyValueImpl },
 	{ "ListObjectsOnAndIn", &Expression::ListObjectsOnAndInImpl },
 	{ "Listobjectsonandin", &Expression::ListObjectsOnAndInImpl },
 	{ "listobjectsonandin", &Expression::ListObjectsOnAndInImpl },
@@ -330,7 +358,7 @@ std::string Expression::EvaluateStr(const UserFuncContext *context) {
 #endif
 	if (result.ty == Expr::ValueType::String) return result.Str;
 	else if (result.ty == Expr::ValueType::Integer) return std::to_string(result.Int);
-	throw std::runtime_error("Invalid expression result");
+	throw std::runtime_error("Invalid expression result in: " + exprStr);
 }
 
 Expr::Value Expression::ResolveNameToValue(const std::string &nt) const {
@@ -809,7 +837,7 @@ int64_t Expression::EvalAsIntImpl() const {
 #else
 	auto result = EvalAnyNode(rootNode);
 #endif
-	if (result.ty == Expr::ValueType::Invalid) throw std::runtime_error("Invalid expression result.");
+	if (result.ty == Expr::ValueType::Invalid) throw std::runtime_error("Invalid expression result in: " + exprStr);
 	if (result.ty == Expr::ValueType::Integer) return result.Int;
 	// we're dealing with a string, try to convert it to an integer.
 	if (result.Str.empty()) return 0;  // hmm... not sure about this.

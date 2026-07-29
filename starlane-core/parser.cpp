@@ -114,13 +114,6 @@ const char *MissingRefPromptWord(const std::string &family) {
 	return nullptr;
 }
 
-// Case-insensitive-by-construction (currentCommand is already folded to lower case by the time
-// this runs) whole-word replacement of one pronoun at a time, so that a phrase like "neither" or
-// "history" -- which merely contain "her"/"his" as a substring -- is left alone.
-std::string ReplacePronounWord(std::string s, const std::regex &wordRe, const std::string &antecedent) {
-	if (antecedent.empty()) return s;
-	return std::regex_replace(s, wordRe, antecedent);
-}
 }  // anonymous namespace
 
 std::string Game::SubstitutePronouns(std::string s) const {
@@ -128,13 +121,22 @@ std::string Game::SubstitutePronouns(std::string s) const {
 	static const std::regex kThemWord(R"(\bthem\b)");
 	static const std::regex kHimWord(R"(\bhim\b)");
 	static const std::regex kHerWord(R"(\bher\b)");
+	// A pronoun the player used is answered with what it was taken to mean, on a line of its own
+	// ahead of the command's own output -- "(the thin book)" before READ IT does its reading.
+	// ADRIFT prints this as it makes each substitution, so several pronouns in one command produce
+	// several lines, in this same order.
+	auto substitute = [this, &s](const std::regex &wordRe, const std::string &antecedent) {
+		if (antecedent.empty() || !std::regex_search(s, wordRe)) return;
+		OutputFiltered("<c>(" + antecedent + ")</c>\n");
+		s = std::regex_replace(s, wordRe, antecedent);
+	};
 	// Order matches ADRIFT: an antecedent's own display name never itself contains one of these
 	// four words as a whole word, so one pass per pronoun (rather than a single combined regex)
 	// is enough, and keeps each replacement independent of the others.
-	s = ReplacePronounWord(std::move(s), kItWord, pronounItText);
-	s = ReplacePronounWord(std::move(s), kThemWord, pronounThemText);
-	s = ReplacePronounWord(std::move(s), kHimWord, pronounHimText);
-	s = ReplacePronounWord(std::move(s), kHerWord, pronounHerText);
+	substitute(kItWord, pronounItText);
+	substitute(kThemWord, pronounThemText);
+	substitute(kHimWord, pronounHimText);
+	substitute(kHerWord, pronounHerText);
 	return s;
 }
 
@@ -254,9 +256,23 @@ void Game::BindReference(std::unordered_map<std::string, std::string> &refs,
 	}
 }
 
+namespace {
+// Whether the text filling a plural reference is ADRIFT's ALL keyword rather than the name of
+// anything. "all" on its own only: "all balls" and "all but the ball" narrow it, which is a
+// different (and unimplemented) matter, and must not be mistaken for the sweeping form.
+bool IsAllKeyword(const std::string &raw) {
+	const std::string folded = Util::ToLower(raw);
+	size_t first = folded.find_first_not_of(" \t");
+	if (first == std::string::npos) return false;
+	const std::string word = folded.substr(first, folded.find_last_not_of(" \t") - first + 1);
+	return word == "all" || word == "everything";
+}
+}  // anonymous namespace
+
 bool Game::CaptureReferences(const std::vector<std::string> &refSpecs, const std::smatch &matches) {
 	currentRefLists.clear();
 	currentRefItemMatches.clear();
+	currentAllRefs.clear();
 	for (size_t i = 0; i < refSpecs.size(); i++) {
 		const std::string &ref = refSpecs[i];
 		std::string raw = matches[i + 1].str();
@@ -271,6 +287,34 @@ bool Game::CaptureReferences(const std::vector<std::string> &refSpecs, const std
 			// restrictions/messages relying on it will simply see an empty reference.
 			resolved = Util::CanonicalizeDirection(raw, GetDirectionTable());
 		} else if (family == "objects" || family == "characters") {
+			// ALL names everything the player has laid eyes on, rather than anything in particular.
+			// ADRIFT expands it against htblObjects.SeenBy and leaves the sorting-out to the task's
+			// restrictions, which run once per thing (see ExecuteMatchedTask) and quietly reject
+			// whatever the command cannot apply to.
+			if (IsAllKeyword(raw)) {
+				const auto *player = AsCharacter(GetPlayerChar());
+				std::vector<std::string> items;
+				const bool wantChars = family == "characters";
+				for (const GameObj *o : objects) {
+					if (o->IsLocation() || o->IsCharacter() != wantChars) continue;
+					if (o->Key() == playerKey) continue;  // "take all" is never about yourself
+					if (player && !player->HasSeen(o->Key())) continue;
+					items.push_back(o->Key());
+				}
+				if (items.empty()) return false;
+				currentAllRefs.insert(Util::CanonicalizeRefName(ref));
+				resolved = items.front();
+				// Recorded as a plural reference even when only one thing survives, so that the
+				// odometer in ExecuteMatchedTask drives it and each thing is judged on its own.
+				std::vector<RefMatchInfo> itemMatches;
+				itemMatches.reserve(items.size());
+				for (const auto &k : items)
+					itemMatches.push_back({raw, {k}});
+				currentRefItemMatches[Util::CanonicalizeRefName(ref)] = std::move(itemMatches);
+				currentRefLists.emplace_back(ref, std::move(items));
+				BindReference(currentRefs, ref, resolved);
+				continue;
+			}
 			// A plural reference can name several things at once ("take the plates and the ration
 			// bar"). Each one is resolved separately, and the task runs once per thing; see
 			// ExecuteMatchedTask. The reference itself starts out bound to the first of them.
@@ -316,6 +360,85 @@ bool Game::CaptureReferences(const std::vector<std::string> &refSpecs, const std
 	return true;
 }
 
+bool Game::RefineReferencesByRestrictions(const Task *task,
+                                          const std::vector<std::string> &refTokens) {
+	// ADRIFT narrows an ambiguous reference against the task's own restrictions before it ever
+	// considers asking the player (RefineMatchingPossibilitesUsingRestrictions). That is what makes
+	// GET PIN take the map pin without comment when the only other pin is already in your hand: the
+	// standard TAKE task will not take something you are holding, so that candidate drops out.
+	// Each reference is narrowed with the others held at their current binding, rather than over the
+	// full cross product ADRIFT walks -- the difference only shows when two references of one command
+	// are ambiguous at once and their restrictions are entangled.
+	bool anyWasAmbiguous = false;
+	bool anyEmptied = false;
+
+	auto refine = [&](RefMatchInfo &info, const std::string &token, std::vector<std::string> *listSlot,
+	                  size_t itemIdx) {
+		if (info.candidates.size() < 2) return;
+		anyWasAmbiguous = true;
+		const std::string original = currentRefs[Util::CanonicalizeRefName(token)];
+		std::vector<std::string> kept;
+		for (const std::string &candidate : info.candidates) {
+			BindReference(currentRefs, token, candidate);
+			if (listSlot && itemIdx < listSlot->size()) (*listSlot)[itemIdx] = candidate;
+			if (task->Eligible().first) kept.push_back(candidate);
+		}
+		if (kept.empty()) {
+			// Nothing the player could have meant works here. Leave the candidates alone and let the
+			// caller pass this task over: asking "which pin?" about things that would all be refused
+			// anyway is exactly the noise ADRIFT avoids by skipping to the next task.
+			anyEmptied = true;
+			BindReference(currentRefs, token, original);
+			if (listSlot && itemIdx < listSlot->size()) (*listSlot)[itemIdx] = original;
+			return;
+		}
+		info.candidates = std::move(kept);
+		BindReference(currentRefs, token, info.candidates.front());
+		if (listSlot && itemIdx < listSlot->size()) (*listSlot)[itemIdx] = info.candidates.front();
+	};
+
+	for (const std::string &token : refTokens) {
+		const std::string canonical = Util::CanonicalizeRefName(token);
+		auto singular = currentRefMatches.find(canonical);
+		if (singular != currentRefMatches.end())
+			refine(singular->second, token, nullptr, 0);
+
+		auto items = currentRefItemMatches.find(canonical);
+		if (items == currentRefItemMatches.end()) continue;
+		auto listIt = std::find_if(currentRefLists.begin(), currentRefLists.end(),
+		                           [&](const auto &p) { return p.first == token; });
+		std::vector<std::string> *listSlot = listIt == currentRefLists.end() ? nullptr : &listIt->second;
+		for (size_t i = 0; i < items->second.size(); i++)
+			refine(items->second[i], token, listSlot, i);
+
+		// ALL is a sweep over everything the player has seen, so most of what it names has nothing
+		// to do with the command: an item the task would refuse is dropped outright rather than
+		// answered, which is why "put all in bag" reports what went in and not the hundred things
+		// that didn't. (ADRIFT drops failing items from every plural reference this way. Here it is
+		// confined to ALL, so that a thing the player named in so many words still gets told why it
+		// could not be used.)
+		if (!listSlot || !currentAllRefs.count(canonical)) continue;
+		std::vector<RefMatchInfo> keptItems;
+		std::vector<std::string> keptKeys;
+		for (size_t i = 0; i < items->second.size(); i++) {
+			BindReference(currentRefs, token, (*listSlot)[i]);
+			if (!task->Eligible().first) continue;
+			keptItems.push_back(items->second[i]);
+			keptKeys.push_back((*listSlot)[i]);
+		}
+		if (keptKeys.empty()) {
+			anyEmptied = anyWasAmbiguous = true;  // nothing ALL named can be used: skip this task
+			continue;
+		}
+		items->second = std::move(keptItems);
+		*listSlot = std::move(keptKeys);
+		BindReference(currentRefs, token, listSlot->front());
+	}
+	// Only a reference that was ambiguous to begin with can veto the task this way; one the player
+	// named exactly still runs, so that the task's own restriction gets to explain the refusal.
+	return !(anyWasAmbiguous && anyEmptied);
+}
+
 Task *Game::FindMatchingTask() {
 	// Only used as a fallback under ExecutionPolicy::HighestPrioPassing: the first
 	// failing-with-message match encountered, in case no task ever passes restrictions.
@@ -331,6 +454,16 @@ Task *Game::FindMatchingTask() {
 	// understand that sentence."
 	Task *noRefTask = nullptr;
 	std::vector<std::string> noRefTokens;
+	// The highest-priority task whose command matched but that could not tell which of several
+	// objects the player meant. ADRIFT does not stop there: it notes the task (sAmbTask) and keeps
+	// looking, and only asks "Which pin?" if nothing further down the list can run either -- so a
+	// lower-priority task whose own restrictions single one of them out gets the command instead.
+	Task *ambTask = nullptr;
+	std::vector<std::string> ambRefTokens;
+	std::unordered_map<std::string, std::string> ambRefs;
+	std::unordered_map<std::string, RefMatchInfo> ambRefMatches;
+	std::vector<std::pair<std::string, std::vector<std::string>>> ambRefLists;
+	std::unordered_map<std::string, std::vector<RefMatchInfo>> ambRefItemMatches;
 
 	// Folded once here for Task::GetCmdLiterals below, which holds its literals folded the same
 	// way. The command usually arrives folded already, but not always: SubstitutePronouns splices
@@ -362,6 +495,33 @@ Task *Game::FindMatchingTask() {
 				if (!noRefTask) {
 					noRefTask = task;
 					noRefTokens = groupCoding[cmdIdx];
+				}
+				continue;
+			}
+
+			// Narrow any reference that matched several things down to those the task would
+			// actually accept, before its restrictions are consulted for real below.
+			if (!RefineReferencesByRestrictions(task, groupCoding[cmdIdx])) {
+				if (!noRefTask) {
+					noRefTask = task;
+					noRefTokens = groupCoding[cmdIdx];
+				}
+				continue;
+			}
+
+			// Still more than one candidate for some reference after that narrowing: remember the
+			// task in case nothing else can run, and move on.
+			std::string ambToken;
+			int ambItemIdx;
+			if (FirstAmbiguousSlot(groupCoding[cmdIdx], currentRefMatches, currentRefItemMatches,
+			                       ambToken, ambItemIdx) != nullptr) {
+				if (!ambTask) {
+					ambTask = task;
+					ambRefTokens = groupCoding[cmdIdx];
+					ambRefs = currentRefs;
+					ambRefMatches = currentRefMatches;
+					ambRefLists = currentRefLists;
+					ambRefItemMatches = currentRefItemMatches;
 				}
 				continue;
 			}
@@ -398,6 +558,15 @@ Task *Game::FindMatchingTask() {
 		currentRefLists = std::move(fallbackRefLists);
 		currentRefItemMatches = std::move(fallbackRefItemMatches);
 		return fallback;
+	}
+	if (ambTask) {
+		// Nothing else could run, so the question really does have to be asked.
+		currentRefs = std::move(ambRefs);
+		currentMatchedRefTokens = std::move(ambRefTokens);
+		currentRefMatches = std::move(ambRefMatches);
+		currentRefLists = std::move(ambRefLists);
+		currentRefItemMatches = std::move(ambRefItemMatches);
+		return ambTask;
 	}
 	if (noRefTask) {
 		// Nothing was resolved, so nothing is ambiguous either: run the task on empty references
@@ -522,7 +691,11 @@ bool Game::RunTaskAndCapture(Task *task, bool showText, bool runActions) {
 	task->MarkCompleted();
 	bool msgFirst = task->GetMessagePlacement() == Task::MessagePlacement::Before;
 	bool anyText = false;
-	auto emit = [&] {
+	// `pinned`, when non-empty, is the message exactly as it read before this task's actions ran:
+	// it is emitted verbatim instead of being rendered again at flush time. `at` is where in the
+	// buffer it belongs -- the end, except for a Before message, which was read ahead of the actions
+	// and so belongs ahead of whatever they recorded. See the Before-placement path below.
+	auto emit = [&](const std::string &pinned, size_t at = SIZE_MAX) {
 		if (!showText || task->GetCompletionMsg() == 0) return;
 		const Description *desc = GetDescription(task->GetCompletionMsg());
 
@@ -530,10 +703,29 @@ bool Game::RunTaskAndCapture(Task *task, bool showText, bool runActions) {
 			// Out-of-command path (event, walk, triggered task): unchanged from before -- build and
 			// commit the message now (so a sequential/return-to-default description advances its
 			// shown-state as it always did), dedup on the evaluated text turn-wide, emit immediately.
-			std::string text = MutableDescription(task->GetCompletionMsg())->BuildAndCommit();
+			std::string text = pinned.empty()
+				? MutableDescription(task->GetCompletionMsg())->BuildAndCommit() : pinned;
 			if (!text.empty()) anyText = true;
 			if (completionMessagesThisTurn.insert(text).second)
 				OutputFiltered(std::move(text));
+			return;
+		}
+
+		if (!pinned.empty()) {
+			// Pinned messages do not aggregate: their dedup key is the finished text, so two runs
+			// that read differently ("(from the wooden table)" / "(from the metal hook)") stay two
+			// responses, each keeping its own place in the buffer. This is ADRIFT's behaviour --
+			// AddResponse keys on the already-replaced string in exactly this case.
+			anyText = true;
+			ResponseBuffer &buf = *activeResponseBuffer;
+			if (buf.byKey.find(pinned) == buf.byKey.end()) {
+				AggregatedResponse resp;
+				resp.descr = task->GetCompletionMsg();
+				resp.pinnedText = pinned;
+				resp.refSnapshot = currentRefs;
+				buf.order.insert(buf.order.begin() + (long) std::min(at, buf.order.size()), pinned);
+				buf.byKey.emplace(pinned, std::move(resp));
+			}
 			return;
 		}
 
@@ -556,7 +748,7 @@ bool Game::RunTaskAndCapture(Task *task, bool showText, bool runActions) {
 			AggregatedResponse resp;
 			resp.descr = task->GetCompletionMsg();
 			resp.refSnapshot = currentRefs;
-			buf.order.push_back(key);
+			buf.order.insert(buf.order.begin() + (long) std::min(at, buf.order.size()), key);
 			buf.byKey.emplace(std::move(key), std::move(resp));
 		} else {
 			// Same message as an earlier run this command: merge in any reference whose value differs
@@ -583,14 +775,31 @@ bool Game::RunTaskAndCapture(Task *task, bool showText, bool runActions) {
 			}
 		}
 	};
-	if (msgFirst) emit();
 	// The message is emitted (or, during a command, recorded into the response buffer -- see emit)
 	// before or after this task's actions per its MessagePlacement. Ordering the emit around
 	// RunActions this way keeps a Before message ahead of, and an After message behind, whatever a
 	// nested "Execute" action itself emits/records -- so the buffer's insertion order, which the
 	// end-of-command flush preserves, still reflects each message's place in the action sequence.
+	if (!msgFirst) {
+		if (runActions) task->RunActions();
+		emit(std::string());
+		return anyText;
+	}
+
+	// A Before message describes the world as it was when the task fired, so ADRIFT reads it once
+	// ahead of the actions, runs them, and reads it again: if the actions changed what it says, the
+	// earlier reading is what the player gets. That is what makes "(from %objects%.Parent.Name)"
+	// name where the object came from rather than the player who now holds it. The slot it would
+	// have taken is remembered too, so it still lands ahead of whatever the actions record.
+	std::string before;
+	if (showText && task->GetCompletionMsg() != 0 && runActions && task->HasActions())
+		before = GetDescription(task->GetCompletionMsg())->Build();
+	size_t slot = activeResponseBuffer ? activeResponseBuffer->order.size() : SIZE_MAX;
 	if (runActions) task->RunActions();
-	if (!msgFirst) emit();
+	std::string after;
+	if (!before.empty())
+		after = GetDescription(task->GetCompletionMsg())->Build();
+	emit(before != after ? before : std::string(), slot);
 	return anyText;
 }
 
@@ -723,7 +932,15 @@ void Game::ExecuteMatchedTask(Task *general) {
 		ResponseBuffer *buffer;
 		ResponseBuffer *prev;
 		~BufferGuard() {
-			g->FlushResponseBuffer(*buffer);
+			// A destructor is noexcept, so a throw from inside the flush -- a message referring to
+			// something that isn't there, say -- would take the process down rather than reaching
+			// the backstop in ProcessInput. Losing the rest of this command's output is bad; losing
+			// the session is worse. The buffer is restored either way.
+			try {
+				g->FlushResponseBuffer(*buffer);
+			} catch (const std::exception &e) {
+				LogError(std::string("Failed to print a command's responses: ") + e.what());
+			}
 			g->activeResponseBuffer = prev;
 		}
 	} bufferGuard{this, &buffer, prevBuffer};
@@ -768,7 +985,16 @@ void Game::FlushResponseBuffer(ResponseBuffer &buffer) {
 			if (keys.size() < 2) continue;
 			currentRefs[name] = JoinKeys(keys);
 		}
-		std::string text = MutableDescription(resp.descr)->BuildAndCommit();
+		// A pinned message was rendered already, before the actions that invalidated it, and is
+		// emitted as it stands -- deliberately without building it again. Rendering it a second time
+		// only to throw the result away would consume display-once state the player never saw: a
+		// message naming an object would mark that object's first-sighting description as shown.
+		// (ADRIFT is careful about this too: its pre-action pass runs under bTestingOutput for the
+		// same reason, and the response it finally prints is the string it kept.) Text queued by
+		// RecordResponse has no description behind it at all and is likewise passed through.
+		std::string text = resp.pinnedText;
+		if (text.empty() && resp.descr != 0)
+			text = MutableDescription(resp.descr)->BuildAndCommit();
 		currentRefs = std::move(savedRefs);
 		// Record it against the turn-wide set so a later out-of-command message (a triggered task or
 		// event this turn) with the same text stays suppressed, as it was before buffering existed.
@@ -777,7 +1003,36 @@ void Game::FlushResponseBuffer(ResponseBuffer &buffer) {
 	}
 }
 
-void Game::RunTaskWithSpecifics(Task *general, const std::vector<std::string> &refTokens) {
+void Game::RecordResponse(std::string text) {
+	if (text.empty()) return;
+	if (!activeResponseBuffer) {
+		OutputFiltered(std::move(text));
+		return;
+	}
+	// Already-evaluated text (a restriction-failure message, say) still has to queue behind the
+	// completion messages recorded so far rather than jumping ahead of them: within a command,
+	// everything the player sees is ordered by the buffer, not by when it happened to be built.
+	// Keyed by the text itself, as ADRIFT's AddResponse keys an evaluated message.
+	ResponseBuffer &buf = *activeResponseBuffer;
+	if (buf.byKey.find(text) != buf.byKey.end()) return;
+	AggregatedResponse resp;
+	resp.descr = 0;
+	resp.pinnedText = text;
+	buf.order.push_back(text);
+	buf.byKey.emplace(std::move(text), std::move(resp));
+}
+
+bool Game::RunTaskWithSpecifics(Task *general, const std::vector<std::string> &refTokens) {
+	// Running a child goes back through here rather than straight to RunTaskAndCapture, because a
+	// Specific task may itself be the parent of further Specific tasks: the standard library's
+	// "Take objects from location" is a Specific override of "Take objects", and a game hangs its
+	// own "get the mouse nest" override off *that*. ADRIFT recurses the same way (its child loop
+	// calls AttemptToExecuteTask, the same entry point it used for the parent).
+	auto runChild = [&](Task *child) {
+		return GetSpecificChildren(child->Key()).empty()
+			? RunTaskAndCapture(child) : RunTaskWithSpecifics(child, refTokens);
+	};
+
 	// The general task's restrictions have passed; see whether any of its Specific children apply.
 	// Children are visited in priority order and, in ADRIFT, more than one may run: the chain
 	// stops at the first child that both ran (or spoke up about failing) and had something to
@@ -788,6 +1043,9 @@ void Game::RunTaskWithSpecifics(Task *general, const std::vector<std::string> &r
 
 	bool showParentText = true;
 	bool runParentActions = true;
+	// Whether anything at all was said, counting the children as well as the parent -- the answer a
+	// nested call owes its own caller, which uses it to decide whether to keep looking further down.
+	bool anyOutput = false;
 
 	for (Task *child : GetSpecificChildren(general->Key())) {
 		if (!SpecificTaskMatches(child, refTokens)) continue;
@@ -799,7 +1057,7 @@ void Game::RunTaskWithSpecifics(Task *general, const std::vector<std::string> &r
 		auto childResult = child->CheckRestrictions();
 		bool childHadSomethingToSay = false;
 		if (childResult.first) {
-			childHadSomethingToSay = RunTaskAndCapture(child);
+			childHadSomethingToSay = runChild(child);
 			// A child that ran suppresses whichever parts of the parent it says it replaces,
 			// whether or not it printed anything.
 			if (!overrideType.Has(Task::OverrideType::ParentText)) showParentText = false;
@@ -809,7 +1067,7 @@ void Game::RunTaskWithSpecifics(Task *general, const std::vector<std::string> &r
 			// precedence over the parent, same as if the child had passed.
 			std::string text = MutableDescription(childResult.second)->BuildAndCommit();
 			childHadSomethingToSay = !text.empty();
-			OutputFiltered(std::move(text));
+			RecordResponse(std::move(text));
 			if (childHadSomethingToSay) {
 				if (!overrideType.Has(Task::OverrideType::ParentText)) showParentText = false;
 				if (!overrideType.Has(Task::OverrideType::ParentActions)) runParentActions = false;
@@ -817,25 +1075,28 @@ void Game::RunTaskWithSpecifics(Task *general, const std::vector<std::string> &r
 		}
 		// A child that neither ran nor produced any message is treated as if it hadn't matched at
 		// all, and we keep looking; so is one that ran silently.
+		anyOutput = anyOutput || childHadSomethingToSay;
 		if (childHadSomethingToSay && !child->AlwaysContinues())
 			break;
 	}
 
-	RunTaskAndCapture(general, showParentText, runParentActions);
+	anyOutput = RunTaskAndCapture(general, showParentText, runParentActions) || anyOutput;
 
 	for (Task *child : afterChildren) {
 		auto childResult = child->CheckRestrictions();
 		bool childHadSomethingToSay = false;
 		if (childResult.first) {
-			childHadSomethingToSay = RunTaskAndCapture(child);
+			childHadSomethingToSay = runChild(child);
 		} else if (childResult.second != 0) {
 			std::string text = MutableDescription(childResult.second)->BuildAndCommit();
 			childHadSomethingToSay = !text.empty();
-			OutputFiltered(std::move(text));
+			RecordResponse(std::move(text));
 		}
+		anyOutput = anyOutput || childHadSomethingToSay;
 		if (childHadSomethingToSay && !child->AlwaysContinues())
 			break;
 	}
+	return anyOutput;
 }
 
 std::vector<std::string> Game::NarrowByAnswer(const std::vector<std::string> &candidates, const std::string &answer) {
@@ -1092,6 +1353,10 @@ void Game::ProcessInput(const std::string &s) {
 	// The command is done; the world moves on. ADRIFT skips this for its System-type tasks, but
 	// only General tasks can ever be matched from player input here, so there is nothing to skip.
 	TurnTick();
+	// Last, as ADRIFT's PrepareForNextTurn does: whatever the turn brought into view has now been
+	// seen, and the "has been seen by" restrictions the standard library leans on will pass on the
+	// next command.
+	MarkVisibleThingsSeen();
 }
 
 bool Game::AttemptMatchEndOfGameCommand() {

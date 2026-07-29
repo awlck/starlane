@@ -36,7 +36,13 @@ public:
 	// The same, for text that is actually being displayed: this records which segments were shown,
 	// which is game state (a "display once" segment does not come round again) and so is undone
 	// and saved along with everything else.
-	[[nodiscard]] std::string BuildAndCommit(const UserFuncContext *context = nullptr);
+	// `appended`, when given, continues this description's segment list with a second description's
+	// segments -- the form ADRIFT uses when a location group supplies a Short/LongLocationDescription
+	// for its members (clsLocation.ShortDescription), where the group's parts are alternatives
+	// *added to* the location's own rather than a replacement for them. A group part restricted to
+	// darkness therefore leaves the room's real name standing whenever the player has a light.
+	[[nodiscard]] std::string BuildAndCommit(const UserFuncContext *context = nullptr,
+	                                         Description *appended = nullptr);
 
 	// Build the message with restrictions evaluated (segment selection) but embedded expressions left
 	// as raw source, without committing shown-state. This is the per-command deduplication key for a
@@ -64,8 +70,9 @@ private:
 	static Display DisplayValue(const char *txt);
 
 	void HandleSegmentShown(size_t idx);
-	// The one implementation behind Build and BuildAndCommit.
-	std::string BuildImpl(bool commit, const UserFuncContext *context, bool rawExpressions);
+	// The one implementation behind Build and BuildAndCommit. See BuildAndCommit for `appended`.
+	std::string BuildImpl(bool commit, const UserFuncContext *context, bool rawExpressions,
+	                      Description *appended = nullptr);
 
 	struct Segment {
 		static Segment CreateFromXML(const pugi::xml_node &xmlNode);

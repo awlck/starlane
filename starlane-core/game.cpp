@@ -489,10 +489,7 @@ void Game::Begin() {
 		startupState = new Game(*this);
 	std::fill(taskCompletedStorage.begin(), taskCompletedStorage.end(), (uint8_t) 0);
 	// Every character has "seen" their initial surroundings.
-	for (size_t i = 0; i < objects.size(); i++) {
-		if (auto *c = AsCharacter(MutableObject(i)))
-			c->MarkVisibleAsSeen();
-	}
+	MarkVisibleThingsSeen();
 	gameHasBegun = true;
 	// System tasks set to run as the game starts do so now: the game is up, but nothing has been
 	// played yet. Directly rather than through the arrival queue -- nobody has arrived anywhere,
@@ -576,12 +573,15 @@ void Game::Begin() {
 
 void Game::EndGame(Ending how) {
 	if (!gameHasBegun) return;  // already over; the first ending is the one that counts
+	// Queued rather than printed outright: the task that ended the game is still running, and its
+	// own parting words -- the last thing the player reads -- have yet to be flushed. The banner
+	// belongs after them.
 	switch (how) {
 	case Ending::Win:
-		OutputFiltered("<center><c><b>*** You have won ***</b></c></center>\n");
+		RecordResponse("<center><c><b>*** You have won ***</b></c></center>\n");
 		break;
 	case Ending::Lose:
-		OutputFiltered("<center><c><b>*** You have lost ***</b></c></center>\n");
+		RecordResponse("<center><c><b>*** You have lost ***</b></c></center>\n");
 		break;
 	case Ending::Neutral:
 		// A neutral ending announces itself only through whatever the task itself said.
@@ -590,7 +590,7 @@ void Game::EndGame(Ending how) {
 	// ProcessInput keys off this: no more turns, no more events, and no more ordinary commands --
 	// only RESTART, RESTORE, QUIT, and UNDO (see AttemptMatchEndOfGameCommand), which is exactly
 	// what this question offers.
-	OutputFiltered("Would you like to <c>restart</c>, <c>restore</c> a saved game, <c>quit</c> or "
+	RecordResponse("Would you like to <c>restart</c>, <c>restore</c> a saved game, <c>quit</c> or "
 	               "<c>undo</c> the last command?\n\n");
 	gameHasBegun = false;
 }
@@ -613,6 +613,18 @@ void Game::TurnTick() {
 	} guard;
 	turnCount += 1;
 	RunEventTick(false);
+}
+
+void Game::MarkVisibleThingsSeen() {
+	// ADRIFT sweeps every character against every object once per turn (PrepareForNextTurn) rather
+	// than relying on things being noticed as they move. It has to: a turn can make something
+	// visible without moving it -- opening the container it already sits in is the usual way -- and
+	// an object nobody was ever recorded as seeing fails the "has been seen by" restrictions that
+	// the standard library's TAKE and EXAMINE tasks are built on, leaving it unmentionable.
+	for (size_t i = 0; i < objects.size(); i++) {
+		if (auto *c = AsCharacter(MutableObject(i)))
+			c->MarkVisibleAsSeen();
+	}
 }
 
 void Game::Tick() {
@@ -945,8 +957,12 @@ void Game::ApplyOverrides(std::string &t) const {
 			// and games ship overrides that map a string to itself ("~~~~" -> "~~~~", a colour
 			// tag to the same tag), which would otherwise loop forever.
 			size_t pos = 0;
+			// An override may have been given no replacement text at all, in which case it simply
+			// deletes what it matches -- there is no description to build for it.
+			const DescrRef replacementRef = it.second->GetReplacement();
 			while ((pos = t.find(f, pos)) != std::string::npos) {
-				std::string replacement(Game::Get()->MutableDescription(it.second->GetReplacement())->BuildAndCommit());
+				std::string replacement(replacementRef == 0 ? std::string()
+					: Game::Get()->MutableDescription(replacementRef)->BuildAndCommit());
 				t.replace(pos, f.size(), replacement);
 				pos += replacement.size();
 			}

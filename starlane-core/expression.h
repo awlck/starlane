@@ -184,13 +184,21 @@ private:
 	Expr::Value ValImpl(const ast_node_tag *args) const;
 
 	// The %List...[key]% family, all variations on "write out the objects related to this one".
-	enum class ListRelation { Held, Worn, ObjectsIn, ObjectsOnAndIn, CharactersOnAndIn };
+	enum class ListRelation { Held, Worn, ObjectsOn, ObjectsIn, ObjectsOnAndIn,
+	                          CharactersOn, CharactersIn, CharactersOnAndIn, ObjectsAtLocation };
 	Expr::Value ListRelatedImpl(const ast_node_tag *args, ListRelation rel) const;
 	Expr::Value ListHeldImpl(const ast_node_tag *args) const;
 	Expr::Value ListWornImpl(const ast_node_tag *args) const;
+	Expr::Value ListObjectsOnImpl(const ast_node_tag *args) const;
 	Expr::Value ListObjectsInImpl(const ast_node_tag *args) const;
 	Expr::Value ListObjectsOnAndInImpl(const ast_node_tag *args) const;
+	Expr::Value ListCharactersOnImpl(const ast_node_tag *args) const;
+	Expr::Value ListCharactersInImpl(const ast_node_tag *args) const;
 	Expr::Value ListCharactersOnAndInImpl(const ast_node_tag *args) const;
+	Expr::Value ListObjectsAtLocationImpl(const ast_node_tag *args) const;
+	Expr::Value ListExitsImpl(const ast_node_tag *args) const;
+	Expr::Value ObjectNameImpl(const ast_node_tag *args) const;
+	Expr::Value PropertyValueImpl(const ast_node_tag *args) const;
 
 	// item function wrappers
 	Expr::Value ObjNameImpl(const GameObj *obj, const ast_node_tag *args) const;

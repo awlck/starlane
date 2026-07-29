@@ -7,6 +7,7 @@
 
 #include <memory>
 #include <unordered_map>
+#include <vector>
 
 #include "../slc_private.h"
 
@@ -44,6 +45,11 @@ public:
 	const ExitSpec &GetExit(const std::string &dir) const { return exits->at(dir); }
 	bool HasExit(const std::string &dir) const { return exits->count(dir) > 0; }
 	std::string GetListOfExits() const;
+
+	// The exits currently available from here, named per the game's own direction table and
+	// lower-cased, in ADRIFT's compass order. An exit carrying restrictions is only included if
+	// they currently pass, mirroring clsCharacter.HasRouteInDirection.
+	std::vector<std::string> GetAvailableExitNames() const;
 
 	// The "Exits are north and east." / "An exit leads north." sentence appended to a location
 	// description when <ShowExits> is on. Empty when no (unrestricted) exit is currently available.
