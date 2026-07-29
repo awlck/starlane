@@ -189,6 +189,10 @@ void Character::StartActiveWalks() {
 	for (auto &w : walks)
 		if (w.IsStartActive())
 			w.Start(/*force =*/ true);
+	// ...and the start-up is not a tick, so the first real turn must move these walks on rather than
+	// treating itself as the tick they started on. ADRIFT clears bJustStarted in just this way.
+	for (auto &w : walks)
+		w.ClearJustStarted();
 }
 
 void Character::NotifyWalk(int32_t idx, Util::Control::Condition cond, const std::string &taskKey) {

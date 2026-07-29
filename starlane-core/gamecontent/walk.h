@@ -46,6 +46,10 @@ public:
 	void Stop();
 	void Pause();
 	void Resume();
+	// Forget that this walk started during the current tick, so the next tick treats it as ordinary.
+	// Only Game::Begin needs this: ADRIFT clears bJustStarted right after starting the walks that
+	// begin active, so their first turn advances the clock like any other.
+	void ClearJustStarted() { justStarted = false; }
 
 	// Advance this walk by one turn: apply any queued command, act on whichever step and sub-walks
 	// this turn calls for, then move the clock on. Driven from Game's turn tick, ahead of the events.
@@ -143,7 +147,7 @@ private:
 	int32_t Length() const;
 	// Turns elapsed since the walk started -- 0 on the tick it starts, counting up to Length. Derived
 	// from the countdown exactly as ADRIFT derives it.
-	int32_t TimerFromStartOfWalk() const { return Length() - timerToEnd + 1; }
+	int32_t TimerFromStartOfWalk() const { return Length() - timerToEnd; }
 	// Turns since the most recent sub-walk ran (or since the walk started, if none has).
 	int32_t TimerFromLastSubWalk() const { return TimerFromStartOfWalk() - lastSubWalkTime; }
 	// Re-roll every step's length, at each (re)start of the walk.
@@ -186,6 +190,10 @@ private:
 	// rather than a pointer so that cloning a character wholesale for undo can't leave it dangling.
 	int32_t lastSubWalkIndex = -1;
 	Command nextCommand = Command::None;
+	// True from the moment the walk (re)starts until the end of the tick that restarted it: the walk
+	// already took its first step from within StartImpl, so that tick must not advance the clock or
+	// step again. ADRIFT's bJustStarted, and like it not saved -- it never outlives a single tick.
+	bool justStarted = false;
 	// The last task whose completion triggered a control of this walk this cycle (empty if none) --
 	// ADRIFT's sTriggeringTask. A completion control is ignored when that task is one of the
 	// completing task's own Specific children, so a child task can't re-fire what its parent handles.

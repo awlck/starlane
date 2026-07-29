@@ -162,13 +162,18 @@ void Walk::StartImpl(bool restart) {
 	status = Status::Running;
 	// A "3 to 7 turns" step rolls afresh at each start rather than being stuck with its first roll.
 	ResetLength();
-	// Length + 1, so that TimerFromStartOfWalk lands on 0 right now and the very first step (the one
-	// at cumulative offset 0) fires from the DoAnySteps below. Length + 1 is never 0, so this write
-	// can't trip the end-of-walk stop.
-	SetTimerToEnd(Length() + 1);
+	// The full clock, so TimerFromStartOfWalk reads 0 right now and the step at cumulative offset 0
+	// fires below. A zero-length walk would land straight on the end-of-walk stop; StopImpl declines
+	// to loop one of those, so the write cannot recurse.
+	SetTimerToEnd(Length());
 	WALK_TRACE((restart ? "restart" : "start"));
-	DoAnySteps();
-	DoAnySubWalks();
+	// The tick that restarted this walk has already done its stepping, here; mark it so, and the
+	// clock is not advanced again before the next one.
+	justStarted = true;
+	if (TimerFromStartOfWalk() == 0) {
+		DoAnySteps();
+		DoAnySubWalks();
+	}
 }
 
 void Walk::StopImpl(bool runSubWalks, bool reachedEnd) {
@@ -178,8 +183,9 @@ void Walk::StopImpl(bool runSubWalks, bool reachedEnd) {
 	status = Status::Finished;
 	WALK_TRACE("stop");
 	// Restart only when the walk actually ran its clock out, not when a task stopped it early --
-	// ADRIFT draws that line to avoid a task-stopped walk quietly restarting itself.
-	if (loops && reachedEnd)
+	// ADRIFT draws that line to avoid a task-stopped walk quietly restarting itself. A walk of no
+	// length is never looped either: it would end the instant it began, forever.
+	if (loops && reachedEnd && Length() > 0)
 		StartImpl(true);
 }
 
@@ -210,17 +216,17 @@ void Walk::IncrementTimer() {
 			case Command::None:    break;
 		}
 	}
-	// The just-started walk already ran its offset-0 step and sub-walks from within StartImpl, and
-	// TimerFromStartOfWalk is 0 for exactly that tick -- so this guard holds them back from running a
-	// second time, and lets them run on every tick thereafter.
-	if (timerToEnd > 0 && TimerFromStartOfWalk() > 0) {
+	// The clock moves first, as in ADRIFT: reaching zero ends the walk and -- when it loops -- starts
+	// it over from within this very write, taking its offset-0 step as it goes. So a 15-step walk
+	// comes round again every 15 ticks, not every 16.
+	if (status == Status::Running && !justStarted)
+		SetTimerToEnd(timerToEnd - 1);
+	// A walk that (re)started during this tick has already stepped, from inside StartImpl.
+	if (!justStarted) {
 		DoAnySteps();
 		DoAnySubWalks();
 	}
-	// Split from the block above, as in ADRIFT: moving the clock can stop (and restart) the walk, so
-	// which state it is in has to be settled first.
-	if (status == Status::Running)
-		SetTimerToEnd(timerToEnd - 1);
+	justStarted = false;
 }
 
 void Walk::SetTimerToEnd(int32_t t) {

@@ -1356,6 +1356,10 @@ void Game::ProcessInput(const std::string &s) {
 		~InputGuard() { inputInFlight = false; }
 	} guard;
 
+	// Every line the player types is a turn as far as %Turns% is concerned -- see turnCount --
+	// counted before the line is acted on, so a message this command prints reports the command
+	// it belongs to rather than the one before it.
+	turnCount += 1;
 	// Every line the player types starts a fresh block of output, whether it turns out to be a
 	// command or the answer to a question we asked; there is nothing to separate its first
 	// message from.

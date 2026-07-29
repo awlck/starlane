@@ -653,11 +653,12 @@ private:
 	// AGAIN, with its pronouns already resolved. Same session-state lifecycle as the pronoun
 	// antecedents above -- carried across UNDO, not written to save files.
 	std::string lastCommand;
-	// Turns elapsed, as reported by the `Turns` expression function. Counted once per TurnTick,
-	// so a WAIT that lets three turns pass counts three of them. ADRIFT instead bumps its own
-	// counter once per typed command, from the frontend, which has a three-turn WAIT count as
-	// one -- the same splitting of "what the player typed" from "what the world did" that had
-	// UNDO skipping whole commands.
+	// Turns elapsed, as reported by the `Turns` expression function. Counted once per line the
+	// player submits -- including one that turns out to be a disambiguation answer, a system
+	// command, or nothing the game understands -- and counting the line being processed. That is
+	// ADRIFT's Adventure.Turns exactly: its frontends bump it once per submitted command, and
+	// nothing in the engine touches it. So a WAIT that lets three turns pass still counts one,
+	// and the number a game prints as "%Turns%" is how many times the player has pressed Enter.
 	uint32_t turnCount = 0;
 
 	// static data lives here for performance and memory usage reasons:

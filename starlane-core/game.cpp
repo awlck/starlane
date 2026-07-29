@@ -621,7 +621,6 @@ void Game::TurnTick() {
 		DepthGuard() { depth++; }
 		~DepthGuard() { depth--; }
 	} guard;
-	turnCount += 1;
 	RunEventTick(false);
 }
 
