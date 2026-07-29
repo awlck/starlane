@@ -6,6 +6,7 @@
 #include "../slc_private.h"
 
 #include <memory>
+#include <stdexcept>
 #include <string>
 #include <type_traits>
 #include <unordered_map>
@@ -15,7 +16,12 @@ namespace Starlane {
 class PropHolder {
 public:
 	virtual std::string GetStrProp(const std::string &key) const {
-		return props->strValued.at(key);
+		auto it = props->strValued.find(key);
+		// Named rather than bare: "unordered_map::at: key not found" says nothing about which
+		// property, on a path reached from any number of restrictions and expressions.
+		if (it == props->strValued.end())
+			throw std::out_of_range("no string property '" + key + "' here");
+		return it->second;
 	}
 
 	virtual int64_t GetIntProp(const std::string &key) const {

@@ -525,6 +525,9 @@ private:
 	// Bind one %ref% (and its equivalent spellings) to a resolved key, in the given table.
 	// Also used to apply a disambiguation answer, which resolves into a held table rather than
 	// into currentRefs.
+	// Every name a reference answers to (its own spelling, ADRIFT's generic alias, and the
+	// %object%/%object1% pair). See the definition.
+	static std::vector<std::string> ReferenceAliases(const std::string &ref);
 	static void BindReference(std::unordered_map<std::string, std::string> &refs,
 	                          const std::string &ref, const std::string &value);
 	// For each object/character %ref% captured, the raw text the player typed for it and the full
@@ -634,6 +637,10 @@ private:
 	// no antecedent has been established yet. Session state, like mostRecentlyMentioned above: not
 	// written to save files, but carried across UNDO by the copy constructor below.
 	std::string pronounItText, pronounThemText, pronounHimText, pronounHerText;
+	// The command AGAIN (or G) repeats: the last line the player typed that was not itself an
+	// AGAIN, with its pronouns already resolved. Same session-state lifecycle as the pronoun
+	// antecedents above -- carried across UNDO, not written to save files.
+	std::string lastCommand;
 	// Turns elapsed, as reported by the `Turns` expression function. Counted once per TurnTick,
 	// so a WAIT that lets three turns pass counts three of them. ADRIFT instead bumps its own
 	// counter once per typed command, from the frontend, which has a three-turn WAIT count as
@@ -726,6 +733,13 @@ public:
 	// Whether the named reference was filled in with the word ALL. See currentAllRefs.
 	bool ReferenceWasAll(const std::string &canonicalName) const {
 		return currentAllRefs.count(canonicalName) > 0;
+	}
+	// Show a task's refusal to the player -- unless the command was a sweeping one, in which case
+	// it is swallowed. "Get all" names everything the player has ever seen, most of which any given
+	// command has no business with, so ADRIFT reports what the command *did* and replaces the pile
+	// of refusals with the task's own "fail override" text, and then only if nothing worked at all.
+	void EmitFailureText(std::string text) {
+		if (currentAllRefs.empty()) RecordResponse(std::move(text));
 	}
 private:
 
@@ -825,6 +839,7 @@ private:
 		std::string playerKey;
 		std::pair<std::string, Pronoun> mostRecentlyMentioned;
 		std::string pronounItText, pronounThemText, pronounHimText, pronounHerText;
+		std::string lastCommand;
 		uint32_t turnCount = 0;
 		bool gameHasBegun = false;
 		bool sessionActive = false;

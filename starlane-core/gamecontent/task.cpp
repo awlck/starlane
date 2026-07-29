@@ -1032,11 +1032,13 @@ static inline constexpr bool ObjIsAppropriate(Task::ActionRefType t, const GameO
 	case Task::ActionRefType::ObjsOn:
 	case Task::ActionRefType::ObjsAtLocation:
 	case Task::ActionRefType::ObjsWithProp:
+	case Task::ActionRefType::ObjsInGroup:
 		return !AsCharacter(o) && !AsLocation(o);
 	case Task::ActionRefType::CharsInside:
 	case Task::ActionRefType::CharsOn:
 	case Task::ActionRefType::CharsAtLocation:
 	case Task::ActionRefType::CharsWithProp:
+	case Task::ActionRefType::CharsInGroup:
 		return AsCharacter(o);
 	case Task::ActionRefType::LocationOf:
 	case Task::ActionRefType::LocationsInGroup:

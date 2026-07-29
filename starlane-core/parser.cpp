@@ -234,26 +234,32 @@ std::vector<std::string> Game::MatchListForReference(const std::string &from, co
 	return result;
 }
 
-void Game::BindReference(std::unordered_map<std::string, std::string> &refs,
-                         const std::string &ref, const std::string &value) {
+// Every name one reference answers to. A task's own Command pattern spells it one way
+// ("%object1%"), which is what that task's own restriction and message text will say; the library
+// restrictions shared across many tasks instead use ADRIFT's generic, position-based name
+// ("ReferencedObject1"). And "%object%" and "%object1%" are the same, first reference, which a task
+// is free to mix between its Command and its messages -- the library's "open objects" task does
+// exactly that. Anything recording something *about* a reference has to record it under all of
+// them, or a lookup that arrives by another spelling comes up empty.
+std::vector<std::string> Game::ReferenceAliases(const std::string &ref) {
 	auto [family, suffix] = SplitRefName(ref);
-	// Store under the name from this task's own Command pattern (e.g. "%object1%"),
-	// which is what that task's own restriction/message text will refer to it as...
-	refs[Util::CanonicalizeRefName(ref)] = value;
-	// ...as well as under ADRIFT's generic, position-based name (e.g. "ReferencedObject1"),
-	// which is what library restrictions shared across many tasks use instead.
-	std::string alias = GenericAliasFamily(family);
+	std::vector<std::string> names{ Util::CanonicalizeRefName(ref) };
+	const std::string alias = GenericAliasFamily(family);
 	if (!alias.empty())
-		refs[Util::CanonicalizeRefName(alias + suffix)] = value;
-	// "%object%" and "%object1%" name the same, first reference, and a task is free to use one
-	// in its Command and the other in its messages -- the library's "open objects" task does
-	// exactly that. Register both spellings, generic name included.
+		names.push_back(Util::CanonicalizeRefName(alias + suffix));
 	if (suffix.empty() || suffix == "1") {
 		const std::string other = suffix.empty() ? "1" : "";
-		refs[Util::CanonicalizeRefName('%' + family + other + '%')] = value;
+		names.push_back(Util::CanonicalizeRefName('%' + family + other + '%'));
 		if (!alias.empty())
-			refs[Util::CanonicalizeRefName(alias + other)] = value;
+			names.push_back(Util::CanonicalizeRefName(alias + other));
 	}
+	return names;
+}
+
+void Game::BindReference(std::unordered_map<std::string, std::string> &refs,
+                         const std::string &ref, const std::string &value) {
+	for (const auto &name : ReferenceAliases(ref))
+		refs[name] = value;
 }
 
 namespace {
@@ -302,7 +308,11 @@ bool Game::CaptureReferences(const std::vector<std::string> &refSpecs, const std
 					items.push_back(o->Key());
 				}
 				if (items.empty()) return false;
-				currentAllRefs.insert(Util::CanonicalizeRefName(ref));
+				// Under every spelling: the standard library keeps a task out of a sweeping command
+			// with "ReferencedObjects MustNot BeExactText All", by the generic name, while the
+			// task's own Command called it "%objects%".
+			for (const auto &name : ReferenceAliases(ref))
+				currentAllRefs.insert(name);
 				resolved = items.front();
 				// Recorded as a plural reference even when only one thing survives, so that the
 				// odometer in ExecuteMatchedTask drives it and each thing is judged on its own.
@@ -786,6 +796,16 @@ bool Game::RunTaskAndCapture(Task *task, bool showText, bool runActions) {
 		return anyText;
 	}
 
+	// Out of a command there is nothing buffering the output, so a Before message is simply printed
+	// before the actions run: that is both its place in the transcript and, being read first, the
+	// reading of the world the pre/post comparison below exists to preserve. (An event that narrates
+	// something and then moves the player must narrate first and describe the new room second.)
+	if (!activeResponseBuffer) {
+		emit(std::string());
+		if (runActions) task->RunActions();
+		return anyText;
+	}
+
 	// A Before message describes the world as it was when the task fired, so ADRIFT reads it once
 	// ahead of the actions, runs them, and reads it again: if the actions changed what it says, the
 	// earlier reading is what the player gets. That is what makes "(from %objects%.Parent.Name)"
@@ -878,7 +898,7 @@ void Game::ExecuteTaskByKey(const std::string &key, const std::vector<std::strin
 	auto result = task->CheckRestrictions();
 	if (!result.first) {
 		if (result.second != 0)
-			OutputFiltered(MutableDescription(result.second)->BuildAndCommit());
+			EmitFailureText(MutableDescription(result.second)->BuildAndCommit());
 		return;
 	}
 	// A task reached through an "Execute" action still gets its Specific overrides applied,
@@ -949,16 +969,32 @@ void Game::ExecuteMatchedTask(Task *general) {
 	// a plural reference named, so each gets its own restrictions checked and its own Specific
 	// overrides applied. The references are bound to one combination at a time, cycling through
 	// every combination when a command carries more than one plural reference.
+	// A sweeping ALL command swallows its refusals (see EmitFailureText); if nothing it named could
+	// be acted on at all, the task's own fail-override text stands in for the lot.
+	const bool sweeping = !currentAllRefs.empty();
+	bool anythingWorked = false;
+	struct FailOverrideGuard {
+		Game *g; Task *general; const bool &sweeping; const bool &worked;
+		~FailOverrideGuard() {
+			if (!sweeping || worked || general->GetFailOverrideMsg() == 0) return;
+			g->OutputFiltered(g->MutableDescription(general->GetFailOverrideMsg())->BuildAndCommit());
+		}
+	} failGuard{this, general, sweeping, anythingWorked};
+
 	std::vector<size_t> indices(currentRefLists.size(), 0);
 	for (;;) {
 		for (size_t i = 0; i < currentRefLists.size(); i++)
 			BindReference(currentRefs, currentRefLists[i].first, currentRefLists[i].second[indices[i]]);
 
 		auto parentResult = general->CheckRestrictions();
-		if (!parentResult.first)
-			OutputFiltered(parentResult.second != 0 ? MutableDescription(parentResult.second)->BuildAndCommit() : "You can't do that right now.\n");
-		else
+		if (!parentResult.first) {
+			EmitFailureText(parentResult.second != 0
+				? MutableDescription(parentResult.second)->BuildAndCommit()
+				: std::string("You can't do that right now.\n"));
+		} else {
+			anythingWorked = true;
 			RunTaskWithSpecifics(general, currentMatchedRefTokens);
+		}
 
 		// Advance to the next combination, odometer-style; stop once they have all been run.
 		size_t pos = currentRefLists.size();
@@ -1067,7 +1103,7 @@ bool Game::RunTaskWithSpecifics(Task *general, const std::vector<std::string> &r
 			// precedence over the parent, same as if the child had passed.
 			std::string text = MutableDescription(childResult.second)->BuildAndCommit();
 			childHadSomethingToSay = !text.empty();
-			RecordResponse(std::move(text));
+			EmitFailureText(std::move(text));
 			if (childHadSomethingToSay) {
 				if (!overrideType.Has(Task::OverrideType::ParentText)) showParentText = false;
 				if (!overrideType.Has(Task::OverrideType::ParentActions)) runParentActions = false;
@@ -1090,7 +1126,7 @@ bool Game::RunTaskWithSpecifics(Task *general, const std::vector<std::string> &r
 		} else if (childResult.second != 0) {
 			std::string text = MutableDescription(childResult.second)->BuildAndCommit();
 			childHadSomethingToSay = !text.empty();
-			RecordResponse(std::move(text));
+			EmitFailureText(std::move(text));
 		}
 		anyOutput = anyOutput || childHadSomethingToSay;
 		if (childHadSomethingToSay && !child->AlwaysContinues())
@@ -1316,7 +1352,20 @@ void Game::ProcessInput(const std::string &s) {
 		return;
 	}
 
-	currentCommand = ApplySynonyms(SubstitutePronouns(frontend->StrToLowerCase(s)));
+	std::string typed = frontend->StrToLowerCase(s);
+	// AGAIN (or G) stands in for whatever was typed last, and says which command it took that to
+	// be. The recalled text is stored with its pronouns already resolved, so "take it" followed by
+	// G takes the same thing again rather than whatever "it" has come to mean since -- and so that
+	// a second G repeats the same command rather than itself.
+	const std::string trimmed = NormalizeSystemCommand(typed);
+	if ((trimmed == "again" || trimmed == "g") && !lastCommand.empty()) {
+		OutputFiltered("<c>(" + lastCommand + ")</c>\n");
+		typed = lastCommand;
+	} else {
+		typed = SubstitutePronouns(std::move(typed));
+		lastCommand = typed;
+	}
+	currentCommand = ApplySynonyms(typed);
 
 	Task *chosenTask = FindMatchingTask();
 

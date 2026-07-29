@@ -128,6 +128,7 @@ Game::Game(const Game &rhs) {
 	pronounThemText = rhs.pronounThemText;
 	pronounHimText = rhs.pronounHimText;
 	pronounHerText = rhs.pronounHerText;
+	lastCommand = rhs.lastCommand;
 	turnCount = rhs.turnCount;
 	gameHasBegun = rhs.gameHasBegun;
 	sessionActive = rhs.sessionActive;
@@ -220,7 +221,10 @@ bool Game::PlayerIsInLocationOrGroup(const std::string &key) const {
 }
 
 size_t Game::TaskStateIndex(const std::string &key) const {
-	return staticData->tasks.at(key)->StateIndex();
+	auto it = staticData->tasks.find(key);
+	if (it == staticData->tasks.end())
+		throw std::out_of_range("no task with key '" + key + "'");
+	return it->second->StateIndex();
 }
 
 void Game::PrepareUndoBookkeeping() {
@@ -299,6 +303,7 @@ void Game::ApplyRecord(UndoRecord &rec) {
 	pronounThemText = rec.pronounThemText;
 	pronounHimText = rec.pronounHimText;
 	pronounHerText = rec.pronounHerText;
+	lastCommand = rec.lastCommand;
 	turnCount = rec.turnCount;
 	gameHasBegun = rec.gameHasBegun;
 	sessionActive = rec.sessionActive;
@@ -371,7 +376,8 @@ void Game::AuditRestore(const UndoRecord &rec) const {
 			gameHasBegun != want.gameHasBegun || sessionActive != want.sessionActive ||
 			mostRecentlyMentioned != want.mostRecentlyMentioned ||
 			pronounItText != want.pronounItText || pronounThemText != want.pronounThemText ||
-			pronounHimText != want.pronounHimText || pronounHerText != want.pronounHerText)
+			pronounHimText != want.pronounHimText || pronounHerText != want.pronounHerText ||
+			lastCommand != want.lastCommand)
 		complain("session state", 0, playerKey, want.playerKey);
 }
 #endif  // SL_UNDO_AUDIT
@@ -396,6 +402,7 @@ void Game::SaveUndo() {
 	openRecord.pronounThemText = pronounThemText;
 	openRecord.pronounHimText = pronounHimText;
 	openRecord.pronounHerText = pronounHerText;
+	openRecord.lastCommand = lastCommand;
 	openRecord.turnCount = turnCount;
 	openRecord.gameHasBegun = gameHasBegun;
 	openRecord.sessionActive = sessionActive;
@@ -464,6 +471,7 @@ void Game::AssignStateFrom(const Game &src) {
 	pronounThemText = src.pronounThemText;
 	pronounHimText = src.pronounHimText;
 	pronounHerText = src.pronounHerText;
+	lastCommand = src.lastCommand;
 	turnCount = src.turnCount;
 	gameHasBegun = src.gameHasBegun;
 	sessionActive = src.sessionActive;

@@ -309,12 +309,22 @@ void Walk::AnnounceMove(Character &owner, const std::string &dest) const {
 			owner.GetParentRelation() != GameObj::HoldingType::AtLocation)
 		return;
 	auto *g = Game::Get();
+	// CharEnters/CharExits are Text properties, which ADRIFT stores as descriptions rather than as
+	// plain strings -- so they are built, not read off. (They can also carry restrictions and
+	// alternatives like any other description: "slinks in" while sneaking, "marches in" otherwise.)
+	auto verbFor = [&](const char *prop, const char *fallback) {
+		if (!owner.HasProp(prop)) return std::string(fallback);
+		const auto ref = (DescrRef) owner.GetIntProp(prop);
+		if (ref == 0) return std::string(fallback);
+		std::string text = g->MutableDescription(ref)->BuildAndCommit();
+		return text.empty() ? std::string(fallback) : text;
+	};
 	const std::string ownerLoc = owner.GetLocationKey();
 	const std::string &playerLoc = g->GetPlayerLocationKey();
 	// The name leads a fresh sentence; OutputFiltered capitalises the first letter for us.
 	if (ownerLoc == playerLoc) {
 		// The player watches the character leave.
-		std::string verb = owner.HasProp("CharExits") ? owner.GetStrProp("CharExits") : "exits";
+		std::string verb = verbFor("CharExits", "exits");
 		std::string msg = owner.GetDisplayName(false) + " " + verb;
 		if (const Location *from = owner.GetLocation(); from && from->IsAdjacent(dest)) {
 			std::string dir = from->DirectionTo(dest);
@@ -328,7 +338,7 @@ void Walk::AnnounceMove(Character &owner, const std::string &dest) const {
 		g->OutputFiltered(msg);
 	} else if (dest == playerLoc) {
 		// The player watches the character arrive.
-		std::string verb = owner.HasProp("CharEnters") ? owner.GetStrProp("CharEnters") : "enters";
+		std::string verb = verbFor("CharEnters", "enters");
 		std::string msg = owner.GetDisplayName(false) + " " + verb;
 		if (const Location *destLoc = AsLocation(g->TryGetObject(dest));
 				destLoc && destLoc->IsAdjacent(ownerLoc)) {

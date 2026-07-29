@@ -291,6 +291,28 @@
       per-turn "has been seen by" bookkeeping. Race Against Time now runs to its winning ending
       with 3 of 131 commands differing (was 103); Bug Hunt 11 of 75 (was 26); Alyas 388 of 607
       (was 538), with the first divergence moved from command 5 to command 43.
+- [x] core: chase the remaining Alyas of Starhollow divergences. Event `<Control>` elements are
+      loaded for every event, not only "after a task" ones -- Alyas writes `<WhenStart>0</WhenStart>`
+      (a value ADRIFT's own enum has no name for, so the event never starts by itself) for events
+      that exist purely to be switched on by a task, and reading their controls conditionally left
+      the whole temple sequence waiting on a notification nobody was subscribed to. Also: AGAIN/G;
+      the `NoObject`/`NoCharacter` quantifier ("is the player carrying nothing at all?"), which
+      until now failed every restriction that used it; `EverythingInGroup`/`EveryoneInGroup` move
+      actions, which matched nothing because `ObjIsAppropriate` had no case for them; `CharEnters`/
+      `CharExits` are Text properties and so have to be built as descriptions rather than read as
+      strings (reading them threw, and the throw took the rest of the turn with it); and ALL is now
+      recorded under every spelling of its reference, since the library keeps a task out of a
+      sweeping command with "ReferencedObjects MustNot BeExactText All" -- by the generic name,
+      while the task's own Command called it "%objects%". Alyas: 538 of 607 commands differing
+      before this work, 48 after.
+- [ ] core: a menu built out of `AppendToPreviousDescription` parts shows more entries than ADRIFT
+      shows. Alyas's conversation menus (command 153 on) and Bug Hunt's "Available characters are:"
+      list (command 16 on) are both built this way -- a header part followed by one restricted part
+      per entry -- and in both games ADRIFT displays a strict subset of the parts whose restrictions
+      we make pass. Worth chasing as one bug: it is the single biggest remaining source of
+      divergence in both transcripts. FrankenDrift's Description.ToString is byte-identical to
+      stock ADRIFT's, so the difference is in what the restrictions see, not in how the parts are
+      assembled.
 - [ ] core: nested `<# ... #>` expression output is not re-scanned for `%Function[...]%` calls, so
       a game that builds a function call out of string concatenation (Alyas's "There is no route
       <dir>, only %ListExits[%Player%]%.") prints the call verbatim. ADRIFT's ReplaceFunctions
@@ -299,7 +321,6 @@
       ending in `Execute Look`) prints the room description once, not twice: both runs collapse
       into one aggregated response. ADRIFT keeps a separate response set per top-level task
       execution. See Alyas command 43.
-- [ ] core: implement support for AGAIN/G
 - [ ] Qt frontend: actually implement StrToSentenceCase
 - [ ] implement dockable secondary windows in the Qt frontend
 - [ ] Qt frontend: redirect starlane-core debug output to a debug log window

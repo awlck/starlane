@@ -82,6 +82,9 @@ public:
 	// message says about the world.
 	[[nodiscard]] bool HasActions() const { return !actions.empty(); }
 	[[nodiscard]] DescrRef GetCompletionMsg() const { return completionMsg; }
+	// The "there is nothing worth taking here" text a sweeping command falls back on when nothing
+	// it named could be acted on at all. 0 when the task has none.
+	[[nodiscard]] DescrRef GetFailOverrideMsg() const { return overrideFailMsg; }
 
 	// Whether *this* task's own completion message displays before or after *this* task's own
 	// actions run (independent of OverrideType's Before/After, which is about a Specific task's

@@ -347,17 +347,23 @@ bool Restriction::Single::PassObjectCond(const std::string &lhs, const std::stri
 	// passes if some object of the requested kind fulfills it. (For a `MustNot`
 	// restriction this means no such object may fulfill it, since the negation
 	// happens in Pass(), outside of us.)
+	// "NoObject"/"NoCharacter" are the same quantifier negated -- the condition holds precisely when
+	// nothing of that kind fulfills it, which is how the library asks "is the player carrying
+	// nothing at all?" ("NoObject Must BeHeldByCharacter Player"). Treated here rather than left to
+	// the Must/MustNot wrapper, which negates the whole restriction and would give "not everything".
 	for (const std::string *side: { &lhs, &rhs }) {
-		if (*side != "AnyObject" && *side != "AnyCharacter") continue;
-		bool wantChar = (*side == "AnyCharacter");
+		const bool anyForm = *side == "AnyObject" || *side == "AnyCharacter";
+		const bool noneForm = *side == "NoObject" || *side == "NoCharacter";
+		if (!anyForm && !noneForm) continue;
+		bool wantChar = (*side == "AnyCharacter" || *side == "NoCharacter");
 		for (const GameObj *o: g->GetAllObjects()) {
 			if (o->IsLocation()) continue;
 			if (o->IsCharacter() != wantChar) continue;
 			bool pass = (side == &lhs) ? PassObjectCond(o->Key(), rhs, out)
 			                           : PassObjectCond(lhs, o->Key(), out);
-			if (pass) return true;
+			if (pass) return anyForm;
 		}
-		return false;
+		return noneForm;
 	}
 
 	// And now for all the various restrictions on objects...

@@ -43,7 +43,13 @@ Event *Event::CreateFromXML(const pugi::xml_node &xmlNode) {
 	// more often than not -- and absent means no delay at all.
 	result->startDelay = Util::Range(xmlNode.child_value("StartDelay"));
 
-	if (result->startType == StartType::TaskBased) {
+	// Every event's controls are read, whatever its start type says. ADRIFT loads them
+	// unconditionally too, and its CompleteTask walks every event's controls without once asking
+	// how that event starts -- which is what lets an event with no start type of its own (Alyas
+	// writes "<WhenStart>0</WhenStart>", a value ADRIFT's own enum has no name for, so it never
+	// starts by itself) exist purely to be switched on by a task. Reading these only for
+	// AfterATask events left the Temple's priests waiting on a control nothing was subscribed to.
+	{
 		for (const auto &it: xmlNode.children("Control")) {
 			// Discount tokenization. Great.
 			Util::Control c;
