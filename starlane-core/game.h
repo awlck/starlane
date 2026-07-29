@@ -423,6 +423,18 @@ public:
 		~MeasuringOutputGuard() { if (active) g->measuringOutput--; }
 	};
 
+	// RAII guard marking one top-level task execution -- ADRIFT's AttemptToExecuteTask entered with
+	// bChildTask false, which saves its response tables aside, clears them, and puts them back when
+	// the execution is done. Held for the length of a triggered task, an event's or walk's task, or a
+	// start-up task; a task reached by another task's Execute action is a child and does not get one.
+	// See completionMessagesThisTurn.
+	struct ResponseScope {
+		Game *g;
+		std::unordered_set<std::string> saved;
+		explicit ResponseScope(Game *g) : g(g) { saved.swap(g->completionMessagesThisTurn); }
+		~ResponseScope() { g->completionMessagesThisTurn.swap(saved); }
+	};
+
 	const std::string &GetTitle() const { return staticData->gameTitle; }
 	const std::string &GetAuthor() const { return staticData->gameAuthor; }
 	const std::string &GetLastUpdated() const { return staticData->gameLastUpdated; }
@@ -802,12 +814,25 @@ private:
 	// unless the earlier one already broke the line. Mutable because OutputFiltered is const.
 	mutable bool turnHasOutput = false;
 	mutable bool endsWithNewline = false;
-	// Task completion messages already shown this turn, exactly as displayed. Used by the
-	// out-of-command emit path (events, walks, triggered tasks) to suppress a message that already
-	// appeared this turn, and topped up by FlushResponseBuffer so those paths still dedup against a
-	// command's own messages. Within a command, aggregation is handled by activeResponseBuffer
-	// instead. Same lifecycle as turnHasOutput above: reset every ProcessInput, never saved/undone.
+	// Task completion messages already shown by the top-level task execution now in progress, exactly
+	// as displayed. Used by the out-of-command emit path (events, walks, triggered tasks) to suppress
+	// a message a task and one of its children both produced, and topped up by FlushResponseBuffer so
+	// those paths dedup against the command's own messages too. Within a command, aggregation is
+	// handled by activeResponseBuffer instead.
+	//
+	// The scope is one top-level execution, not the whole turn: ADRIFT saves and clears its
+	// htblResponsesPass/Fail whenever AttemptToExecuteTask is entered with bChildTask false, so a
+	// location-triggered task that runs after the command is a fresh response set and may repeat
+	// something the command already said. (Alyas: blocking the mill race moves the player and looks;
+	// the arrival trigger fires, moves the miller and looks again -- two room descriptions.)
+	// Transient: reset every ProcessInput, never saved or undone.
 	mutable std::unordered_set<std::string> completionMessagesThisTurn;
+	// Bumped every time a task message is recorded or printed. Read across a task's actions to tell
+	// whether they said anything -- a task whose only output comes from an "Execute" action still
+	// counts as having spoken, which is what stops the search through its Specific siblings and
+	// through lower-priority tasks. (ADRIFT threads the same answer back by reference, as
+	// ExecuteActions' bTaskHasOutputNew.) Transient: never saved or undone.
+	mutable uint64_t responsesRecorded = 0;
 
 	// (No descriptionsSoFar: `descriptions` is a dense vector, so its size is the count.)
 	size_t restrictionsSoFar = 0;

@@ -503,8 +503,10 @@ void Game::Begin() {
 	// played yet. Directly rather than through the arrival queue -- nobody has arrived anywhere,
 	// and these run whatever location the player begins in. Before the intro and before events
 	// start, as in ADRIFT.
-	for (Task *t : staticData->runImmediatelyTasks)
+	for (Task *t : staticData->runImmediatelyTasks) {
+		ResponseScope scope(this);
 		ExecuteTaskByKey(t->Key());
+	}
 	// ...and if one of those moved the player, whatever waits where they landed runs here rather
 	// than being left to go off during the player's first command, which is where ADRIFT drains
 	// its queue. Games use a start-up task to walk the player through every location in turn, to

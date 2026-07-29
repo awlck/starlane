@@ -348,12 +348,16 @@ void Event::RunSubEvent(int32_t idx) {
 			if (!se.onlyAtLocation.empty() && g->PlayerIsInLocationOrGroup(se.onlyAtLocation))
 				g->OutputFiltered(g->MutableDescription(se.actionDescr)->BuildAndCommit());
 			break;
-		case SEType::ExecuteTask:
+		case SEType::ExecuteTask: {
 			// Already does nothing for a task that doesn't exist, which is ADRIFT's behaviour
 			// here too. A task that fails its restrictions still gets to say so -- ADRIFT only
 			// suppresses the hunt for a lower-priority task when an event runs one, not output.
+			// A task an event runs is a top-level execution in ADRIFT (bChildTask false), so it
+			// starts with a clean slate of already-said messages -- see Game::ResponseScope.
+			Game::ResponseScope scope(g);
 			g->ExecuteTaskByKey(se.actionTask);
 			break;
+		}
 		case SEType::UnsetTask:
 			// ADRIFT looks the task up unguarded and throws outright on a key that isn't there;
 			// doing nothing is the more useful reading of a game file naming a task it hasn't got.

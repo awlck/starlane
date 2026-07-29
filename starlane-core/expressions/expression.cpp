@@ -392,6 +392,24 @@ Expr::Value Expression::ResolveNameToValue(const std::string &nt) const {
 	else throw std::logic_error("Wrong type of variable (presumed impossible).");
 }
 
+// The length of the "%Name[...]%" function call starting at text[at] (which must be a '%'), or 0
+// when what follows isn't one. Bracket depth is tracked so a nested call in the arguments
+// ("%ListExits[%Player%]%") is spanned rather than cut short at the first ']'.
+static size_t SpanFunctionCall(const std::string &text, size_t at) {
+	size_t i = at + 1;
+	while (i < text.size() && (isalnum((unsigned char) text[i]) || text[i] == '_'
+	                           || text[i] == '-' || text[i] == '#' || text[i] == '!'))
+		i++;
+	if (i == at + 1 || i >= text.size() || text[i] != '[') return 0;
+	int depth = 0;
+	for (; i < text.size(); i++) {
+		if (text[i] == '[') depth++;
+		else if (text[i] == ']' && --depth == 0) break;
+	}
+	if (i >= text.size() || i + 1 >= text.size() || text[i + 1] != '%') return 0;
+	return i + 2 - at;
+}
+
 std::string Expression::InterpolateRefs(const std::string &text) const {
 	// Nothing to do -- and nothing to pay -- for the overwhelmingly common literal with no '%'.
 	if (text.find('%') == std::string::npos)
@@ -402,6 +420,21 @@ std::string Expression::InterpolateRefs(const std::string &text) const {
 		if (text[i] != '%') {
 			result += text[i++];
 			continue;
+		}
+		// A complete %Function[...]% call written inside the quotes is evaluated too: ADRIFT runs
+		// ReplaceFunctions over the raw text before the expression is ever parsed, so a call that
+		// appears whole in the source is substituted regardless of the quotes around it. (One
+		// assembled out of pieces -- "%LCase" & "[x]%" -- is not, because ReplaceFunctions never
+		// saw it whole; that is why we do this here rather than re-scanning our own result.)
+		if (size_t len = SpanFunctionCall(text, i)) {
+			try {
+				const ExprRef sub = Game::Get()->CreateExpression(text.substr(i, len));
+				result += Game::Get()->GetExpression(sub)->EvaluateStr();
+				i += len;
+				continue;
+			} catch (const std::exception &) {
+				// Not something we can evaluate after all; fall through and treat it as text.
+			}
 		}
 		// A %reference% is %, then a name (letters, digits and the trailing punctuation ADRIFT
 		// permits in variable names), then a closing %. The name is resolved exactly as a bare

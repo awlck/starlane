@@ -403,9 +403,12 @@ void Walk::RunSubWalk(int32_t idx) {
 			if (sw.descr != 0 && !sw.onlyAtLocation.empty() && g->PlayerIsInLocationOrGroup(sw.onlyAtLocation))
 				g->OutputFiltered(g->MutableDescription(sw.descr)->BuildAndCommit());
 			break;
-		case SubWhat::ExecuteTask:
+		case SubWhat::ExecuteTask: {
+			// Top-level execution, as when an event runs a task -- see Game::ResponseScope.
+			Game::ResponseScope scope(g);
 			g->ExecuteTaskByKey(sw.taskKey);
 			break;
+		}
 		case SubWhat::UnsetTask:
 			if (Task *t = g->GetTask(sw.taskKey))
 				t->Uncomplete();

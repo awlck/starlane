@@ -631,8 +631,8 @@ void Restriction::Single::Translate() {
 		cond = ConditionType::GreaterThan;
 	} else if (tok == "BeGreaterThanOrEqualTo" || tok == "GreaterThanOrEqualTo") {
 		cond = ConditionType::GreaterOrEqual;
-	} else if (tok == "BeLessThan") {
-		cond = ConditionType::LessOrEqual;
+	} else if (tok == "BeLessThan" || tok == "LessThan") {
+		cond = ConditionType::LessThan;
 	} else if (tok == "BeLessThanOrEqualTo" || tok == "LessThanOrEqualTo") {
 		cond = ConditionType::LessOrEqual;
 	} else if (tok == "BeContain") {

@@ -6,7 +6,9 @@
 #include "../random.h"
 #include "../valueparsers.h"
 #include "../gamecontent/character.h"
+#include "../gamecontent/description.h"
 #include "../gamecontent/location.h"
+#include "../gamecontent/property.h"
 #include "../gamecontent/utility.h"
 #include "../gamecontent/variable.h"
 
@@ -525,10 +527,18 @@ Expr::Value Expression::PropertyValueImpl(const ast_node_tag *args) const {
 	Expr::EnsureString(propArg);
 	const std::string &prop = propArg.Str;
 	auto *g = Game::Get();
+	// A Text-typed property holds a description handle, not the text itself, so it has to be built
+	// rather than stringified -- printing the handle is how "read signpost" came out as "750".
+	const Property *meta = g->GetPropMeta(prop);
+	const bool isText = meta && meta->Type() == Property::ValueType::Text;
 	std::vector<std::string> values;
 	for (const std::string &key : Util::SplitList(theArg.Str)) {
 		const GameObj *obj = g->TryGetObject(key);
 		if (!obj || !obj->HasProp(prop)) continue;
+		if (isText) {
+			values.push_back(g->MutableDescription(obj->GetIntProp(prop))->BuildAndCommit());
+			continue;
+		}
 		const auto &strProps = obj->GetAllStrProps();
 		auto s = strProps.find(prop);
 		values.push_back(s != strProps.end() ? s->second : std::to_string(obj->GetIntProp(prop)));

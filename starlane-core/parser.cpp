@@ -421,13 +421,13 @@ bool Game::RefineReferencesByRestrictions(const Task *task,
 		for (size_t i = 0; i < items->second.size(); i++)
 			refine(items->second[i], token, listSlot, i);
 
-		// ALL is a sweep over everything the player has seen, so most of what it names has nothing
-		// to do with the command: an item the task would refuse is dropped outright rather than
-		// answered, which is why "put all in bag" reports what went in and not the hundred things
-		// that didn't. (ADRIFT drops failing items from every plural reference this way. Here it is
-		// confined to ALL, so that a thing the player named in so many words still gets told why it
-		// could not be used.)
-		if (!listSlot || !currentAllRefs.count(canonical)) continue;
+		// An item of a plural reference that the task would refuse is dropped from the list rather
+		// than answered, so long as something else in the list survives: ADRIFT's refinement pass
+		// only ever collects the combinations that pass, and an item none of whose candidates passed
+		// is simply never collected. That is why "put all in bag" reports what went in and not the
+		// hundred things that didn't -- and equally why "drop bowl and mortar", with the mortar
+		// nowhere in reach, answers about the bowl alone.
+		if (!listSlot) continue;
 		std::vector<RefMatchInfo> keptItems;
 		std::vector<std::string> keptKeys;
 		for (size_t i = 0; i < items->second.size(); i++) {
@@ -437,7 +437,12 @@ bool Game::RefineReferencesByRestrictions(const Task *task,
 			keptKeys.push_back((*listSlot)[i]);
 		}
 		if (keptKeys.empty()) {
-			anyEmptied = anyWasAmbiguous = true;  // nothing ALL named can be used: skip this task
+			// Nothing named can be used at all. ADRIFT puts the whole reference back as it was
+			// (bResetRef), leaving the task to refuse it by name -- so an explicitly named thing
+			// still gets told why. ALL is the exception: there is no name to answer about, and the
+			// sweep is meant to pass over to whatever handles a wholly fruitless one.
+			if (currentAllRefs.count(canonical))
+				anyEmptied = anyWasAmbiguous = true;
 			continue;
 		}
 		items->second = std::move(keptItems);
@@ -698,7 +703,6 @@ bool Game::SpecificTaskMatches(const Task *specific, const std::vector<std::stri
 }
 
 bool Game::RunTaskAndCapture(Task *task, bool showText, bool runActions) {
-	task->MarkCompleted();
 	bool msgFirst = task->GetMessagePlacement() == Task::MessagePlacement::Before;
 	bool anyText = false;
 	// `pinned`, when non-empty, is the message exactly as it read before this task's actions ran:
@@ -716,8 +720,10 @@ bool Game::RunTaskAndCapture(Task *task, bool showText, bool runActions) {
 			std::string text = pinned.empty()
 				? MutableDescription(task->GetCompletionMsg())->BuildAndCommit() : pinned;
 			if (!text.empty()) anyText = true;
-			if (completionMessagesThisTurn.insert(text).second)
+			if (completionMessagesThisTurn.insert(text).second) {
+				responsesRecorded++;
 				OutputFiltered(std::move(text));
+			}
 			return;
 		}
 
@@ -735,6 +741,7 @@ bool Game::RunTaskAndCapture(Task *task, bool showText, bool runActions) {
 				resp.refSnapshot = currentRefs;
 				buf.order.insert(buf.order.begin() + (long) std::min(at, buf.order.size()), pinned);
 				buf.byKey.emplace(pinned, std::move(resp));
+				responsesRecorded++;
 			}
 			return;
 		}
@@ -760,6 +767,7 @@ bool Game::RunTaskAndCapture(Task *task, bool showText, bool runActions) {
 			resp.refSnapshot = currentRefs;
 			buf.order.insert(buf.order.begin() + (long) std::min(at, buf.order.size()), key);
 			buf.byKey.emplace(std::move(key), std::move(resp));
+			responsesRecorded++;
 		} else {
 			// Same message as an earlier run this command: merge in any reference whose value differs
 			// from what was first recorded, so the flush can render the collapsed runs as one list.
@@ -790,8 +798,23 @@ bool Game::RunTaskAndCapture(Task *task, bool showText, bool runActions) {
 	// RunActions this way keeps a Before message ahead of, and an After message behind, whatever a
 	// nested "Execute" action itself emits/records -- so the buffer's insertion order, which the
 	// end-of-command flush preserves, still reflects each message's place in the action sequence.
+	// A task whose actions "Execute" another task has spoken through it, even with no message of its
+	// own -- ADRIFT threads that back as ExecuteActions' bTaskHasOutputNew, and it is what stops the
+	// search through this task's Specific siblings and the lower-priority tasks below it. (Alyas:
+	// "pour water in brazier" is answered by a silent Specific override that executes the scoring
+	// task; without this the sibling below it runs too and adds "The flask is empty.")
+	auto runActionsAndNoteOutput = [&] {
+		if (!runActions) return;
+		const uint64_t before = responsesRecorded;
+		task->RunActions();
+		if (responsesRecorded != before) anyText = true;
+	};
+
 	if (!msgFirst) {
-		if (runActions) task->RunActions();
+		// An After message is read once the task has completed and its actions have run -- which is
+		// also the order ADRIFT sets task.Completed in, ahead of both.
+		task->MarkCompleted();
+		runActionsAndNoteOutput();
 		emit(std::string());
 		return anyText;
 	}
@@ -802,7 +825,8 @@ bool Game::RunTaskAndCapture(Task *task, bool showText, bool runActions) {
 	// something and then moves the player must narrate first and describe the new room second.)
 	if (!activeResponseBuffer) {
 		emit(std::string());
-		if (runActions) task->RunActions();
+		task->MarkCompleted();
+		runActionsAndNoteOutput();
 		return anyText;
 	}
 
@@ -811,11 +835,18 @@ bool Game::RunTaskAndCapture(Task *task, bool showText, bool runActions) {
 	// earlier reading is what the player gets. That is what makes "(from %objects%.Parent.Name)"
 	// name where the object came from rather than the player who now holds it. The slot it would
 	// have taken is remembered too, so it still lands ahead of whatever the actions record.
+	//
+	// Read before MarkCompleted, as ADRIFT reads it before setting task.Completed: a message part
+	// gated on "this task must be complete" belongs to the *next* run, not the one completing it.
+	// (Alyas's soldier answers "Bugger orf!" the first time and "no desire to converse" after.) That
+	// makes completion itself something the reading can depend on, so the reading happens whether or
+	// not the task has actions to change anything else.
 	std::string before;
-	if (showText && task->GetCompletionMsg() != 0 && runActions && task->HasActions())
+	if (showText && task->GetCompletionMsg() != 0)
 		before = GetDescription(task->GetCompletionMsg())->Build();
 	size_t slot = activeResponseBuffer ? activeResponseBuffer->order.size() : SIZE_MAX;
-	if (runActions) task->RunActions();
+	task->MarkCompleted();
+	runActionsAndNoteOutput();
 	std::string after;
 	if (!before.empty())
 		after = GetDescription(task->GetCompletionMsg())->Build();
@@ -930,6 +961,7 @@ void Game::RunTriggeredTasks() {
 		}
 		std::string key = std::move(triggeredTasks.front());
 		triggeredTasks.pop_front();
+		ResponseScope scope(this);
 		ExecuteTaskByKey(key);
 	}
 }
@@ -1041,6 +1073,7 @@ void Game::FlushResponseBuffer(ResponseBuffer &buffer) {
 
 void Game::RecordResponse(std::string text) {
 	if (text.empty()) return;
+	responsesRecorded++;
 	if (!activeResponseBuffer) {
 		OutputFiltered(std::move(text));
 		return;

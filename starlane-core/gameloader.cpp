@@ -181,13 +181,13 @@ Game *Game::LoadFromXML(const std::string &gameTxt, uint32_t gameCrc32) {
 	for (const auto &it: gameNode.children("Task")) {
 		auto t = result->CreateTaskFromXML(it);
 		rStatic->prioOrderedTasks.insert(t);
-	}
-	// Index Specific tasks by the General task they override, and System tasks by whatever runs
-	// them of its own accord. All in priority order, which prioOrderedTasks already iterates in,
-	// so each list comes out sorted for free.
-	for (Task *t : rStatic->prioOrderedTasks) {
-		if (t->GetType() == Task::Type::Specific && !t->OverridesTask().empty())
-			rStatic->specificChildren[t->OverridesTask()].push_back(t);
+		// System tasks that run of their own accord go in file order, not priority order: ADRIFT
+		// finds both kinds by walking htblTasks, which enumerates as the file was read. Priority
+		// governs which task a *command* matches, and has no say here. It matters when two such
+		// tasks trigger at one location and the first to run moves the player out of it -- the
+		// second then fails its "player must be here" restriction and stays quiet. (Alyas has two
+		// entrances to the king's audience chamber written that way, and which one speaks decides
+		// whether the room is described a second time.)
 		if (t->GetType() == Task::Type::System) {
 			if (!t->LocationTrigger().empty())
 				rStatic->systemTasksByLocation[t->LocationTrigger()].push_back(t);
@@ -195,6 +195,11 @@ Game *Game::LoadFromXML(const std::string &gameTxt, uint32_t gameCrc32) {
 				rStatic->runImmediatelyTasks.push_back(t);
 		}
 	}
+	// Specific tasks are indexed by the General task they override, in priority order -- which
+	// prioOrderedTasks already iterates in, so the lists come out sorted for free.
+	for (Task *t : rStatic->prioOrderedTasks)
+		if (t->GetType() == Task::Type::Specific && !t->OverridesTask().empty())
+			rStatic->specificChildren[t->OverridesTask()].push_back(t);
 
 	// Character walks name the tasks that start and stop them; those tasks have just finished
 	// loading, so wire each walk up to them now. The characters themselves loaded earlier, before any
