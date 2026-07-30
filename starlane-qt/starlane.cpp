@@ -1,4 +1,5 @@
-﻿#include <QtCore/QProcess>
+﻿#include <QtCore/QElapsedTimer>
+#include <QtCore/QProcess>
 #include <QtCore/QString>
 #include <QtWidgets/QApplication>
 
@@ -102,6 +103,25 @@ bool AskYesNo(const char *question) {
 
 void QuitGame() {
 	QApplication::quit();
+}
+
+void PumpEvents() {
+	// The engine calls this liberally -- e.g. once per turn skipped by a "skip N turns" action --
+	// on the assumption that actually pumping is cheap or self-limiting (see Frontend::PumpEvents's
+	// doc comment). It isn't: Gargoyle's own Qt-based Glk library found that calling
+	// QApplication::processEvents() unconditionally at that frequency (there, once per VM opcode)
+	// noticeably slowed down exactly the busy stretches this exists to keep responsive during. So,
+	// like Gargoyle, only actually pump once some minimum interval has passed.
+	static QElapsedTimer sinceLastPump;
+	constexpr qint64 kMinIntervalMs = 15;
+	if (sinceLastPump.isValid() && sinceLastPump.elapsed() < kMinIntervalMs) return;
+	sinceLastPump.start();
+
+	// Excludes user input: this can be called from deep inside Starlane::ProcessInput() (a "skip N
+	// turns" action mid-turn), and MainWindow::InputReturnPressed() has no guard against being
+	// invoked again while an outer ProcessInput() call is still on the stack -- delivering a
+	// pending keypress here could reenter the engine mid-turn and corrupt its bookkeeping.
+	QApplication::processEvents(QEventLoop::ExcludeUserInputEvents);
 }
 
 void *CreateSaveFile() {
@@ -219,6 +239,7 @@ int main(int argc, char **argv) {
 		/* .StrToSentenceCase = */ &StrToSentenceCase,
 		/* .AskYesNo = */ &AskYesNo,
 		/* .QuitGame = */ &QuitGame,
+		/* .PumpEvents = */ &PumpEvents,
 		/* .CreateSaveFile = */ &CreateSaveFile,
 		/* .OpenSaveFile = */ &OpenSaveFile,
 		/* .ReadFile = */ &ReadFile,

@@ -165,6 +165,7 @@ void glk_main() {
 		.StrToSentenceCase = &StrToSentenceCase,
 		.AskYesNo = &AskYesNoQuestion,
 		.QuitGame = &glk_exit,
+		.PumpEvents = &glk_tick,
 		.CreateSaveFile = &CreateSaveFile,
 		.OpenSaveFile = &OpenSaveFile,
 		.ReadFile = &ReadFile,

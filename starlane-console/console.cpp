@@ -71,6 +71,10 @@ void QuitGame() {
 	// Nothing to do: the main loop notices that the game is over and stops asking for input.
 }
 
+void PumpEvents() {
+	// Nothing to do: this frontend has no event loop of its own to pump.
+}
+
 void *CreateSaveFile() {
 	std::cout << "Save file name: " << std::flush;
 	std::string path;
@@ -165,6 +169,7 @@ int main(int argc, char **argv) {
 		/* .StrToSentenceCase = */ &StrToSentenceCase,
 		/* .AskYesNo = */ &AskYesNo,
 		/* .QuitGame = */ &QuitGame,
+		/* .PumpEvents = */ &PumpEvents,
 		/* .CreateSaveFile = */ &CreateSaveFile,
 		/* .OpenSaveFile = */ &OpenSaveFile,
 		/* .ReadFile = */ &ReadFile,

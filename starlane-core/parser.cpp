@@ -806,6 +806,9 @@ bool Game::RunTaskAndCapture(Task *task, bool showText, bool runActions) {
 	auto runActionsAndNoteOutput = [&] {
 		if (!runActions) return;
 		const uint64_t before = responsesRecorded;
+		// give the frontend a chance to attend to its business, in case we have a chain of
+		// tasks executing each other for a while
+		frontend->PumpEvents();
 		task->RunActions();
 		if (responsesRecorded != before) anyText = true;
 	};

@@ -46,6 +46,18 @@ struct SLC_API Frontend {
 	// one game, likely the application along with it. `GameIsOngoing()` already returns
 	// false by the time this is called.
 	void (*QuitGame)();
+	// Give the frontend a chance to service its own event loop (e.g. redraw, handle window/input
+	// events) so the application doesn't appear to hang while the engine is busy running many
+	// turns or events in a row without otherwise returning control to it -- game processing all
+	// happens on the frontend's main thread. Modeled on Glk's own glk_tick(), including its
+	// calling convention: the engine calls this liberally, at every iteration of a loop that
+	// might otherwise run for a while (see its call sites for exactly where), the same way a Glk
+	// library expects glk_tick() to be called on every opcode of a bytecode interpreter. Actually
+	// servicing an event loop is not free, though, so a frontend whose event loop is expensive to
+	// pump (unlike a batch/console tool, which can leave this a no-op no matter how often it's
+	// called) is expected to rate-limit the real work internally -- e.g. only actually pump once
+	// some minimum interval has passed -- rather than assume the engine calls this sparingly.
+	void (*PumpEvents)();
 
 	// prompt the user to create (or replace) a save file, open it for writing, and return a handle to it
 	void *(*CreateSaveFile)();

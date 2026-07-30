@@ -1518,8 +1518,14 @@ void Task::Action::PerformImpl() const {
 		// "skip 3 turns" moves the world on by four. That is the reference's arithmetic, not a
 		// slip of ours.
 		auto n = g->GetExpression(expr)->EvaluateInt();
-		for (int64_t i = 0; i < n; i++)
+		for (int64_t i = 0; i < n; i++) {
 			g->TurnTick();
+			// `n` comes from an arbitrary expression and can be large enough that this loop runs
+			// for a noticeable stretch of real time; give the frontend's own event loop a chance
+			// to run every iteration so the application doesn't appear to hang -- see
+			// Frontend::PumpEvents's doc comment for why calling it this liberally is fine.
+			frontend->PumpEvents();
+		}
 		break;
 	}
 	case Starlane::Task::ActionType::ConvoGreet:
