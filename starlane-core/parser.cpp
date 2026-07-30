@@ -309,10 +309,10 @@ bool Game::CaptureReferences(const std::vector<std::string> &refSpecs, const std
 				}
 				if (items.empty()) return false;
 				// Under every spelling: the standard library keeps a task out of a sweeping command
-			// with "ReferencedObjects MustNot BeExactText All", by the generic name, while the
-			// task's own Command called it "%objects%".
-			for (const auto &name : ReferenceAliases(ref))
-				currentAllRefs.insert(name);
+				// with "ReferencedObjects MustNot BeExactText All", by the generic name, while the
+				// task's own Command called it "%objects%".
+				for (const auto &name : ReferenceAliases(ref))
+					currentAllRefs.insert(name);
 				resolved = items.front();
 				// Recorded as a plural reference even when only one thing survives, so that the
 				// odometer in ExecuteMatchedTask drives it and each thing is judged on its own.
