@@ -4,6 +4,8 @@
 
 #include "mainwindow.h"
 
+#include "blorbfile.h"
+
 #include <starlane-core.h>
 
 #include <QtCore/QCoreApplication>
@@ -184,8 +186,27 @@ bool MainWindow::LoadGameFile(const QString &path) {
 			tr("Could not open \"%1\".").arg(QDir::toNativeSeparators(path)));
 		return false;
 	}
-	const QByteArray data = file.readAll();
+	QByteArray data = file.readAll();
 	file.close();
+
+	// ADRIFT games are commonly distributed as a Blorb archive bundling the game itself (as the
+	// "Exec" resource) together with its images and sounds -- extract the game from there rather
+	// than trying to load the whole archive as if it were a bare .taf.
+	if (BlorbFile::IsBlorbData(data)) {
+		auto blorb = BlorbFile::Parse(data);
+		if (!blorb) {
+			QMessageBox::warning(this, QStringLiteral("Starlane"),
+				tr("\"%1\" does not appear to be a valid Blorb file.").arg(QDir::toNativeSeparators(path)));
+			return false;
+		}
+		data = blorb->GetExecResource();
+		if (data.isEmpty()) {
+			QMessageBox::warning(this, QStringLiteral("Starlane"),
+				tr("\"%1\" is a Blorb file, but it doesn't contain a game -- it can only be used "
+				   "alongside a separate .taf file.").arg(QDir::toNativeSeparators(path)));
+			return false;
+		}
+	}
 
 	eventTimer->stop();
 	output->clear();
@@ -224,7 +245,7 @@ void MainWindow::InputReturnPressed() {
 
 void MainWindow::OpenGameTriggered() {
 	const QString path = QFileDialog::getOpenFileName(this, tr("Open Game"), QString(),
-		tr("ADRIFT Game Files (*.taf)"));
+		tr("ADRIFT Game Files (*.taf *.blorb *.adriftblorb)"));
 	if (!path.isEmpty()) LoadGameFile(path);
 }
 

@@ -344,7 +344,27 @@
 - [ ] Qt frontend: actually implement StrToSentenceCase
 - [ ] implement dockable secondary windows in the Qt frontend
 - [ ] Qt frontend: redirect starlane-core debug output to a debug log window
-- [ ] implement `blorb` support in the Qt frontend
+- [x] implement `blorb` support in the Qt frontend, as a foundation for the graphics/sound work
+      below. `BlorbFile` (starlane-qt/blorbfile.{cpp,h}) is a small from-scratch parser (no new
+      dependency; the Glk frontend's equivalent uses vendored gi_blorb.c instead, which isn't
+      shared code between frontends) covering just what ADRIFT's own Blorb writer produces: it
+      scans sub-chunks and builds a (usage, number) -> chunk index from the 'RIdx' chunk, exposing
+      the Exec resource (`GetExecResource()`, ADRIFT's raw, still-encoded .taf bytes packed as a
+      chunk of type 'ADRI') and a general `GetResource(usage, number)` lookup for images/sounds
+      that the follow-up items below will need. Deliberately ignores the top-level FORM chunk's
+      own declared length rather than patching it in place the way starlane-glk's
+      locate_gamefile() does -- ADRIFT's writer gets that field wrong (Blorb-Spec.md's "ADRIFT 5
+      Compatibility Issues"), and simply not reading it is even less work than fixing it up.
+      `MainWindow::LoadGameFile()` now sniffs for the "FORM"/"IFRS" signature and, if found, feeds
+      `GetExecResource()`'s bytes to `Starlane::CreateGame()` instead of the raw file (which would
+      fail: it isn't itself a .taf); the "Open Game" file dialog filter also now lists *.blorb/
+      *.adriftblorb: alongside *.taf. Verified against every .blorb under testdata/: each one's
+      extracted Exec resource is byte-identical to blorbtool.py's own `export Exec 0` (a second,
+      independent implementation of the same spec) for that file, and separately, feeding the
+      extracted bytes through starlane-core's actual CreateGame()/BeginGame() (bypassing the Qt
+      UI) reproduces the game's normal intro text -- confirming the extraction isn't merely
+      byte-correct but is accepted by the engine exactly like a standalone .taf would be. Actually
+      drawing images or playing sounds through `GetResource()` is left to the next two items.
 - [ ] implement graphics support in the Qt frontend
 - [ ] implement sound support in the Qt frontend
 - [ ] ensure the Qt frontend can be compiled for the web (WASM)

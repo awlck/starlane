@@ -63,6 +63,22 @@
 				<string>public.adrift</string>
 			</array>
 		</dict>
+		<!-- public.blorb is Gargoyle's identifier too (it's the exporter; see the
+		     UTImportedTypeDeclarations entry below), shared with Z-code/Glulx Blorb archives,
+		     which is exactly why LSHandlerRank stays Default here as well: a plain .blorb/.blb
+		     isn't necessarily one of ours. -->
+		<dict>
+			<key>CFBundleTypeName</key>
+			<string>ADRIFT 5 Blorb File</string>
+			<key>CFBundleTypeRole</key>
+			<string>Viewer</string>
+			<key>LSHandlerRank</key>
+			<string>Default</string>
+			<key>LSItemContentTypes</key>
+			<array>
+				<string>public.blorb</string>
+			</array>
+		</dict>
 	</array>
 	<key>UTImportedTypeDeclarations</key>
 	<array>
@@ -81,6 +97,36 @@
 				<key>public.filename-extension</key>
 				<array>
 					<string>taf</string>
+				</array>
+			</dict>
+		</dict>
+		<!-- Same reasoning as public.adrift above: confirmed via the installed Gargoyle/
+		     Spatterlight bundles again, Gargoyle exports public.blorb (UTExportedTypeDeclarations)
+		     rather than importing it, so we do the same import-not-export as public.adrift here.
+		     UTTypeConformsTo matches Spatterlight's own import ([public.content, public.data])
+		     rather than Gargoyle's export (which instead lists its own private
+		     com.googlecode.garglk alongside public.data); conforming to a Gargoyle-specific type
+		     wouldn't make sense from an app that isn't Gargoyle. blb/blorb are the extensions both
+		     of them actually register; adriftblorb is added on top since Blorb-Spec.md's "ADRIFT 5
+		     Compatibility Issues" section blesses it as an alternate suffix specifically for
+		     ADRIFT's own Blorb files, which is the only kind this app ever produces or reads. -->
+		<dict>
+			<key>UTTypeIdentifier</key>
+			<string>public.blorb</string>
+			<key>UTTypeDescription</key>
+			<string>ADRIFT Blorb Archive</string>
+			<key>UTTypeConformsTo</key>
+			<array>
+				<string>public.content</string>
+				<string>public.data</string>
+			</array>
+			<key>UTTypeTagSpecification</key>
+			<dict>
+				<key>public.filename-extension</key>
+				<array>
+					<string>blb</string>
+					<string>blorb</string>
+					<string>adriftblorb</string>
 				</array>
 			</dict>
 		</dict>
