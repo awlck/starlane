@@ -92,9 +92,18 @@ void AppendHtml(const std::string &html);
 // (via the garglk zcolor extension, where available) the given 24-bit RGB foreground color.
 // 0xffffffff mirrors glkext.h's zcolor_Default.
 void OutputStyled(const std::string &text, uint32_t styleFlags, uint32_t color = 0xffffffff);
-// Blocks until the player has entered a line of input on the main window, returning it as UTF-8.
-std::string GetLineInput();
-// Blocks until the player has pressed a key on the main window (for the `<waitkey>` tag).
+// Prints `prompt` (styled as player input) and blocks until the player has entered a line of
+// input on the main window, returning it as UTF-8. The Glk spec forbids printing to a window with
+// line input pending, so if a real-time event fires while waiting and wants to print something,
+// this briefly cancels the pending line request (glk_cancel_line_event() hands back whatever the
+// player had typed so far, as if they'd pressed ENTER), tears down and reprints `prompt` around
+// the event's text, and re-requests line input with that partial input intact so editing can
+// resume where it left off.
+std::string GetLineInput(const std::string &prompt);
+// Blocks until the player has pressed a key on the main window (for the `<waitkey>` tag). Text a
+// real-time event wants to print while waiting is buffered rather than written to the window
+// (same rationale as GetLineInput()'s cancel-and-restore dance, but with no partial input to
+// preserve there's nothing to do but hold onto it) and flushed once the keypress arrives.
 void WaitForKeypress();
 // Attempts to erase the last character of the most recently *flushed* output (for `<del>`, once
 // there's nothing left in the current run to remove without having committed it to the window).

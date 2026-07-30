@@ -243,8 +243,7 @@ void glk_main() {
 	UpdateStatusBar();
 
 	while (Starlane::GameIsOngoing()) {
-		OutputStyled("\n> ", kStyleInput);
-		std::string cmd = GetLineInput();
+		std::string cmd = GetLineInput("\n> ");
 		Starlane::ProcessInput(cmd);
 		UpdateStatusBar();
 	}

@@ -54,7 +54,22 @@ void FatalError(const char *msg) {
 	OutputStyled("\n", kStyleNormal);
 }
 
+namespace {
+// Set by WaitForKeypress()/GetLineInput() while a Glk char- or line-input request is pending on
+// gMainWin, so OutputText() knows to hold onto text a real-time event wants to print instead of
+// handing it to AppendHtml() -- the Glk spec says printing to a window with line input pending is
+// illegal, and we apply the same rule to char input for consistency. Drained by whichever of the
+// two functions set the flag, once their glk_select() loop notices a timer tick actually produced
+// something; see each function for what it does with the captured text from there.
+bool gCapturingOutput = false;
+std::string gCapturedHtml;
+}  // namespace
+
 void OutputText(const char *msg) {
+	if (gCapturingOutput) {
+		gCapturedHtml += msg;
+		return;
+	}
 	AppendHtml(msg);
 }
 
@@ -66,6 +81,20 @@ namespace {
 // The Unicode text of the most recently *flushed* OutputStyled() call, tracked so that `<del>`
 // has something to try to unput once the current (not-yet-flushed) run is already empty.
 std::vector<uint32_t> gMostRecentOutput;
+
+// Attempts to erase `text` from the end of the most recently flushed output -- used by
+// GetLineInput() to tear down the prompt it printed before reprinting it around timer-driven
+// output. A silent no-op if the Glk library doesn't support the garglk extension, or if `text` no
+// longer matches the window's actual tail (nothing else should have been printed in between, but
+// this keeps a mismatch harmless instead of corrupting the display further).
+void UnputText(const std::string &text) {
+	if (text.empty()) return;
+	auto codepoints = Utf8ToUtf32(text);
+	codepoints.push_back(0);
+	glk_set_window(gMainWin);
+	if (garglk_unput_string_count_uni(codepoints.data()) > 0)
+		gMostRecentOutput.clear();
+}
 
 // Locates the [start, end) byte range of `attr`'s value within `tagLower` (a lowercased tag
 // body), handling both `attr="quoted value"` and `attr=unquoted` forms. Returns false if the
@@ -166,8 +195,7 @@ bool AskYesNoQuestion(const char *question) {
 	OutputStyled("\n", kStyleNormal);
 	OutputStyled(question, kStyleNormal);
 	for (;;) {
-		OutputStyled("\n[yes/no] > ", kStyleInput);
-		std::string answer = StrToLowerCase(GetLineInput());
+		std::string answer = StrToLowerCase(GetLineInput("\n[yes/no] > "));
 		if (answer == "y" || answer == "yes") return true;
 		if (answer == "n" || answer == "no") return false;
 	}
@@ -213,31 +241,64 @@ void WaitForKeypress() {
 		glk_select(&ev);
 		if (ev.type == evtype_CharInput && ev.win == gMainWin) return;
 		if (ev.type == evtype_Timer) {
+			gCapturingOutput = true;
 			Starlane::TimeTick();
+			gCapturingOutput = false;
 			UpdateStatusBar();
+			// Nothing was typed here to preserve (unlike GetLineInput()'s cancel/restore dance),
+			// so a keystroke is still pending and all there is to do is show what was captured.
+			if (!gCapturedHtml.empty()) {
+				std::string html = std::move(gCapturedHtml);
+				gCapturedHtml.clear();
+				AppendHtml(html);
+			}
 		}
 	}
 }
 
-std::string GetLineInput() {
+std::string GetLineInput(const std::string &prompt) {
 	constexpr glui32 kCapacity = 256;
 	std::vector<glui32> buf(kCapacity);
-	glk_request_line_event_uni(gMainWin, buf.data(), kCapacity, 0);
+	glui32 initlen = 0;
+	// The library's own after-the-fact echo of the completed/cancelled line (see the Glk spec on
+	// glk_set_echo_line_event()) would print in whatever style was active during composition,
+	// which we don't want to rely on -- we echo submitted commands ourselves, below, in the Input
+	// style. Turning it off is also what makes the cancel-and-restore dance below leave no trace
+	// of the player's not-yet-submitted partial input on screen, so all that's left to tear down
+	// around a timer tick's output is the prompt itself.
+	glk_set_echo_line_event(gMainWin, 0);
+	OutputStyled(prompt, kStyleInput);
+	glk_request_line_event_uni(gMainWin, buf.data(), kCapacity, initlen);
 	event_t ev;
 	for (;;) {
 		glk_select(&ev);
 		if (ev.type == evtype_LineInput && ev.win == gMainWin) {
-			return Utf32ToUtf8(buf.data(), ev.val1);
+			std::string result = Utf32ToUtf8(buf.data(), ev.val1);
+			OutputStyled(result, kStyleInput);
+			OutputStyled("\n", kStyleNormal);
+			return result;
 		}
-		// TODO: glk spec says we cannot output anything here unless we cancel the input event.
-		// (There's a chain of slightly obscure Glk calls/features we can use to capture any input
-		//  that was typed so far, delete the prompt if we're under Gargoyle, output the new text,
-		//  then print a new prompt and restore the partial input.)
 		if (ev.type == evtype_Timer) {
+			gCapturingOutput = true;
 			Starlane::TimeTick();
+			gCapturingOutput = false;
 			// Safe to update even here: the status window is never the one with a pending input
-			// request, so this doesn't run into the output-during-input restriction noted above.
+			// request, so this doesn't run into the output-during-input restriction below.
 			UpdateStatusBar();
+			if (gCapturedHtml.empty()) continue;
+			std::string html = std::move(gCapturedHtml);
+			gCapturedHtml.clear();
+
+			// glk_cancel_line_event() fills buf/ev.val1 with whatever the player had typed so
+			// far, exactly as if they'd pressed ENTER -- we carry that length into the
+			// re-request below as `initlen` so editing resumes where it left off.
+			event_t cancelEv;
+			glk_cancel_line_event(gMainWin, &cancelEv);
+			initlen = cancelEv.val1;
+			UnputText(prompt);
+			AppendHtml(html);
+			OutputStyled(prompt, kStyleInput);
+			glk_request_line_event_uni(gMainWin, buf.data(), kCapacity, initlen);
 		}
 	}
 }
