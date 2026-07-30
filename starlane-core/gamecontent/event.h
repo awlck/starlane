@@ -95,6 +95,18 @@ public:
 	// Begin waiting out `startDelay` before starting, for an event that starts after a delay.
 	void BeginCountdown();
 
+	// Whether any of this event's seconds-measured subevents is actually counting down right now.
+	// Exactly the condition under which TickRealTimeSubEvents does anything -- and that is offered
+	// to every turn-based event on every wall-clock tick, so asking first is what keeps a tick from
+	// recording every one of them for undo to change nothing. Most games have no such subevent at
+	// all: ADRIFT only arms a clock here for a *turn-based* event with a *seconds* subevent, which
+	// is a combination none of the test games uses.
+	bool HasSubEventClockRunning() const {
+		if (state != State::Running) return false;
+		for (const auto &se : subevents)
+			if (se.secondsRemaining >= 0) return true;
+		return false;
+	}
 	// Whether this event is driven by the wall clock rather than by turns. The only thing that
 	// tells the two populations of events apart; both tick through IncrementTimer.
 	bool IsRealTime() const { return timeType == TimeType::RealTime; }

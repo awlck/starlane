@@ -683,8 +683,11 @@ void Game::RunEventTick(bool realTime) {
 		}
 		// A turn-based event's seconds-measured subevents ride the wall clock on their own,
 		// independently of the turn clock the rest of the event runs on -- so they get serviced
-		// on the real-time pass even though the event itself doesn't tick there.
-		else if (realTime) MutableEvent(i)->TickRealTimeSubEvents();
+		// on the real-time pass even though the event itself doesn't tick there. Asked of the
+		// read-only pointer first: this arm is offered every turn-based event in the game on every
+		// wall-clock tick, and asking for a writable one is what copies it into the undo record.
+		else if (realTime && evt->HasSubEventClockRunning())
+			MutableEvent(i)->TickRealTimeSubEvents();
 	}
 	// Deliberately a second pass over the same events, as in ADRIFT. An event late in the order
 	// can run a task that starts one earlier in the order, which has already had its tick; if the
