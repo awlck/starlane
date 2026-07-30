@@ -14,8 +14,14 @@ static constexpr uint8_t V5ident[] = { 60, 66, 63, 201, 106, 135, 194, 207, 146,
 // Declared with C++ linkage (matching starlane-glk-internal.h's `extern` declarations) even
 // though they're only ever touched from within the extern "C" block below.
 winid_t gMainWin;
-winid_t gStatusWin;
 strid_t gMainStream;
+#ifdef SLGLK_STATUSBAR_JUSTIFIED_WINDOWS
+winid_t gStatusLocWin;
+winid_t gStatusScoreWin;
+winid_t gStatusUserWin;
+#else
+winid_t gStatusWin;
+#endif
 
 extern "C" {
 #include "gi_blorb.h"
@@ -175,6 +181,13 @@ void glk_main() {
 	// FrankenDrift's GlkRunner -- it's the closest stock Glk style to what ADRIFT's `<center>` tag
 	// asks for. This one doesn't depend on the game, so it can be set immediately.
 	glk_stylehint_set(wintype_AllTypes, style_BlockQuote, stylehint_Justification, stylehint_just_Centered);
+#ifdef SLGLK_STATUSBAR_JUSTIFIED_WINDOWS
+	// The status bar's user-status column (statusbar.cpp) reuses style_BlockQuote/Centered above
+	// for its score column, and repurposes the otherwise-unused style_User1 for its right-flush
+	// column -- justification is a per-(wintype, style) hint, not a per-window one, so distinct
+	// columns that want distinct alignments need distinct style numbers.
+	glk_stylehint_set(wintype_TextBuffer, style_User1, stylehint_Justification, stylehint_just_RightFlush);
+#endif
 
 	if (init_err) {
 		// The game file itself couldn't be read (missing, unopenable, or neither a bare TAF nor a
@@ -227,13 +240,13 @@ void glk_main() {
 		if (gameInfo.hasOutputColour) gDefaultOutputColor = gameInfo.outputColour;
 	}
 	Starlane::BeginGame();
-	// TODO: Update status bar here.
+	UpdateStatusBar();
 
 	while (Starlane::GameIsOngoing()) {
 		OutputStyled("\n> ", kStyleInput);
 		std::string cmd = GetLineInput();
 		Starlane::ProcessInput(cmd);
-		// TODO: update status bar here.
+		UpdateStatusBar();
 	}
 
 	OutputStyled("\n[Press any key to exit.]", kStyleNormal);

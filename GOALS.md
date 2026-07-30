@@ -372,7 +372,21 @@
       controls font family, so `FontName` stays Qt-only.
 - [ ] wrap Glk windows in classes where it makes sense
 - [ ] Glk frontend: ensure real-time events can't print while input is active
-- [ ] implement status bar support in Glk frontend
+- [x] implement status bar support in Glk frontend. New `statusbar.cpp` adds `UpdateStatusBar()`,
+      called after `BeginGame()`, each `ProcessInput()`, and each `TimeTick()` (matching
+      `GetStatusBar()`'s own contract), in two variants selected by the new
+      `SLGLK_STATUSBAR_JUSTIFIED_WINDOWS` CMake option (default OFF):
+      - OFF (default): a single text grid window (`gStatusWin`, unchanged from before) with
+        location/score/user-status manually space-padded into columns, mirroring FrankenDrift's
+        GlkRunner (`clsUserSession.UpdateStatusBar`/`GlkGridWin.RewriteStatus`).
+      - ON: three text buffer windows split off above the main window (`gStatusLocWin` flexible
+        width, `gStatusScoreWin`/`gStatusUserWin` fixed width), aligned via each column's own
+        `stylehint_Justification` hint instead of manual padding -- `style_BlockQuote` (already
+        Centered, reused from the `<center>` tag) for score, and the otherwise-unused `style_User1`
+        (set to RightFlush in `glk_main()`) for user status, since the hint is per-(wintype, style)
+        rather than per-window. Needs a Glk library recent enough to implement per-style
+        justification in text buffer windows (e.g. a current garglk); FrankenDrift's GlkRunner
+        predates this feature, hence the OFF default and the grid-window fallback above.
 - [ ] Glk frontend: implement transcript support
 - [ ] Glk frontend: add a debug window
 - [ ] Glk frontend: implement secondary windows

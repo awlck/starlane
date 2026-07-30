@@ -29,19 +29,31 @@ enum TextStyleFlags : uint32_t {
 	kStyleMonospace = 1u << 4,  // `<font face="...">` naming one of the known monospace fonts
 };
 
-// The main (text buffer) output window and its stream, and the status bar above it. Lazily opened
-// by EnsureMainWindowOpen() (output.cpp) -- not at glk_main() startup, but only once the game is
-// loaded and its default colors (if any) are known, since glk_stylehint_set() only affects windows
-// created *after* the call (see the Glk spec's "Suggesting the Appearance of Styles"). starlane-core
-// does not yet expose a callback for status bar content (location/score), so for now the status
-// window is created but left blank -- TODO once such a callback exists.
+// The main (text buffer) output window and its stream, and the status bar window(s) above it.
+// Lazily opened by EnsureMainWindowOpen() (output.cpp) -- not at glk_main() startup, but only once
+// the game is loaded and its default colors (if any) are known, since glk_stylehint_set() only
+// affects windows created *after* the call (see the Glk spec's "Suggesting the Appearance of
+// Styles").
 extern winid_t gMainWin;
-extern winid_t gStatusWin;
 extern strid_t gMainStream;
-// Opens gMainWin/gMainStream/gStatusWin if they aren't already open. Called from glk_main() once
-// the game's default colors are baked into style hints, and lazily by FatalError() so an error
-// that occurs before then (an unreadable game file, or one CreateGame rejects outright) still has
-// somewhere to print -- in that case with no game-specific style hints, since none are known.
+#ifdef SLGLK_STATUSBAR_JUSTIFIED_WINDOWS
+// Three text buffer windows side by side above gMainWin: location (flexible width, left-flush),
+// score (fixed width, centered -- reusing the style_BlockQuote/Centered hint already set up for
+// the `<center>` tag), and the game's free-form user status text (fixed width, right-flush). See
+// statusbar.cpp.
+extern winid_t gStatusLocWin;
+extern winid_t gStatusScoreWin;
+extern winid_t gStatusUserWin;
+#else
+// A single text grid window above gMainWin, manually space-padded into columns by
+// UpdateStatusBar() (statusbar.cpp), mirroring FrankenDrift's GlkRunner.
+extern winid_t gStatusWin;
+#endif
+// Opens gMainWin/gMainStream/the status window(s) if they aren't already open. Called from
+// glk_main() once the game's default colors are baked into style hints, and lazily by
+// FatalError() so an error that occurs before then (an unreadable game file, or one CreateGame
+// rejects outright) still has somewhere to print -- in that case with no game-specific style
+// hints, since none are known.
 void EnsureMainWindowOpen();
 
 // Default foreground colors for ordinary output and for `<c>`-styled (player-command-like) text,
@@ -88,6 +100,12 @@ void WaitForKeypress();
 // there's nothing left in the current run to remove without having committed it to the window).
 void UnputLastChar();
 bool AskYesNoQuestion(const char *question);
+
+// statusbar.cpp: keeps the status window(s) in sync with starlane-core's GetStatusBar(). Call
+// after BeginGame(), after each ProcessInput(), and after each TimeTick() -- same as
+// Starlane::GetStatusBar() itself asks for. A no-op if the status window(s) aren't open yet, or
+// if the game hasn't begun.
+void UpdateStatusBar();
 
 // multimedia.cpp: <img>/<audio> tag handling, backed by starlane-core's Blorb resource mapping.
 // Checks gestalts and sets up sound channels; must be called once during startup, after the main

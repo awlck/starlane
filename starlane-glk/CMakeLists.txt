@@ -7,6 +7,12 @@ set(CMAKE_CXX_EXTENSIONS OFF)
 
 option(SLGLK_LIB_ONLY "Glk frontend: compile to static library only, don't link with a Glk lib" ON)
 option(SLGLK_USE_BUILTIN_CHEAPGLK "Glk Frontend: compile with the built-in cheapglk library" OFF)
+# The status bar can be rendered either of two ways (see statusbar.cpp): OFF (the default) uses a
+# single text grid window with manually space-padded columns, like FrankenDrift's GlkRunner. ON
+# instead splits off one text buffer window per column and aligns each via glk_stylehint_set's
+# stylehint_Justification -- a feature only recently added to garglk, so it needs a recent enough
+# Glk library to render correctly.
+option(SLGLK_STATUSBAR_JUSTIFIED_WINDOWS "Glk frontend: build the status bar from justified text buffer windows instead of a text grid" OFF)
 if(NOT ${SLGLK_USE_BUILTIN_CHEAPGLK} AND NOT ${SLGLK_LIB_ONLY})
     # This must be a pkg-config module name, not a boolean, so `option()` (which coerces its
     # default to ON/OFF) doesn't fit here -- e.g. Gargoyle/Garglk installs a "garglk.pc" exposing
@@ -20,12 +26,16 @@ add_library(starlane-glk-base STATIC
     starlane-glk-internal.h
     strutils.cpp
     output.cpp
+    statusbar.cpp
     multimedia.cpp
     savefile.cpp
         glkext.h
 )
 target_link_libraries(starlane-glk-base starlane-core)
 target_include_directories(starlane-glk-base PRIVATE "../starlane-core")
+if(${SLGLK_STATUSBAR_JUSTIFIED_WINDOWS})
+    target_compile_definitions(starlane-glk-base PRIVATE SLGLK_STATUSBAR_JUSTIFIED_WINDOWS)
+endif()
 
 if(${SLGLK_LIB_ONLY} OR ${SLGLK_USE_BUILTIN_CHEAPGLK})
     target_include_directories(starlane-glk-base PRIVATE ../reference/cheapglk)

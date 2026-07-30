@@ -15,7 +15,33 @@ void EnsureMainWindowOpen() {
 	gMainWin = glk_window_open(nullptr, 0, 0, wintype_TextBuffer, 0);
 	if (!gMainWin) glk_exit();
 	gMainStream = glk_window_get_stream(gMainWin);
+
+	// A style hint only affects windows opened *after* the call -- gMainWin, just above, already
+	// exists by this point, so setting ReverseColor here gives the status window(s) below a reverse
+	// video look without touching the main window's own use of the same style number(s).
+#ifdef SLGLK_STATUSBAR_JUSTIFIED_WINDOWS
+	// Each status column uses a distinct style (see statusbar.cpp/starlane-glk.cpp), all TextBuffer
+	// windows here, so each needs its own ReverseColor hint.
+	glk_stylehint_set(wintype_TextBuffer, style_Normal, stylehint_ReverseColor, 1);
+	glk_stylehint_set(wintype_TextBuffer, style_BlockQuote, stylehint_ReverseColor, 1);
+	glk_stylehint_set(wintype_TextBuffer, style_User1, stylehint_ReverseColor, 1);
+
+	// Carve the status area into three columns, from the right inward: the score and user-status
+	// columns get a fixed character width (as measured in their own font, per the Glk spec), and
+	// whatever's left of the row -- the flexible part -- ends up as the location column.
+	constexpr glui32 kScoreColumnWidth = 14;   // fits "Score: -999999" (an implausibly large score)
+	constexpr glui32 kUserColumnWidth = 24;
+	gStatusLocWin = glk_window_open(gMainWin, winmethod_Above | winmethod_Fixed, 1, wintype_TextBuffer, 0);
+	if (gStatusLocWin) {
+		gStatusUserWin = glk_window_open(gStatusLocWin, winmethod_Right | winmethod_Fixed, kUserColumnWidth, wintype_TextBuffer, 0);
+		gStatusScoreWin = glk_window_open(gStatusLocWin, winmethod_Right | winmethod_Fixed, kScoreColumnWidth, wintype_TextBuffer, 0);
+	}
+#else
+	// UpdateStatusBar() (statusbar.cpp) never calls glk_set_style_stream() on gStatusWin's stream,
+	// so it stays at style_Normal (a newly opened window's default style) the whole time.
+	glk_stylehint_set(wintype_TextGrid, style_Normal, stylehint_ReverseColor, 1);
 	gStatusWin = glk_window_open(gMainWin, winmethod_Above | winmethod_Fixed, 1, wintype_TextGrid, 0);
+#endif
 }
 
 void FatalError(const char *msg) {
@@ -186,7 +212,10 @@ void WaitForKeypress() {
 	for (;;) {
 		glk_select(&ev);
 		if (ev.type == evtype_CharInput && ev.win == gMainWin) return;
-		if (ev.type == evtype_Timer) Starlane::TimeTick();
+		if (ev.type == evtype_Timer) {
+			Starlane::TimeTick();
+			UpdateStatusBar();
+		}
 	}
 }
 
@@ -204,7 +233,12 @@ std::string GetLineInput() {
 		// (There's a chain of slightly obscure Glk calls/features we can use to capture any input
 		//  that was typed so far, delete the prompt if we're under Gargoyle, output the new text,
 		//  then print a new prompt and restore the partial input.)
-		if (ev.type == evtype_Timer) Starlane::TimeTick();
+		if (ev.type == evtype_Timer) {
+			Starlane::TimeTick();
+			// Safe to update even here: the status window is never the one with a pending input
+			// request, so this doesn't run into the output-during-input restriction noted above.
+			UpdateStatusBar();
+		}
 	}
 }
 
