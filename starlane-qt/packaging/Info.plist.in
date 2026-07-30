@@ -35,7 +35,7 @@
 	     as a QFileOpenEvent (see StarlaneApplication::event() in starlane.cpp). LSHandlerRank is
 	     Default rather than Owner: Starlane only plays ADRIFT 5 games (see the V4ident/V39ident
 	     checks in taffile.cpp's ExtractTaf) and shouldn't claim sole authority over an extension
-	     that ADRIFT 4 games also use -- and that some other multi-interpreter (e.g. a
+	     that ADRIFT 4 games also use, and that some other multi-interpreter (e.g. a
 	     starlane-glk-based Gargoyle build) may legitimately want to be considered for too.
 
 	     public.adrift, not a Starlane-specific identifier: it's the identifier Gargoyle and
@@ -47,8 +47,8 @@
 	     considers itself the type's origin); we follow Spatterlight's lead and import it instead
 	     of re-exporting it, since there should only be one canonical exporter. We still declare it
 	     ourselves (rather than only referencing the bare string below) so type/extension
-	     resolution stays correct even on a machine where neither Gargoyle nor Spatterlight -- our
-	     actual likely-only source of a public.adrift declaration -- happens to be installed. -->
+	     resolution stays correct even on a machine where neither Gargoyle nor Spatterlight (our
+	     actual likely-only source of a public.adrift declaration) happens to be installed. -->
 	<key>CFBundleDocumentTypes</key>
 	<array>
 		<dict>
