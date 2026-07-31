@@ -82,6 +82,10 @@ OutputFormatter::OutputFormatter(QTextBrowser *browser, std::function<void()> wa
 	baseAlignment = Qt::AlignLeft;
 }
 
+void OutputFormatter::SetTranscriptSink(std::function<void(const QString &)> sink) {
+	transcriptSink = std::move(sink);
+}
+
 void OutputFormatter::ApplyGameDefaults() {
 	Starlane::GameInfo info;
 	if (!Starlane::GetGameInfo(info)) return;
@@ -150,6 +154,8 @@ void OutputFormatter::FlushTextRun() {
 	        .replace("&amp;", "&");
 	textRun.clear();
 
+	if (transcriptSink) transcriptSink(decoded);
+
 	QTextCursor cursor(browser->document());
 	cursor.movePosition(QTextCursor::End);
 	ApplyCurrentBlockAlignment(cursor);
@@ -157,6 +163,8 @@ void OutputFormatter::FlushTextRun() {
 }
 
 void OutputFormatter::InsertLineBreak() {
+	if (transcriptSink) transcriptSink(QStringLiteral("\n"));
+
 	QTextCursor cursor(browser->document());
 	cursor.movePosition(QTextCursor::End);
 	QTextBlockFormat blockFormat;

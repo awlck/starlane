@@ -342,7 +342,17 @@
       response tables on entering any top-level task execution, so a location-triggered task
       running after a command may repeat what the command said. Scoped by Game::ResponseScope.
 - [ ] Qt frontend: actually implement StrToSentenceCase
-- [ ] Qt frontend: implement transcript
+- [x] Qt frontend: implement transcript. `OutputFormatter` gained `SetTranscriptSink()`, a
+      callback invoked from the same two places output already funnels through once ADRIFT's tag
+      markup has been stripped -- `FlushTextRun()` (decoded text) and `InsertLineBreak()` (a "\n"
+      per line break) -- so a transcript mirrors exactly what reaches the screen, echoed player
+      commands included, with none of the markup. `MainWindow::ToggleTranscript()` prompts for a
+      file via `QFileDialog::getSaveFileName()`, opens it, and installs the sink;
+      `StopTranscript()` tears both down and is also called from `LoadGameFile()` (a transcript is
+      scoped to one game session, not the app's whole lifetime) and `closeEvent()` (so the file is
+      always properly closed rather than left mid-write). Verified end-to-end against a real build:
+      loaded `testdata/cake`, started a transcript, typed `look`, stopped it, and confirmed the
+      written file contained the echoed `> look` and the room description as plain text.
 - [ ] implement dockable secondary windows in the Qt frontend
 - [ ] Qt frontend: redirect starlane-core debug output to a debug log window
 - [x] implement `blorb` support in the Qt frontend, as a foundation for the graphics/sound work

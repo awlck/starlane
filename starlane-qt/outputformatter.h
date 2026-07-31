@@ -42,6 +42,13 @@ public:
 	// known yet when the formatter is constructed alongside the rest of the window.
 	void ApplyGameDefaults();
 
+	// Installs (or, given an empty std::function, removes) a callback invoked with plain text as
+	// it's produced -- once per flushed text run, decoded of entities and with none of ADRIFT's own
+	// tag markup, plus once with "\n" for every line break. Used by MainWindow to mirror all output
+	// (and, since the echoed player command is fed back through this same tag parser, echoed
+	// commands too) to a transcript file while one is active.
+	void SetTranscriptSink(std::function<void(const QString &)> sink);
+
 	// Called before the first OutputText call of a new "batch" (BeginGame(),
 	// ProcessInput(), or TimeTick()): resets formatting to defaults (ADRIFT's
 	// implicit tag auto-close) and records where this batch's content starts,
@@ -70,6 +77,7 @@ private:
 	std::function<void(const QString &src, int channel, bool loop)> playSound;
 	std::function<void(int channel)> pauseSound;
 	std::function<void(int channel)> stopSound;
+	std::function<void(const QString &)> transcriptSink;
 
 	QTextCharFormat baseCharFormat;
 	Qt::Alignment baseAlignment;

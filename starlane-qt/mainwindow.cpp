@@ -216,6 +216,7 @@ bool MainWindow::LoadGameFile(const QString &path) {
 	}
 	currentBlorb = std::move(blorb);
 	StopAllSounds();  // the previous game's audio (if any) shouldn't keep playing over the new one
+	StopTranscript();  // a transcript is scoped to one game session, not the whole app lifetime
 
 	eventTimer->stop();
 	output->clear();
@@ -356,9 +357,42 @@ void MainWindow::RestoreGameTriggered() {
 }
 
 void MainWindow::ToggleTranscript() {
-	// No-op for now: just flips the menu label. Actual transcript writing is a follow-up.
-	transcribing = !transcribing;
-	transcriptAction->setText(transcribing ? tr("Stop &Transcript") : tr("Start &Transcript"));
+	if (transcribing) {
+		StopTranscript();
+		return;
+	}
+
+	const QString path = QFileDialog::getSaveFileName(this, tr("Start Transcript"), QString(),
+		tr("Text Files (*.txt)"));
+	if (path.isEmpty()) return;
+
+	auto *file = new QFile(path, this);
+	if (!file->open(QIODevice::WriteOnly | QIODevice::Text)) {
+		QMessageBox::warning(this, QStringLiteral("Starlane"),
+			tr("Could not open \"%1\" for writing.").arg(QDir::toNativeSeparators(path)));
+		delete file;
+		return;
+	}
+
+	transcriptFile = file;
+	transcribing = true;
+	transcriptAction->setText(tr("Stop &Transcript"));
+	formatter->SetTranscriptSink([this](const QString &text) { WriteTranscript(text); });
+}
+
+void MainWindow::WriteTranscript(const QString &text) {
+	if (!transcriptFile) return;
+	transcriptFile->write(text.toUtf8());
+}
+
+void MainWindow::StopTranscript() {
+	if (!transcriptFile) return;
+	formatter->SetTranscriptSink(nullptr);
+	transcriptFile->close();
+	delete transcriptFile;
+	transcriptFile = nullptr;
+	transcribing = false;
+	transcriptAction->setText(tr("Start &Transcript"));
 }
 
 void MainWindow::ReplayCommandsTriggered() {
@@ -416,6 +450,7 @@ void MainWindow::closeEvent(QCloseEvent *event) {
 	// *initial* <waitkey> (almost every game has one) getting closed before app.exec() has even
 	// been reached yet.
 	if (waitKeyLoop) waitKeyLoop->quit();
+	StopTranscript();
 	QSettings().setValue(kGeometrySettingsKey, saveGeometry());
 	QMainWindow::closeEvent(event);
 	qApp->quit();

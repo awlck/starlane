@@ -10,6 +10,7 @@
 
 #include <QtCore/QBuffer>
 #include <QtCore/QEventLoop>
+#include <QtCore/QFile>
 #include <QtCore/QTimer>
 #include <QtGui/QAction>
 #include <QtGui/QImage>
@@ -68,6 +69,10 @@ private:
 	QAction *transcriptAction;
 	QAction *replayAction;
 	bool transcribing = false;
+	// The open transcript file while `transcribing` is true; null otherwise. Fed via
+	// OutputFormatter::SetTranscriptSink(), which calls WriteTranscript() with plain (tag-stripped)
+	// output text as it's produced -- see ToggleTranscript()/StopTranscript().
+	QFile *transcriptFile = nullptr;
 
 	// The three segments of Starlane::StatusBar, left to right: current location (fixed width),
 	// an author-defined segment (stretches to fill the remaining space), and -- only shown for
@@ -144,6 +149,13 @@ private:
 	void SaveGameTriggered();
 	void RestoreGameTriggered();
 	void ToggleTranscript();
+	// Writes `text` (plain, already tag-stripped output) to the open transcript file, if any.
+	// Installed as OutputFormatter's transcript sink while `transcribing` is true.
+	void WriteTranscript(const QString &text);
+	// Closes and forgets the open transcript file, if any, and resets the menu label/`transcribing`
+	// accordingly. A no-op if no transcript is active -- safe to call unconditionally, e.g. when a
+	// new game is loaded or the window is closing.
+	void StopTranscript();
 	void ReplayCommandsTriggered();
 	// Blocks (via a nested event loop) until the next keypress or mouse click anywhere in the
 	// app. Used to implement the <waitkey> tag.
