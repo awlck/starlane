@@ -342,6 +342,7 @@
       response tables on entering any top-level task execution, so a location-triggered task
       running after a command may repeat what the command said. Scoped by Game::ResponseScope.
 - [ ] Qt frontend: actually implement StrToSentenceCase
+- [ ] Qt frontend: implement transcript
 - [ ] implement dockable secondary windows in the Qt frontend
 - [ ] Qt frontend: redirect starlane-core debug output to a debug log window
 - [x] implement `blorb` support in the Qt frontend, as a foundation for the graphics/sound work
@@ -459,8 +460,11 @@
         also correcting the *default* zcolor libraries that don't implement stylehint_TextColor.
       `glk_main()` also calls `garglk_set_story_title()` with the game's title. No Glk stylehint
       controls font family, so `FontName` stays Qt-only.
-- [ ] wrap Glk windows in classes where it makes sense
-- [ ] Glk frontend: ensure real-time events can't print while input is active
+- [ ] wrap Glk window code in classes where it makes sense
+- [x] Glk frontend: ensure real-time events can't print while input is active. When waiting for
+      a keypress (due to `<waitkey>`), any new output is buffered. When waiting for line input,
+      any new output will cancel input, delete the prompt, print the new text, print a new prompt,
+      and restore the partially-typed command.
 - [x] implement status bar support in Glk frontend. New `statusbar.cpp` adds `UpdateStatusBar()`,
       called after `BeginGame()`, each `ProcessInput()`, and each `TimeTick()` (matching
       `GetStatusBar()`'s own contract), in two variants selected by the new

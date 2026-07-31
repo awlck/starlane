@@ -57,7 +57,7 @@ except where noted):
 * `SL_BUILD_CONSOLE`: the `starlane-console` text frontend.
 * `SL_BUILD_QT`: the Qt6 frontend. (This has ambitions of becoming the primary frontend
   one day, and so its executable is just called `starlane`.) Requires Qt6 (`Core`, `Gui`,
-  `Widgets`); point CMake at your Qt installation with `-DCMAKE_PREFIX_PATH`, e.g.
+  `Widgets`, `Multimedia`); point CMake at your Qt installation with `-DCMAKE_PREFIX_PATH`, e.g.
   `-DCMAKE_PREFIX_PATH=$HOME/Qt/6.11.1/macos`.
 * `SL_BUILD_GLK`: the `starlane-glk` Glk frontend. By default, this only builds a static
   library (`SLGLK_LIB_ONLY=ON`) without linking against any particular Glk
@@ -90,14 +90,14 @@ starlane-console [--quit] [--input <commands.txt>] [--seed <n>] <game.taf>
 ## Known limitations
 
 The core interpreter library handles ADRIFT 5 `.taf` game files (games without bundled
-multimedia assets) only:
+multimedia assets) only; `blorb` archives (used to bundle a game together with its
+images and sounds) are unpacked at the frontend level instead:
 
 * `.tas` save files produced by the original ADRIFT 5 runner are not supported;
   Starlane uses its own, still-evolving save file format instead.
-* `blorb` files (used to bundle multimedia assets with a game) are not yet handled by
-  the Qt or console frontends (and it is unlikely that the console frontend will ever
-  gain this ability). The Glk frontend handles `blorb` files via the hosting Glk
-  library.
+* `blorb` files are handled by the Qt and Glk frontends -- the Glk frontend via
+  whichever Glk library hosts it, the Qt frontend with its own small Blorb parser --
+  but not by the console frontend, which is unlikely to ever gain this ability.
 
 Within that scope, most core game mechanics are implemented and working: parsing and
 matching player input against tasks, task and restriction evaluation, events, character
@@ -108,12 +108,14 @@ is not implemented, and games that rely on it will not work correctly.
 Frontend support currently looks like this:
 
 * **starlane-console**: functional for plain-text play and scripted testing; does not
-  interpret HTML formatting.
-* **starlane-glk**: the most complete frontend, with image, font color, and sound
-  support. Status bar support, secondary/dockable windows, and a debug output window are
-  not yet implemented.
-* **starlane-qt**: the least complete frontend. The status bar, dockable secondary windows,
-  debug log output, `blorb` support, graphics, sound, and WASM builds are all still outstanding.
+  interpret HTML formatting, and has no `blorb`/multimedia support at all.
+* **starlane-glk**: the most complete frontend, with image, font color, sound, `blorb`,
+  and status bar support. Secondary output windows, transcript support, and a debug
+  output window are not yet implemented.
+* **starlane-qt**: now has `blorb`, image, and sound support (including `<img>`/`<audio>`
+  markup) alongside its status bar, as well as text formatting in line with the original
+  ADRIFT 5 implementation. Still outstanding: transcript support, dockable secondary
+  windows, debug log output, and WASM builds.
 
 See [GOALS.md](GOALS.md) for the detailed, up-to-date development to-do list.
 
