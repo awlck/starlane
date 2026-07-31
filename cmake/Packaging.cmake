@@ -24,12 +24,16 @@ set(CPACK_PACKAGE_HOMEPAGE_URL "https://github.com/awlck/starlane")
 set(CPACK_RESOURCE_FILE_LICENSE "${CMAKE_SOURCE_DIR}/LICENSE.txt")
 set(CPACK_PACKAGING_INSTALL_PREFIX "/usr")
 
-# Without this, whether the packaged binary carries debug info is down to
-# each distro's own rpmbuild/dpkg-deb defaults rather than a deliberate
-# choice -- e.g. Fedora's rpmbuild strips and splits it into a -debuginfo
-# subpackage automatically, but plain CPack DEB does not. Strip explicitly
-# so all three packages end up the same way.
-set(CPACK_STRIP_FILES ON)
+# We're still pre-release and want debug info available in the packaged
+# binary everywhere, not stripped. CPack's RPM generator hands its spec
+# file to the real system rpmbuild, so Fedora's rpm macros -- which run
+# brp-strip during %install and split debug info into a separate
+# -debuginfo subpackage -- applied regardless of anything CPack itself
+# does; openSUSE's / plain CPack DEB's defaults don't do this, which is why
+# only the Fedora package came out stripped. Disabling debug_package and
+# the whole __os_install_post script list turns that off, so the binary
+# keeps its debug info inline like the other two.
+set(CPACK_RPM_SPEC_MORE_DEFINE "%global debug_package %{nil}\n%global __os_install_post %{nil}")
 
 set(CPACK_DEBIAN_PACKAGE_MAINTAINER "${CPACK_PACKAGE_CONTACT}")
 set(CPACK_DEBIAN_PACKAGE_SECTION "games")
