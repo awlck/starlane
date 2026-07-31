@@ -5,12 +5,16 @@
 #ifndef STARLANE_MAINWINDOW_H
 #define STARLANE_MAINWINDOW_H
 
+#include <array>
 #include <optional>
 
+#include <QtCore/QBuffer>
 #include <QtCore/QEventLoop>
 #include <QtCore/QTimer>
 #include <QtGui/QAction>
 #include <QtGui/QImage>
+#include <QtMultimedia/QAudioOutput>
+#include <QtMultimedia/QMediaPlayer>
 #include <QtWidgets/QVBoxLayout>
 #include <QtWidgets/QLabel>
 #include <QtWidgets/QLineEdit>
@@ -91,6 +95,36 @@ private:
 	// (passed to it as a callback in the constructor). Returns a null QImage if the path can't be
 	// resolved or read -- OutputFormatter treats that as "skip this image".
 	QImage LoadImage(const QString &path) const;
+
+	// One of ADRIFT's 8 sound channels (numbered 1-8; index 0 of `soundChannels` below is unused
+	// so a channel number can index it directly). Mirrors starlane-glk/multimedia.cpp's
+	// gSoundChannels/gRecentlyPlayedSound, adapted to QtMultimedia: each channel keeps its own
+	// QMediaPlayer/QAudioOutput pair alive for the process's lifetime (parented to `this`, so Qt
+	// cleans them up on close), plus whichever QBuffer currently backs a Blorb-resource sound
+	// (null when playing directly from a file path via QMediaPlayer::setSource() instead).
+	struct SoundChannel {
+		QMediaPlayer *player = nullptr;
+		QAudioOutput *output = nullptr;
+		QBuffer *buffer = nullptr;
+		// The src most recently (successfully) started on this channel, so a repeated "play" of
+		// the exact same src resumes it (if paused) rather than restarting it from the top.
+		QString recentlyPlayedSrc;
+	};
+	std::array<SoundChannel, 9> soundChannels;
+
+	// Creates the 8 QMediaPlayer/QAudioOutput pairs backing soundChannels[1..8]. Called once from
+	// the constructor -- unlike currentBlorb-style per-game state, the channels themselves persist
+	// across LoadGameFile() calls; only what's currently playing on each does not (see
+	// LoadGameFile()'s StopAllSounds() call).
+	void InitSoundChannels();
+	// Stops whatever is playing/paused on every channel and forgets recentlyPlayedSrc for each --
+	// called when a new game is loaded, so the previous game's audio doesn't keep playing over it.
+	void StopAllSounds();
+	// The three callbacks OutputFormatter's constructor takes for <audio ...>; see its own doc
+	// comment for the channel-range contract these can assume.
+	void PlaySound(const QString &src, int channel, bool loop);
+	void PauseSound(int channel);
+	void StopSound(int channel);
 
 	void CreateMenus();
 	// Enables/disables the game-dependent menu actions based on Starlane::GameIsOngoing().

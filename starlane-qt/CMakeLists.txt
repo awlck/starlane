@@ -5,7 +5,7 @@ set(CMAKE_CXX_STANDARD 17)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
 set(CMAKE_CXX_EXTENSIONS OFF)
 
-find_package(Qt6 COMPONENTS Core Gui Widgets CONFIG REQUIRED)
+find_package(Qt6 COMPONENTS Core Gui Widgets Multimedia CONFIG REQUIRED)
 set(CMAKE_AUTOMOC ON)
 set(CMAKE_AUTORCC ON)
 
@@ -25,7 +25,7 @@ endif()
 # Mach-O executable): it only knows how to deploy into a bundle. Ignored on
 # other platforms.
 add_executable(starlane WIN32 MACOSX_BUNDLE "starlane.cpp" mainwindow.cpp mainwindow.h outputformatter.cpp outputformatter.h blorbfile.cpp blorbfile.h)
-target_link_libraries(starlane Qt6::Core Qt6::Gui Qt6::Widgets starlane-core)
+target_link_libraries(starlane Qt6::Core Qt6::Gui Qt6::Widgets Qt6::Multimedia starlane-core)
 target_include_directories(starlane PRIVATE "../starlane-core")
 
 if(APPLE)

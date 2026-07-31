@@ -395,7 +395,47 @@
       images confirmed true same-line inline placement ("text <img> more text"), block-alignment
       inheritance (left/center/right), scale-to-fit on an oversized image, and silent skipping of
       an unresolvable src.
-- [ ] implement sound support in the Qt frontend
+- [x] implement sound support in the Qt frontend. `OutputFormatter::HandleAudioTag()` handles all
+      three forms of `<audio ...>` -- play (`play src="..."` or a bare `src="..."`, "play" being
+      optional per ADRIFT's own AUDREGEX in FileIO.vb/Generator.vb), `pause`, and `stop` -- each
+      optionally carrying `channel="N"` (default 1) and, for play, `loop="Y"`. Rather than requiring
+      the action word and attributes in a fixed order (as the Glk frontend's own simpler
+      prefix-matching does), it runs the whole tag body through the same `ParseAttributes()`
+      already used elsewhere in this file: a bare word with no `=value` (`play`/`pause`/`stop`)
+      comes back as a flag with an empty value, so which action fired is just
+      `attrs.contains("pause")`/`attrs.contains("stop")`/else-play, indifferent to ordering --
+      verified against a stray real-world typo in testdata/grandpa/grandpa-v5.xml's own audio tags,
+      `<audio [play src="...PowerUp8.mp3"] channel=8>`, which still parses correctly despite the
+      extraneous brackets. A channel outside [1, 8] is dropped silently, matching Global.vb.
+
+      Three callbacks (`playSound`/`pauseSound`/`stopSound`), threaded through the constructor the
+      same way `imageLoader` already is, keep OutputFormatter itself ignorant of how a src resolves
+      or how playback actually happens. `MainWindow` is where both of those live, mirroring
+      starlane-glk/multimedia.cpp's channel model (8 fixed channels, numbered 1-8; replaying the
+      same src already current on a channel resumes rather than restarts) adapted to QtMultimedia
+      instead of Glk's schannel_* calls: each channel keeps a persistent QMediaPlayer/QAudioOutput
+      pair for the process's lifetime (`InitSoundChannels()`, called once from the constructor), plus
+      whichever QBuffer currently backs a Blorb-sourced sound (QMediaPlayer::setSourceDevice()
+      doesn't take ownership of the device, so it has to outlive playback -- replaced, with the old
+      one deleted, each time a new sound starts on that channel). `PlaySound()`'s src resolution is
+      the same split LoadImage() already established for `<img>`: a Blorb-loaded game maps src
+      through `Starlane::GetBlorbResourceForPath()` to a `BlorbFile::GetResource(kUsageSnd, ...)`
+      lookup; a bare .taf tries the path exactly as written (backslashes swapped for forward
+      slashes only), matching the original Runner's own unresolved PictureBox/sound loading rather
+      than inventing a scheme it never had. `LoadGameFile()` stops every channel when a new game
+      loads, so the previous game's audio doesn't keep playing over it -- something Glk's
+      single-game-per-process frontend never had to consider. Needed adding Qt6's Multimedia module
+      to starlane-qt/CMakeLists.txt (not a new third-party dependency, just another module of the
+      Qt6 already in use).
+
+      Verified three ways: a tag-parsing harness fed the exact play/pause/stop/channel/loop
+      variants (including the bracket typo above) through the real OutputFormatter with fake
+      callbacks, confirming correct routing and channel-range clamping; a standalone harness
+      exercising the identical Blorb-to-QMediaPlayer pipeline against
+      testdata/grandpa/GrandpaRanchV5.blorb's real MP3 Snd resources confirmed actual decoding and
+      playback (FFmpeg backend, correct extracted ID3 metadata, playback position advancing over
+      time, no errors); and the real app was launched against that same game (whose intro plays
+      music from the very first frame) with no crash.
 - [ ] ensure the Qt frontend can be compiled for the web (WASM)
 - [x] begin work on a Glk frontend (can probably rip off most of the implementation from FrankenDrift)
 - [x] implement image support in Glk frontend

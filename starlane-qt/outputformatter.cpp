@@ -69,8 +69,12 @@ QColor OutputFormatter::CommandColor() {
 }
 
 OutputFormatter::OutputFormatter(QTextBrowser *browser, std::function<void()> waitKeyHandler,
-                                  std::function<QImage(const QString &)> imageLoader)
-	: browser(browser), waitKeyHandler(std::move(waitKeyHandler)), imageLoader(std::move(imageLoader)) {
+                                  std::function<QImage(const QString &)> imageLoader,
+                                  std::function<void(const QString &, int, bool)> playSound,
+                                  std::function<void(int)> pauseSound,
+                                  std::function<void(int)> stopSound)
+	: browser(browser), waitKeyHandler(std::move(waitKeyHandler)), imageLoader(std::move(imageLoader)),
+	  playSound(std::move(playSound)), pauseSound(std::move(pauseSound)), stopSound(std::move(stopSound)) {
 	baseCharFormat.setForeground(browser->palette().color(QPalette::Text));
 	const QFont font = browser->font();
 	baseCharFormat.setFontFamilies({font.family()});
@@ -231,6 +235,34 @@ void OutputFormatter::HandleImgTag(const QString &attributes) {
 	cursor.insertImage(imgFormat);
 }
 
+void OutputFormatter::HandleAudioTag(const QString &rest) {
+	// ParseAttributes already treats a bare word (no "=value") as a flag with an empty value, so
+	// "play"/"pause"/"stop" -- which AUDREGEX allows in any position, "play" even being optional
+	// when src is given directly -- fall out of the same parse as the channel/src/loop attributes,
+	// rather than needing their own separate tokenizing pass.
+	const auto attrs = ParseAttributes(rest);
+
+	int channel = 1;
+	if (attrs.contains("channel")) {
+		bool ok = false;
+		const int parsed = attrs["channel"].toInt(&ok);
+		if (ok) channel = parsed;
+	}
+	if (channel < 1 || channel > 8) return;  // out of range: ignore, same as the original Runner
+
+	if (attrs.contains("pause")) {
+		if (pauseSound) pauseSound(channel);
+	} else if (attrs.contains("stop")) {
+		if (stopSound) stopSound(channel);
+	} else {
+		const QString src = attrs.value("src");
+		if (src.isEmpty()) return;
+		const QString loopVal = attrs.value("loop");
+		const bool loop = !loopVal.isEmpty() && loopVal[0].toUpper() == QLatin1Char('Y');
+		if (playSound) playSound(src, channel, loop);
+	}
+}
+
 void OutputFormatter::HandleTag(const QString &tagRaw) {
 	const QString tag = tagRaw.trimmed();
 	if (tag.isEmpty()) return;
@@ -307,10 +339,11 @@ void OutputFormatter::HandleTag(const QString &tagRaw) {
 	}
 
 	if (name == "img") { HandleImgTag(rest); return; }
+	if (name == "audio") { HandleAudioTag(rest); return; }
 
-	// <wait n>, <window name>/</window>, <audio ...>, <bgcolor>/<bgcolour>: recognized so their
-	// markup never leaks into visible output, but intentionally no-op until their dedicated
-	// follow-up work (sound playback, dockable panes, etc).
+	// <wait n>, <window name>/</window>, <bgcolor>/<bgcolour>: recognized so their markup never
+	// leaks into visible output, but intentionally no-op until their dedicated follow-up work
+	// (dockable panes, etc).
 }
 
 void OutputFormatter::AppendText(const QString &chunk) {

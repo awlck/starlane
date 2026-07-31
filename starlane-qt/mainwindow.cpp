@@ -11,6 +11,7 @@
 #include <QtCore/QFile>
 #include <QtCore/QSettings>
 #include <QtCore/QTextStream>
+#include <QtCore/QUrl>
 #include <QtGui/QCloseEvent>
 #include <QtGui/QGuiApplication>
 #include <QtGui/QKeyEvent>
@@ -64,7 +65,12 @@ MainWindow::MainWindow() : QMainWindow(nullptr) {
 	setCentralWidget(dummy);
 
 	formatter = new OutputFormatter(output, [this]{ if (!isReplaying) WaitForKeyOrClick(); },
-		[this](const QString &path){ return LoadImage(path); });
+		[this](const QString &path){ return LoadImage(path); },
+		[this](const QString &src, int channel, bool loop){ PlaySound(src, channel, loop); },
+		[this](int channel){ PauseSound(channel); },
+		[this](int channel){ StopSound(channel); });
+
+	InitSoundChannels();
 
 	eventTimer = new QTimer(this);
 	eventTimer->setInterval(1000);  // the core counts real-time events in whole seconds
@@ -209,6 +215,7 @@ bool MainWindow::LoadGameFile(const QString &path) {
 		}
 	}
 	currentBlorb = std::move(blorb);
+	StopAllSounds();  // the previous game's audio (if any) shouldn't keep playing over the new one
 
 	eventTimer->stop();
 	output->clear();
@@ -243,6 +250,68 @@ QImage MainWindow::LoadImage(const QString &path) const {
 	QString resolved = path;
 	resolved.replace('\\', '/');
 	return QImage(resolved);
+}
+
+void MainWindow::InitSoundChannels() {
+	for (int i = 1; i <= 8; i++) {
+		SoundChannel &ch = soundChannels[i];
+		ch.player = new QMediaPlayer(this);
+		ch.output = new QAudioOutput(this);
+		ch.player->setAudioOutput(ch.output);
+	}
+}
+
+void MainWindow::StopAllSounds() {
+	for (int i = 1; i <= 8; i++) StopSound(i);
+}
+
+void MainWindow::PlaySound(const QString &src, int channel, bool loop) {
+	SoundChannel &ch = soundChannels[channel];
+	if (ch.recentlyPlayedSrc == src) {
+		// Already the current sound on this channel: resume rather than restart from the top,
+		// same as the Glk frontend's PlaySound() (multimedia.cpp).
+		ch.player->play();
+		return;
+	}
+
+	ch.player->stop();
+	delete ch.buffer;
+	ch.buffer = nullptr;
+
+	if (currentBlorb) {
+		const uint32_t resourceId = Starlane::GetBlorbResourceForPath(src.toStdString());
+		if (resourceId == (uint32_t) -1) return;
+		auto resource = currentBlorb->GetResource(BlorbFile::kUsageSnd, resourceId);
+		if (!resource) return;
+		// setSourceDevice() doesn't take ownership or copy the device, so the buffer backing it
+		// has to outlive playback -- kept alive here as long as this channel's sound doesn't
+		// change again (see the `delete ch.buffer` above, for when it does).
+		ch.buffer = new QBuffer(this);
+		ch.buffer->setData(resource->data);
+		ch.buffer->open(QIODevice::ReadOnly);
+		ch.player->setSourceDevice(ch.buffer);
+	} else {
+		// No Blorb: same rationale as LoadImage() for a non-Blorb <img> -- try the path exactly as
+		// given (only swapping backslashes for forward slashes), rather than a resolution scheme
+		// the original Runner never had.
+		QString resolved = src;
+		resolved.replace('\\', '/');
+		ch.player->setSource(QUrl::fromLocalFile(resolved));
+	}
+
+	ch.player->setLoops(loop ? QMediaPlayer::Infinite : QMediaPlayer::Once);
+	ch.player->play();
+	ch.recentlyPlayedSrc = src;
+}
+
+void MainWindow::PauseSound(int channel) {
+	soundChannels[channel].player->pause();
+}
+
+void MainWindow::StopSound(int channel) {
+	SoundChannel &ch = soundChannels[channel];
+	ch.player->stop();
+	ch.recentlyPlayedSrc.clear();
 }
 
 void MainWindow::SubmitCommand(const QString &cmd) {

@@ -27,8 +27,15 @@ public:
 	// `imageLoader` resolves an <img src="..."> value to its decoded image data -- however the
 	// frontend wants to interpret that path (a Blorb resource lookup, a plain file on disk, ...).
 	// A null QImage means "couldn't be loaded", which HandleImgTag treats as "skip silently".
+	// `playSound`/`pauseSound`/`stopSound` back the three forms of <audio ...> (see
+	// HandleAudioTag): `channel` is always in [1, 8] (ADRIFT's 8 sound channels) by the time any
+	// of these run -- this is the boundary where that gets checked, so the frontend's own
+	// channel-array lookups never need to.
 	OutputFormatter(QTextBrowser *browser, std::function<void()> waitKeyHandler,
-	                 std::function<QImage(const QString &)> imageLoader);
+	                 std::function<QImage(const QString &)> imageLoader,
+	                 std::function<void(const QString &src, int channel, bool loop)> playSound,
+	                 std::function<void(int channel)> pauseSound,
+	                 std::function<void(int channel)> stopSound);
 
 	// Re-derives the base text color/font from the current game's FontName/OutputColour, if it
 	// specifies any. Call once after CreateGame() (and before the first output) -- none of that is
@@ -60,6 +67,9 @@ private:
 	QTextBrowser *browser;
 	std::function<void()> waitKeyHandler;
 	std::function<QImage(const QString &)> imageLoader;
+	std::function<void(const QString &src, int channel, bool loop)> playSound;
+	std::function<void(int channel)> pauseSound;
+	std::function<void(int channel)> stopSound;
 
 	QTextCharFormat baseCharFormat;
 	Qt::Alignment baseAlignment;
@@ -88,6 +98,12 @@ private:
 	// other attribute (width, height, ...) is ignored -- matching the original ADRIFT Runner,
 	// which ignores them too (confirmed against its Global.vb).
 	void HandleImgTag(const QString &attributes);
+	// Handles all three forms of <audio ...>: play (`play src="..."` or a bare `src="..."`,
+	// optionally with `channel="N"` and/or `loop="Y"`), `pause`, and `stop` (each optionally with
+	// `channel="N"` too) -- matching ADRIFT's own AUDREGEX (FileIO.vb/Generator.vb) rather than
+	// requiring the tag's attributes/action word in any particular order. `channel` defaults to 1
+	// and is dropped silently if out of [1, 8], same as the original Runner (Global.vb).
+	void HandleAudioTag(const QString &rest);
 	void PushCharFormat(const QString &tagName, const QTextCharFormat &format);
 	void PopCharFormat(const QString &tagName);
 	void ApplyCurrentBlockAlignment(QTextCursor &cursor);
