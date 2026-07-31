@@ -44,6 +44,7 @@ jobs:
           host: windows
           target: desktop
           arch: win64_msvc2022_64
+          modules: "qtmultimedia"
 
       - name: Configure
         run: >
@@ -85,6 +86,7 @@ jobs:
           host: mac
           target: desktop
           arch: clang_64
+          modules: "qtmultimedia"
 
       - name: Configure
         run: >
@@ -126,14 +128,14 @@ jobs:
             install_git: apt-get update && DEBIAN_FRONTEND=noninteractive apt-get install -y --no-install-recommends git ca-certificates
             install_deps: >
               apt-get install -y --no-install-recommends
-              cmake ninja-build g++ qt6-base-dev qt6-base-dev-tools dpkg-dev file
+              cmake ninja-build g++ qt6-base-dev qt6-base-dev-tools qt6-multimedia-dev dpkg-dev file
             package_cmd: cpack -G DEB
             artifact_glob: build/*.deb
           - name: Fedora 44
             slug: fedora-44
             image: fedora:44
             install_git: dnf install -y git
-            install_deps: dnf install -y cmake ninja-build gcc-c++ qt6-qtbase-devel rpm-build
+            install_deps: dnf install -y cmake ninja-build gcc-c++ qt6-qtbase-devel qt6-qtmultimedia-devel rpm-build
             package_cmd: cpack -G RPM
             artifact_glob: build/*.rpm
           - name: openSUSE Tumbleweed
@@ -145,7 +147,7 @@ jobs:
             # drop it first (tolerating its absence on other base images).
             install_deps: |
               zypper --non-interactive remove busybox-gawk || true
-              zypper --non-interactive install cmake ninja gcc-c++ qt6-base-common-devel qt6-widgets-devel rpm-build
+              zypper --non-interactive install cmake ninja gcc-c++ qt6-base-common-devel qt6-widgets-devel qt6-multimedia-devel rpm-build
             package_cmd: cpack -G RPM
             artifact_glob: build/*.rpm
     steps:
