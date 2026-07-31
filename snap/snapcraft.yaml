@@ -37,6 +37,19 @@ parts:
     plugin: cmake
     source: .
     source-type: local
+    # Qt6Multimedia's CMake target links against the SDK snap's own
+    # libpulse.so.0, which is missing its private libpulsecommon-*.so
+    # companion (a gap in the kde-qt6-core24-sdk snap itself, not
+    # something we can fix from here) -- linking starlane fails with ~190
+    # undefined references into it otherwise. A plain system libpulse0
+    # (build-packages for linking, stage-packages for runtime) resolves
+    # it via the normal library search path; confirmed by KDE's own
+    # kteatime snap doing exactly this for the same reason:
+    # https://github.com/KDE/kteatime/blob/master/snapcraft.yaml
+    build-packages:
+      - libpulse0
+    stage-packages:
+      - libpulse0
     cmake-parameters:
       - -DCMAKE_INSTALL_PREFIX=/usr
       - -DCMAKE_BUILD_TYPE=Release
