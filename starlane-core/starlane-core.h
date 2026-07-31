@@ -22,7 +22,11 @@
 
 namespace Starlane {
 
+// Ordinary C++ value semantics: the string is passed and returned by value (copied/moved), so
+// there is no shared pointer ownership to manage on either side.
 using StringChanger = std::string (*)(const std::string &);
+// `text` is owned by the caller (starlane-core) and is only valid for the duration of the call;
+// the frontend must not retain or free it.
 using TextOutputter = void (*)(const char *);
 
 // Frontend capabilities and settings
@@ -41,6 +45,7 @@ struct SLC_API Frontend {
 
 	// put the given yes/no question to the player and return their answer, blocking until
 	// they have given one. A frontend that cannot ask must answer `false`.
+	// `question` is owned by the caller and only valid for the duration of the call.
 	bool (*AskYesNo)(const char *question);
 	// the player has quit; tear down the game and, for a frontend that only ever hosts the
 	// one game, likely the application along with it. `GameIsOngoing()` already returns
@@ -60,15 +65,26 @@ struct SLC_API Frontend {
 	void (*PumpEvents)();
 
 	// prompt the user to create (or replace) a save file, open it for writing, and return a handle to it
+	// The returned handle is an opaque value owned by the frontend; starlane-core never frees it
+	// directly, only passing it back to ReadFile/WriteFile/CloseFile. CloseFile is always
+	// eventually called to release it.
 	void *(*CreateSaveFile)();
 	// prompt the user to choose an existing save file to restore from, open it for reading, and return a handle to it
+	// (Handle ownership is the same as for CreateSaveFile.)
 	void *(*OpenSaveFile)();
 	// read up to `bufsize` bytes from `handle` into `buffer`, returning the number of bytes actually read
+	// `buffer` is allocated by the caller (starlane-core) with capacity `bufsize`; the frontend
+	// fills it but does not own it and must not free it.
 	size_t (*ReadFile)(void *handle, uint8_t *buffer, size_t bufsize);
 	// write `count` bytes from `buffer` to the file represented by `handle`
 	// (A write of length zero is valid and must result in a no-op.)
+	// `buffer` is owned by the caller (starlane-core) and only valid for the duration of the call;
+	// the frontend must not retain or free it.
 	void (*WriteFile)(void *handle, const uint8_t *buffer, size_t count);
-	void (*CloseFile)(void *handle);  // close the file associated with the given handle
+	// close the file associated with the given handle, releasing whatever resources the frontend
+	// associated with it in CreateSaveFile/OpenSaveFile. The handle is invalid for any further use
+	// afterwards.
+	void (*CloseFile)(void *handle);
 };
 
 // Initialize the backend with the given settings.
@@ -89,6 +105,8 @@ SLC_API void ProcessInput(const std::string &cmd);
 
 // If you just need the unobfuscated XML representation of an ADRIFT game file,
 // this function produces it.
+// `input` is only needed for the duration of this call and remains owned by the caller. The
+// result is returned by value, so the caller owns it as with any other std::string.
 SLC_API std::string ExtractTaf(const uint8_t *input, size_t size);
 // Whether the frontend should keep reading player input. Stays true once the game has ended (a
 // Win/Lose/Neutral ending, or a task's "end the game" action) -- the player can still answer the
@@ -110,6 +128,9 @@ struct SLC_API StatusBar {
 };
 // Get the current status bar.
 // Call this after every time you call Begin(), ProcessInput(), or TimeTick().
+// `statusBar` is caller-owned (e.g. stack-allocated) and filled in by this call; its string
+// members are ordinary std::strings, so the caller owns them via normal C++ RAII -- no
+// explicit release is needed.
 SLC_API bool GetStatusBar(StatusBar &statusBar);
 
 // Bibliographic and display info about the current game, as read from the game file itself.
@@ -128,6 +149,9 @@ struct SLC_API GameInfo {
 	uint32_t outputColour = 0;
 };
 // Get bibliographic/display info about the current game. Call any time after CreateGame().
+// `info` is caller-owned (e.g. stack-allocated) and filled in by this call; its string members
+// are ordinary std::strings, so the caller owns them via normal C++ RAII -- no explicit release
+// is needed.
 SLC_API bool GetGameInfo(GameInfo *info);
 }
 

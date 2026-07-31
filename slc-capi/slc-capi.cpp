@@ -15,6 +15,14 @@
 static const slc__frontend *cfe = nullptr;
 static Starlane::Frontend *fe = nullptr;
 
+static char *DupString(const std::string &str) {
+	auto size = str.size();
+	auto result = (char *) SLCWRAP_ALLOC(size + 1);
+	memcpy(result, str.c_str(), size);
+	result[size] = 0;
+	return result;
+}
+
 namespace Wrap {
 
 static inline std::string StringChangeImpl(const std::string &str, slc__stringchange func) {
@@ -51,6 +59,7 @@ void slc__init_backend(const slc__frontend *settings) {
 	fe->StrToSentenceCase = &Wrap::StrToSentenceCase;
 	fe->AskYesNo = cfe->ask_yes_no;
 	fe->QuitGame = cfe->quit_game;
+	fe->PumpEvents = cfe->pump_events;
 	fe->CreateSaveFile = cfe->create_save_file;
 	fe->OpenSaveFile = cfe->open_save_file;
 	fe->ReadFile = cfe->read_file;
@@ -130,4 +139,29 @@ bool slc__game_is_ongoing() {
 uint32_t slc__get_blorb_resource_for_path(const char *path) {
 	std::string p(path);
 	return Starlane::GetBlorbResourceForPath(p);
+}
+
+bool slc__get_status_bar(slc__status_bar *status_bar) {
+	Starlane::StatusBar sb;
+	auto ok = Starlane::GetStatusBar(sb);
+	if (!ok) return false;
+	status_bar->location = DupString(sb.location);
+	status_bar->user_status = DupString(sb.userStatus);
+	status_bar->score = sb.score;
+	status_bar->scoring_used = sb.scoringUsed;
+	return true;
+}
+
+bool slc__get_game_info(slc__game_info *info) {
+	Starlane::GameInfo gi;
+	auto ok = Starlane::GetGameInfo(&gi);
+	if (!ok) return false;
+	info->title = DupString(gi.title);
+	info->author = DupString(gi.author);
+	info->font_name = DupString(gi.fontName);
+	info->has_input_colour = gi.hasInputColour;
+	info->input_colour = gi.inputColour;
+	info->has_output_colour = gi.hasOutputColour;
+	info->output_colour = gi.outputColour;
+	return true;
 }
