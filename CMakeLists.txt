@@ -1,6 +1,9 @@
 ﻿cmake_minimum_required (VERSION 3.16)
 
-project("starlane" VERSION 0.1.0)
+include("cmake/Version.cmake")
+project("starlane" VERSION "${STARLANE_VERSION}")
+
+configure_file("cmake/starlane-version.h.in" "${CMAKE_BINARY_DIR}/generated/starlane-version.h" @ONLY)
 
 option(BUILD_SHARED_LIBS "Build the interpreter core as a shared library" OFF)
 option(CROSSCOMPILING "Whether cross-compiling to a different platform" ${CMAKE_CROSSCOMPILING})
