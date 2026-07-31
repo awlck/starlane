@@ -5,6 +5,10 @@ set(CMAKE_CXX_STANDARD 17)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
 set(CMAKE_CXX_EXTENSIONS OFF)
 
+# Vendored: nothing under deps/ should show up in `starlane`'s own install
+# rules / packages. Pre-seed the cache so pugixml's own option() (default ON)
+# doesn't override this.
+set(PUGIXML_INSTALL OFF CACHE BOOL "" FORCE)
 add_subdirectory(deps/pugixml)
 add_subdirectory(deps/miniz)
 

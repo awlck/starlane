@@ -24,6 +24,13 @@ set(CPACK_PACKAGE_HOMEPAGE_URL "https://github.com/awlck/starlane")
 set(CPACK_RESOURCE_FILE_LICENSE "${CMAKE_SOURCE_DIR}/LICENSE.txt")
 set(CPACK_PACKAGING_INSTALL_PREFIX "/usr")
 
+# Without this, whether the packaged binary carries debug info is down to
+# each distro's own rpmbuild/dpkg-deb defaults rather than a deliberate
+# choice -- e.g. Fedora's rpmbuild strips and splits it into a -debuginfo
+# subpackage automatically, but plain CPack DEB does not. Strip explicitly
+# so all three packages end up the same way.
+set(CPACK_STRIP_FILES ON)
+
 set(CPACK_DEBIAN_PACKAGE_MAINTAINER "${CPACK_PACKAGE_CONTACT}")
 set(CPACK_DEBIAN_PACKAGE_SECTION "games")
 set(CPACK_DEBIAN_PACKAGE_SHLIBDEPS ON)
