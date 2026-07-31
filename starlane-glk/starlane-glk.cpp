@@ -23,6 +23,35 @@ winid_t gStatusUserWin;
 winid_t gStatusWin;
 #endif
 
+namespace {
+void ShowMetaHelp() {
+	if (!gMainWin) return;
+	AppendHtml("<i>Meta-Commands understood by starlane-glk:\n<font face=\"Courier\">!scripton</font> -- start a transcript\n<font face=\"Courier\">!scriptoff</font> -- stop a running transcript\n<font face=\"Courier\">!forcequit</font> -- immediately terminate the current game session. Unsaved progress will be lost.</i>\n");
+}
+
+bool HandleMetaCommand(const std::string &cmd) {
+	if (cmd.empty() || cmd[0] != '!')
+		return false;
+	std::string command = StrToLowerCase(cmd);
+	if (command == "!transcript" || command == "!script" || command == "!scripton" || command == "!transcripton") {
+		TranscriptOn();
+		return true;
+	}
+	if (command == "!transcriptoff" || command == "!scriptoff") {
+		TranscriptOff();
+		return true;
+	}
+	if (command == "!forcequit") {
+		glk_exit();
+	}
+	if (command == "!metahelp" || command == "!help") {
+		ShowMetaHelp();
+		return true;
+	}
+	return false;
+}
+}
+
 extern "C" {
 #include "gi_blorb.h"
 #include "glkstart.h"
@@ -245,6 +274,8 @@ void glk_main() {
 
 	while (Starlane::GameIsOngoing()) {
 		std::string cmd = GetLineInput("\n> ");
+		if (HandleMetaCommand(cmd))
+			continue;
 		Starlane::ProcessInput(cmd);
 		UpdateStatusBar();
 	}

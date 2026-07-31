@@ -109,6 +109,10 @@ void WaitForKeypress();
 // there's nothing left in the current run to remove without having committed it to the window).
 void UnputLastChar();
 bool AskYesNoQuestion(const char *question);
+// Attempt to turn the transcript on.
+void TranscriptOn();
+// Attempt to turn the transcript off.
+void TranscriptOff();
 
 // statusbar.cpp: keeps the status window(s) in sync with starlane-core's GetStatusBar(). Call
 // after BeginGame(), after each ProcessInput(), and after each TimeTick() -- same as

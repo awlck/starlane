@@ -419,3 +419,36 @@ void AppendHtml(const std::string &html) {
 	}
 	flush();
 }
+
+void TranscriptOn() {
+	if (!gMainWin) return;
+	if (glk_window_get_echo_stream(gMainWin)) {
+		AppendHtml("<i>Transcript is already on; use <font face=\"Courier\">!scriptoff</font> to disable it.</i>\n");
+		return;
+	}
+	auto fileref = glk_fileref_create_by_prompt(fileusage_Transcript | fileusage_TextMode, filemode_Write, 0);
+	if (!fileref) {
+		AppendHtml("<i>Transcript activation canceled.</i>\n");
+		return;
+	}
+	auto stream = glk_stream_open_file(fileref, filemode_Write, 0);
+	if (stream) {
+		glk_window_set_echo_stream(gMainWin, stream);
+		AppendHtml("<i>Transcript started.</i>\n");
+	} else {
+		AppendHtml("<i>Transcript activation failed, sorry.</i>\n");
+	}
+	glk_fileref_destroy(fileref);
+}
+
+void TranscriptOff() {
+	if (!gMainWin) return;
+	strid_t echostream;
+	if (!(echostream = glk_window_get_echo_stream(gMainWin))) {
+		AppendHtml("<i>Transcript is not running; use <font face=\"Courier\">!scripton</font> to start it.</i>\n");
+		return;
+	}
+	glk_window_set_echo_stream(gMainWin, nullptr);
+	glk_stream_close(echostream, nullptr);
+	AppendHtml("<i>Transcript stopped.</i>\n");
+}

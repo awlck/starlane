@@ -110,7 +110,7 @@ Frontend support currently looks like this:
 * **starlane-console**: functional for plain-text play and scripted testing; does not
   interpret HTML formatting, and has no `blorb`/multimedia support at all.
 * **starlane-glk**: the most complete frontend, with image, font color, sound, `blorb`,
-  and status bar support. Secondary output windows, transcript support, and a debug
+  status bar, and transcript support. Secondary output windows, and a debug
   output window are not yet implemented.
 * **starlane-qt**: now has `blorb`, image, and sound support (including `<img>`/`<audio>`
   markup) alongside its status bar, as well as text formatting in line with the original

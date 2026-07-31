@@ -480,7 +480,7 @@
         rather than per-window. Needs a Glk library recent enough to implement per-style
         justification in text buffer windows (e.g. a current garglk); FrankenDrift's GlkRunner
         predates this feature, hence the OFF default and the grid-window fallback above.
-- [ ] Glk frontend: implement transcript support
+- [x] Glk frontend: implement transcript support
 - [ ] Glk frontend: add a debug window
 - [ ] Glk frontend: implement secondary windows
 - [ ] think about implementing an automap (then probably decide against it)
