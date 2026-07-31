@@ -219,7 +219,7 @@ void glk_main() {
 	// fails (no game ended up loaded), so no stylehint_TextColor gets set, and the
 	// EnsureMainWindowOpen() below is a no-op.
 	Starlane::GameInfo gameInfo;
-	bool haveGameInfo = Starlane::GetGameInfo(&gameInfo);
+	bool haveGameInfo = Starlane::GetGameInfo(gameInfo);
 	if (haveGameInfo) {
 		if (gameInfo.hasOutputColour)
 			glk_stylehint_set(wintype_AllTypes, style_Normal, stylehint_TextColor, (glsi32) gameInfo.outputColour);

@@ -142,7 +142,7 @@ void MainWindow::UpdateStatusBar() {
 
 void MainWindow::ApplyGameInfo() {
 	Starlane::GameInfo info;
-	if (Starlane::GetGameInfo(&info)) {
+	if (Starlane::GetGameInfo(info)) {
 		QString title = QString::fromUtf8(info.title.c_str());
 		if (!info.author.empty())
 			title += QStringLiteral(" by ") + QString::fromUtf8(info.author.c_str());

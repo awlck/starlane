@@ -152,7 +152,7 @@ struct SLC_API GameInfo {
 // `info` is caller-owned (e.g. stack-allocated) and filled in by this call; its string members
 // are ordinary std::strings, so the caller owns them via normal C++ RAII -- no explicit release
 // is needed.
-SLC_API bool GetGameInfo(GameInfo *info);
+SLC_API bool GetGameInfo(GameInfo &info);
 }
 
 

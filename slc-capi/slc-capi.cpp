@@ -154,7 +154,7 @@ bool slc__get_status_bar(slc__status_bar *status_bar) {
 
 bool slc__get_game_info(slc__game_info *info) {
 	Starlane::GameInfo gi;
-	auto ok = Starlane::GetGameInfo(&gi);
+	auto ok = Starlane::GetGameInfo(gi);
 	if (!ok) return false;
 	info->title = DupString(gi.title);
 	info->author = DupString(gi.author);

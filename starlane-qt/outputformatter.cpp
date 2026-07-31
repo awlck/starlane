@@ -63,7 +63,7 @@ QMap<QString, QString> ParseAttributes(const QString &text) {
 QColor OutputFormatter::CommandColor() {
 	// Same colour used to echo the player's own input in MainWindow.
 	Starlane::GameInfo info;
-	if (Starlane::GetGameInfo(&info) && info.hasInputColour)
+	if (Starlane::GetGameInfo(info) && info.hasInputColour)
 		return FromPackedRgb(info.inputColour);
 	return Qt::red;
 }
@@ -84,7 +84,7 @@ OutputFormatter::OutputFormatter(QTextBrowser *browser, std::function<void()> wa
 
 void OutputFormatter::ApplyGameDefaults() {
 	Starlane::GameInfo info;
-	if (!Starlane::GetGameInfo(&info)) return;
+	if (!Starlane::GetGameInfo(info)) return;
 	if (info.hasOutputColour)
 		baseCharFormat.setForeground(FromPackedRgb(info.outputColour));
 	if (!info.fontName.empty())

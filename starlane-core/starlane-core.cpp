@@ -136,18 +136,18 @@ bool GetStatusBar(StatusBar &statusBar) {
 	return g->GetStatusBar(statusBar);
 }
 
-bool GetGameInfo(GameInfo *info) {
+bool GetGameInfo(GameInfo &info) {
 	auto *g = Game::Get();
 	if (!g) return false;
-	info->title = g->GetTitle();
-	info->author = g->GetAuthor();
-	info->fontName = g->GetFontName();
+	info.title = g->GetTitle();
+	info.author = g->GetAuthor();
+	info.fontName = g->GetFontName();
 	auto inputColour = g->GetInputColour();
-	info->hasInputColour = inputColour.has_value();
-	info->inputColour = inputColour.value_or(0);
+	info.hasInputColour = inputColour.has_value();
+	info.inputColour = inputColour.value_or(0);
 	auto outputColour = g->GetOutputColour();
-	info->hasOutputColour = outputColour.has_value();
-	info->outputColour = outputColour.value_or(0);
+	info.hasOutputColour = outputColour.has_value();
+	info.outputColour = outputColour.value_or(0);
 	return true;
 }
 }
