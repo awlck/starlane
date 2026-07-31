@@ -1,0 +1,53 @@
+name: Release
+
+# Pushing a "vX.Y.Z" tag builds every platform's package (via the Package
+# workflow, reused here so the build matrix only lives in one place) and
+# drafts a GitHub release with them attached. cmake/Version.cmake picks the
+# version up from the tag itself during those builds, so there's nothing to
+# bump by hand first.
+#
+# The release is a *draft*: nothing goes out to anyone until you review and
+# publish it yourself from the Releases page.
+on:
+  push:
+    tags:
+      # This is a glob, not a regex (GitHub Actions tag filters don't
+      # support quantifiers like [0-9]+) -- "*" already matches "." too,
+      # so this covers any "vX.Y.Z"-shaped tag.
+      - "v*.*.*"
+
+jobs:
+  build:
+    uses: ./.github/workflows/package.yml
+
+  release:
+    name: Draft release
+    needs: build
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/download-artifact@v4
+        with:
+          path: artifacts
+
+      - name: Collect release assets
+        run: |
+          mkdir -p release-assets
+          find artifacts -type f -exec cp {} release-assets/ \;
+          ls -la release-assets
+
+      # --generate-notes asks GitHub for its usual auto-generated "What's
+      # Changed" section (categorized merged PRs since the last release,
+      # with authors) -- the same thing "Generate release notes" in the UI
+      # produces, just without a manually-written changelog to maintain.
+      - name: Create draft release
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          gh release create "${{ github.ref_name }}" \
+            --repo "${{ github.repository }}" \
+            --title "${{ github.ref_name }}" \
+            --draft \
+            --generate-notes \
+            release-assets/*
