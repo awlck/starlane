@@ -5,15 +5,19 @@
 #ifndef STARLANE_MAINWINDOW_H
 #define STARLANE_MAINWINDOW_H
 
+#include <optional>
+
 #include <QtCore/QEventLoop>
 #include <QtCore/QTimer>
 #include <QtGui/QAction>
+#include <QtGui/QImage>
 #include <QtWidgets/QVBoxLayout>
 #include <QtWidgets/QLabel>
 #include <QtWidgets/QLineEdit>
 #include <QtWidgets/QMainWindow>
 #include <QtWidgets/QTextBrowser>
 
+#include "blorbfile.h"
 #include "outputformatter.h"
 
 QT_BEGIN_NAMESPACE
@@ -76,6 +80,17 @@ private:
 	// Set while a <waitkey> tag is blocking on WaitForKeyOrClick(), so eventFilter() knows to
 	// consume the next key/click instead of letting it reach whatever widget it landed on.
 	QEventLoop *waitKeyLoop = nullptr;
+
+	// Set once LoadGameFile() has extracted the current game from a Blorb archive; reset (back to
+	// std::nullopt) for a game loaded from a bare .taf. LoadImage() consults this to decide how an
+	// <img src="..."> path resolves -- through the Blorb resource map, or as a literal filesystem
+	// path -- since that choice depends on how the whole game was loaded, not on any one image.
+	std::optional<BlorbFile> currentBlorb;
+
+	// Resolves an <img src="..."> value to its decoded image data, for OutputFormatter's benefit
+	// (passed to it as a callback in the constructor). Returns a null QImage if the path can't be
+	// resolved or read -- OutputFormatter treats that as "skip this image".
+	QImage LoadImage(const QString &path) const;
 
 	void CreateMenus();
 	// Enables/disables the game-dependent menu actions based on Starlane::GameIsOngoing().

@@ -7,10 +7,12 @@
 #include <starlane-core.h>
 
 #include <QtCore/QMap>
+#include <QtCore/QUrl>
 #include <QtGui/QAbstractTextDocumentLayout>
 #include <QtGui/QFont>
 #include <QtGui/QTextBlock>
 #include <QtGui/QTextDocument>
+#include <QtGui/QTextImageFormat>
 #include <QtWidgets/QScrollBar>
 
 namespace {
@@ -66,8 +68,9 @@ QColor OutputFormatter::CommandColor() {
 	return Qt::red;
 }
 
-OutputFormatter::OutputFormatter(QTextBrowser *browser, std::function<void()> waitKeyHandler)
-	: browser(browser), waitKeyHandler(std::move(waitKeyHandler)) {
+OutputFormatter::OutputFormatter(QTextBrowser *browser, std::function<void()> waitKeyHandler,
+                                  std::function<QImage(const QString &)> imageLoader)
+	: browser(browser), waitKeyHandler(std::move(waitKeyHandler)), imageLoader(std::move(imageLoader)) {
 	baseCharFormat.setForeground(browser->palette().color(QPalette::Text));
 	const QFont font = browser->font();
 	baseCharFormat.setFontFamilies({font.family()});
@@ -191,6 +194,40 @@ void OutputFormatter::HandleFontTag(const QString &attributes) {
 	PushCharFormat("font", fmt);
 }
 
+void OutputFormatter::HandleImgTag(const QString &attributes) {
+	if (!imageLoader) return;
+	const QString src = ParseAttributes(attributes).value("src");
+	if (src.isEmpty()) return;
+
+	const QImage image = imageLoader(src);
+	if (image.isNull()) return;  // not found/unreadable: skip silently, as a missing <img> should
+
+	// The image's stored resource stays at natural size regardless of how it ends up displayed
+	// below -- only the QTextImageFormat's own width/height (computed fresh below, from the pane's
+	// *current* width) controls that, so re-showing the same src later at a different pane width
+	// sizes independently rather than picking up whatever size an earlier showing left cached.
+	const QUrl url(QStringLiteral("starlane-image:") + src);
+	browser->document()->addResource(QTextDocument::ImageResource, url, QVariant(image));
+
+	QSize displaySize = image.size();
+	const qreal margin = 2 * browser->document()->documentMargin();
+	const int maxWidth = qMax(1, (int) (browser->viewport()->width() - margin));
+	if (displaySize.width() > maxWidth) {
+		displaySize.setHeight(qMax(1, qRound((qreal) displaySize.height() * maxWidth / displaySize.width())));
+		displaySize.setWidth(maxWidth);
+	}
+
+	QTextImageFormat imgFormat;
+	imgFormat.setName(url.toString());
+	imgFormat.setWidth(displaySize.width());
+	imgFormat.setHeight(displaySize.height());
+
+	QTextCursor cursor(browser->document());
+	cursor.movePosition(QTextCursor::End);
+	ApplyCurrentBlockAlignment(cursor);
+	cursor.insertImage(imgFormat);
+}
+
 void OutputFormatter::HandleTag(const QString &tagRaw) {
 	const QString tag = tagRaw.trimmed();
 	if (tag.isEmpty()) return;
@@ -266,10 +303,11 @@ void OutputFormatter::HandleTag(const QString &tagRaw) {
 		return;
 	}
 
-	// <wait n>, <window name>/</window>, <audio ...>, <img ...>,
-	// <bgcolor>/<bgcolour>: recognized so their markup never leaks into
-	// visible output, but intentionally no-op until their dedicated
-	// follow-up work (blorb plumbing, dockable panes, etc).
+	if (name == "img") { HandleImgTag(rest); return; }
+
+	// <wait n>, <window name>/</window>, <audio ...>, <bgcolor>/<bgcolour>: recognized so their
+	// markup never leaks into visible output, but intentionally no-op until their dedicated
+	// follow-up work (sound playback, dockable panes, etc).
 }
 
 void OutputFormatter::AppendText(const QString &chunk) {

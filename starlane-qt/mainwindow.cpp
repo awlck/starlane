@@ -4,8 +4,6 @@
 
 #include "mainwindow.h"
 
-#include "blorbfile.h"
-
 #include <starlane-core.h>
 
 #include <QtCore/QCoreApplication>
@@ -65,7 +63,8 @@ MainWindow::MainWindow() : QMainWindow(nullptr) {
 	dummy->setLayout(box);
 	setCentralWidget(dummy);
 
-	formatter = new OutputFormatter(output, [this]{ if (!isReplaying) WaitForKeyOrClick(); });
+	formatter = new OutputFormatter(output, [this]{ if (!isReplaying) WaitForKeyOrClick(); },
+		[this](const QString &path){ return LoadImage(path); });
 
 	eventTimer = new QTimer(this);
 	eventTimer->setInterval(1000);  // the core counts real-time events in whole seconds
@@ -191,9 +190,11 @@ bool MainWindow::LoadGameFile(const QString &path) {
 
 	// ADRIFT games are commonly distributed as a Blorb archive bundling the game itself (as the
 	// "Exec" resource) together with its images and sounds -- extract the game from there rather
-	// than trying to load the whole archive as if it were a bare .taf.
+	// than trying to load the whole archive as if it were a bare .taf, and keep the parsed archive
+	// around afterwards so LoadImage() can pull <img>-referenced Pict resources out of it later.
+	std::optional<BlorbFile> blorb;
 	if (BlorbFile::IsBlorbData(data)) {
-		auto blorb = BlorbFile::Parse(data);
+		blorb = BlorbFile::Parse(data);
 		if (!blorb) {
 			QMessageBox::warning(this, QStringLiteral("Starlane"),
 				tr("\"%1\" does not appear to be a valid Blorb file.").arg(QDir::toNativeSeparators(path)));
@@ -207,6 +208,7 @@ bool MainWindow::LoadGameFile(const QString &path) {
 			return false;
 		}
 	}
+	currentBlorb = std::move(blorb);
 
 	eventTimer->stop();
 	output->clear();
@@ -220,6 +222,27 @@ bool MainWindow::LoadGameFile(const QString &path) {
 	StartEventTimer();
 	input->setFocus();
 	return Starlane::GameIsOngoing();
+}
+
+QImage MainWindow::LoadImage(const QString &path) const {
+	if (currentBlorb) {
+		const uint32_t resourceId = Starlane::GetBlorbResourceForPath(path.toStdString());
+		if (resourceId == (uint32_t) -1) return QImage();
+		auto resource = currentBlorb->GetResource(BlorbFile::kUsagePict, resourceId);
+		if (!resource) return QImage();
+		return QImage::fromData(resource->data);
+	}
+
+	// No Blorb: match the original Runner's own behavior for a non-Blorb game (Global.vb's
+	// Source2HTML hands the <img src> value straight to PictureBox.Load with no resolution
+	// against the game file's own location) by trying the path exactly as given, rather than
+	// inventing a resolution scheme of our own that it never had. Backslashes are swapped for
+	// forward slashes since these paths are almost always authored on Windows (see how a game's
+	// FileMappings entries look -- e.g. "C:\ADRIFT Images\Cover Images\Foo.jpg") and Qt, unlike
+	// the OS the path was authored on, doesn't accept them as separators.
+	QString resolved = path;
+	resolved.replace('\\', '/');
+	return QImage(resolved);
 }
 
 void MainWindow::SubmitCommand(const QString &cmd) {

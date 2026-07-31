@@ -365,7 +365,36 @@
       UI) reproduces the game's normal intro text -- confirming the extraction isn't merely
       byte-correct but is accepted by the engine exactly like a standalone .taf would be. Actually
       drawing images or playing sounds through `GetResource()` is left to the next two items.
-- [ ] implement graphics support in the Qt frontend
+- [x] implement graphics support in the Qt frontend. `OutputFormatter::HandleImgTag()`
+      (outputformatter.cpp) resolves `<img src="...">` in-line, right where it appears in the text
+      flow, via a new `imageLoader` callback threaded through the constructor -- mirroring how
+      `waitKeyHandler` already crosses the same boundary -- so the formatter itself stays ignorant
+      of Blorb/file-path concerns. `MainWindow::LoadImage()` (mainwindow.cpp) is that callback:
+      for a game loaded from a Blorb archive (`currentBlorb`, populated by `LoadGameFile()` and
+      kept around for exactly this) it calls `Starlane::GetBlorbResourceForPath()` to map the
+      author-side path to a resource number and pulls the bytes out of `BlorbFile::GetResource()`;
+      for a bare .taf it instead tries the path exactly as written (backslashes swapped for
+      forward slashes, nothing else) -- confirmed via Global.vb's `Source2HTML` that the original
+      Runner does exactly that (`PictureBox.Load(sBuffer)`, unresolved) rather than resolving
+      against the game file's own folder, so this doesn't invent a scheme the Runner never had.
+      Either path decodes through `QImage::fromData()`/`QImage(path)`, i.e. whatever image formats
+      the local Qt build supports, not a fixed PNG/JPEG/GIF allowlist. A width/height attribute on
+      the tag itself is ignored, matching the Runner's own tokenizer (confirmed it never reads
+      anything past `src`); instead, the image is scaled down (never up) to the output pane's
+      *current* width at insertion time via `QTextImageFormat::setWidth/Height` -- deliberately not
+      also handled on window resize (Qt has no hook for "a block's available width just changed"
+      that would be worth wiring up here) but sized correctly whenever it's freshly shown. Inserted
+      with `QTextCursor::insertImage()` at the current cursor position mid-run, so it takes on the
+      enclosing block's alignment for free (same `ApplyCurrentBlockAlignment()` call already used
+      for text) and sits in-line with surrounding text rather than forcing its own line. A path
+      that fails to resolve/decode (`QImage::isNull()`) is skipped with no visible trace, same as a
+      missing image in a browser without alt text. Verified two ways: every Blorb under testdata/
+      with Pict resources loads and displays its cover art correctly (including downscaling when
+      the window is narrower than the image, checked by shrinking the window and reopening
+      Bug Hunt On Menelaus's .blorb), and a standalone OutputFormatter harness with synthetic
+      images confirmed true same-line inline placement ("text <img> more text"), block-alignment
+      inheritance (left/center/right), scale-to-fit on an oversized image, and silent skipping of
+      an unresolvable src.
 - [ ] implement sound support in the Qt frontend
 - [ ] ensure the Qt frontend can be compiled for the web (WASM)
 - [x] begin work on a Glk frontend (can probably rip off most of the implementation from FrankenDrift)

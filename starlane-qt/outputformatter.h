@@ -13,6 +13,7 @@
 #include <functional>
 
 #include <QtCore/QVector>
+#include <QtGui/QImage>
 #include <QtGui/QTextCharFormat>
 #include <QtGui/QTextCursor>
 #include <QtWidgets/QTextBrowser>
@@ -23,7 +24,11 @@ public:
 	// InputColour, if it specifies one, or a default red otherwise.
 	static QColor CommandColor();
 
-	OutputFormatter(QTextBrowser *browser, std::function<void()> waitKeyHandler);
+	// `imageLoader` resolves an <img src="..."> value to its decoded image data -- however the
+	// frontend wants to interpret that path (a Blorb resource lookup, a plain file on disk, ...).
+	// A null QImage means "couldn't be loaded", which HandleImgTag treats as "skip silently".
+	OutputFormatter(QTextBrowser *browser, std::function<void()> waitKeyHandler,
+	                 std::function<QImage(const QString &)> imageLoader);
 
 	// Re-derives the base text color/font from the current game's FontName/OutputColour, if it
 	// specifies any. Call once after CreateGame() (and before the first output) -- none of that is
@@ -51,6 +56,7 @@ private:
 
 	QTextBrowser *browser;
 	std::function<void()> waitKeyHandler;
+	std::function<QImage(const QString &)> imageLoader;
 
 	QTextCharFormat baseCharFormat;
 	Qt::Alignment baseAlignment;
@@ -71,6 +77,11 @@ private:
 	void InsertLineBreak();
 	void HandleTag(const QString &tag);
 	void HandleFontTag(const QString &attributes);
+	// Inserts the image an <img src="..."> tag refers to in-line at the current cursor position,
+	// scaled down (never up) to fit the output pane's current width if it doesn't already. Any
+	// other attribute (width, height, ...) is ignored -- matching the original ADRIFT Runner,
+	// which ignores them too (confirmed against its Global.vb).
+	void HandleImgTag(const QString &attributes);
 	void PushCharFormat(const QString &tagName, const QTextCharFormat &format);
 	void PopCharFormat(const QString &tagName);
 	void ApplyCurrentBlockAlignment(QTextCursor &cursor);
