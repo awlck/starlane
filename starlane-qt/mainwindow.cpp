@@ -68,7 +68,8 @@ MainWindow::MainWindow() : QMainWindow(nullptr) {
 		[this](const QString &path){ return LoadImage(path); },
 		[this](const QString &src, int channel, bool loop){ PlaySound(src, channel, loop); },
 		[this](int channel){ PauseSound(channel); },
-		[this](int channel){ StopSound(channel); });
+		[this](int channel){ StopSound(channel); },
+		[this](const QString &name){ return GetOrCreateSecondaryWindow(name); });
 
 	InitSoundChannels();
 
@@ -97,9 +98,9 @@ MainWindow::MainWindow() : QMainWindow(nullptr) {
 	UpdateActionState();
 	UpdateStatusBar();
 
-	formatter->BeginBatch();
+	BeginOutputBatch();
 	formatter->AppendText(QStringLiteral("Welcome to Starlane. Use <b>File → Open Game...</b> to load a game."));
-	formatter->EndBatch();
+	EndOutputBatch();
 }
 
 void MainWindow::CreateMenus() {
@@ -112,6 +113,10 @@ void MainWindow::CreateMenus() {
 	gameMenu->addSeparator();
 	transcriptAction = gameMenu->addAction(tr("Start &Transcript"), this, &MainWindow::ToggleTranscript);
 	replayAction = gameMenu->addAction(tr("Repla&y Commands..."), QKeySequence(Qt::CTRL | Qt::SHIFT | Qt::Key_R), this, &MainWindow::ReplayCommandsTriggered);
+
+	// Populated as the game opens secondary windows (see GetOrCreateSecondaryWindow()) -- empty,
+	// and therefore unremarkable, for games that don't use <window> markup at all.
+	windowsMenu = menuBar()->addMenu(tr("&Windows"));
 }
 
 void MainWindow::UpdateActionState() {
@@ -156,23 +161,89 @@ void MainWindow::StartEventTimer() {
 }
 
 void MainWindow::RunBeginGame() {
-	formatter->BeginBatch();
+	BeginOutputBatch();
 	Starlane::BeginGame();
-	formatter->EndBatch();
+	EndOutputBatch();
 	UpdateActionState();
 	UpdateStatusBar();
 }
 
 void MainWindow::HandleTimeTick() {
-	formatter->BeginBatch();
+	BeginOutputBatch();
 	Starlane::TimeTick();
-	formatter->EndBatch();
+	EndOutputBatch();
 	UpdateActionState();
 	UpdateStatusBar();
 }
 
 void MainWindow::OutputText(const char *txt) {
 	formatter->AppendText(QString::fromUtf8(txt));
+}
+
+OutputFormatter *MainWindow::GetOrCreateSecondaryWindow(const QString &name) {
+	auto it = secondaryWindows.find(name);
+	if (it != secondaryWindows.end()) return it->formatter;
+
+	auto *browser = new QTextBrowser;
+	// Same rationale as the main output pane's palette (see the constructor): a true-black
+	// background matches what ADRIFT authors assume when picking OutputColour/InputColour.
+	QPalette palette = browser->palette();
+	palette.setColor(QPalette::Base, Qt::black);
+	browser->setPalette(palette);
+
+	auto *dock = new QDockWidget(name, this);
+	dock->setObjectName(QStringLiteral("secondaryWindow_") + name);
+	dock->setWidget(browser);
+	dock->setFeatures(QDockWidget::DockWidgetClosable | QDockWidget::DockWidgetMovable
+		| QDockWidget::DockWidgetFloatable);
+	dock->setAllowedAreas(Qt::AllDockWidgetAreas);
+
+	auto *secondaryFormatter = new OutputFormatter(browser,
+		[this]{ if (!isReplaying) WaitForKeyOrClick(); },
+		[this](const QString &path){ return LoadImage(path); },
+		[this](const QString &src, int channel, bool loop){ PlaySound(src, channel, loop); },
+		[this](int channel){ PauseSound(channel); },
+		[this](int channel){ StopSound(channel); },
+		[this](const QString &n){ return GetOrCreateSecondaryWindow(n); });
+
+	// Tabify onto an existing secondary window rather than letting them pile up as separate splits
+	// -- ADRIFT authors are cautioned against using more than one or two of these at once anyway.
+	if (secondaryWindows.isEmpty())
+		addDockWidget(Qt::RightDockWidgetArea, dock);
+	else
+		tabifyDockWidget(secondaryWindows.first().dock, dock);
+	dock->show();
+	windowsMenu->addAction(dock->toggleViewAction());
+
+	// A batch already in progress when this window is first created (the usual case -- it's
+	// created on demand while redirecting a <window NAME> tag's content, itself found partway
+	// through the main formatter's own AppendText()) has already called BeginOutputBatch(), which
+	// predates this window's existence and so couldn't have started its batch too. Do that now;
+	// EndOutputBatch() will find it in secondaryWindows and close the batch out normally.
+	secondaryFormatter->BeginBatch();
+
+	secondaryWindows.insert(name, {dock, browser, secondaryFormatter});
+	return secondaryFormatter;
+}
+
+void MainWindow::ClearSecondaryWindows() {
+	for (auto it = secondaryWindows.begin(); it != secondaryWindows.end(); ++it) {
+		removeDockWidget(it->dock);
+		delete it->formatter;
+		delete it->dock;  // also deletes its QTextBrowser, which is a child widget
+	}
+	secondaryWindows.clear();
+	windowsMenu->clear();
+}
+
+void MainWindow::BeginOutputBatch() {
+	formatter->BeginBatch();
+	for (auto &window : secondaryWindows) window.formatter->BeginBatch();
+}
+
+void MainWindow::EndOutputBatch() {
+	formatter->EndBatch();
+	for (auto &window : secondaryWindows) window.formatter->EndBatch();
 }
 
 bool MainWindow::LoadGameFile(const QString &path) {
@@ -217,6 +288,7 @@ bool MainWindow::LoadGameFile(const QString &path) {
 	currentBlorb = std::move(blorb);
 	StopAllSounds();  // the previous game's audio (if any) shouldn't keep playing over the new one
 	StopTranscript();  // a transcript is scoped to one game session, not the whole app lifetime
+	ClearSecondaryWindows();  // likewise, secondary windows' content belongs to the previous game
 
 	eventTimer->stop();
 	output->clear();
@@ -316,7 +388,7 @@ void MainWindow::StopSound(int channel) {
 }
 
 void MainWindow::SubmitCommand(const QString &cmd) {
-	formatter->BeginBatch();
+	BeginOutputBatch();
 	// The echoed command flows through the same tag parser as everything else, so escape
 	// anything the player typed that would otherwise be misread as markup.
 	QString escaped = cmd;
@@ -325,7 +397,7 @@ void MainWindow::SubmitCommand(const QString &cmd) {
 		+ QStringLiteral("\">> ") + escaped + QStringLiteral("</font><br>"));
 
 	Starlane::ProcessInput(cmd.toStdString());
-	formatter->EndBatch();
+	EndOutputBatch();
 	UpdateActionState();
 	UpdateStatusBar();
 }
@@ -343,15 +415,15 @@ void MainWindow::OpenGameTriggered() {
 }
 
 void MainWindow::SaveGameTriggered() {
-	formatter->BeginBatch();
+	BeginOutputBatch();
 	Starlane::SaveGame();
-	formatter->EndBatch();
+	EndOutputBatch();
 }
 
 void MainWindow::RestoreGameTriggered() {
-	formatter->BeginBatch();
+	BeginOutputBatch();
 	Starlane::RestoreGame();
-	formatter->EndBatch();
+	EndOutputBatch();
 	UpdateActionState();
 	UpdateStatusBar();
 }

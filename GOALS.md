@@ -353,7 +353,24 @@
       always properly closed rather than left mid-write). Verified end-to-end against a real build:
       loaded `testdata/cake`, started a transcript, typed `look`, stopped it, and confirmed the
       written file contained the echoed `> look` and the room description as plain text.
-- [ ] implement dockable secondary windows in the Qt frontend
+- [x] implement dockable secondary windows in the Qt frontend. `<window NAME>...</window>` markup
+      now redirects the text between the tags into a separate `QDockWidget`/`QTextBrowser` pair
+      (`MainWindow::GetOrCreateSecondaryWindow()`), created on first use and reused by name
+      afterward, with its own `OutputFormatter` instance so all markup (formatting, images, audio,
+      even further nested `<window>` tags) is interpreted the same as in the main window. Players
+      can dock, tab, float, or hide/reshow each one (via the new "Windows" menu, backed by each
+      dock's own `toggleViewAction()`); ADRIFT's own "unclosed tags are implicitly closed" rule now
+      also covers a `<window>` left unclosed at the end of an output batch, delivering whatever it
+      captured rather than losing it. `OutputFormatter::AppendText()`'s redirect state (like its
+      existing tag-tokenizer state) persists across calls, since a redirected block can be split
+      across separate `OutputText()` invocations. `MainWindow::BeginOutputBatch()`/`EndOutputBatch()`
+      replace direct `formatter->BeginBatch()`/`EndBatch()` calls so every open secondary window's
+      scroll bookkeeping runs alongside the main one's. Verified with a synthetic `<window>` block
+      injected into the startup message: two named windows opened, tabbed together by default,
+      correctly hid/reshowed via the Windows menu, and one detached into a free-floating window with
+      content and formatting (bold/color/italic) intact; also covered by a standalone offscreen Qt
+      smoke test exercising split-call redirection, window reuse, nesting, and the implicit-close
+      fallback.
 - [ ] Qt frontend: redirect starlane-core debug output to a debug log window
 - [x] implement `blorb` support in the Qt frontend, as a foundation for the graphics/sound work
       below. `BlorbFile` (starlane-qt/blorbfile.{cpp,h}) is a small from-scratch parser (no new

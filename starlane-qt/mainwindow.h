@@ -11,15 +11,18 @@
 #include <QtCore/QBuffer>
 #include <QtCore/QEventLoop>
 #include <QtCore/QFile>
+#include <QtCore/QMap>
 #include <QtCore/QTimer>
 #include <QtGui/QAction>
 #include <QtGui/QImage>
 #include <QtMultimedia/QAudioOutput>
 #include <QtMultimedia/QMediaPlayer>
 #include <QtWidgets/QVBoxLayout>
+#include <QtWidgets/QDockWidget>
 #include <QtWidgets/QLabel>
 #include <QtWidgets/QLineEdit>
 #include <QtWidgets/QMainWindow>
+#include <QtWidgets/QMenu>
 #include <QtWidgets/QTextBrowser>
 
 #include "blorbfile.h"
@@ -62,6 +65,22 @@ private:
 	// for the life of the window -- which is what ADRIFT does with its own.
 	QTimer *eventTimer;
 	OutputFormatter *formatter;
+
+	// One player-dockable secondary output window opened by a game's <window NAME> markup (see
+	// OutputFormatter's window-redirection handling). Kept alive -- and its content preserved --
+	// for the rest of the game session even after the player closes it: closing a QDockWidget only
+	// hides it, it doesn't destroy this entry, so further redirected text isn't lost and a later
+	// <window NAME> with the same name reuses it rather than creating a duplicate.
+	struct SecondaryWindow {
+		QDockWidget *dock;
+		QTextBrowser *browser;
+		OutputFormatter *formatter;
+	};
+	QMap<QString, SecondaryWindow> secondaryWindows;
+	// Lists every currently-open secondary window as a show/hide toggle, via its QDockWidget's own
+	// toggleViewAction() -- populated as GetOrCreateSecondaryWindow() creates each one, since their
+	// names aren't known ahead of time.
+	QMenu *windowsMenu;
 
 	QAction *openGameAction;
 	QAction *saveGameAction;
@@ -130,6 +149,23 @@ private:
 	void PlaySound(const QString &src, int channel, bool loop);
 	void PauseSound(int channel);
 	void StopSound(int channel);
+
+	// Resolves `name` to the OutputFormatter that a <window NAME>...</window> block's content
+	// should be redirected into, creating a new dockable QDockWidget/QTextBrowser pair (and adding
+	// it to windowsMenu) the first time `name` is seen, and reusing it afterward. Passed to every
+	// OutputFormatter instance -- this window's own and every secondary window's alike -- as their
+	// `getWindow` callback, so a <window> tag nested inside another window's own content can
+	// redirect further, recursively.
+	OutputFormatter *GetOrCreateSecondaryWindow(const QString &name);
+	// Closes and forgets every secondary window -- called when a new game is loaded, since their
+	// content belongs to the previous game session.
+	void ClearSecondaryWindows();
+	// Calls BeginBatch()/EndBatch() (see OutputFormatter) on the main formatter and every
+	// currently-open secondary one, so their scroll-position bookkeeping applies uniformly no
+	// matter which window(s) a batch's output actually ends up redirected into. Used in place of
+	// calling formatter->BeginBatch()/EndBatch() directly everywhere that used to.
+	void BeginOutputBatch();
+	void EndOutputBatch();
 
 	void CreateMenus();
 	// Enables/disables the game-dependent menu actions based on Starlane::GameIsOngoing().

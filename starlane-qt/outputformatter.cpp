@@ -72,9 +72,11 @@ OutputFormatter::OutputFormatter(QTextBrowser *browser, std::function<void()> wa
                                   std::function<QImage(const QString &)> imageLoader,
                                   std::function<void(const QString &, int, bool)> playSound,
                                   std::function<void(int)> pauseSound,
-                                  std::function<void(int)> stopSound)
+                                  std::function<void(int)> stopSound,
+                                  std::function<OutputFormatter *(const QString &)> getWindow)
 	: browser(browser), waitKeyHandler(std::move(waitKeyHandler)), imageLoader(std::move(imageLoader)),
-	  playSound(std::move(playSound)), pauseSound(std::move(pauseSound)), stopSound(std::move(stopSound)) {
+	  playSound(std::move(playSound)), pauseSound(std::move(pauseSound)), stopSound(std::move(stopSound)),
+	  getWindow(std::move(getWindow)) {
 	baseCharFormat.setForeground(browser->palette().color(QPalette::Text));
 	const QFont font = browser->font();
 	baseCharFormat.setFontFamilies({font.family()});
@@ -115,7 +117,18 @@ void OutputFormatter::BeginBatch() {
 }
 
 void OutputFormatter::EndBatch() {
-	FlushTextRun();
+	CommitTextRun();
+	if (redirectTarget) {
+		// Implicit close, mirroring ADRIFT's "unclosed tags are auto-closed" behavior (see this
+		// file's header comment): a <window> left unclosed at the end of an output batch still
+		// delivers whatever it captured instead of losing it.
+		OutputFormatter *target = redirectTarget;
+		const QString content = redirectBuffer;
+		redirectTarget = nullptr;
+		redirectDepth = 0;
+		redirectBuffer.clear();
+		target->AppendText(content);
+	}
 
 	QTextDocument *doc = browser->document();
 	if (doc->characterCount() == batchStartCharCount) return;  // nothing was actually output
@@ -160,6 +173,15 @@ void OutputFormatter::FlushTextRun() {
 	cursor.movePosition(QTextCursor::End);
 	ApplyCurrentBlockAlignment(cursor);
 	cursor.insertText(decoded, CurrentCharFormat());
+}
+
+void OutputFormatter::CommitTextRun() {
+	if (redirectTarget) {
+		redirectBuffer += textRun;
+		textRun.clear();
+		return;
+	}
+	FlushTextRun();
 }
 
 void OutputFormatter::InsertLineBreak() {
@@ -349,9 +371,38 @@ void OutputFormatter::HandleTag(const QString &tagRaw) {
 	if (name == "img") { HandleImgTag(rest); return; }
 	if (name == "audio") { HandleAudioTag(rest); return; }
 
-	// <wait n>, <window name>/</window>, <bgcolor>/<bgcolour>: recognized so their markup never
-	// leaks into visible output, but intentionally no-op until their dedicated follow-up work
-	// (dockable panes, etc).
+	if (name == "window") {
+		if (!rest.isEmpty() && getWindow) {
+			if (OutputFormatter *target = getWindow(rest)) {
+				redirectTarget = target;
+				redirectDepth = 1;
+				redirectBuffer.clear();
+			}
+		}
+		return;
+	}
+
+	// <wait n>, <bgcolor>/<bgcolour>: recognized so their markup never leaks into visible output,
+	// but intentionally no-op until their own dedicated follow-up work.
+}
+
+void OutputFormatter::HandleRedirectedTag(const QString &tagRaw) {
+	const QString lower = tagRaw.trimmed().toLower();
+	if (lower == QStringLiteral("/window")) {
+		if (--redirectDepth == 0) {
+			OutputFormatter *target = redirectTarget;
+			const QString content = redirectBuffer;
+			redirectTarget = nullptr;
+			redirectBuffer.clear();
+			target->AppendText(content);
+			return;
+		}
+	} else if (lower == QStringLiteral("window") || lower.startsWith(QStringLiteral("window "))) {
+		++redirectDepth;
+	}
+	redirectBuffer += '<';
+	redirectBuffer += tagRaw;
+	redirectBuffer += '>';
 }
 
 void OutputFormatter::AppendText(const QString &chunk) {
@@ -377,8 +428,9 @@ void OutputFormatter::AppendText(const QString &chunk) {
 				continue;
 			}
 			if (c == '>') {
-				FlushTextRun();
-				HandleTag(tagBuffer);
+				CommitTextRun();
+				if (redirectTarget) HandleRedirectedTag(tagBuffer);
+				else HandleTag(tagBuffer);
 				tagBuffer.clear();
 				inTag = false;
 				continue;
@@ -394,11 +446,12 @@ void OutputFormatter::AppendText(const QString &chunk) {
 			continue;
 		}
 		if (c == '\n') {
-			FlushTextRun();
-			InsertLineBreak();
+			CommitTextRun();
+			if (redirectTarget) redirectBuffer += '\n';
+			else InsertLineBreak();
 			continue;
 		}
 		textRun += c;
 	}
-	FlushTextRun();
+	CommitTextRun();
 }

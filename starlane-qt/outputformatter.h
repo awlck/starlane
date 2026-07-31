@@ -31,11 +31,18 @@ public:
 	// HandleAudioTag): `channel` is always in [1, 8] (ADRIFT's 8 sound channels) by the time any
 	// of these run -- this is the boundary where that gets checked, so the frontend's own
 	// channel-array lookups never need to.
+	// `getWindow` resolves a <window NAME> tag's target: the OutputFormatter that the text up to
+	// the matching </window> should be redirected into, instead of this instance's own browser
+	// (MainWindow::GetOrCreateSecondaryWindow() creates a dockable/floating pane for NAME the
+	// first time it's seen, and reuses it afterward). Passed identically to every OutputFormatter
+	// instance -- the main window's and every secondary window's alike -- so a <window> tag nested
+	// inside another window's own redirected content keeps working, recursively.
 	OutputFormatter(QTextBrowser *browser, std::function<void()> waitKeyHandler,
 	                 std::function<QImage(const QString &)> imageLoader,
 	                 std::function<void(const QString &src, int channel, bool loop)> playSound,
 	                 std::function<void(int channel)> pauseSound,
-	                 std::function<void(int channel)> stopSound);
+	                 std::function<void(int channel)> stopSound,
+	                 std::function<OutputFormatter *(const QString &name)> getWindow);
 
 	// Re-derives the base text color/font from the current game's FontName/OutputColour, if it
 	// specifies any. Call once after CreateGame() (and before the first output) -- none of that is
@@ -77,6 +84,7 @@ private:
 	std::function<void(const QString &src, int channel, bool loop)> playSound;
 	std::function<void(int channel)> pauseSound;
 	std::function<void(int channel)> stopSound;
+	std::function<OutputFormatter *(const QString &name)> getWindow;
 	std::function<void(const QString &)> transcriptSink;
 
 	QTextCharFormat baseCharFormat;
@@ -96,10 +104,33 @@ private:
 	QString tagBuffer;
 	QString textRun;
 
+	// Window-redirection state, carried across AppendText() calls the same way the tag tokenizer
+	// state above is -- a <window NAME>...</window> block can itself be split across separate
+	// OutputText() invocations (e.g. one per Print action in a task). Non-null `redirectTarget`
+	// means text/tags are currently being captured (verbatim, uninterpreted) into `redirectBuffer`
+	// instead of being applied to this instance's own browser; `redirectDepth` counts further
+	// nested <window ...> opens seen since, so the matching </window> can be found even when the
+	// captured content itself opens further windows (those are only interpreted later, when the
+	// finished buffer is replayed through redirectTarget->AppendText() -- see HandleRedirectedTag).
+	OutputFormatter *redirectTarget = nullptr;
+	int redirectDepth = 0;
+	QString redirectBuffer;
+
 	void ResetFormattingState();
 	void FlushTextRun();
+	// Routes the pending text run to redirectBuffer (verbatim) if a <window> redirect is active,
+	// or otherwise to FlushTextRun() as usual. The single commit point AppendText() uses for
+	// "the plain text accumulated so far is complete" -- at a tag boundary, a line break, or the
+	// end of a batch -- regardless of which of the two destinations it's currently headed to.
+	void CommitTextRun();
 	void InsertLineBreak();
 	void HandleTag(const QString &tag);
+	// Handles one complete "<...>" tag encountered while capturing a <window NAME>...</window>
+	// block (see AppendText()/CommitTextRun()): tracks nesting depth so a further <window> tag
+	// inside the captured content doesn't end the capture at its own </window>, and otherwise just
+	// re-emits the tag's exact source text into redirectBuffer -- it's interpreted later, when the
+	// finished buffer is fed through redirectTarget->AppendText().
+	void HandleRedirectedTag(const QString &tag);
 	void HandleFontTag(const QString &attributes);
 	// Inserts the image an <img src="..."> tag refers to in-line at the current cursor position,
 	// scaled down (never up) to fit the output pane's current width if it doesn't already. Any
