@@ -131,6 +131,15 @@ jobs:
               cmake ninja-build g++ qt6-base-dev qt6-base-dev-tools qt6-multimedia-dev dpkg-dev file
             package_cmd: cpack -G DEB
             artifact_glob: build/*.deb
+          - name: Debian 13
+            slug: debian-13
+            image: debian:trixie
+            install_git: apt-get update && DEBIAN_FRONTEND=noninteractive apt-get install -y --no-install-recommends git ca-certificates
+            install_deps: >
+              apt-get install -y --no-install-recommends
+              cmake ninja-build g++ qt6-base-dev qt6-base-dev-tools qt6-multimedia-dev dpkg-dev file
+            package_cmd: cpack -G DEB
+            artifact_glob: build/*.deb
           - name: Fedora 44
             slug: fedora-44
             image: fedora:44
