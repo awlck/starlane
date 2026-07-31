@@ -29,6 +29,7 @@ add_library(starlane-glk-base STATIC
     statusbar.cpp
     multimedia.cpp
     savefile.cpp
+    secondarywindow.cpp
         glkext.h
 )
 target_link_libraries(starlane-glk-base starlane-core)

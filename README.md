@@ -110,12 +110,12 @@ Frontend support currently looks like this:
 * **starlane-console**: functional for plain-text play and scripted testing; does not
   interpret HTML formatting, and has no `blorb`/multimedia support at all.
 * **starlane-glk**: the most complete frontend, with image, font color, sound, `blorb`,
-  status bar, and transcript support. Secondary output windows, and a debug
-  output window are not yet implemented.
+  status bar, transcript support and secondary output windows. A debug output window
+  is still planned.
 * **starlane-qt**: now has `blorb`, image, sound, and transcript support (including
-  `<img>`/`<audio>` markup) alongside its status bar, as well as text formatting in line
-  with the original ADRIFT 5 implementation. Still outstanding: dockable secondary
-  windows, debug log output, and WASM builds.
+  `<img>`/`<audio>` markup) alongside its status bar dockable secondary windows, and
+  text formatting in line with the original ADRIFT 5 implementation. Still outstanding:
+  debug log output, and WASM builds.
 
 See [GOALS.md](GOALS.md) for the detailed, up-to-date development to-do list.
 

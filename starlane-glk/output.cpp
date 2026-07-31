@@ -10,6 +10,19 @@
 #include <unordered_map>
 #include <unordered_set>
 
+// A <window NAME>...</window> block's capture-in-progress state, as AppendHtml() scans its way
+// through one: non-null `target` means the text/tags parsed so far are being captured verbatim
+// into `buffer` instead of being rendered, until the matching </window> is found (tracked via
+// `depth`, which also counts further nested <window> opens seen since -- those are left alone at
+// this level, and only interpreted later, when the finished buffer is replayed through a fresh
+// AppendHtml() call targeting the window itself). See AppendHtml()'s own doc comment for how an
+// instance of this can be threaded across separate calls to pick up a block split across them.
+struct WindowRedirect {
+	SecondaryWindow *target = nullptr;
+	int depth = 0;
+	std::string buffer;
+};
+
 void EnsureMainWindowOpen() {
 	if (gMainWin) return;
 	gMainWin = glk_window_open(nullptr, 0, 0, wintype_TextBuffer, 0);
@@ -63,6 +76,13 @@ namespace {
 // something; see each function for what it does with the captured text from there.
 bool gCapturingOutput = false;
 std::string gCapturedHtml;
+
+// The <window NAME>...</window> block AppendHtml() is currently in the middle of capturing, if
+// any, for the game's own live output stream (as opposed to one of this frontend's own literal
+// strings, or the recursive replay of an already-fully-collected block -- see AppendHtml()'s own
+// doc comment for why only *this* one instance needs to survive between separate OutputText()
+// calls). Delivered to its target by FlushPendingWindowRedirect(), at the end of a batch.
+WindowRedirect gPendingWindowRedirect;
 }  // namespace
 
 void OutputText(const char *msg) {
@@ -70,7 +90,7 @@ void OutputText(const char *msg) {
 		gCapturedHtml += msg;
 		return;
 	}
-	AppendHtml(msg);
+	AppendHtml(msg, nullptr, &gPendingWindowRedirect);
 }
 
 uint32_t gDefaultOutputColor = zcolor_Default;
@@ -143,6 +163,18 @@ bool ExtractAttributeOriginalCase(const std::string &tagLower, const std::string
 	return true;
 }
 
+// Extracts a <window NAME> tag's NAME: everything in `tagOriginal` (the tag body before
+// lowercasing, so a name keeps its authored casing) after the first run of whitespace, itself
+// trimmed of any leading/trailing whitespace. NAME may contain internal spaces (e.g. "Combat
+// Log"), unlike an attribute value. Returns an empty string if the tag has no name at all.
+std::string ExtractWindowName(const std::string &tagOriginal) {
+	size_t sp = tagOriginal.find_first_of(" \t");
+	std::string name = sp == std::string::npos ? std::string() : tagOriginal.substr(sp + 1);
+	while (!name.empty() && std::isspace((unsigned char) name.front())) name.erase(name.begin());
+	while (!name.empty() && std::isspace((unsigned char) name.back())) name.pop_back();
+	return name;
+}
+
 // Parses a `<font color="...">` attribute, either a `#`-optional hex triplet (e.g. the game data
 // seen in the wild uses both `color = red` and `color = FDD017`) or one of the named colors
 // ADRIFT's own runner recognizes (per FrankenDrift's GlkHtmlWin.cs, cross-referenced against the
@@ -201,7 +233,7 @@ bool AskYesNoQuestion(const char *question) {
 	}
 }
 
-void OutputStyled(const std::string &text, uint32_t styleFlags, uint32_t color) {
+void OutputStyled(const std::string &text, uint32_t styleFlags, uint32_t color, SecondaryWindow *target) {
 	if (text.empty()) return;
 	glui32 style;
 	if (styleFlags & kStyleMonospace) style = style_Preformatted;
@@ -218,20 +250,23 @@ void OutputStyled(const std::string &text, uint32_t styleFlags, uint32_t color) 
 	if (effectiveColor == zcolor_Default)
 		effectiveColor = (styleFlags & kStyleInput) ? gDefaultInputColor : gDefaultOutputColor;
 
+	strid_t stream = target ? target->stream : gMainStream;
 	// Harmless no-op if the underlying Glk library doesn't support the garglk color extension.
-	garglk_set_zcolors_stream(gMainStream, effectiveColor, zcolor_Default);
-	glk_set_style_stream(gMainStream, style);
+	garglk_set_zcolors_stream(stream, effectiveColor, zcolor_Default);
+	glk_set_style_stream(stream, style);
 	auto codepoints = Utf8ToUtf32(text);
-	glk_put_buffer_stream_uni(gMainStream, (glui32 *) codepoints.data(), (glui32) codepoints.size());
-	gMostRecentOutput = std::move(codepoints);
+	glk_put_buffer_stream_uni(stream, (glui32 *) codepoints.data(), (glui32) codepoints.size());
+	if (target) target->mostRecentOutput = std::move(codepoints);
+	else gMostRecentOutput = std::move(codepoints);
 }
 
-void UnputLastChar() {
-	if (gMostRecentOutput.empty()) return;
-	glui32 buf[2] = { gMostRecentOutput.back(), 0 };
-	glk_set_window(gMainWin);
+void UnputLastChar(SecondaryWindow *target) {
+	std::vector<uint32_t> &recentOutput = target ? target->mostRecentOutput : gMostRecentOutput;
+	if (recentOutput.empty()) return;
+	glui32 buf[2] = { recentOutput.back(), 0 };
+	glk_set_window(target ? target->win : gMainWin);
 	if (garglk_unput_string_count_uni(buf) > 0)
-		gMostRecentOutput.pop_back();
+		recentOutput.pop_back();
 }
 
 void WaitForKeypress() {
@@ -250,8 +285,9 @@ void WaitForKeypress() {
 			if (!gCapturedHtml.empty()) {
 				std::string html = std::move(gCapturedHtml);
 				gCapturedHtml.clear();
-				AppendHtml(html);
+				AppendHtml(html, nullptr, &gPendingWindowRedirect);
 			}
+			FlushPendingWindowRedirect();
 		}
 	}
 }
@@ -285,7 +321,10 @@ std::string GetLineInput(const std::string &prompt) {
 			// Safe to update even here: the status window is never the one with a pending input
 			// request, so this doesn't run into the output-during-input restriction below.
 			UpdateStatusBar();
-			if (gCapturedHtml.empty()) continue;
+			if (gCapturedHtml.empty()) {
+				FlushPendingWindowRedirect();
+				continue;
+			}
 			std::string html = std::move(gCapturedHtml);
 			gCapturedHtml.clear();
 
@@ -296,15 +335,37 @@ std::string GetLineInput(const std::string &prompt) {
 			glk_cancel_line_event(gMainWin, &cancelEv);
 			initlen = cancelEv.val1;
 			UnputText(prompt);
-			AppendHtml(html);
+			AppendHtml(html, nullptr, &gPendingWindowRedirect);
+			FlushPendingWindowRedirect();
 			OutputStyled(prompt, kStyleInput);
 			glk_request_line_event_uni(gMainWin, buf.data(), kCapacity, initlen);
 		}
 	}
 }
 
-void AppendHtml(const std::string &html) {
+namespace {
+// Delivers whatever `redirect` has captured so far to its target and resets it, if it's currently
+// capturing anything -- ADRIFT's "unclosed tags are implicitly closed" rule (see AppendHtml()'s
+// own doc comment), applied to a <window> tag still open with nothing left to feed it. A no-op if
+// `redirect` isn't currently capturing anything.
+void FlushWindowRedirect(WindowRedirect &redirect) {
+	if (!redirect.target) return;
+	SecondaryWindow *target = redirect.target;
+	std::string content = std::move(redirect.buffer);
+	redirect = WindowRedirect{};
+	AppendHtml(content, target);
+}
+}  // namespace
+
+void FlushPendingWindowRedirect() {
+	FlushWindowRedirect(gPendingWindowRedirect);
+}
+
+void AppendHtml(const std::string &html, SecondaryWindow *target, WindowRedirect *redirectParam) {
 	if (html.empty()) return;
+
+	WindowRedirect localRedirect;
+	WindowRedirect &redirect = redirectParam ? *redirectParam : localRedirect;
 
 	struct StyleFrame {
 		uint32_t flags;
@@ -319,10 +380,10 @@ void AppendHtml(const std::string &html) {
 	std::string tagBuf;
 
 	auto flush = [&]() {
-		if (!current.empty()) {
-			OutputStyled(current, styleStack.back().flags, styleStack.back().color);
-			current.clear();
-		}
+		if (current.empty()) return;
+		if (redirect.target) redirect.buffer += current;
+		else OutputStyled(current, styleStack.back().flags, styleStack.back().color, target);
+		current.clear();
 	};
 
 	for (char c : html) {
@@ -337,11 +398,35 @@ void AppendHtml(const std::string &html) {
 			for (char &tc : tagLower) tc = (char) std::tolower((unsigned char) tc);
 			std::string tagWord = tagLower.substr(0, tagLower.find_first_of(" \t"));
 
+			if (redirect.target) {
+				// Capturing a <window>...</window> block's content verbatim (see this function's
+				// own doc comment): only "window"/"/window" tokens matter here, purely to track
+				// nesting depth so the correct matching close is found -- everything else,
+				// including "del", is deferred, unexamined, until the captured buffer is replayed
+				// through a fresh AppendHtml() call targeting the window itself.
+				flush();
+				if (tagWord == "/window") {
+					if (--redirect.depth == 0) {
+						SecondaryWindow *capturedTarget = redirect.target;
+						std::string content = std::move(redirect.buffer);
+						redirect = WindowRedirect{};
+						AppendHtml(content, capturedTarget);
+						continue;
+					}
+				} else if (tagWord == "window") {
+					++redirect.depth;
+				}
+				redirect.buffer += '<';
+				redirect.buffer += tagBuf;
+				redirect.buffer += '>';
+				continue;
+			}
+
 			if (tagWord == "del") {
 				// Prefer removing from the not-yet-flushed run; only fall back to trying to
 				// unput already-committed output (via the garglk extension) once that's empty.
 				if (!current.empty()) Utf8PopBack(current);
-				else UnputLastChar();
+				else UnputLastChar(target);
 				continue;
 			}
 
@@ -349,10 +434,10 @@ void AppendHtml(const std::string &html) {
 			uint32_t curFlags = styleStack.back().flags;
 			uint32_t curColor = styleStack.back().color;
 			if (tagWord == "br") {
-				OutputStyled("\n", curFlags, curColor);
+				OutputStyled("\n", curFlags, curColor, target);
 			} else if (tagWord == "cls") {
 				styleStack.assign(1, StyleFrame{ kStyleNormal, zcolor_Default, "<base>" });
-				glk_window_clear(gMainWin);
+				glk_window_clear(target ? target->win : gMainWin);
 			} else if (tagWord == "waitkey") {
 				WaitForKeypress();
 			} else if (tagWord == "b") {
@@ -380,6 +465,15 @@ void AppendHtml(const std::string &html) {
 				if (ExtractAttribute(tagLower, "face", face) && IsMonospaceFace(face))
 					newFlags |= kStyleMonospace;
 				styleStack.push_back({ newFlags, newColor, "font" });
+			} else if (tagWord == "window") {
+				std::string name = ExtractWindowName(tagBuf);
+				if (!name.empty()) {
+					if (SecondaryWindow *win = GetOrCreateSecondaryWindow(name)) {
+						redirect.target = win;
+						redirect.depth = 1;
+						redirect.buffer.clear();
+					}
+				}
 			} else if (!tagWord.empty() && tagWord[0] == '/') {
 				std::string closeName = tagWord.substr(1);
 				if (closeName == "centre") closeName = "center";
@@ -388,7 +482,7 @@ void AppendHtml(const std::string &html) {
 			} else if (tagWord == "img") {
 				std::string src;
 				if (ExtractAttributeOriginalCase(tagLower, tagBuf, "src", src) && !src.empty())
-					DrawImageFitted(src);
+					DrawImageFitted(src, target);
 			} else if (tagLower.rfind("audio play", 0) == 0) {
 				std::string src;
 				if (ExtractAttributeOriginalCase(tagLower, tagBuf, "src", src) && !src.empty()) {
@@ -418,6 +512,13 @@ void AppendHtml(const std::string &html) {
 		}
 	}
 	flush();
+
+	// This call's redirect state is a throwaway local (i.e. it isn't the persisted
+	// gPendingWindowRedirect a future OutputText() call could still continue -- see this
+	// function's own doc comment): if it's still mid-capture with nothing left to feed it, that
+	// content is delivered right away rather than lost, same as gPendingWindowRedirect eventually
+	// is via FlushPendingWindowRedirect() at a real batch boundary.
+	if (!redirectParam) FlushWindowRedirect(redirect);
 }
 
 void TranscriptOn() {

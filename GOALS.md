@@ -509,7 +509,38 @@
         predates this feature, hence the OFF default and the grid-window fallback above.
 - [x] Glk frontend: implement transcript support
 - [ ] Glk frontend: add a debug window
-- [ ] Glk frontend: implement secondary windows
+- [x] Glk frontend: implement secondary windows. Unlike the Qt frontend's player-movable/floatable
+      QDockWidgets, Glk gives games (and us) no say in where a window ends up beyond a fixed,
+      one-time tree of splits -- there's no way to undock, rearrange, or resize windows relative to
+      each other afterward, only the whole application window as a unit. ADRIFT assumes the
+      opposite (player-placed, freely movable windows), so there's no layout information to work
+      from; `GetOrCreateSecondaryWindow()` (new `secondarywindow.cpp`) picks a fixed layout instead:
+      the first `<window NAME>` takes the right third of the main window
+      (`winmethod_Right | winmethod_Proportional, 33`), and every one after that splits the most
+      recently created secondary window in half (`winmethod_Below | winmethod_Proportional, 50`),
+      cascading down that same column. `AppendHtml()` (output.cpp) now recognizes
+      `<window NAME>`/`</window>`: text/tags between them are captured verbatim into a `WindowRedirect`
+      (tracking nesting depth, so a further `<window>` inside doesn't end the capture at its own
+      `</window>`) and replayed through a fresh `AppendHtml()` call targeting the window once the
+      matching close is found -- which is what makes nested `<window>` tags, formatting, and
+      `<img>`/`<audio>` all work the same inside a secondary window as in the main one.
+      `OutputStyled()`/`UnputLastChar()`/`DrawImageFitted()` all gained a `SecondaryWindow *target`
+      parameter (defaulting to the main window) to route rendering there instead. Since a block can
+      span multiple separate `OutputText()` calls (e.g. one per Print action in a task), the
+      top-level capture state (`gPendingWindowRedirect`) persists across calls the same way the
+      existing tag tokenizer already assumes whole tags don't split across calls; recursive replay
+      calls use their own call-local instance instead, auto-flushing (delivering whatever was
+      captured) at the end of that single call. `FlushPendingWindowRedirect()` is called after every
+      `Starlane::BeginGame()`/`ProcessInput()`/`TimeTick()` -- the core's own "batch" boundaries --
+      so a `<window>` a game forgot to close doesn't hold its content hostage forever, mirroring
+      ADRIFT's "unclosed tags are implicitly closed" rule. Verified against a real multi-window Glk
+      library (a locally built garglk/Gargoyle, not the single-window built-in cheapglk, which
+      always returns NULL from a second `glk_window_open()` and so degrades this feature to a
+      no-op -- confirmed that path too) with a synthetic three-window test: the first window's pane
+      boundary landed almost exactly at the 2/3 mark of the application window's width, and each
+      further window visibly cascaded below the previous one at roughly half its remaining height;
+      formatting (bold/color/italic) rendered correctly inside each; and ordinary gameplay (room
+      descriptions, command echo) kept working unaffected in the main window throughout.
 - [ ] think about implementing an automap (then probably decide against it)
 - [x] fix `EverythingWithProperty`/`EveryoneWithProperty` task actions (Move*/AddToGroup/RemoveFromGroup)
       for Object-, Enum-, and Map-typed properties. `Task::Action` gained a dedicated `propCmpValue`

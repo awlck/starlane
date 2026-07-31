@@ -270,6 +270,7 @@ void glk_main() {
 		if (gameInfo.hasOutputColour) gDefaultOutputColor = gameInfo.outputColour;
 	}
 	Starlane::BeginGame();
+	FlushPendingWindowRedirect();
 	UpdateStatusBar();
 
 	while (Starlane::GameIsOngoing()) {
@@ -277,6 +278,7 @@ void glk_main() {
 		if (HandleMetaCommand(cmd))
 			continue;
 		Starlane::ProcessInput(cmd);
+		FlushPendingWindowRedirect();
 		UpdateStatusBar();
 	}
 

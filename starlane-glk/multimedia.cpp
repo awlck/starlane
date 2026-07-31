@@ -29,7 +29,7 @@ void InitMultimedia() {
 	}
 }
 
-void DrawImageFitted(const std::string &path) {
+void DrawImageFitted(const std::string &path, SecondaryWindow *target) {
 	if (!gImagesSupported) return;
 	uint32_t resourceId = Starlane::GetBlorbResourceForPath(path);
 	if (resourceId == (uint32_t) -1) return;
@@ -38,18 +38,19 @@ void DrawImageFitted(const std::string &path) {
 	if (!glk_image_get_info(resourceId, &imgWidth, &imgHeight) || imgWidth == 0 || imgHeight == 0)
 		return;
 
+	winid_t win = target ? target->win : gMainWin;
 	glui32 winWidth = 0, winHeight = 0;
-	garglk_window_get_size_pixels(gMainWin, &winWidth, &winHeight);
+	garglk_window_get_size_pixels(win, &winWidth, &winHeight);
 	if (winWidth == 0 || winHeight == 0) {
 		// No pixel-size extension available (e.g. the built-in cheapglk); fall back to drawing
 		// at the image's native size rather than not scaling it at all.
-		glk_image_draw(gMainWin, resourceId, imagealign_InlineCenter, 0);
+		glk_image_draw(win, resourceId, imagealign_InlineCenter, 0);
 	} else {
 		double scale = std::min((double) winWidth / imgWidth, (double) winHeight / imgHeight);
-		glk_image_draw_scaled(gMainWin, resourceId, imagealign_InlineCenter, 0,
+		glk_image_draw_scaled(win, resourceId, imagealign_InlineCenter, 0,
 		                       (glui32) (imgWidth * scale), (glui32) (imgHeight * scale));
 	}
-	glk_window_flow_break(gMainWin);
+	glk_window_flow_break(win);
 }
 
 void PlaySound(const std::string &path, int channel, bool loop) {

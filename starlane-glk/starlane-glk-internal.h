@@ -56,6 +56,29 @@ extern winid_t gStatusWin;
 // hints, since none are known.
 void EnsureMainWindowOpen();
 
+// A named secondary output window opened by a game's <window NAME> markup (see AppendHtml()'s
+// window-redirection handling, output.cpp). Bundles the Glk window/stream pair with the bit of
+// state OutputStyled()/UnputLastChar() need to track per-destination (the most recently flushed
+// text, for <del> support) -- gMainWin/gMainStream have their own analogous gMostRecentOutput
+// (output.cpp), so this only needs to exist for windows besides the main one.
+struct SecondaryWindow {
+	winid_t win;
+	strid_t stream;
+	std::vector<uint32_t> mostRecentOutput;
+};
+// Forward declaration only -- WindowRedirect is an implementation detail of AppendHtml()'s
+// <window>/</window> handling, fully defined in output.cpp; nothing outside it ever needs to look
+// inside one, only pass a pointer through.
+struct WindowRedirect;
+
+// secondarywindow.cpp: resolves a <window NAME> tag's target, splitting off a new Glk window the
+// first time NAME is seen (see the function's own doc comment for the fixed layout rule this picks
+// -- Glk gives games no say in where a window ends up, unlike the Qt frontend's player-movable
+// docks) and reusing it afterward. Returns nullptr if the Glk library couldn't create the window
+// (e.g. it doesn't support splitting further) -- callers should treat that the same as a game tag
+// they don't recognize: silently drop the redirect and keep writing to whatever window was current.
+SecondaryWindow *GetOrCreateSecondaryWindow(const std::string &name);
+
 // Default foreground colors for ordinary output and for `<c>`-styled (player-command-like) text,
 // applied by OutputStyled() whenever it isn't given an explicit color -- set from the game's own
 // OutputColour/InputColour once loaded (see starlane-glk.cpp), and left at zcolor_Default (i.e.
@@ -84,14 +107,21 @@ std::string StrToSentenceCase(const std::string &str);
 void FatalError(const char *msg);
 void OutputText(const char *msg);
 // Parses a string that may contain ADRIFT's HTML-like output markup (`<b>`, `<i>`, `<c>`,
-// `<center>`, `<font ...>`, `<br>`, `<cls>`, `<waitkey>`, `<del>`, `<img>`, `<audio ...>`, ...; see
-// clsUserSession.vb's bHasOutput for the canonical tag list) and writes styled text (and any
-// images/sounds) to the main window.
-void AppendHtml(const std::string &html);
-// Writes `text` to the main window using the closest available Glk style for `styleFlags`, and
-// (via the garglk zcolor extension, where available) the given 24-bit RGB foreground color.
-// 0xffffffff mirrors glkext.h's zcolor_Default.
-void OutputStyled(const std::string &text, uint32_t styleFlags, uint32_t color = 0xffffffff);
+// `<center>`, `<font ...>`, `<br>`, `<cls>`, `<waitkey>`, `<del>`, `<img>`, `<audio ...>`,
+// `<window NAME>`/`</window>`, ...; see clsUserSession.vb's bHasOutput for the canonical tag list)
+// and writes styled text (and any images/sounds) to `target` (the main window, if null).
+// `redirect` carries a <window>/</window> capture already in progress across separate calls to
+// this function -- pass the same instance back in on the next call to resume mid-block; leave it
+// null (the default) for a call that's known to be self-contained, such as a game's whole output
+// for one turn replayed all at once, or one of this frontend's own literal status strings. A
+// <window> block still open when `redirect` is null at the end of this call is delivered right
+// away instead (see FlushPendingWindowRedirect() for the alternative, used when more of the same
+// block may still be coming in a future call).
+void AppendHtml(const std::string &html, SecondaryWindow *target = nullptr, WindowRedirect *redirect = nullptr);
+// Writes `text` to `target` (the main window, if null) using the closest available Glk style for
+// `styleFlags`, and (via the garglk zcolor extension, where available) the given 24-bit RGB
+// foreground color. 0xffffffff mirrors glkext.h's zcolor_Default.
+void OutputStyled(const std::string &text, uint32_t styleFlags, uint32_t color = 0xffffffff, SecondaryWindow *target = nullptr);
 // Prints `prompt` (styled as player input) and blocks until the player has entered a line of
 // input on the main window, returning it as UTF-8. The Glk spec forbids printing to a window with
 // line input pending, so if a real-time event fires while waiting and wants to print something,
@@ -105,14 +135,22 @@ std::string GetLineInput(const std::string &prompt);
 // (same rationale as GetLineInput()'s cancel-and-restore dance, but with no partial input to
 // preserve there's nothing to do but hold onto it) and flushed once the keypress arrives.
 void WaitForKeypress();
-// Attempts to erase the last character of the most recently *flushed* output (for `<del>`, once
-// there's nothing left in the current run to remove without having committed it to the window).
-void UnputLastChar();
+// Attempts to erase the last character of `target`'s (the main window, if null) most recently
+// *flushed* output (for `<del>`, once there's nothing left in the current run to remove without
+// having committed it to the window).
+void UnputLastChar(SecondaryWindow *target = nullptr);
 bool AskYesNoQuestion(const char *question);
 // Attempt to turn the transcript on.
 void TranscriptOn();
 // Attempt to turn the transcript off.
 void TranscriptOff();
+// Delivers whatever <window> block is still mid-capture across separate OutputText() calls (if
+// any) to its target, and resets that bookkeeping -- ADRIFT's "unclosed tags are implicitly
+// closed" rule (see AppendHtml()'s own doc comment), applied to a <window> tag still open with
+// nothing left to feed it. Call after every Starlane::BeginGame()/ProcessInput()/TimeTick() (see
+// glk_main()) -- the natural "batch" boundaries in the core's own calling convention -- so a
+// <window> a game forgot to close doesn't hold its content hostage forever.
+void FlushPendingWindowRedirect();
 
 // statusbar.cpp: keeps the status window(s) in sync with starlane-core's GetStatusBar(). Call
 // after BeginGame(), after each ProcessInput(), and after each TimeTick() -- same as
@@ -125,9 +163,10 @@ void UpdateStatusBar();
 // window has been opened and before any <img>/<audio> tag can be processed.
 void InitMultimedia();
 // Draws the image at `path` (an author-side file path, resolved through starlane-core's blorb
-// file mapping) scaled to fill 100% of either the window's width or height, whichever is the
-// smaller scale factor -- i.e. as large as possible without spilling outside either dimension.
-void DrawImageFitted(const std::string &path);
+// file mapping) into `target` (the main window, if null), scaled to fill 100% of either the
+// window's width or height, whichever is the smaller scale factor -- i.e. as large as possible
+// without spilling outside either dimension.
+void DrawImageFitted(const std::string &path, SecondaryWindow *target = nullptr);
 // `channel` is assumed already validated to be within [1, 8] -- AppendHtml, the only caller, is
 // the boundary where that untrusted tag content gets checked.
 void PlaySound(const std::string &path, int channel, bool loop);
