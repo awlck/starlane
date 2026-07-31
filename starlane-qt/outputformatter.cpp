@@ -103,12 +103,15 @@ void OutputFormatter::ResetFormattingState() {
 void OutputFormatter::BeginBatch() {
 	ResetFormattingState();
 	batchStartBlockNumber = browser->document()->lastBlock().blockNumber();
+	batchStartCharCount = browser->document()->characterCount();
 }
 
 void OutputFormatter::EndBatch() {
 	FlushTextRun();
 
 	QTextDocument *doc = browser->document();
+	if (doc->characterCount() == batchStartCharCount) return;  // nothing was actually output
+
 	QTextBlock startBlock = doc->findBlockByNumber(batchStartBlockNumber);
 	if (!startBlock.isValid()) startBlock = doc->firstBlock();
 

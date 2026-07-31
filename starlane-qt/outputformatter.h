@@ -45,7 +45,10 @@ public:
 	void AppendText(const QString &chunk);
 	// Called once the batch's core call has returned: adjusts scrolling so
 	// that newly-added text is visible, without scrolling the start of a
-	// larger-than-one-screen batch out of view.
+	// larger-than-one-screen batch out of view. A no-op if the batch didn't
+	// actually produce any output -- otherwise a real-time tick that had
+	// nothing to report would still yank the scroll position back down on
+	// every single one, fighting a player who had scrolled up to reread.
 	void EndBatch();
 
 private:
@@ -64,6 +67,9 @@ private:
 	QVector<Qt::Alignment> alignmentStack;
 
 	int batchStartBlockNumber = 0;
+	// Document character count when this batch began -- if EndBatch() finds it unchanged, the
+	// batch produced no visible output at all, so the scroll position is left alone.
+	int batchStartCharCount = 0;
 
 	// Tokenizer state, carried across AppendText() calls in case a tag is
 	// ever split across two OutputText invocations.
