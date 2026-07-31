@@ -1,0 +1,71 @@
+name: starlane
+version: '0.1.0'
+summary: A C++ reimplementation of the ADRIFT 5 interactive fiction engine
+description: |
+  Starlane loads and plays ADRIFT 5 .taf game files, aiming to reproduce the
+  original VB.NET runner's behavior as closely as possible. Still under active
+  development -- expect rough edges.
+
+grade: devel
+confinement: strict
+base: core24
+
+apps:
+  starlane:
+    command: usr/bin/starlane
+    desktop: usr/share/applications/starlane.desktop
+    extensions: [kde-neon-6]
+    plugs:
+      - home
+      - removable-media
+
+# The kde-neon-6 platform snap (kf6-core24) doesn't include QtMultimedia --
+# see https://forum.snapcraft.io/t/trying-to-use-kde-neon-6-for-a-qt-app-with-qt-multimedia-opengl-more/49673
+# System/Ubuntu apt packages for it are the wrong Qt version (6.2 vs. the
+# 6.8+ the extension actually provides) and won't load, so it has to come
+# from the same KDE neon apt repo the extension's own Qt build does.
+package-repositories:
+  - type: apt
+    url: http://origin.archive.neon.kde.org/user
+    suites: [noble]
+    components: [main]
+    architectures: [amd64]
+    key-id: 444DABCF3667D0283F894EDDE6D4736255751E5D
+
+parts:
+  starlane:
+    plugin: cmake
+    source: .
+    source-type: local
+    cmake-parameters:
+      - -DCMAKE_INSTALL_PREFIX=/usr
+      - -DCMAKE_BUILD_TYPE=Release
+      - -DSL_BUILD_CONSOLE=OFF
+      - -DSL_BUILD_GLK=OFF
+      - -DSL_BUILD_TOOLS=OFF
+      - -DSL_BUILD_C_WRAPPER=OFF
+
+  # Qt6Multimedia isn't part of the kde-neon-6 base/SDK snaps. `apt-get
+  # download` (rather than stage-packages, which would pull in and stage a
+  # second copy of all of Qt as this package's declared dependencies) grabs
+  # just this one package from the repo above, already built against the
+  # same Qt version kde-neon-6 provides everywhere else.
+  qt6multimedia:
+    plugin: nil
+    after: [starlane]
+    override-pull: |
+      apt-get download qt6-multimedia
+    override-build: |
+      dpkg-deb -x qt6-multimedia_*.deb "$CRAFT_PART_INSTALL"
+
+  # Removes files duplicated from the base/platform snaps to keep the final
+  # snap down to just what starlane itself and QtMultimedia add.
+  cleanup:
+    after: [starlane, qt6multimedia]
+    plugin: nil
+    build-snaps: [core24, kf6-core24]
+    override-prime: |
+      set -eux
+      for snap in "core24" "kf6-core24"; do
+        cd "/snap/$snap/current" && find . -type f,l -exec rm -rf "${CRAFT_PRIME}/{}" \;
+      done
