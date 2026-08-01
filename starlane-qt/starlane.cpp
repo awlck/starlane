@@ -4,6 +4,7 @@
 #include <QtWidgets/QApplication>
 
 #include <starlane-core.h>
+#include <cctype>
 #include <clocale>
 #include <QtGui/QFileOpenEvent>
 #include <QtGui/QPalette>
@@ -92,8 +93,21 @@ std::string StrToUpperCase(const std::string &s) {
 	return QString::fromUtf8(s.c_str(), s.length()).toUpper().toUtf8().toStdString();
 }
 
-std::string StrToSentenceCase(const std::string &s) {  // TODO
-	return QString::fromUtf8(s.c_str(), s.length()).toUpper().toUtf8().toStdString();
+std::string StrToSentenceCase(const std::string &s) {
+	QList<uint> codepoints = QString::fromUtf8(s.c_str(), s.length()).toLower().toUcs4();
+	for (qsizetype i = 0; i < codepoints.size(); i++) {
+		char32_t cp = codepoints[i];
+		if (cp < 128 && std::isspace((int) cp)) continue;
+		// A single-character buffer's upper-case is used in place of proper title-casing here, to
+		// match the Glk frontend's StrToSentenceCase (see starlane-glk/strutils.cpp).
+		QList<uint> upper = QString::fromUcs4(&cp, 1).toUpper().toUcs4();
+		codepoints.remove(i, 1);
+		for (qsizetype k = upper.size() - 1; k >= 0; k--)
+			codepoints.insert(i, upper[k]);
+		break;
+	}
+	QList<char32_t> codepoints32(codepoints.begin(), codepoints.end());
+	return QString::fromUcs4(codepoints32.data(), codepoints32.size()).toUtf8().toStdString();
 }
 
 bool AskYesNo(const char *question) {
