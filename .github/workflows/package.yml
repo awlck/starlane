@@ -20,6 +20,15 @@ on:
   # Lets Release call this as a reusable workflow to build everything a tag
   # push should publish, without duplicating the whole build matrix there.
   workflow_call:
+    inputs:
+      version:
+        description: >
+          Release version (no "v" prefix) to embed in build artifacts that
+          can't derive it themselves the way cmake/Version.cmake does (the
+          snap's version: field). Leave unset for non-release builds.
+        type: string
+        required: false
+        default: ""
 
 env:
   # A wildcard patch version, since the exact same patch release isn't
@@ -238,6 +247,14 @@ jobs:
           # (a release build's version depends on it) -- the default shallow
           # checkout doesn't fetch tags at all.
           fetch-depth: 0
+
+      # snapcraft.yaml's version: field is static, unlike CMake's (which
+      # derives it from the tag itself via cmake/Version.cmake) -- patch it
+      # in directly when Release passes one through.
+      - name: Set snap version from release tag
+        if: inputs.version != ''
+        run: |
+          sed -i "s/^version: .*/version: '${{ inputs.version }}'/" snap/snapcraft.yaml
 
       - uses: snapcore/action-build@v1
         id: snapcraft

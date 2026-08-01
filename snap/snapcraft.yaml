@@ -1,5 +1,9 @@
 name: starlane
-version: '0.1.0'
+# Not a real version -- just a marker for non-release builds, matching
+# cmake/Version.cmake's own fallback. The Package workflow overwrites this
+# with the release tag when building via Release (see the "Set snap
+# version" step); nothing else needs to change it.
+version: '0.0.0'
 summary: A C++ reimplementation of the ADRIFT 5 interactive fiction engine
 description: |
   Starlane loads and plays ADRIFT 5 .taf game files, aiming to reproduce the
