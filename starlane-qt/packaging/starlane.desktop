@@ -3,5 +3,6 @@ Type=Application
 Name=Starlane
 Comment=Play ADRIFT 5 interactive fiction games
 Exec=starlane %f
+Icon=starlane
 Terminal=false
 Categories=Game;

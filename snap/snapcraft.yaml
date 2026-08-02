@@ -4,6 +4,7 @@ name: starlane
 # with the release tag when building via Release (see the "Set snap
 # version" step); nothing else needs to change it.
 version: '0.0.0'
+icon: $CRAFT_PROJECT_DIR/starlane-qt/packaging/icons/hicolor/512x512/apps/starlane.png
 summary: A C++ reimplementation of the ADRIFT 5 interactive fiction engine
 description: |
   Starlane loads and plays ADRIFT 5 .taf game files, aiming to reproduce the

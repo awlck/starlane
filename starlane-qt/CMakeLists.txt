@@ -76,4 +76,8 @@ install(TARGETS starlane
 
 if(CMAKE_SYSTEM_NAME STREQUAL "Linux")
 	install(FILES packaging/starlane.desktop DESTINATION share/applications)
+	# packaging/icons/hicolor/512x512/apps/starlane.png -- matches
+	# starlane.desktop's Icon=starlane so desktop environments (app grids,
+	# taskbars, Discover/Software Center...) can look it up by theme name.
+	install(DIRECTORY packaging/icons/hicolor DESTINATION share/icons)
 endif()
