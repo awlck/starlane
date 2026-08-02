@@ -46,7 +46,6 @@ if(APPLE)
 			COMMENT "Generating AppIcon.icns from source PNG"
 	)
 endif()
-
 # Needed on macOS for macdeployqt (and to get a real .app instead of a bare
 # Mach-O executable): it only knows how to deploy into a bundle. Ignored on
 # other platforms.
@@ -65,6 +64,9 @@ if(APPLE)
 	set_target_properties(starlane PROPERTIES MACOSX_BUNDLE_ICON_FILE "AppIcon")
 	set_source_files_properties(${ICNS_OUT} PROPERTIES MACOSX_PACKAGE_LOCATION "Resources")
 	set_target_properties(starlane PROPERTIES OUTPUT_NAME "Starlane" MACOSX_BUNDLE_NAME "Starlane")
+endif()
+if(WIN32)
+	target_sources(starlane PUBLIC "${CMAKE_CURRENT_SOURCE_DIR}/packaging/winicon.rc")
 endif()
 
 install(TARGETS starlane
