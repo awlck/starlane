@@ -111,6 +111,10 @@ jobs:
           arch: clang_64
           modules: "qtmultimedia"
 
+      - name: Install Utilities
+        run: >
+          brew install -y imagemagick
+
       - name: Configure
         run: >
           cmake -S . -B build -GNinja
