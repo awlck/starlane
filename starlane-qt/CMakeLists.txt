@@ -19,6 +19,32 @@ if(APPLE)
 	# own project(starlane_qt) call above shadows it with an unversioned one.
 	set(MACOSX_BUNDLE_BUNDLE_VERSION "${CMAKE_PROJECT_VERSION}")
 	set(MACOSX_BUNDLE_SHORT_VERSION_STRING "${CMAKE_PROJECT_VERSION}")
+
+	# For converting the app icon to Apple's format:
+	find_program(ICONUTIL iconutil)
+	find_program(MAGICK NAMES magick convert)
+	if(ICONUTIL AND MAGICK)
+		set(ICON_SRC "${CMAKE_CURRENT_SOURCE_DIR}/packaging/Starlane.png")
+		set(ICONSET_DIR ${CMAKE_CURRENT_BINARY_DIR}/AppIcon.iconset)
+		set(ICNS_OUT ${CMAKE_CURRENT_BINARY_DIR}/AppIcon.icns)
+	endif()
+	add_custom_command(
+			OUTPUT ${ICNS_OUT}
+			COMMAND ${CMAKE_COMMAND} -E make_directory ${ICONSET_DIR}
+			COMMAND ${MAGICK} ${ICON_SRC} -resize 16x16     ${ICONSET_DIR}/icon_16x16.png
+			COMMAND ${MAGICK} ${ICON_SRC} -resize 32x32     ${ICONSET_DIR}/icon_16x16@2x.png
+			COMMAND ${MAGICK} ${ICON_SRC} -resize 32x32     ${ICONSET_DIR}/icon_32x32.png
+			COMMAND ${MAGICK} ${ICON_SRC} -resize 64x64     ${ICONSET_DIR}/icon_32x32@2x.png
+			COMMAND ${MAGICK} ${ICON_SRC} -resize 128x128   ${ICONSET_DIR}/icon_128x128.png
+			COMMAND ${MAGICK} ${ICON_SRC} -resize 256x256   ${ICONSET_DIR}/icon_128x128@2x.png
+			COMMAND ${MAGICK} ${ICON_SRC} -resize 256x256   ${ICONSET_DIR}/icon_256x256.png
+			COMMAND ${MAGICK} ${ICON_SRC} -resize 512x512   ${ICONSET_DIR}/icon_256x256@2x.png
+			COMMAND ${MAGICK} ${ICON_SRC} -resize 512x512   ${ICONSET_DIR}/icon_512x512.png
+			COMMAND ${MAGICK} ${ICON_SRC} -resize 1024x1024 ${ICONSET_DIR}/icon_512x512@2x.png
+			COMMAND ${ICONUTIL} -c icns ${ICONSET_DIR} -o ${ICNS_OUT}
+			DEPENDS ${ICON_SRC}
+			COMMENT "Generating AppIcon.icns from source PNG"
+	)
 endif()
 
 # Needed on macOS for macdeployqt (and to get a real .app instead of a bare
@@ -35,6 +61,10 @@ if(APPLE)
 	# Registers the .taf extension (see packaging/Info.plist.in) so Finder can hand game files to
 	# us via "open with"/double-click/drag-onto-dock-icon, delivered as a QFileOpenEvent.
 	set_target_properties(starlane PROPERTIES MACOSX_BUNDLE_INFO_PLIST "${CMAKE_CURRENT_SOURCE_DIR}/packaging/Info.plist.in")
+	target_sources(starlane PUBLIC ${ICNS_OUT})
+	set_target_properties(starlane PROPERTIES MACOSX_BUNDLE_ICON_FILE "AppIcon")
+	set_source_files_properties(${ICNS_OUT} PROPERTIES MACOSX_PACKAGE_LOCATION "Resources")
+	set_target_properties(starlane PROPERTIES OUTPUT_NAME "Starlane" MACOSX_BUNDLE_NAME "Starlane")
 endif()
 
 install(TARGETS starlane
