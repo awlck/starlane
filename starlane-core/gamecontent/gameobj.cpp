@@ -455,17 +455,26 @@ std::string PrefixRegexFragment(const std::string &prefix) {
 }
 
 void GameObj::MakeMatchExpr() {
-	std::string expr(ArticleRegexFragment(article));
-	expr += PrefixRegexFragment(prefix);
-	expr += "(?:(?:";
-	size_t count = 0;
-	for (const auto &n : *nouns) {
-		if (++count != 1)
-			expr += "|";
-		expr += n;
-	}
-	expr += ") ?)+";
-	matchRegex = std::make_shared<const std::regex>(expr, std::regex_constants::icase);
+	// Built twice over the same shape: once from the nouns as written, once from their plurals, so
+	// that a plural reference ("get tubs") can be matched against the second. ADRIFT does the same
+	// with sRegularExpressionString's bPlural argument, and -- as there -- the plural form carries
+	// *only* the plurals, never the singulars: were "ball" to match the plural pattern too, "get
+	// ball" would quietly sweep up every ball in the room instead of asking which one was meant.
+	auto build = [&](bool plural) {
+		std::string expr(ArticleRegexFragment(article));
+		expr += PrefixRegexFragment(prefix);
+		expr += "(?:(?:";
+		size_t count = 0;
+		for (const auto &n : *nouns) {
+			if (++count != 1)
+				expr += "|";
+			expr += plural ? Util::GuessPluralFromNoun(n) : n;
+		}
+		expr += ") ?)+";
+		return std::make_shared<const std::regex>(expr, std::regex_constants::icase);
+	};
+	matchRegex = build(false);
+	pluralMatchRegex = build(true);
 }
 
 }

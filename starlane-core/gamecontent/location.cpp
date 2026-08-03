@@ -408,6 +408,7 @@ void Location::MakeMatchExpr() {
 	// The same "matches nothing" pattern for every location in the game, so they all share one.
 	static const auto kMatchesNothing = std::make_shared<const std::regex>("^(?!x)x");
 	matchRegex = kMatchesNothing;
+	pluralMatchRegex = kMatchesNothing;
 }
 
 }

@@ -36,6 +36,15 @@ public:
 	std::string GetDescriptor() const { return GameObj::GetDisplayName(); }
 	std::string GetDescription(bool forDisplay = true) const override;
 	const std::regex &GetMatchExpr() const override { return *(GetBoolProp("Known") ? matchWhenKnownRegex : matchRegex); };
+	// A character never answers to a plural: ADRIFT's character regex builder ignores its bPlural
+	// argument, and %characters% is matched without a plural pass at all (InputMatchesCharacters
+	// goes straight to the comma/"and" list). Kept explicit so that a plural %objects% pattern
+	// cannot start naming characters by the back door.
+	const std::regex &GetPluralMatchExpr() const override {
+		// Requires a string to both begin and not begin with 'x', so it can never match.
+		static const std::regex kNever("^(?!x)x");
+		return kNever;
+	}
 	// Besides the article/prefix/nouns the base class checks, a character also answers to its
 	// proper name when disambiguating (e.g. "Which guard? George or the other guard.").
 	bool MatchesNameWord(const std::string &word) const override;

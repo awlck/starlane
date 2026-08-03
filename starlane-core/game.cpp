@@ -597,6 +597,20 @@ void Game::EndGame(Ending how) {
 		// A neutral ending announces itself only through whatever the task itself said.
 		break;
 	}
+	// A game that keeps score signs off with the final tally, as ADRIFT's CheckEndOfGame does --
+	// gated on there being a maximum worth reporting, which is how a game that never scored
+	// anything is spared a line of zeroes. Both figures are the game's own variables (ADRIFT's
+	// Adventure.Score/MaxScore read straight through to them), so a game that doesn't define them
+	// simply has no maximum and says nothing.
+	const Variable *maxScore = GetVariable("MaxScore");
+	if (maxScore && maxScore->GetType() == Variable::Type::Int && maxScore->GetValue<int64_t>() > 0) {
+		const Variable *score = GetVariable("Score");
+		const int64_t scored = score && score->GetType() == Variable::Type::Int
+			? score->GetValue<int64_t>() : 0;
+		RecordResponse("In that game you scored " + std::to_string(scored)
+		               + " out of a possible " + std::to_string(maxScore->GetValue<int64_t>())
+		               + ", in " + std::to_string(turnCount) + " turns.\n\n");
+	}
 	// ProcessInput keys off this: no more turns, no more events, and no more ordinary commands --
 	// only RESTART, RESTORE, QUIT, and UNDO (see AttemptMatchEndOfGameCommand), which is exactly
 	// what this question offers.

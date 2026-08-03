@@ -199,6 +199,12 @@ std::string CanonicalizeDirection(const std::string &raw, const DirectionTable &
 // job to cope with those.
 std::vector<std::string> SplitObjectList(const std::string &s);
 
+// The plural of an object's noun, guessed the way ADRIFT guesses it (clsObject's
+// GuessPluralFromNoun): a table of irregulars, then suffix rules, then a bare "s". This is how
+// "get tubs" reaches two objects each named "tub" -- games do not write their plurals down, so
+// both engines have to invent them. A noun that already ends in "s" is its own plural.
+std::string GuessPluralFromNoun(const std::string &noun);
+
 // Take an ADRIFT-style textual list (e.g., "foo|bar|baz") and turn it into a vector of strings.
 inline std::vector<std::string> SplitList(const std::string &lst) { return SplitString(lst, "\\|"); }
 // ...and back again.

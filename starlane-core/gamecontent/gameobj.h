@@ -50,6 +50,11 @@ public:
 	const std::unordered_map<std::string, std::string> &GetAllStrProps() const override;
 	const std::unordered_map<std::string, int64_t> &GetAllIntProps() const override;
 	virtual const std::regex &GetMatchExpr() const { return *matchRegex; }
+	// The same pattern built from the *plurals* of this object's nouns, so that "get tubs" can
+	// reach two objects each named "tub". ADRIFT keeps this second form for objects only --
+	// clsCharacter's regex builder ignores its bPlural argument, and %characters% has no plural
+	// matching path at all -- so a Character never answers to one (see Character's override).
+	virtual const std::regex &GetPluralMatchExpr() const { return *pluralMatchRegex; }
 	// Whether `word` (matched case-insensitively) is one of this object's naming words for
 	// disambiguation purposes: its article, one of its prefix (adjective) words, or one of its
 	// nouns. Deliberately distinct from GetMatchExpr(), whose pattern requires a noun and so
@@ -202,6 +207,8 @@ protected:
 	// MakeMatchExpr recompiles it (a rename, or the player switching character). Never written
 	// through -- MakeMatchExpr replaces the pointer -- so sharing it needs no copy-on-write dance.
 	std::shared_ptr<const std::regex> matchRegex = std::make_shared<const std::regex>();
+	// Built alongside matchRegex; shared the same way, since it likewise never varies at runtime.
+	std::shared_ptr<const std::regex> pluralMatchRegex = std::make_shared<const std::regex>();
 	virtual void MakeMatchExpr();
 
 	// A name component can itself hold a %function% call -- Return to the Stars names its rifle

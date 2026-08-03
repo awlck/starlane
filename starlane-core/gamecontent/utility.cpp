@@ -76,6 +76,62 @@ std::vector<std::string> Starlane::Util::SplitObjectList(const std::string &s) {
 	return result;
 }
 
+std::string Starlane::Util::GuessPluralFromNoun(const std::string &noun) {
+	// A direct port of ADRIFT's clsObject.GuessPluralFromNoun, rules and exceptions alike -- the
+	// point is to agree with it on every noun, not to be right about English. Matched
+	// case-sensitively against lower-case words, as ADRIFT's Select Case is.
+	static const std::unordered_map<std::string, std::string> kIrregular = {
+		// Nouns whose plural is the singular.
+		{"deer", "deer"}, {"fish", "fish"}, {"cod", "cod"}, {"mackerel", "mackerel"},
+		{"trout", "trout"}, {"moose", "moose"}, {"sheep", "sheep"}, {"swine", "swine"},
+		{"aircraft", "aircraft"}, {"blues", "blues"}, {"cannon", "cannon"},
+		// Irregulars and umlaut plurals.
+		{"ox", "oxen"}, {"cow", "kine"}, {"child", "children"}, {"foot", "feet"},
+		{"goose", "geese"}, {"louse", "lice"}, {"mouse", "mice"}, {"tooth", "teeth"},
+	};
+	auto irregular = kIrregular.find(noun);
+	if (irregular != kIrregular.end()) return irregular->second;
+
+	const size_t len = noun.size();
+	if (len == 0) return std::string();
+	if (len <= 2) return noun + "s";
+
+	const std::string last3 = noun.substr(len - 3);
+	if (last3 == "man") return noun.substr(0, len - 2) + "en";
+	if (last3 == "ies") return noun;
+
+	const std::string last2 = noun.substr(len - 2);
+	if (last2 == "sh" || last2 == "ss" || last2 == "ch") return noun + "es";  // sibilants
+	if (last2 == "ge" || last2 == "se") return noun + "s";  // sibilants already ending in 'e'
+	if (last2 == "ex") return noun.substr(0, len - 2) + "ices";
+	if (last2 == "is") return noun.substr(0, len - 2) + "es";
+	if (last2 == "um") return noun.substr(0, len - 2) + "a";
+	if (last2 == "us") return noun.substr(0, len - 2) + "i";
+
+	auto isConsonant = [](char c) {
+		return c != 'a' && c != 'e' && c != 'i' && c != 'o' && c != 'u' && c != 'y'
+			&& c >= 'a' && c <= 'z';
+	};
+	switch (noun[len - 1]) {
+		case 'f':
+			if (noun == "dwarf" || noun == "hoof" || noun == "roof") return noun + "s";
+			return noun.substr(0, len - 1) + "ves";
+		case 'o':  // ...preceded by a consonant
+			if (isConsonant(noun[len - 2])) return noun + "es";
+			break;
+		case 'x':
+			return noun + "es";
+		case 'y':  // ...preceded by a consonant: drop the y, add "ies"
+			if (isConsonant(noun[len - 2])) return noun.substr(0, len - 1) + "ies";
+			break;
+		default:
+			break;
+	}
+
+	if (noun.back() == 's') return noun;
+	return noun + "s";
+}
+
 namespace Starlane::Util {
 namespace {
 

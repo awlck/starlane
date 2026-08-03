@@ -191,7 +191,8 @@ std::string Game::ApplySynonyms(std::string s) {
 	return s;
 }
 
-std::vector<std::string> Game::MatchListForReference(const std::string &from, const std::string &refFamily) const {
+std::vector<std::string> Game::MatchListForReference(const std::string &from, const std::string &refFamily,
+                                                     bool plural) const {
 	using namespace std::string_literals;
 	ReferenceType rt;
 	if (refFamily.substr(0, sizeof("object")-1) == "object"s) rt = ReferenceType::Object;
@@ -211,7 +212,7 @@ std::vector<std::string> Game::MatchListForReference(const std::string &from, co
 				if (!o->IsCharacter()) continue;
 				break;
 		}
-		if (std::regex_match(from, o->GetMatchExpr()))
+		if (std::regex_match(from, plural ? o->GetPluralMatchExpr() : o->GetMatchExpr()))
 			result.push_back(o->Key());
 	}
 
@@ -324,6 +325,26 @@ bool Game::CaptureReferences(const std::vector<std::string> &refSpecs, const std
 				currentRefLists.emplace_back(ref, std::move(items));
 				BindReference(currentRefs, ref, resolved);
 				continue;
+			}
+			// Before reading the text as a list of things, read it as one *plural* thing: "get
+			// tubs" names both objects called a "tub" at once. ADRIFT tries this first too
+			// (InputMatchesObjects' "objects1" case recurses with bPlural set, and only falls
+			// through to the comma/"and" form when nothing answers to the plural). Everything the
+			// plural named becomes its own item, already settled -- naming things by the kind they
+			// are is not ambiguous the way naming one of them by a shared noun is, so there is
+			// nothing to ask about. Objects only: ADRIFT gives characters no plural forms.
+			if (family == "objects") {
+				auto pluralMatches = MatchListForReference(raw, family, /*plural =*/ true);
+				if (!pluralMatches.empty()) {
+					std::vector<RefMatchInfo> itemMatches;
+					itemMatches.reserve(pluralMatches.size());
+					for (const auto &k : pluralMatches)
+						itemMatches.push_back({raw, {k}});
+					currentRefItemMatches[Util::CanonicalizeRefName(ref)] = std::move(itemMatches);
+					BindReference(currentRefs, ref, pluralMatches.front());
+					currentRefLists.emplace_back(ref, std::move(pluralMatches));
+					continue;
+				}
 			}
 			// A plural reference can name several things at once ("take the plates and the ration
 			// bar"). Each one is resolved separately, and the task runs once per thing; see

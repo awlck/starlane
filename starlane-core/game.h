@@ -164,7 +164,8 @@ public:
 	// backstop in starlane-core.cpp.
 	const GameObj *GetObject(const std::string &key) const {
 		const GameObj *o = TryGetObject(key);
-		if (!o) throw MissingObjectException(key);
+		if (!o)
+			throw MissingObjectException(key);
 		return o;
 	}
 
@@ -523,7 +524,10 @@ private:
 	// currently known game objects of the given family ("object"/"character"/etc.) that it
 	// could refer to. Matches in the narrowest non-empty scope win: objects currently
 	// visible to the player beat objects merely seen before, which beat everything else.
-	std::vector<std::string> MatchListForReference(const std::string &from, const std::string &refFamily) const;
+	// With `plural`, the text is matched against objects' plural names instead ("tubs" naming
+	// every object called a "tub") -- see GameObj::GetPluralMatchExpr.
+	std::vector<std::string> MatchListForReference(const std::string &from, const std::string &refFamily,
+	                                               bool plural = false) const;
 	// Populate currentRefs from a command match, given the task's reference names for that
 	// particular command (e.g. "%direction%", "%object1%") and the corresponding capture groups.
 	// Returns false if some reference could not be resolved to anything (e.g. an %object%
