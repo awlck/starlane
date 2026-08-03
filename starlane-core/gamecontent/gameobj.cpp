@@ -155,12 +155,21 @@ void GameObj::MoveTo(const std::string &newParent, HoldingType newRelation) {
 	// Make sure we don't move objects (or worse, characters) into non-existing
 	// objects, because everything else in the program assumes that a non-empty
 	// parent key actually refers to a real object.
-	if (newParent == "Hidden")
+	if (newParent == "Hidden") {
 		parent = "";
-	else if (!Game::Get()->ObjectExists(newParent))
-		return;
-	else
+	} else if (newRelation == HoldingType::AtLocationGroup) {
+		// The one relation whose parent names a Group rather than an object: a static object
+		// spread over every location the group names at once (see Task's MoveToGroup action).
+		// Groups live in their own table, so the object check above would reject every such move
+		// -- which silently stranded Alyas's oak-tree door and, with it, the door-shaped exit and
+		// description part that ask whether it is here.
+		if (!Game::Get()->GetGroup(newParent)) return;
 		parent = newParent;
+	} else if (!Game::Get()->ObjectExists(newParent)) {
+		return;
+	} else {
+		parent = newParent;
+	}
 
 	relation = newRelation;
 
