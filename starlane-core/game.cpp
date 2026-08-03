@@ -586,6 +586,12 @@ void Game::EndGame(Ending how) {
 	// Queued rather than printed outright: the task that ended the game is still running, and its
 	// own parting words -- the last thing the player reads -- have yet to be flushed. The banner
 	// belongs after them.
+	//
+	// ADRIFT reaches CheckEndOfGame only after EvaluateInput has finished the command off with two
+	// blank-line Displays, so its whole sign-off starts two line breaks below whatever the game
+	// last said. We have no such per-command trailer -- the frontend's prompt stands in for it --
+	// so the break is put here instead, where it is the same two lines to the player.
+	RecordResponse("\n\n");
 	switch (how) {
 	case Ending::Win:
 		RecordResponse("<center><c><b>*** You have won ***</b></c></center>\n");
@@ -1024,8 +1030,11 @@ void Game::OutputFiltered(std::string s) const {
 	StripSeamMarkers(s);
 	if (s.empty()) return;
 	// Successive messages within one turn run together otherwise: ADRIFT's Display() puts two
-	// spaces between them unless what came before already ended a line (see pSpace).
-	if (turnHasOutput && !endsWithNewline)
+	// spaces between them unless what came before already ended a line (see pSpace). A message
+	// that is nothing but a line break is exempt -- ADRIFT skips pSpace for one outright ("sText
+	// <> vbCrLf") -- which is what lets a game use a blank message purely to separate two others.
+	const bool onlyNewlines = s.find_first_not_of('\n') == std::string::npos;
+	if (turnHasOutput && !endsWithNewline && !onlyNewlines)
 		frontend->OutputText("  ");
 	frontend->OutputText(s.c_str());
 	turnHasOutput = true;

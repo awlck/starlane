@@ -47,7 +47,14 @@ Game *Game::LoadFromXML(const std::string &gameTxt, uint32_t gameCrc32) {
 
 	LOAD_STAGE("Parsing File");
 	pugi::xml_document doc;
-	auto parseResult = doc.load_string(gameTxt.c_str());
+	// parse_ws_pcdata_single: a <Text> element holding nothing but a newline is a real, meaningful
+	// message -- ADRIFT games use one to put a blank line between two others, and the standard
+	// library's movement task is exactly that. pugixml drops whitespace-only character data by
+	// default, which turned those into empty messages that were never printed at all. The "single"
+	// variant keeps such text only where it is an element's sole child, so container elements like
+	// <Actions> are unaffected and still iterate elements alone.
+	auto parseResult = doc.load_string(gameTxt.c_str(),
+	                                   pugi::parse_default | pugi::parse_ws_pcdata_single);
 	if (parseResult.status != pugi::status_ok) {
 		frontend->FatalError((std::string("Unable to load game: ") + parseResult.description()).c_str());
 		return nullptr;
