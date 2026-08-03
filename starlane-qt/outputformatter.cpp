@@ -407,6 +407,20 @@ void OutputFormatter::HandleRedirectedTag(const QString &tagRaw) {
 
 void OutputFormatter::AppendText(const QString &chunk) {
 	for (const QChar &c : chunk) {
+		if (inComment) {
+			// The closing marker is "-->", or "–>" if the "--" got collapsed into an en dash the
+			// same way the opening one did -- either way, it's recognized as soon as '>' arrives
+			// right after it.
+			if (c == '>' && (commentTail.endsWith(QLatin1String("--")) || commentTail.endsWith(QChar(0x2013)))) {
+				inComment = false;
+				commentTail.clear();
+				continue;
+			}
+			commentTail += c;
+			if (commentTail.length() > 2) commentTail.remove(0, commentTail.length() - 2);
+			continue;
+		}
+
 		if (inTag) {
 			if (!quoteChar.isNull()) {
 				tagBuffer += c;
@@ -436,6 +450,15 @@ void OutputFormatter::AppendText(const QString &chunk) {
 				continue;
 			}
 			tagBuffer += c;
+			// A "<!--" (or "<!–", per the en-dash note above) just completed: this is a comment,
+			// not a real tag, so switch to discarding its body instead of treating tagBuffer as a
+			// tag name once '>' eventually shows up.
+			if (tagBuffer == QLatin1String("!--") || tagBuffer == QString(QChar('!')) + QChar(0x2013)) {
+				inTag = false;
+				tagBuffer.clear();
+				inComment = true;
+				commentTail.clear();
+			}
 			continue;
 		}
 

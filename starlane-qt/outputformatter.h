@@ -104,6 +104,14 @@ private:
 	QString tagBuffer;
 	QString textRun;
 
+	// True while scanning the body of an HTML-style comment (opened by "<!--" or, since something
+	// upstream "helpfully" collapses "--" into an en dash before it reaches us, "<!–" too) --
+	// its content is discarded outright rather than being parsed as tags/text. `commentTail` holds
+	// the last (up to) two characters seen so far, so the closing "-->"/"–>" can be recognized
+	// even when it arrives split across separate AppendText() calls.
+	bool inComment = false;
+	QString commentTail;
+
 	// Window-redirection state, carried across AppendText() calls the same way the tag tokenizer
 	// state above is -- a <window NAME>...</window> block can itself be split across separate
 	// OutputText() invocations (e.g. one per Print action in a task). Non-null `redirectTarget`
