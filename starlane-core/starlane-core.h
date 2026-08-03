@@ -107,6 +107,7 @@ enum class DebugCategory : uint32_t {
 	ObjectMatching,  // resolving referenced text to game objects/characters
 	TaskSelection,   // choosing among General/Specific tasks once a command has matched
 	Restrictions,    // evaluating a task's/description's restriction (pre/postcondition) block
+	TaskExecution,   // execution of task actions
 	Events,          // the event scheduling/execution cycle
 	Walks,           // character walk scheduling/execution
 	Variables,       // variable reads/writes

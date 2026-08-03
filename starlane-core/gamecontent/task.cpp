@@ -840,7 +840,7 @@ std::pair<bool, DescrRef> Task::CheckRestrictions() const {
 }
 
 void Task::RunActions() {
-	SL_DEBUG(Events, "task " << key << ": running " << actions.size() << " action(s)");
+	SL_DEBUG(TaskExecution, "task " << key << ": running " << actions.size() << " action(s)");
 	for (const auto &act : actions) {
 		// A faulty action (unparseable at load) is skipped outright. An action that throws mid-way
 		// -- a reference to a nonexistent object, say -- is logged and skipped too; the remaining
@@ -851,7 +851,7 @@ void Task::RunActions() {
 		try {
 			act.Perform();
 		} catch (const std::exception &e) {
-			SL_DEBUG(Miscellaneous, "Task '" << key << "' action failed (" << e.what() << "); skipped.");
+			SL_DEBUG(TaskExecution, "Task '" << key << "' action failed (" << e.what() << "); skipped.");
 		}
 	}
 }
