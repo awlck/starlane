@@ -488,7 +488,7 @@ Task *Task::CreateFromXML(Game *g, const pugi::xml_node &xmlNode) {
 			act.ownerTaskKey = result->key;
 			result->actions.push_back(std::move(act));
 		} catch (const std::exception &e) {
-			LogError("Faulty action in task '" + result->key + "' (" + e.what() + "); it will be skipped.");
+			SL_DEBUG(GameLoad, "Faulty action in task '" << result->key << "' (" << e.what() << "); it will be skipped.");
 			Action faultyAct;
 			faultyAct.faulty = true;
 			result->actions.push_back(std::move(faultyAct));
@@ -851,7 +851,7 @@ void Task::RunActions() {
 		try {
 			act.Perform();
 		} catch (const std::exception &e) {
-			LogError("Task '" + key + "' action failed (" + std::string(e.what()) + "); skipped.");
+			SL_DEBUG(Miscellaneous, "Task '" << key << "' action failed (" << e.what() << "); skipped.");
 		}
 	}
 }

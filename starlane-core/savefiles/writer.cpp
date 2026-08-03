@@ -8,6 +8,7 @@
 
 #include <miniz.h>
 
+#include "../debuglog.h"
 #include "../error.h"
 #include "../game.h"
 
@@ -45,7 +46,7 @@ Writer::~Writer() {
 	try {
 		RunCompressor(true);
 	} catch (const Exception &e) {
-		LogError(e.what());
+		SL_DEBUG(InternalErrors, "Error compressing save file: " << e.what());
 	}
 	mz_deflateEnd(stream);
 	delete[] textbuf;

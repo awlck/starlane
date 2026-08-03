@@ -347,8 +347,8 @@ void Game::AuditRestore(const UndoRecord &rec) const {
 	if (!rec.shadow) return;
 	const Game &want = *rec.shadow;
 	auto complain = [&](const char *kind, size_t slot, const std::string &a, const std::string &b) {
-		LogError(std::string("UNDO AUDIT: ") + kind + " slot " + std::to_string(slot) +
-			" was not restored correctly.\n  got:  " + a + "\n  want: " + b);
+		SL_DEBUG(InternalErrors, "UNDO AUDIT: " << kind << " slot " << slot <<
+			" was not restored correctly.\n  got:  " << a << "\n  want: " << b);
 		frontend->FatalError("Undo audit failed; see the log.");
 	};
 	for (size_t i = 0; i < objects.size(); i++) {

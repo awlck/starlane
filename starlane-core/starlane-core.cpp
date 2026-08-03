@@ -3,6 +3,7 @@
 #include <exception>
 #include <string>
 
+#include "debuglog.h"
 #include "miniz.h"
 
 #include "error.h"
@@ -23,10 +24,11 @@ namespace {
 // Log a caught, otherwise-unhandled exception to the developer log, appending its backtrace when
 // it is one of ours (foreign exceptions carry none). Never shown to the player.
 void LogCaught(const std::string &context, const std::exception &e) {
-	std::string msg = context + ": " + e.what();
-	if (const auto *se = dynamic_cast<const Exception *>(&e); se && !se->trace().empty())
-		msg += "\n" + se->trace();
-	LogError(msg);
+	if (const auto *se = dynamic_cast<const Exception *>(&e); se && !se->trace().empty()) {
+		SL_DEBUG(InternalErrors, context << ": " << e.what() << '\n' << se->trace());
+	} else {
+		SL_DEBUG(InternalErrors, context << ": " << e.what());
+	}
 }
 
 }  // namespace

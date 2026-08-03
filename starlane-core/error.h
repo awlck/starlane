@@ -57,11 +57,6 @@ private:
 // string where backtracing is unavailable.
 std::string CaptureBacktrace();
 
-// Log a developer-facing error. Writes to stderr for now; this is the seam for
-// the proper debug log that is still on the to-do list.
-// TODO(debug-log): route through a real log sink once one exists.
-void LogError(const std::string &message);
-
 }  // namespace Starlane
 
 #endif  // !SLC_ERROR_H

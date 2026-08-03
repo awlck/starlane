@@ -4,6 +4,7 @@
 
 #include "../game.h"
 #include "gameobj.h"
+#include "../debuglog.h"
 #include "../savefiles/writer.h"
 
 namespace Starlane {
@@ -26,7 +27,7 @@ void Group::AddObj(const std::string &key) {
 	// dereferencing a missing object.
 	GameObj *obj = Game::Get()->MutableObject(key);
 	if (!obj) {
-		LogError("Group '" + key_ + "' names nonexistent member '" + key + "'; skipping.");
+		SL_DEBUG(Miscellaneous, "Group '" << key_ << "' names nonexistent member '" << key << "'; skipping.");
 		return;
 	}
 	obj->BecomeGroupMember(this->key_);

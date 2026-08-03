@@ -111,11 +111,14 @@ enum class DebugCategory : uint32_t {
 	Walks,           // character walk scheduling/execution
 	Variables,       // variable reads/writes
 	GameLoad,        // loading and preparing a game file
+	InternalErrors,  // messages and stack traces from internal errors
+	Miscellaneous,   // miscellaneous errors, e.g. references to unknown objects that don't fit any other contexts
+	NumberOfCategories  // dummy value to get the number of categories defined
 };
 // Number of categories defined above, for a frontend that wants to enumerate/enable all of them
 // (e.g. `for (uint32_t i = 0; i < kDebugCategoryCount; i++) ...`) without hardcoding that count or
 // depending on which enumerator happens to be listed last.
-constexpr uint32_t kDebugCategoryCount = (uint32_t) DebugCategory::GameLoad + 1;
+constexpr uint32_t kDebugCategoryCount = (uint32_t) DebugCategory::NumberOfCategories;
 
 // `message` is owned by the caller (starlane-core) and only valid for the duration of the call.
 using DebugEventOutputter = void (*)(DebugCategory category, const char *message);

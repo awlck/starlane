@@ -80,8 +80,4 @@ GeneralSyntaxException::GeneralSyntaxException(const std::string &expr)
 	: Exception("General syntax error parsing expression: \"" + expr + '"'), expr(expr) {}
 }
 
-void LogError(const std::string &message) {
-	std::cerr << "[starlane] " << message << std::endl;
-}
-
 }  // namespace Starlane

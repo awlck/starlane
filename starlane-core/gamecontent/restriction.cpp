@@ -122,7 +122,7 @@ Restriction *Restriction::CreateFromXML(const pugi::xml_node &xmlNode) {
 		try {
 			s.Translate();
 		} catch (const std::exception &e) {
-			LogError(std::string("Faulty restriction (") + e.what() + "); it will always fail.");
+			SL_DEBUG(GameLoad, "Faulty restriction (" << e.what() << "); it will always fail.");
 			s.faulty = true;
 		}
 		result->restrs.emplace_back(std::move(s));
@@ -179,8 +179,8 @@ std::pair<bool, DescrRef> Restriction::PassRestrictionBlock(size_t &tidx, size_t
 				try {
 					passed = restrs[ridx].Pass(&txt, ignoreUnsetRefs);
 				} catch (const std::exception &e) {
-					LogError(std::string("Restriction failed to evaluate (") + e.what()
-					         + "); treating as failed.");
+					SL_DEBUG(Restrictions, "Restriction failed to evaluate (" << e.what()
+					         << "); treating as failed.");
 					passed = false;
 				}
 			}

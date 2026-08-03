@@ -1084,7 +1084,7 @@ void Game::ExecuteMatchedTask(Task *general) {
 			try {
 				g->FlushResponseBuffer(*buffer);
 			} catch (const std::exception &e) {
-				LogError(std::string("Failed to print a command's responses: ") + e.what());
+				SL_DEBUG(InternalErrors, "Failed to print a command's responses: " << e.what());
 			}
 			g->activeResponseBuffer = prev;
 		}

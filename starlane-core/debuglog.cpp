@@ -42,6 +42,9 @@ const char *DebugCategoryName(DebugCategory category) {
 	case DebugCategory::Walks: return "Walks";
 	case DebugCategory::Variables: return "Variables";
 	case DebugCategory::GameLoad: return "Game Load";
+	case DebugCategory::InternalErrors: return "Internal Error";
+	case DebugCategory::Miscellaneous: return "Miscellaneous";
+	default: return "<invalid log category>";
 	}
 	return "Unknown";
 }
