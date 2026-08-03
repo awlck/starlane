@@ -7,6 +7,7 @@
 #include <magic_enum.hpp>
 #include <pugixml.hpp>
 
+#include "../debuglog.h"
 #include "../game.h"
 #include "../valueparsers.h"
 #include "../savefiles/writer.h"
@@ -17,17 +18,12 @@
 // An event's schedule is otherwise almost impossible to observe: most of what events do is run
 // tasks, whose own output says nothing about which event ran them or when. Follows the same
 // pattern as gameloader.cpp's load-stage tracing.
-#ifndef NDEBUG
-#include <iostream>
 // `what` is pasted into the '<<' chain unparenthesized, so that callers can go on chaining onto
 // it. Anything binding more loosely than '<<' -- a ternary, say -- needs parenthesizing by the
 // caller.
 #define EVENT_TRACE(what) \
-	std::cerr << "[evt] " << key << ' ' << what << " t=" << timeSinceStart \
-	          << '/' << (int32_t) duration.CurrentState() << '\n'
-#else
-#define EVENT_TRACE(what) ((void) 0)
-#endif
+	SL_DEBUG(Events, key << ' ' << what << " t=" << timeSinceStart \
+	         << '/' << (int32_t) duration.CurrentState())
 
 namespace Starlane {
 

@@ -8,6 +8,7 @@
 #include <cctype>
 #include <regex>
 
+#include "debuglog.h"
 #include "gamecontent/description.h"
 #include "gamecontent/gameobj.h"
 #include "gamecontent/synonym.h"
@@ -230,8 +231,18 @@ std::vector<std::string> Game::MatchListForReference(const std::string &from, co
 		else if (player->HasSeen(k))
 			seen.push_back(k);
 	}
-	if (!visible.empty()) return visible;
-	if (!seen.empty()) return seen;
+	if (!visible.empty()) {
+		SL_DEBUG(ObjectMatching, "\"" << from << "\" (" << refFamily << "): " << visible.size()
+		         << " candidate(s) currently visible");
+		return visible;
+	}
+	if (!seen.empty()) {
+		SL_DEBUG(ObjectMatching, "\"" << from << "\" (" << refFamily << "): " << seen.size()
+		         << " candidate(s) previously seen, none visible now");
+		return seen;
+	}
+	SL_DEBUG(ObjectMatching, "\"" << from << "\" (" << refFamily << "): " << result.size()
+	         << " candidate(s) by name alone, none seen or visible");
 	return result;
 }
 
@@ -284,6 +295,7 @@ bool Game::CaptureReferences(const std::vector<std::string> &refSpecs, const std
 		const std::string &ref = refSpecs[i];
 		std::string raw = matches[i + 1].str();
 		auto [family, suffix] = SplitRefName(ref);
+		SL_DEBUG(ObjectMatching, "capturing " << ref << " (" << family << ") from \"" << raw << '"');
 
 		std::string resolved;
 		if (family == "text" || family == "number") {
@@ -308,7 +320,10 @@ bool Game::CaptureReferences(const std::vector<std::string> &refSpecs, const std
 					if (player && !player->HasSeen(o->Key())) continue;
 					items.push_back(o->Key());
 				}
-				if (items.empty()) return false;
+				if (items.empty()) {
+					SL_DEBUG(ObjectMatching, ref << ": ALL named nothing the player has seen");
+					return false;
+				}
 				// Under every spelling: the standard library keeps a task out of a sweeping command
 				// with "ReferencedObjects MustNot BeExactText All", by the generic name, while the
 				// task's own Command called it "%objects%".
@@ -350,12 +365,18 @@ bool Game::CaptureReferences(const std::vector<std::string> &refSpecs, const std
 			// bar"). Each one is resolved separately, and the task runs once per thing; see
 			// ExecuteMatchedTask. The reference itself starts out bound to the first of them.
 			const auto pieces = Util::SplitObjectList(raw);
-			if (pieces.empty()) return false;
+			if (pieces.empty()) {
+				SL_DEBUG(ObjectMatching, ref << ": \"" << raw << "\" named nothing at all");
+				return false;
+			}
 			std::vector<std::string> items;
 			std::vector<RefMatchInfo> itemMatches;
 			for (const auto &piece : pieces) {
 				auto matchList = MatchListForReference(piece, family);
-				if (matchList.empty()) return false;
+				if (matchList.empty()) {
+					SL_DEBUG(ObjectMatching, ref << ": \"" << piece << "\" matched no object/character");
+					return false;
+				}
 				if (pieces.size() == 1) {
 					// The ordinary case: one thing named, which may still be named ambiguously.
 					// Record it exactly as a singular reference does, so that "take ball" with two
@@ -377,7 +398,10 @@ bool Game::CaptureReferences(const std::vector<std::string> &refSpecs, const std
 		} else {
 			// Objects, characters, locations, items: resolve the raw text to an actual game object.
 			auto matchList = MatchListForReference(raw, family);
-			if (matchList.empty()) return false;
+			if (matchList.empty()) {
+				SL_DEBUG(ObjectMatching, ref << ": \"" << raw << "\" matched no object/character");
+				return false;
+			}
 			// Take the first match as the provisional resolution so restrictions can be checked,
 			// but keep the whole list (and the raw text the player typed): should this reference
 			// belong to the task we end up running and have matched more than one thing,
@@ -505,6 +529,7 @@ Task *Game::FindMatchingTask() {
 	// way. The command usually arrives folded already, but not always: SubstitutePronouns splices
 	// in a thing's display name ("take it" -> "take the Brass Lantern") as the game spells it.
 	const std::string foldedCommand = Util::ToLower(currentCommand);
+	SL_DEBUG(TaskMatching, "matching command \"" << currentCommand << '"');
 
 	for (Task *task : staticData->prioOrderedTasks) {
 		if (task->GetType() != Task::Type::General) continue;
@@ -521,6 +546,7 @@ Task *Game::FindMatchingTask() {
 			if (!required.empty() && foldedCommand.find(required) == std::string::npos) continue;
 			std::smatch matches;
 			if (!std::regex_match(currentCommand, matches, regexes[cmdIdx])) continue;
+			SL_DEBUG(TaskMatching, "task " << task->Key() << " command #" << cmdIdx << " matches");
 
 			// References must be captured *before* checking eligibility: restrictions
 			// (e.g. "must have a route in %direction%") need to see the values the player
@@ -528,6 +554,7 @@ Task *Game::FindMatchingTask() {
 			currentRefs.clear();
 			currentRefMatches.clear();
 			if (!CaptureReferences(groupCoding[cmdIdx], matches)) {
+				SL_DEBUG(TaskMatching, "task " << task->Key() << ": references did not resolve");
 				if (!noRefTask) {
 					noRefTask = task;
 					noRefTokens = groupCoding[cmdIdx];
@@ -538,6 +565,7 @@ Task *Game::FindMatchingTask() {
 			// Narrow any reference that matched several things down to those the task would
 			// actually accept, before its restrictions are consulted for real below.
 			if (!RefineReferencesByRestrictions(task, groupCoding[cmdIdx])) {
+				SL_DEBUG(TaskMatching, "task " << task->Key() << ": references eliminated by its own restrictions");
 				if (!noRefTask) {
 					noRefTask = task;
 					noRefTokens = groupCoding[cmdIdx];
@@ -551,6 +579,7 @@ Task *Game::FindMatchingTask() {
 			int ambItemIdx;
 			if (FirstAmbiguousSlot(groupCoding[cmdIdx], currentRefMatches, currentRefItemMatches,
 			                       ambToken, ambItemIdx) != nullptr) {
+				SL_DEBUG(TaskMatching, "task " << task->Key() << ": " << ambToken << " still ambiguous, noting as fallback");
 				if (!ambTask) {
 					ambTask = task;
 					ambRefTokens = groupCoding[cmdIdx];
@@ -566,16 +595,22 @@ Task *Game::FindMatchingTask() {
 			// A task that fails restrictions with no message at all isn't a real candidate
 			// under either policy -- it has nothing to say for itself, so a lower-priority
 			// (higher-numbered) task's command pattern still deserves a shot at matching too.
-			if (!result.first && result.second == 0) continue;
+			if (!result.first && result.second == 0) {
+				SL_DEBUG(TaskMatching, "task " << task->Key() << ": ineligible with no message, skipping");
+				continue;
+			}
 
 			if (result.first || staticData->executionPolicy == ExecutionPolicy::HighestPrio) {
 				// Either this task passes outright, or (under HighestPrio) it's simply the
 				// first real candidate at all: stop looking, whether it passes or fails.
+				SL_DEBUG(TaskMatching, "task " << task->Key() << " selected"
+				         << (result.first ? " (passing)" : " (first candidate, HighestPrio)"));
 				currentMatchedRefTokens = groupCoding[cmdIdx];
 				return task;
 			}
 			// HighestPrioPassing: this candidate fails (but has something to say); keep
 			// scanning for one that passes, remembering the first failing one as a fallback.
+			SL_DEBUG(TaskMatching, "task " << task->Key() << ": failing with a message, noted as fallback");
 			if (!fallback) {
 				fallback = task;
 				fallbackRefTokens = groupCoding[cmdIdx];
@@ -588,6 +623,7 @@ Task *Game::FindMatchingTask() {
 	}
 
 	if (fallback) {
+		SL_DEBUG(TaskMatching, "falling back to failing task " << fallback->Key());
 		currentRefs = std::move(fallbackRefs);
 		currentMatchedRefTokens = std::move(fallbackRefTokens);
 		currentRefMatches = std::move(fallbackRefMatches);
@@ -597,6 +633,7 @@ Task *Game::FindMatchingTask() {
 	}
 	if (ambTask) {
 		// Nothing else could run, so the question really does have to be asked.
+		SL_DEBUG(TaskMatching, "falling back to ambiguous task " << ambTask->Key());
 		currentRefs = std::move(ambRefs);
 		currentMatchedRefTokens = std::move(ambRefTokens);
 		currentRefMatches = std::move(ambRefMatches);
@@ -607,11 +644,14 @@ Task *Game::FindMatchingTask() {
 	if (noRefTask) {
 		// Nothing was resolved, so nothing is ambiguous either: run the task on empty references
 		// and let its own restrictions do the talking.
+		SL_DEBUG(TaskMatching, "falling back to no-ref task " << noRefTask->Key());
 		currentRefs.clear();
 		currentRefMatches.clear();
 		currentRefLists.clear();
 		currentRefItemMatches.clear();
 		currentMatchedRefTokens = std::move(noRefTokens);
+	} else {
+		SL_DEBUG(TaskMatching, "no task matched the command at all");
 	}
 	return noRefTask;
 }
@@ -1168,8 +1208,11 @@ bool Game::RunTaskWithSpecifics(Task *general, const std::vector<std::string> &r
 	// nested call owes its own caller, which uses it to decide whether to keep looking further down.
 	bool anyOutput = false;
 
+	SL_DEBUG(TaskSelection, "task " << general->Key() << ": considering "
+	         << GetSpecificChildren(general->Key()).size() << " specific child(ren)");
 	for (Task *child : GetSpecificChildren(general->Key())) {
 		if (!SpecificTaskMatches(child, refTokens)) continue;
+		SL_DEBUG(TaskSelection, "task " << general->Key() << ": specific child " << child->Key() << " matches");
 		auto overrideType = child->GetOverrideType();
 		if (overrideType.Has(Task::OverrideType::AfterParent)) {
 			afterChildren.push_back(child);
@@ -1178,6 +1221,8 @@ bool Game::RunTaskWithSpecifics(Task *general, const std::vector<std::string> &r
 		auto childResult = child->CheckRestrictions();
 		bool childHadSomethingToSay = false;
 		if (childResult.first) {
+			SL_DEBUG(TaskSelection, "task " << general->Key() << ": specific child " << child->Key()
+			         << " passed restrictions, running");
 			childHadSomethingToSay = runChild(child);
 			// A child that ran suppresses whichever parts of the parent it says it replaces,
 			// whether or not it printed anything.
@@ -1197,10 +1242,15 @@ bool Game::RunTaskWithSpecifics(Task *general, const std::vector<std::string> &r
 		// A child that neither ran nor produced any message is treated as if it hadn't matched at
 		// all, and we keep looking; so is one that ran silently.
 		anyOutput = anyOutput || childHadSomethingToSay;
-		if (childHadSomethingToSay && !child->AlwaysContinues())
+		if (childHadSomethingToSay && !child->AlwaysContinues()) {
+			SL_DEBUG(TaskSelection, "task " << general->Key() << ": child " << child->Key()
+			         << " had its say and doesn't continue, stopping here");
 			break;
+		}
 	}
 
+	SL_DEBUG(TaskSelection, "task " << general->Key() << ": running parent (text="
+	         << showParentText << ", actions=" << runParentActions << ')');
 	anyOutput = RunTaskAndCapture(general, showParentText, runParentActions) || anyOutput;
 
 	for (Task *child : afterChildren) {

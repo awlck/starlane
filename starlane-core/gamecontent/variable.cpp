@@ -2,10 +2,27 @@
 
 #include <pugixml.hpp>
 
+#include "../debuglog.h"
 #include "../valueparsers.h"
 #include "utility.h"
 
 namespace Starlane {
+
+void Variable::SetValue(int64_t val, uint32_t idx) {
+	CheckIndex(idx);
+	everChanged = true;
+	SL_DEBUG(Variables, key << " (" << varName << ")[" << idx << "] " << MutableInts()[idx - 1]
+	         << " -> " << val);
+	MutableInts()[idx - 1] = val;
+}
+
+void Variable::SetValue(const std::string &val, uint32_t idx) {
+	CheckIndex(idx);
+	everChanged = true;
+	SL_DEBUG(Variables, key << " (" << varName << ")[" << idx << "] \"" << MutableStrs()[idx - 1]
+	         << "\" -> \"" << val << '"');
+	MutableStrs()[idx - 1] = val;
+}
 
 void Variable::CheckIndex(uint32_t idx) const {
 	if (idx != 0 && idx <= capacity) return;

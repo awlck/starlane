@@ -4,6 +4,7 @@
 #include <regex>
 
 #include "starlane-core.h"
+#include "debuglog.h"
 #include "gamecontent/character.h"
 #include "gamecontent/event.h"
 #include "expression.h"
@@ -671,6 +672,7 @@ void Game::RunEventTick(bool realTime) {
 	// The game can end part-way through a tick -- an event runs a task that wins or loses it --
 	// and the rest of that tick's events then don't happen. ADRIFT bails the same way.
 	if (!gameHasBegun) return;
+	SL_DEBUG(Events, (realTime ? "real-time" : "turn") << " tick over " << events.size() << " event(s)");
 	// Character walks advance here, ahead of the events and before the events-running flag goes up --
 	// exactly where ADRIFT drives them. Only on the turn clock: walks have no real-time variety. In
 	// object load order so two ticks of the same state move the same characters in the same sequence.

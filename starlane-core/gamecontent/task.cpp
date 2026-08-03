@@ -3,10 +3,11 @@
 #include <algorithm>
 #include <cctype>
 #include <cstring>
-#include <iostream>
 
+#include <magic_enum.hpp>
 #include <pugixml.hpp>
 
+#include "../debuglog.h"
 #include "../error.h"
 #include "../game.h"
 #include "../expression.h"
@@ -452,9 +453,8 @@ Task *Task::CreateFromXML(Game *g, const pugi::xml_node &xmlNode) {
 		for (const auto &cmd: commandStrs) {
 			auto transformed = ProcessBlock(ExpandWildcards(cmd));
 			RestoreWildcards(transformed);
-#ifndef NDEBUG
-			std::cout << "Converted \"" << cmd << "\" to \"" << transformed << "\".\n";
-#endif
+			SL_DEBUG(GameLoad, "task " << result->key << ": converted command \"" << cmd
+			         << "\" to \"" << transformed << '"');
 			std::sregex_iterator itBegin(transformed.begin(), transformed.end(), translateRefs);
 			std::sregex_iterator itEnd;
 			std::vector<std::string> matches;
@@ -826,13 +826,21 @@ std::pair<bool, DescrRef> Task::Eligible() const {
 
 std::pair<bool, DescrRef> Task::CheckRestrictions() const {
 	// A completed, non-repeatable task can never run again.
-	if (Completed() && !repeatable) return { false, 0 };
-	if (restrictions == 0)  // i.e., no restrictions set
+	if (Completed() && !repeatable) {
+		SL_DEBUG(Restrictions, "task " << key << ": already completed and not repeatable, failing");
+		return { false, 0 };
+	}
+	if (restrictions == 0) {  // i.e., no restrictions set
+		SL_DEBUG(Restrictions, "task " << key << ": no restrictions, passing");
 		return { true, 0 };
-	return Game::Get()->GetRestriction(restrictions)->PassRestrictionBlock();
+	}
+	auto result = Game::Get()->GetRestriction(restrictions)->PassRestrictionBlock();
+	SL_DEBUG(Restrictions, "task " << key << ": restrictions " << (result.first ? "passed" : "failed"));
+	return result;
 }
 
 void Task::RunActions() {
+	SL_DEBUG(Events, "task " << key << ": running " << actions.size() << " action(s)");
 	for (const auto &act : actions) {
 		// A faulty action (unparseable at load) is skipped outright. An action that throws mid-way
 		// -- a reference to a nonexistent object, say -- is logged and skipped too; the remaining
@@ -1054,6 +1062,8 @@ static inline constexpr bool ObjIsAppropriate(Task::ActionRefType t, const GameO
 void Task::Action::PerformImpl() const {
 	// at this stage, all references and lists are resolved.
 	Game *g = Game::Get();
+	SL_DEBUG(Events, "task " << ownerTaskKey << ": action " << magic_enum::enum_name(type)
+	         << " (" << lhs << ", " << rhs << ')');
 	switch (type) {
 	case ActionType::MoveToLocation:
 	case ActionType::MoveInsideObj:

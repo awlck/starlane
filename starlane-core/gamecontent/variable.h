@@ -39,16 +39,8 @@ public:
 		} else return Strs()[idx - 1];
 	}
 
-	void SetValue(int64_t val, uint32_t idx = 1) {
-		CheckIndex(idx);
-		everChanged = true;
-		MutableInts()[idx - 1] = val;
-	}
-	void SetValue(const std::string &val, uint32_t idx = 1) {
-		CheckIndex(idx);
-		everChanged = true;
-		MutableStrs()[idx - 1] = val;
-	}
+	void SetValue(int64_t val, uint32_t idx = 1);
+	void SetValue(const std::string &val, uint32_t idx = 1);
 
 	// For saving the game:
 	const std::vector<int64_t> &GetIntArray() const { return Ints(); }

@@ -8,6 +8,7 @@
 #include <pugixml.hpp>
 
 #include "starlane-core.h"
+#include "debuglog.h"
 #include "expression.h"
 #include "valueparsers.h"
 #include "gamecontent/character.h"
@@ -26,14 +27,6 @@
 
 #include <cassert>
 
-#ifndef NDEBUG
-#include <iostream>
-#define LOAD_STAGE(msg) std::cout << "\n\n==========================================\n" msg "\n==========================================\n"
-#else
-#define LOAD_STAGE(msg)
-#endif
-
-
 namespace Starlane {
 
 Game *Game::LoadFromXML(const std::string &gameTxt, uint32_t gameCrc32) {
@@ -45,7 +38,7 @@ Game *Game::LoadFromXML(const std::string &gameTxt, uint32_t gameCrc32) {
 	if (Game::theGame)
 		Game::Discard();
 
-	LOAD_STAGE("Parsing File");
+	SL_DEBUG(GameLoad, "Parsing file");
 	pugi::xml_document doc;
 	// parse_ws_pcdata_single: a <Text> element holding nothing but a newline is a real, meaningful
 	// message -- ADRIFT games use one to put a blank line between two others, and the standard
@@ -144,17 +137,17 @@ Game *Game::LoadFromXML(const std::string &gameTxt, uint32_t gameCrc32) {
 		}
 	}
 
-	LOAD_STAGE("Loading Properties");
+	SL_DEBUG(GameLoad, "Loading properties");
 	// It is important that all properties are created before anything tries to use them.
 	for (const auto &it: gameNode.children("Property"))
 		result->CreatePropertyFromXML(it);
 
-	LOAD_STAGE("Loading Variables");
+	SL_DEBUG(GameLoad, "Loading variables");
 	// Similarly, variables must be known before considering restrictions and task actions.
 	for (const auto &it : gameNode.children("Variable"))
 		result->CreateVariableFromXML(it);
 
-	LOAD_STAGE("Loading Objects");
+	SL_DEBUG(GameLoad, "Loading objects");
 	for (const auto &it : gameNode.children("Location"))
 		result->CreateObjFromXML(it);
 	for (const auto &it : gameNode.children("Character"))
@@ -176,7 +169,7 @@ Game *Game::LoadFromXML(const std::string &gameTxt, uint32_t gameCrc32) {
 		}
 	}
 
-	LOAD_STAGE("Loading Groups");
+	SL_DEBUG(GameLoad, "Loading groups");
 	// Groups only need the objects/locations/characters and properties loaded above -- moved
 	// ahead of Tasks so that a task action's parameter parsing (e.g. Task::Action::CreateFromXML
 	// recognizing "Npcs.Gender" as naming the "Npcs" group) can already see which keys name a
@@ -184,7 +177,7 @@ Game *Game::LoadFromXML(const std::string &gameTxt, uint32_t gameCrc32) {
 	for (const auto &it : gameNode.children("Group"))
 		result->CreateGroupFromXML(it);
 
-	LOAD_STAGE("Loading Tasks");
+	SL_DEBUG(GameLoad, "Loading tasks");
 	for (const auto &it: gameNode.children("Task")) {
 		auto t = result->CreateTaskFromXML(it);
 		rStatic->prioOrderedTasks.insert(t);
@@ -215,19 +208,19 @@ Game *Game::LoadFromXML(const std::string &gameTxt, uint32_t gameCrc32) {
 		if (auto *c = AsCharacter(result->MutableObject(i)))
 			c->RegisterWalkNotifications();
 
-	LOAD_STAGE("Loading Events");
+	SL_DEBUG(GameLoad, "Loading events");
 	for (const auto &it : gameNode.children("Event"))
 		result->CreateEventFromXML(it);
 
-	LOAD_STAGE("Loading Functions");
+	SL_DEBUG(GameLoad, "Loading functions");
 	for (const auto &it: gameNode.children("Function"))
 		result->CreateFunctionFromXML(it);
 
-	LOAD_STAGE("Loading Synonyms");
+	SL_DEBUG(GameLoad, "Loading synonyms");
 	for (const auto &it: gameNode.children("Synonym"))
 		result->CreateSynonymFromXML(it);
 
-	LOAD_STAGE("Loading Text Overrides");
+	SL_DEBUG(GameLoad, "Loading text overrides");
 	for (const auto &it: gameNode.children("TextOverride"))
 		result->CreateTextOverrideFromXML(it);
 
@@ -247,16 +240,14 @@ Game *Game::LoadFromXML(const std::string &gameTxt, uint32_t gameCrc32) {
 	if (perspectiveNode.node().type() != pugi::node_null)
 		rStatic->pcReferralPerson = ParseReferralPerson(perspectiveNode.node().child_value());
 
-	LOAD_STAGE("Figuring Out Text");
+	SL_DEBUG(GameLoad, "Figuring out text");
 	// Finally, pre-split all descriptions into runs of plain text and expressions.
 	// (This needs to happen after objects are loaded since we need to determine whether
 	//  'A.B' is indeed accessing property 'B' of object with key 'A' (if 'A' is a valid object key)
 	//  or just a period not followed by a space (if 'A' is not a valid object key).)
 	for (size_t i = 1; i < result->descriptions.size(); i++) {
-#ifndef NDEBUG
 		if (i % 250 == 0)
-			std::cout << i << "... ";
-#endif
+			SL_DEBUG(GameLoad, i << " of " << result->descriptions.size() << " descriptions resolved");
 		result->MutableDescription(i)->ResolveText();
 	}
 
@@ -265,7 +256,7 @@ Game *Game::LoadFromXML(const std::string &gameTxt, uint32_t gameCrc32) {
 	// copying every object it touches on the way up.
 	result->PrepareUndoBookkeeping();
 
-	LOAD_STAGE("Done!");
+	SL_DEBUG(GameLoad, "Done loading");
 
     return result;
 }

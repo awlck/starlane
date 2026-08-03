@@ -46,6 +46,7 @@ add_library(starlane-core
 	"game.cpp" "game.h" "gameloader.cpp" "parser.cpp"
 	"valueparsers.cpp" "valueparsers.h"
 	"random.cpp" "random.h"
+	"debuglog.cpp" "debuglog.h"
 	# expression handling
 	"expressions/expression.cpp" "expression.h"
 	"expressions/exprp_utility.cpp" "expressions/exprp_utility.h"

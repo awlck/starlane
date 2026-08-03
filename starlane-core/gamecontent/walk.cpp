@@ -8,6 +8,7 @@
 #include <magic_enum.hpp>
 #include <pugixml.hpp>
 
+#include "../debuglog.h"
 #include "../game.h"
 #include "../valueparsers.h"
 #include "../savefiles/writer.h"
@@ -21,14 +22,12 @@
 // A walk's schedule is, like an event's, otherwise almost impossible to observe: most of what a walk
 // does is move a character or run a task, and neither says which walk did it or when. Mirrors the
 // tracing event.cpp keeps for the same reason.
-#ifndef NDEBUG
-#include <iostream>
+// `what` is pasted into the '<<' chain unparenthesized, so that callers can go on chaining onto
+// it. Anything binding more loosely than '<<' -- a ternary, say -- needs parenthesizing by the
+// caller.
 #define WALK_TRACE(what) \
-	std::cerr << "[walk] " << ownerKey << " '" << description << "' " << what \
-	          << " t=" << TimerFromStartOfWalk() << '/' << Length() << '\n'
-#else
-#define WALK_TRACE(what) ((void) 0)
-#endif
+	SL_DEBUG(Walks, ownerKey << " '" << description << "' " << what \
+	         << " t=" << TimerFromStartOfWalk() << '/' << Length())
 
 namespace Starlane {
 
@@ -297,6 +296,7 @@ void Walk::DoAnySteps() {
 			}
 
 			if (resolved == "Hidden" || AsLocation(g->TryGetObject(resolved))) {
+				SL_DEBUG(Walks, ownerKey << " '" << description << "' steps to " << resolved);
 				AnnounceMove(*owner, resolved);
 				owner->MoveTo(resolved, resolved == "Hidden" ? GameObj::HoldingType::Hidden
 				                                             : GameObj::HoldingType::AtLocation);

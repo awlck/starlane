@@ -41,6 +41,13 @@ void OutputText(const char *msg) {
 	std::fputs(msg, stdout);
 }
 
+// This frontend has no debug window of its own to gate display on, so it renders every debug
+// event unconditionally -- the whole point of a console frontend is to expose as much of what the
+// engine is doing as possible, for testing and for running under a debugger.
+void OutputDebugEvent(Starlane::DebugCategory category, const char *msg) {
+	std::fprintf(stderr, "[%s] %s\n", Starlane::DebugCategoryName(category), msg);
+}
+
 // Player input and game text are UTF-8, so case conversion needs to work on whole codepoints
 // rather than individual bytes -- plain byte-wise std::toupper/tolower (as used here previously)
 // silently leaves every non-ASCII letter untouched. This frontend is used both as the reference
@@ -318,6 +325,9 @@ int main(int argc, char **argv) {
 		/* .CloseFile = */ &CloseFile
 	};
 	Starlane::InitBackend(&fe);
+	Starlane::SetDebugEventCallback(&OutputDebugEvent);
+	for (uint32_t i = 0; i < Starlane::kDebugCategoryCount; i++)
+		Starlane::SetDebugEventCategoryEnabled((Starlane::DebugCategory) i, true);
 	Starlane::CreateGame(data, (size_t) fsize);
 	delete[] data;
 	Starlane::BeginGame();

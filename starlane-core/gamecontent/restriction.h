@@ -76,7 +76,7 @@ private:
 	// A single condition in the larger block of restrictions
 	struct Single {
 		// Whether or not this condition is fulfilled.
-		bool Pass(DescrRef *out, bool ignoreUnsetRefs) const { return positive == PassImpl(out, ignoreUnsetRefs); };
+		bool Pass(DescrRef *out, bool ignoreUnsetRefs) const;
 		// Break the `restrText` into conditions.
 		void Translate();
 

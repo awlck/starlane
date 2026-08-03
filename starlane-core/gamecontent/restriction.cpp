@@ -5,8 +5,10 @@
 #include <stdexcept>
 #include <string.h>
 
+#include <magic_enum.hpp>
 #include <pugixml.hpp>
 
+#include "../debuglog.h"
 #include "../error.h"
 #include "../expression.h"
 #include "../game.h"
@@ -200,6 +202,14 @@ std::pair<bool, DescrRef> Restriction::PassRestrictionBlock(size_t &tidx, size_t
 		tidx++;
 	}
 	return state;
+}
+
+bool Restriction::Single::Pass(DescrRef *out, bool ignoreUnsetRefs) const {
+	bool result = positive == PassImpl(out, ignoreUnsetRefs);
+	SL_DEBUG(Restrictions, "[" << magic_enum::enum_name(targetType) << "] " << lhs << ' '
+	         << (positive ? "must " : "must not ") << magic_enum::enum_name(cond)
+	         << (rhs.empty() ? "" : " " + rhs) << " -> " << (result ? "pass" : "fail"));
+	return result;
 }
 
 bool Restriction::Single::PassImpl(DescrRef *out, bool ignoreUnsetRefs) const {

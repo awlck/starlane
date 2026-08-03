@@ -92,6 +92,19 @@
         anything else: a load/start failure is reported via `FatalError`; a failed turn is rolled back to
         its pre-turn undo snapshot. Errors are logged with a backtrace (`Starlane::Exception`).
       - TODO(debug-log): `LogError` currently writes to stderr; route it to a real debug log (see below).
+        (Distinct from the debug-event system below: `LogError` is for genuine errors/exceptions,
+        always emitted; debug events are opt-in traces of ordinary engine behavior.)
+- [x] replace the ad-hoc `#ifndef NDEBUG` stderr traces (event/walk scheduling, load-stage banners,
+      task command-regex conversion) with a formal debug-event system: `starlane-core.h` exposes
+      `DebugCategory` (TaskMatching/ObjectMatching/TaskSelection/Restrictions/Events/Walks/Variables/
+      GameLoad), `SetDebugEventCallback`/`SetDebugEventCategoryEnabled` for a frontend to subscribe,
+      and `DebugCategoryName` for display. Internally, `debuglog.h`'s `SL_DEBUG(category, streamExpr)`
+      macro (used throughout parser.cpp, gamecontent/{task,event,walk,restriction,variable}.cpp,
+      gameloader.cpp) only builds the message string when that category is both subscribed to and
+      enabled, so a frontend not showing debug events pays for a single bool check per call site.
+      Included in release builds -- meant to help a game's author trace how their game runs through
+      the engine, not just to debug starlane-core itself. `starlane-console` renders every event
+      unconditionally to stderr; a real debug-log *window* is still frontend work (see below).
 - [x] implement status bar support into the backend
 - [x] resolve outstanding TODO markers within starlane-core
       - Fixed: loading a new game over one that was already ongoing left the old game's `startupState`
@@ -371,7 +384,9 @@
       content and formatting (bold/color/italic) intact; also covered by a standalone offscreen Qt
       smoke test exercising split-call redirection, window reuse, nesting, and the implicit-close
       fallback.
-- [ ] Qt frontend: redirect starlane-core debug output to a debug log window
+- [ ] Qt frontend: a debug log window backed by the new debug-event system (`SetDebugEventCallback`/
+      `SetDebugEventCategoryEnabled` in starlane-core.h, see above) -- format events to a string only
+      while the window is actually visible, with per-category filtering via `DebugCategoryName`.
 - [x] implement `blorb` support in the Qt frontend, as a foundation for the graphics/sound work
       below. `BlorbFile` (starlane-qt/blorbfile.{cpp,h}) is a small from-scratch parser (no new
       dependency; the Glk frontend's equivalent uses vendored gi_blorb.c instead, which isn't
@@ -508,7 +523,7 @@
         justification in text buffer windows (e.g. a current garglk); FrankenDrift's GlkRunner
         predates this feature, hence the OFF default and the grid-window fallback above.
 - [x] Glk frontend: implement transcript support
-- [ ] Glk frontend: add a debug window
+- [ ] Glk frontend: add a debug window, backed by the new debug-event system (see the Qt entry above)
 - [x] Glk frontend: implement secondary windows. Unlike the Qt frontend's player-movable/floatable
       QDockWidgets, Glk gives games (and us) no say in where a window ends up beyond a fixed,
       one-time tree of splits -- there's no way to undock, rearrange, or resize windows relative to

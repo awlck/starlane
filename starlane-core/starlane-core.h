@@ -90,6 +90,47 @@ struct SLC_API Frontend {
 // Initialize the backend with the given settings.
 // (The argument pointer itself is stowed away, don't delete it.)
 SLC_API void InitBackend(const Frontend *settings);
+
+// Debug/trace events: diagnostic messages about what the engine is doing internally -- which task
+// matched a command and why, when an event or character walk fires, when a variable changes, and
+// so on -- each tagged with a category so a frontend can offer the player (or, just as often, the
+// game's author) a way to filter which ones they care about. This is meant to help understand how
+// a *game* runs through the engine, not just to debug starlane-core itself, so it is an ordinary
+// (if niche) feature available in release builds, not a debug-build-only trace.
+//
+// No debug event is ever produced unless a callback is registered *and* the event's category is
+// currently enabled -- both start out with no effect (no callback, no category enabled) -- so a
+// frontend that isn't currently showing any of this pays essentially nothing for it: checking
+// whether a category is enabled is cheap enough to happen before a message is even built.
+enum class DebugCategory : uint32_t {
+	TaskMatching,    // matching player input against tasks' command patterns
+	ObjectMatching,  // resolving referenced text to game objects/characters
+	TaskSelection,   // choosing among General/Specific tasks once a command has matched
+	Restrictions,    // evaluating a task's/description's restriction (pre/postcondition) block
+	Events,          // the event scheduling/execution cycle
+	Walks,           // character walk scheduling/execution
+	Variables,       // variable reads/writes
+	GameLoad,        // loading and preparing a game file
+};
+// Number of categories defined above, for a frontend that wants to enumerate/enable all of them
+// (e.g. `for (uint32_t i = 0; i < kDebugCategoryCount; i++) ...`) without hardcoding that count or
+// depending on which enumerator happens to be listed last.
+constexpr uint32_t kDebugCategoryCount = (uint32_t) DebugCategory::GameLoad + 1;
+
+// `message` is owned by the caller (starlane-core) and only valid for the duration of the call.
+using DebugEventOutputter = void (*)(DebugCategory category, const char *message);
+
+// Register the callback to receive debug events, or nullptr (the default) to stop receiving them.
+SLC_API void SetDebugEventCallback(DebugEventOutputter callback);
+// Enable or disable a single category of debug event. Every category starts out disabled; enabling
+// one only affects events from this call forward, not any that were skipped before it.
+SLC_API void SetDebugEventCategoryEnabled(DebugCategory category, bool enabled);
+// Whether the given category is currently enabled.
+SLC_API bool IsDebugEventCategoryEnabled(DebugCategory category);
+// A short, human-readable name for the category (e.g. "Task Matching"), for a frontend that wants
+// to list categories in a UI without hardcoding its own copy of the names.
+SLC_API const char *DebugCategoryName(DebugCategory category);
+
 // Load the given 'taf' file content and set up a new game.
 // The current game, if any, is discarded. It is your job to ask the user if they are okay with this.
 // You may free `tafBytes` immediately once this function returns.
