@@ -642,6 +642,9 @@ bool Game::PromptForIncompleteVerb() {
 				const std::string probe = currentCommand + " " +
 					(family == "direction" ? "north" : "zzyzx-nonsense-zzyzx");
 				if (!std::regex_match(probe, regexes[cmdIdx])) continue;
+				// Remembered, so that a bare answer to the question we are about to ask ("the
+				// ship") is read as the whole command ("launch the ship") -- see rememberedVerb.
+				rememberedVerb = currentCommand;
 				OutputFiltered(frontend->StrToSentenceCase(currentCommand) + " " + word + "?\n");
 				return true;
 			}
@@ -653,15 +656,29 @@ bool Game::PromptForIncompleteVerb() {
 bool Game::DescribeUnmatchedThing() {
 	const auto *player = AsCharacter(GetPlayerChar());
 	if (!player) return false;
-	// Load order, as everywhere else things are listed for the player -- and so that if the input
-	// somehow names more than one currently-visible thing, the one mentioned wins the same way it
-	// would in a disambiguation prompt.
-	for (const GameObj *o : objects) {
-		if (!player->CanSee(o->Key())) continue;
-		if (!std::regex_match(currentCommand, o->GetMatchExpr())) continue;
-		OutputFiltered("I don't understand what you want to do with " + o->GetDisplayName(true) + ".\n");
-		return true;
-	}
+	// Searched, not matched: the name has only to appear *somewhere* in what the player typed, so
+	// that "shoot larger alien" -- a verb this game has no task for -- is still answered about the
+	// alien rather than rejected out of hand. ADRIFT scans with an unanchored Regex.IsMatch here
+	// for exactly that reason (it matches the whole input elsewhere, when it means to).
+	auto named = [&](const GameObj *o) {
+		return player->HasSeen(o->Key()) && player->CanSee(o->Key())
+			&& std::regex_search(currentCommand, o->GetMatchExpr());
+	};
+	// Objects before characters, as ADRIFT checks them, and each named the way it names them: an
+	// object by its definite article ("the rock"), a character by the indefinite form its own
+	// naming produces ("a larger alien") -- or by their proper name once known, which
+	// Character::GetDisplayName already accounts for. Load order within each, as everywhere else
+	// things are listed for the player.
+	for (const GameObj *o : objects)
+		if (!o->IsCharacter() && !o->IsLocation() && named(o)) {
+			OutputFiltered("I don't understand what you want to do with " + o->GetDisplayName(true) + ".\n");
+			return true;
+		}
+	for (const GameObj *o : objects)
+		if (o->IsCharacter() && named(o)) {
+			OutputFiltered("I don't understand what you want to do with " + o->GetDisplayName(false) + ".\n");
+			return true;
+		}
 	return false;
 }
 
@@ -1445,6 +1462,31 @@ void Game::ProcessInput(const std::string &s) {
 		// No match, attempt to read this as a system command ...
 		// (Careful: a system command may well have deleted `this` by the time this returns.)
 		if (AttemptMatchSystemCommand()) return;
+		// ... then, if we asked "Launch what?" last time, read this line as the answer to it and
+		// try the whole thing again. ADRIFT's NotUnderstood does this first of all, and a verb is
+		// only ever remembered when it matched some task's command but for a missing reference, so
+		// the retry is looking for that task with its reference finally supplied.
+		if (!rememberedVerb.empty()) {
+			const std::string original = currentCommand;
+			// Simple concatenation, with no second pass of the synonym table: ADRIFT's retry goes
+			// through EvaluateInput with a non-zero minimum priority, and the synonym pass sits
+			// inside that function's iMinimumPriority = 0 block. Both halves have been through it
+			// once already, and running a chain of synonyms over them twice would not be the same.
+			currentCommand = rememberedVerb + " " + currentCommand;
+			rememberedVerb.clear();
+			if (Task *withVerb = FindMatchingTask()) {
+				if (BeginDisambiguationIfNeeded(withVerb)) return;
+				SaveUndo();
+				ExecuteMatchedTask(withVerb);
+				RunTriggeredTasks();
+				TurnTick();
+				MarkVisibleThingsSeen();
+				return;
+			}
+			// Not that either: fall through with the original wording restored, so the rejection
+			// below is about what the player actually typed.
+			currentCommand = original;
+		}
 		// ... and, failing that, try ADRIFT's two more specific rejections -- a bare verb missing
 		// its object ("Launch what?") and input naming a visible thing no task's command matched
 		// ("I don't understand what you want to do with the rock.") -- before falling back to the
@@ -1454,6 +1496,8 @@ void Game::ProcessInput(const std::string &s) {
 		OutputFiltered("I didn't understand that sentence.\n");
 		return;
 	}
+	// Understood: whatever question was outstanding has been overtaken by a real command.
+	rememberedVerb.clear();
 
 	// The command may refer to an object ambiguously ("take ball" with a red and a green ball both
 	// present). If so, ask the player which they mean and hold the command until their next line

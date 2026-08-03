@@ -515,6 +515,12 @@ private:
 	// accept given an object/character/direction to go with it, and if so print a targeted
 	// "Launch what?"/"who?"/"where?" instead of the generic rejection. Returns whether it did.
 	bool PromptForIncompleteVerb();
+	// The bare verb PromptForIncompleteVerb last asked the player to complete ("launch" after
+	// "Launch what?"), or empty. ADRIFT's sRememberedVerb: the next line that matches nothing on
+	// its own is tried again with this in front of it, so answering the question with just the
+	// noun works. Cleared as soon as any command is understood. Transient session state -- like
+	// the input history, it is neither saved nor undone.
+	std::string rememberedVerb;
 	// FindMatchingTask (and PromptForIncompleteVerb) found nothing at all: as ADRIFT's
 	// NotUnderstood does, check whether currentCommand names a thing the player can currently
 	// see, and if so print "I don't understand what you want to do with <thing>." instead of the
