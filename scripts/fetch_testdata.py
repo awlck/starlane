@@ -32,8 +32,9 @@ from pathlib import Path
 
 USER_AGENT = ("Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 "
               "(KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36")
-TIMEOUT = 60.0
+PERJOB_TIMEOUT = 15.0
 RETRIES = 3
+GLOBAL_TIMEOUT = 180.0
 
 ENTRY_RE = re.compile(r'^"([^"]+)":\s*(\S+)$')
 EXTRACT_RE = re.compile(r'^extract file "([^"]+)"$')
@@ -70,6 +71,8 @@ def output_path_for(entry: dict, game_dir: Path, index: int, total: int) -> Path
     downloaded content's actual type. Only used to decide whether the entry
     can be skipped because it's already been fetched."""
     if "extract" in entry:
+        if entry['extract'].endswith('.blorb'):
+            return (game_dir / entry['extract']).with_suffix('.taf')
         return game_dir / entry["extract"]
     if entry["name"]:
         stem = Path(entry["name"]).stem
@@ -91,7 +94,7 @@ def download(url: str) -> bytes:
     last_error = None
     for attempt in range(RETRIES):
         try:
-            with urllib.request.urlopen(req, timeout=TIMEOUT) as resp:
+            with urllib.request.urlopen(req, timeout=PERJOB_TIMEOUT) as resp:
                 return resp.read()
         except (urllib.error.URLError, TimeoutError) as e:
             last_error = e
@@ -123,7 +126,7 @@ def fetch_entry(game_dir: Path, entry: dict, out_path: Path) -> str:
     if kind == "blorb":
         blorb_path = out_path.with_suffix(".blorb")
         blorb_path.write_bytes(data)
-        export_taf_from_blorb(blorb_path, out_path)
+        export_taf_from_blorb(blorb_path, out_path.with_suffix(".taf"))
         blorb_path.unlink()
         return "blorb"
 
@@ -171,7 +174,7 @@ def main() -> int:
     failed = False
     with concurrent.futures.ThreadPoolExecutor(max_workers=args.jobs) as pool:
         futures = {pool.submit(process_game, f): f for f in source_files}
-        for future in concurrent.futures.as_completed(futures):
+        for future in concurrent.futures.as_completed(futures, timeout=GLOBAL_TIMEOUT):
             source_txt = futures[future]
             try:
                 for message in future.result():

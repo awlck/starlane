@@ -1,0 +1,2 @@
+This game uses the ADRIFT 5 Conversation system, so it is presently not
+expected to work.

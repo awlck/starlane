@@ -1,0 +1,2 @@
+"RtC.zip": https://www.adrift.co/cgi/download.cgi?1290
+extract file "RtC.blorb"
