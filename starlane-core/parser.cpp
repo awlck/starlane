@@ -748,43 +748,55 @@ bool Game::RunTaskAndCapture(Task *task, bool showText, bool runActions) {
 			return;
 		}
 
-		if (!pinned.empty()) {
-			// Pinned messages do not aggregate: their dedup key is the finished text, so two runs
-			// that read differently ("(from the wooden table)" / "(from the metal hook)") stay two
-			// responses, each keeping its own place in the buffer. This is ADRIFT's behaviour --
-			// AddResponse keys on the already-replaced string in exactly this case.
+		// Record a message that is already finished with: its dedup key is the text itself, so two
+		// runs that read differently ("(from the wooden table)" / "(from the metal hook)") stay two
+		// responses, each keeping its own place in the buffer. This is ADRIFT's behaviour --
+		// AddResponse keys on the already-replaced string in exactly this case.
+		auto recordFinished = [&](std::string text) {
 			anyText = true;
 			ResponseBuffer &buf = *activeResponseBuffer;
-			if (buf.byKey.find(pinned) == buf.byKey.end()) {
-				AggregatedResponse resp;
-				resp.descr = task->GetCompletionMsg();
-				resp.pinnedText = pinned;
-				resp.refSnapshot = currentRefs;
-				buf.order.insert(buf.order.begin() + (long) std::min(at, buf.order.size()), pinned);
-				buf.byKey.emplace(pinned, std::move(resp));
-				responsesRecorded++;
-			}
+			if (buf.byKey.find(text) != buf.byKey.end()) return;
+			AggregatedResponse resp;
+			resp.descr = task->GetCompletionMsg();
+			resp.pinnedText = text;
+			resp.refSnapshot = currentRefs;
+			buf.order.insert(buf.order.begin() + (long) std::min(at, buf.order.size()), text);
+			buf.byKey.emplace(std::move(text), std::move(resp));
+			responsesRecorded++;
+		};
+
+		if (!pinned.empty()) {
+			recordFinished(pinned);
 			return;
 		}
 
-		// Buffering: the message is rendered (and its shown-state committed) once, at flush time; here
-		// we only measure whether it has anything to say -- which drives Specific-override /
-		// AlwaysContinues control flow -- without committing, using commit=false.
-		std::string evaluated = desc->Build();
+		// The message is settled here and now -- rendered as it reads at this moment, with its
+		// display-once state committed. ADRIFT does the same: AttemptToExecuteSubTask calls the
+		// description's ToString before the task's actions run, and that call is what marks a
+		// DisplayOnce part shown (the bTestingOutput guard it sets straight afterwards is for the
+		// descriptions reached from *within* the message, not the message itself). So which parts
+		// a message is made of is decided when the task speaks, and nothing later in the turn can
+		// revise it. Rendering it at flush time instead let an action of the *calling* task rewrite
+		// it after the fact -- something the before/after comparison around this task's own actions
+		// cannot see: Grandma's tutorial line is executed by the "talk" task, which then increments
+		// the very counter that chooses between its two variants, so the flush read the next line.
+		std::string evaluated = MutableDescription(task->GetCompletionMsg())->BuildAndCommit();
 		if (!evaluated.empty()) anyText = true;
 		// Nothing to say: record nothing (mirrors ADRIFT's bHasOutput filter).
 		if (evaluated.empty()) return;
 
-		// Collect for the end-of-command flush instead of printing now. The dedup key is
-		// the *unevaluated* text when this task aggregates -- so runs differing only in their bound
-		// references (a multi-object command, a SetTasks FOR loop) collapse into one response -- and
-		// the evaluated text otherwise, keeping distinct objects on separate lines.
+		// Held for the end-of-command flush rather than printed now. An aggregating task is keyed
+		// on the *unevaluated* text, so runs differing only in their bound references (a
+		// multi-object command, a SetTasks FOR loop) collapse into one response -- which the flush
+		// re-renders naming them all. Every other task is keyed on the finished text, keeping
+		// distinct objects on separate lines, and is printed exactly as rendered here.
 		std::string key = task->AggregatesOutput() ? desc->BuildRawKey() : evaluated;
 		ResponseBuffer &buf = *activeResponseBuffer;
 		auto it = buf.byKey.find(key);
 		if (it == buf.byKey.end()) {
 			AggregatedResponse resp;
 			resp.descr = task->GetCompletionMsg();
+			resp.pinnedText = evaluated;
 			resp.refSnapshot = currentRefs;
 			buf.order.insert(buf.order.begin() + (long) std::min(at, buf.order.size()), key);
 			buf.byKey.emplace(std::move(key), std::move(resp));
@@ -1067,27 +1079,26 @@ void Game::ExecuteMatchedTask(Task *general) {
 void Game::FlushResponseBuffer(ResponseBuffer &buffer) {
 	for (const std::string &key : buffer.order) {
 		AggregatedResponse &resp = buffer.byKey.at(key);
-		// Re-render the message against the references it was recorded with, overlaying any reference
-		// that varied across the collapsed runs as a pipe-joined key list -- which %objects%.Name and
-		// %TheObject[...]% expand to "the ball and the box". Restrictions in the message re-evaluate
-		// against the merged value too, matching ADRIFT's deferred single Display of the raw message.
-		std::unordered_map<std::string, std::string> savedRefs = std::move(currentRefs);
-		currentRefs = resp.refSnapshot;
-		for (const auto &[name, keys] : resp.mergedRefs) {
-			if (keys.size() < 2) continue;
-			currentRefs[name] = JoinKeys(keys);
-		}
-		// A pinned message was rendered already, before the actions that invalidated it, and is
-		// emitted as it stands -- deliberately without building it again. Rendering it a second time
-		// only to throw the result away would consume display-once state the player never saw: a
-		// message naming an object would mark that object's first-sighting description as shown.
-		// (ADRIFT is careful about this too: its pre-action pass runs under bTestingOutput for the
-		// same reason, and the response it finally prints is the string it kept.) Text queued by
-		// RecordResponse has no description behind it at all and is likewise passed through.
+		// Every message arrives here already rendered -- see emit() -- and is printed as it stands.
+		// The one thing that can still change it is a reference that varied across collapsed runs:
+		// an aggregating task's "Ok, you take %objects%.Name" has to come out naming all of them,
+		// so a response that really did merge something is built once more with those references
+		// overlaid as a pipe-joined key list, which %objects%.Name and %TheObject[...]% expand to
+		// "the ball and the box". That rebuild deliberately does not commit: each run settled the
+		// description's display-once state when it spoke, and consuming it again here would mark
+		// parts shown that the player never saw.
 		std::string text = resp.pinnedText;
-		if (text.empty() && resp.descr != 0)
-			text = MutableDescription(resp.descr)->BuildAndCommit();
-		currentRefs = std::move(savedRefs);
+		if (!resp.mergedRefs.empty() && resp.descr != 0) {
+			std::unordered_map<std::string, std::string> savedRefs = std::move(currentRefs);
+			currentRefs = resp.refSnapshot;
+			for (const auto &[name, keys] : resp.mergedRefs) {
+				if (keys.size() < 2) continue;
+				currentRefs[name] = JoinKeys(keys);
+			}
+			std::string merged = GetDescription(resp.descr)->Build();
+			currentRefs = std::move(savedRefs);
+			if (!merged.empty()) text = std::move(merged);
+		}
 		// Record it against the turn-wide set so a later out-of-command message (a triggered task or
 		// event this turn) with the same text stays suppressed, as it was before buffering existed.
 		if (!text.empty() && completionMessagesThisTurn.insert(text).second)
