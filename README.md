@@ -107,17 +107,22 @@ is not implemented, and games that rely on it will not work correctly.
 
 Frontend support currently looks like this:
 
-* **starlane-console**: functional for plain-text play and scripted testing; does not
-  interpret HTML formatting, and has no `blorb`/multimedia support at all.
-* **starlane-glk**: the most complete frontend, with image, font color, sound, `blorb`,
-  status bar, transcript support and secondary output windows. A debug output window
-  is still planned.
-* **starlane-qt**: now has `blorb`, image, sound, and transcript support (including
-  `<img>`/`<audio>` markup) alongside its status bar dockable secondary windows, and
-  text formatting in line with the original ADRIFT 5 implementation. Still outstanding:
-  debug log output, and WASM builds.
+| Feature            | starlane-console | starlane-glk | starlane-qt |
+|--------------------|:----------------:|:------------:|:-----------:|
+| Status bar         |        ❌        |      ✅      | ✅          |
+| Font switching     |      ❌[^1]      |      ❌      | ✅          |
+| Font colors        |      ❌[^1]      |      ✅      | ✅          |
+| Images             |      ❌[^1]      |      ✅      | ✅          |
+| Sounds             |      ❌[^1]      |      ✅      | ✅          |
+| Transcript         |        ❌        |      ✅      | ✅          |
+| Secondary windows  |      ❌[^1]      |    ✅[^2]    | ✅          |
+| Debug output       |        ✅        | 🔶 (planned) | 🔶 (planned)|
 
 See [GOALS.md](GOALS.md) for the detailed, up-to-date development to-do list.
+
+[^1]: `starlane-console` prints out ADRIFT's HTML-like markup unprocessed
+[^2]: Within the limitations of Glk's windowing systems: secondary windows use a
+      fixed layout depending on the order the game first uses them in. 
 
 ## Reporting issues
 
