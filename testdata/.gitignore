@@ -5,6 +5,7 @@
 # they're tracked in full.
 */*
 !*/source.txt
+!*/NOTE.txt
 !cake/**
 !starsreturn/**
 !tests/**
