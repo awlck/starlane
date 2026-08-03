@@ -152,7 +152,16 @@ const std::string &GameObj::GetVisbilityCeiling() const {
 }
 
 void GameObj::MoveTo(const std::string &newParent, HoldingType newRelation) {
-	parent = newParent == "Hidden" ? "" : newParent;
+	// Make sure we don't move objects (or worse, characters) into non-existing
+	// objects, because everything else in the program assumes that a non-empty
+	// parent key actually refers to a real object.
+	if (newParent == "Hidden")
+		parent = "";
+	else if (!Game::Get()->ObjectExists(newParent))
+		return;
+	else
+		parent = newParent;
+
 	relation = newRelation;
 
 	// Anyone watching this object arrive at its new position has now seen it. Checking HasSeen
