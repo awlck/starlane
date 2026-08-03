@@ -216,16 +216,22 @@ funcargs
 		ast_node__prepend_child($$, e);
 	}
 
+# `intVal` is set to 1 on the nodes built here purely to record that the call was written with
+# brackets rather than parentheses -- see Expression::PostProcessTree, which rejects the bracket
+# form for functions ADRIFT only accepts with parentheses. (intVal is otherwise read only for
+# INTEGER nodes, so a call node has it going spare.)
 bracketcall
 	<- e:bracketname '[' _ r:funcargs _ ']'
 	{
 		$$ = system__create_ast_node_binary(auxil, AST_NODE_TYPE_FUNCCALL, range__new($0s, $0e), e, r);
+		$$->intVal = 1;
 	}
 	# some of these functions will take fucking anything, like this:
 	# %PCase[%adjectives[%tavernname1%]% %nouns[%tavernname2%]%]%
 	 / e:bracketname '[' r:textcontent ']'
 	{
 		$$ = system__create_ast_node_binary(auxil, AST_NODE_TYPE_FUNCCALL, range__new($0s, $0e), e, r);
+		$$->intVal = 1;
 	}
 
 # Like `identifier`, but also allows '-', '#', and '!' (unambiguous here since the name is

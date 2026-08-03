@@ -157,6 +157,12 @@ void GameObj::MoveTo(const std::string &newParent, HoldingType newRelation) {
 	// parent key actually refers to a real object.
 	if (newParent == "Hidden") {
 		parent = "";
+		// ...and nowhere is a relation of its own, not whichever one the caller happened to name.
+		// "MoveCharacter <who> ToLocation Hidden" arrives here as AtLocation, and leaving it at
+		// that made the synthesized CharacterLocation read "At Location" for a character who is
+		// nowhere -- which a game can see: Return to the Stars picks which alien shoots back with
+		// If(<alien>.CharacterLocation <> "Hidden", ...), and so had the one just killed do it.
+		newRelation = HoldingType::Hidden;
 	} else if (newRelation == HoldingType::AtLocationGroup) {
 		// The one relation whose parent names a Group rather than an object: a static object
 		// spread over every location the group names at once (see Task's MoveToGroup action).

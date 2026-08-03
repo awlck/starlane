@@ -405,6 +405,26 @@ ResolveText_FakeTailcall:
 			}
 		}
 		if (percents % 2 == 0 && bracketDepth == 0 && functionFound) {  // at end of this function call
+			if (anybrackets) {
+				// "%Name[...]%" only calls a function when ADRIFT would recognize the name: its
+				// ReplaceFunctions walks a fixed list (Global.vb's FunctionNames) and leaves
+				// anything else standing as the text it is. That list is not the same as the set
+				// of functions an *expression* can call -- RAND(1,10) is perfectly good inside
+				// <# ... #>, but "%Rand[1,10]%" is not a function call at all and ADRIFT prints it
+				// verbatim. Return to the Stars has a task that sets its shot-roll variable that
+				// way; evaluating it left the player's own roll behind for the aliens' return fire
+				// to use, so a dead alien shot back.
+				const size_t nameEnd = theText.find('[', beginningOfFunc);
+				auto fname = std::string(theText.substr(beginningOfFunc + 1, nameEnd - beginningOfFunc - 1));
+				// A variable name is equally good here: "%names[3]%" indexes an array variable
+				// rather than calling anything, and ADRIFT resolves that in the same pass.
+				if (!Util::IsAdriftFunctionName(fname) && !Game::Get()->VarOfNameExists(fname)
+						&& !Game::Get()->GetUserFuncByName(fname)) {
+					ResolveExpressions(theText.substr(0, pos + 1));
+					theText = theText.substr(pos + 1);
+					goto ResolveText_FakeTailcall;
+				}
+			}
 			if (!anybrackets) {
 				auto vname = std::string(theText.substr(beginningOfFunc + 1, pos - beginningOfFunc - 1));
 				// When there aren't any brackets, the name between the percentage signs must be a

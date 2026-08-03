@@ -602,6 +602,18 @@ Expr::Value Expression::EvalAnyNode(const ast_node_tag *node) const {
 		auto function = EvalAnyNode(node->child.first);
 		if (node->child.last->type != AST_NODE_TYPE_FUNCARGS && node->child.last->type != AST_NODE_TYPE_TEXTCONTENT)
 			throw std::runtime_error("Invalid node type on right-hand side of function call.");
+		// A call written with brackets (node->intVal marks those -- see the grammar's bracketcall
+		// rule) names one of ADRIFT's text functions, or indexes an array variable. The functions
+		// an *expression* can call -- RAND, IF, OneOf, Abs and the rest -- are reached with
+		// parentheses only; ADRIFT's tokeniser does not recognize "Rand[1,10]" as anything, so the
+		// expression around it fails and a numeric variable assigned from it stays 0. Return to the
+		// Stars sets its shot-roll that way and quietly depends on that: evaluating it left the
+		// player's own roll where the aliens' return fire reads it, so a dead alien shot back.
+		if (node->intVal == 1 && function.ty == Expr::ValueType::String
+				&& tableOfBuiltInFunctions.count(function.Str)
+				&& !Util::IsAdriftFunctionName(function.Str))
+			throw std::runtime_error("'" + function.Str + "' is an expression function; ADRIFT does "
+			                         "not accept it written as " + function.Str + "[...].");
 		return EvalFunccall(function, node->child.last);
 	}
 	case AST_NODE_TYPE_ITEMFUNC: {

@@ -199,6 +199,13 @@ std::string CanonicalizeDirection(const std::string &raw, const DirectionTable &
 // job to cope with those.
 std::vector<std::string> SplitObjectList(const std::string &s);
 
+// Whether `name` is one of the functions ADRIFT's ReplaceFunctions will substitute for a
+// "%Name[...]%" span (Global.vb's FunctionNames list). Deliberately narrower than the set of
+// functions an expression can call: RAND(), IF(), OneOf() and friends work inside <# ... #> but
+// are not function names in text, where ADRIFT leaves them as written. Matched case-insensitively,
+// as ReplaceFunctions compares them.
+bool IsAdriftFunctionName(const std::string &name);
+
 // The plural of an object's noun, guessed the way ADRIFT guesses it (clsObject's
 // GuessPluralFromNoun): a table of irregulars, then suffix rules, then a bare "s". This is how
 // "get tubs" reaches two objects each named "tub" -- games do not write their plurals down, so

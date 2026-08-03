@@ -76,6 +76,24 @@ std::vector<std::string> Starlane::Util::SplitObjectList(const std::string &s) {
 	return result;
 }
 
+bool Starlane::Util::IsAdriftFunctionName(const std::string &name) {
+	// Verbatim from ADRIFT's Global.vb (the same list FrankenDrift carries).
+	static const char *const kNames[] = {
+		"AloneWithChar", "CharacterDescriptor", "CharacterName", "CharacterProper", "ConvCharacter",
+		"DisplayCharacter", "DisplayLocation", "DisplayObject", "Held", "LCase", "ListCharactersOn",
+		"ListCharactersIn", "ListCharactersOnAndIn", "ListHeld", "ListExits", "ListObjectsAtLocation",
+		"ListWorn", "ListObjectsOn", "ListObjectsIn", "ListObjectsOnAndIn", "LocationName",
+		"LocationOf", "NumberAsText", "ObjectName", "ObjectsIn", "ParentOf", "PCase", "Player",
+		"PopUpChoice", "PopUpInput", "PrevListObjectsOn", "PrevParentOf", "ProperName",
+		"PropertyValue", "Release", "Replace", "Sum", "TaskCompleted", "TheObject", "TheObjects",
+		"Turns", "UCase", "Version", "Worn",
+	};
+	const std::string folded = ToLower(name);
+	for (const char *n : kNames)
+		if (folded == ToLower(n)) return true;
+	return false;
+}
+
 std::string Starlane::Util::GuessPluralFromNoun(const std::string &noun) {
 	// A direct port of ADRIFT's clsObject.GuessPluralFromNoun, rules and exceptions alike -- the
 	// point is to agree with it on every noun, not to be right about English. Matched
