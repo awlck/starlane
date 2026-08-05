@@ -11,6 +11,7 @@
 #include "description.h"
 #include "location.h"
 #include "group.h"
+#include "../debuglog.h"
 #include "../savefiles/writer.h"
 
 namespace Starlane {
@@ -169,9 +170,13 @@ void GameObj::MoveTo(const std::string &newParent, HoldingType newRelation) {
 		// Groups live in their own table, so the object check above would reject every such move
 		// -- which silently stranded Alyas's oak-tree door and, with it, the door-shaped exit and
 		// description part that ask whether it is here.
-		if (!Game::Get()->GetGroup(newParent)) return;
+		if (!Game::Get()->GetGroup(newParent)) {
+			SL_DEBUG(Miscellaneous, "Attempted to move object '" << key << "' to nonexistent group '" << newParent << "'.");
+			return;
+		}
 		parent = newParent;
 	} else if (!Game::Get()->ObjectExists(newParent)) {
+		SL_DEBUG(Miscellaneous, "Attempted to move object '" << key << "' to nonexistent object '" << newParent << "'.");
 		return;
 	} else {
 		parent = newParent;
