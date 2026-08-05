@@ -1,12 +1,13 @@
 # Starlane
 
+[![Package Status](https://github.com/awlck/starlane/actions/workflows/package.yml/badge.svg)](https://github.com/awlck/starlane/actions/workflows/package.yml)
+
 Starlane is a C++ reimplementation of the [ADRIFT 5](http://www.adrift.co) interactive
 fiction engine. It loads and plays ADRIFT 5 `.taf` game files, aiming to reproduce the
 original VB.NET runner's behavior as closely as possible.
 
-**Status: Alpha.** Starlane is under active development and has not reached a stable
-release. Expect rough edges, missing features, and behavior that occasionally diverges
-from the original ADRIFT 5 runner. See [Known limitations](#known-limitations) below.
+**Status: Beta.** Starlane is reasonably complete and should be able to play most
+games to completion. See [Known limitations](#known-limitations) below for remaining issues.
 
 ## Structure
 
@@ -107,16 +108,16 @@ is not implemented, and games that rely on it will not work correctly.
 
 Frontend support currently looks like this:
 
-| Feature            | starlane-console | starlane-glk | starlane-qt |
-|--------------------|:----------------:|:------------:|:-----------:|
-| Status bar         |        ❌        |      ✅      | ✅          |
-| Font switching     |      ❌[^1]      |      ❌      | ✅          |
-| Font colors        |      ❌[^1]      |      ✅      | ✅          |
-| Images             |      ❌[^1]      |      ✅      | ✅          |
-| Sounds             |      ❌[^1]      |      ✅      | ✅          |
-| Transcript         |        ❌        |      ✅      | ✅          |
-| Secondary windows  |      ❌[^1]      |    ✅[^2]    | ✅          |
-| Debug output       |        ✅        | 🔶 (planned) | 🔶 (planned)|
+| Feature            | starlane-console |  starlane-glk  | starlane-qt |
+|--------------------|:----------------:|:--------------:|:-----------:|
+| Status bar         |        ❌        |       ✅       |     ✅      |
+| Font switching     |      ❌[^1]      |       ❌       |     ✅      |
+| Font colors        |      ❌[^1]      |       ✅       |     ✅      |
+| Images             |      ❌[^1]      |       ✅       |     ✅      |
+| Sounds             |      ❌[^1]      |       ✅       |     ✅      |
+| Transcript         |        ❌        |       ✅       |     ✅      |
+| Secondary windows  |      ❌[^1]      |     ✅[^2]     |     ✅      |
+| Debug output       |        ✅        |  🔶 (planned)  |     ✅      |
 
 See [GOALS.md](GOALS.md) for the detailed, up-to-date development to-do list.
 
