@@ -49,7 +49,7 @@ endif()
 # Needed on macOS for macdeployqt (and to get a real .app instead of a bare
 # Mach-O executable): it only knows how to deploy into a bundle. Ignored on
 # other platforms.
-add_executable(starlane WIN32 MACOSX_BUNDLE "starlane.cpp" mainwindow.cpp mainwindow.h outputformatter.cpp outputformatter.h blorbfile.cpp blorbfile.h)
+add_executable(starlane WIN32 MACOSX_BUNDLE "starlane.cpp" mainwindow.cpp mainwindow.h outputformatter.cpp outputformatter.h blorbfile.cpp blorbfile.h debuglogwindow.cpp debuglogwindow.h)
 target_link_libraries(starlane Qt6::Core Qt6::Gui Qt6::Widgets Qt6::Multimedia starlane-core)
 # ../starlane-core: the core's public API. ${CMAKE_BINARY_DIR}/generated:
 # starlane-version.h (see the top-level CMakeLists.txt), for a future About

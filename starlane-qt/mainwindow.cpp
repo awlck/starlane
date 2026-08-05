@@ -94,6 +94,15 @@ MainWindow::MainWindow() : QMainWindow(nullptr) {
 	statusBar()->addWidget(userStatusLabel, 1);
 	statusBar()->addPermanentWidget(scoreLabel);
 
+	// Created once, up front (unlike per-game secondary windows -- see ClearSecondaryWindows()),
+	// since a debug event (e.g. a GameLoad one) can fire while a game is still loading, before
+	// there's any game session for a window to belong to. Docked but hidden: opening it is what
+	// enables its checked categories with starlane-core in the first place (see
+	// DebugLogWindow::ApplyEnabledCategories), so leaving it hidden by default costs nothing.
+	debugLogWindow = new DebugLogWindow(this);
+	addDockWidget(Qt::BottomDockWidgetArea, debugLogWindow);
+	debugLogWindow->hide();
+
 	CreateMenus();
 	UpdateActionState();
 	UpdateStatusBar();
@@ -117,6 +126,11 @@ void MainWindow::CreateMenus() {
 	// Populated as the game opens secondary windows (see GetOrCreateSecondaryWindow()) -- empty,
 	// and therefore unremarkable, for games that don't use <window> markup at all.
 	windowsMenu = menuBar()->addMenu(tr("&Windows"));
+
+	auto *debugMenu = menuBar()->addMenu(tr("&Debug"));
+	QAction *debugLogAction = debugLogWindow->toggleViewAction();
+	debugLogAction->setText(tr("&Debug Log"));
+	debugMenu->addAction(debugLogAction);
 }
 
 void MainWindow::UpdateActionState() {
@@ -178,6 +192,10 @@ void MainWindow::HandleTimeTick() {
 
 void MainWindow::OutputText(const char *txt) {
 	formatter->AppendText(QString::fromUtf8(txt));
+}
+
+void MainWindow::OnDebugEvent(Starlane::DebugCategory category, const char *message) {
+	debugLogWindow->AppendEvent(category, QString::fromUtf8(message));
 }
 
 OutputFormatter *MainWindow::GetOrCreateSecondaryWindow(const QString &name) {

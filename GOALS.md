@@ -384,9 +384,15 @@
       content and formatting (bold/color/italic) intact; also covered by a standalone offscreen Qt
       smoke test exercising split-call redirection, window reuse, nesting, and the implicit-close
       fallback.
-- [ ] Qt frontend: a debug log window backed by the new debug-event system (`SetDebugEventCallback`/
-      `SetDebugEventCategoryEnabled` in starlane-core.h, see above) -- format events to a string only
-      while the window is actually visible, with per-category filtering via `DebugCategoryName`.
+- [x] Qt frontend: a debug log window backed by the new debug-event system. `DebugLogWindow`
+      (starlane-qt/debuglogwindow.{cpp,h}) is a dockable panel (Debug menu -> Debug Log, hidden by
+      default) with one checkbox per `DebugCategory` -- labelled via `DebugCategoryName` -- feeding a
+      `QPlainTextEdit` log view; checkbox state persists across launches via `QSettings`. The laziness
+      goes further than just "don't format if nobody's listening": `ApplyEnabledCategories()` only
+      calls `SetDebugEventCategoryEnabled(category, true)` for a category that is *both* checked *and*
+      the panel is currently visible (tracked via showEvent/hideEvent, which also covers a tabbed-away
+      panel), and unconditionally disables every category while hidden -- so a closed panel costs
+      nothing at all, not even for categories left checked from a previous session.
 - [x] implement `blorb` support in the Qt frontend, as a foundation for the graphics/sound work
       below. `BlorbFile` (starlane-qt/blorbfile.{cpp,h}) is a small from-scratch parser (no new
       dependency; the Glk frontend's equivalent uses vendored gi_blorb.c instead, which isn't

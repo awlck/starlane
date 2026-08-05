@@ -84,6 +84,10 @@ void OutputText(const char *msg) {
 	theWin->OutputText(msg);
 }
 
+void DebugEvent(Starlane::DebugCategory category, const char *msg) {
+	theWin->OnDebugEvent(category, msg);
+}
+
 std::string StrToLowerCase(const std::string &s) {
 	QString lower = QString::fromUtf8(s.c_str(), s.length()).toLower();
 	return lower.toUtf8().toStdString();
@@ -262,6 +266,10 @@ int main(int argc, char **argv) {
 	};
 	Starlane::InitBackend(&fe);
 	theWin = new MainWindow;
+	// After theWin exists (DebugEvent forwards to it), but before any game can load and start
+	// producing debug events -- see DebugLogWindow::ApplyEnabledCategories for which categories
+	// this actually enables, if any, at any given moment.
+	Starlane::SetDebugEventCallback(&DebugEvent);
 	theWin->show();
 
 	// A file may have arrived as a QFileOpenEvent (macOS "open with"/double-click) before theWin

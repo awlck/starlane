@@ -25,7 +25,10 @@
 #include <QtWidgets/QMenu>
 #include <QtWidgets/QTextBrowser>
 
+#include <starlane-core.h>
+
 #include "blorbfile.h"
+#include "debuglogwindow.h"
 #include "outputformatter.h"
 
 QT_BEGIN_NAMESPACE
@@ -47,6 +50,11 @@ public:
 	// Wraps Starlane::BeginGame() with the output-batch bookkeeping (see OutputFormatter).
 	// Call this instead of Starlane::BeginGame() directly.
 	void RunBeginGame();
+
+	// Forwards a debug/trace event from starlane-core (see Starlane::SetDebugEventCallback) to the
+	// debug log window. `message` is owned by the caller and only valid for the duration of the
+	// call, same as the other Starlane::*Outputter callbacks.
+	void OnDebugEvent(Starlane::DebugCategory category, const char *message);
 
 	// Loads the TAF file at `path` as a new game, replacing whatever game is currently loaded
 	// (asking for confirmation first if one is ongoing). Used by the "Open Game" menu action, a
@@ -81,6 +89,12 @@ private:
 	// toggleViewAction() -- populated as GetOrCreateSecondaryWindow() creates each one, since their
 	// names aren't known ahead of time.
 	QMenu *windowsMenu;
+
+	// Unlike the entries in secondaryWindows above, this isn't tied to any one game session -- it's
+	// created once and kept (with its content and category filter) across LoadGameFile() calls, the
+	// same way the "Open Game"/menu actions are, since debug events (e.g. GameLoad ones) can fire
+	// before a game even finishes loading.
+	DebugLogWindow *debugLogWindow;
 
 	QAction *openGameAction;
 	QAction *saveGameAction;
