@@ -68,6 +68,8 @@ except where noted):
   pkg-config module (e.g. `garglk`, for Gargoyle) to link against a real one.
 * `SL_BUILD_C_WRAPPER`: the `slc-capi` C API wrapper library.
 * `SL_BUILD_TOOLS`: the `starlane-utils` development utilities.
+* `SL_USE_SYSTEM_PUGIXML`: use a system-provided PugiXML library instead of the
+  vendored copy (default `OFF`).
 * `BUILD_SHARED_LIBS`: build `starlane-core` as a shared library instead of static
   (default `OFF`).
 

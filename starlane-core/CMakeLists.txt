@@ -5,11 +5,24 @@ set(CMAKE_CXX_STANDARD 17)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
 set(CMAKE_CXX_EXTENSIONS OFF)
 
-# Vendored: nothing under deps/ should show up in `starlane`'s own install
-# rules / packages. Pre-seed the cache so pugixml's own option() (default ON)
-# doesn't override this.
-set(PUGIXML_INSTALL OFF CACHE BOOL "" FORCE)
-add_subdirectory(deps/pugixml)
+option(SL_USE_SYSTEM_PUGIXML "Link against a system-provided pugixml instead of the vendored copy" OFF)
+if(SL_USE_SYSTEM_PUGIXML)
+	find_package(pugixml REQUIRED)
+	# find_package's imported targets are only visible in this directory (and
+	# below) by default; promote them so starlane-utils, a sibling directory
+	# added from the top-level CMakeLists.txt, can link against pugixml too.
+	foreach(_sl_pugixml_target pugixml::pugixml pugixml::static pugixml::shared)
+		if(TARGET ${_sl_pugixml_target})
+			set_target_properties(${_sl_pugixml_target} PROPERTIES IMPORTED_GLOBAL TRUE)
+		endif()
+	endforeach()
+else()
+	# Vendored: nothing under deps/ should show up in `starlane`'s own install
+	# rules / packages. Pre-seed the cache so pugixml's own option() (default ON)
+	# doesn't override this.
+	set(PUGIXML_INSTALL OFF CACHE BOOL "" FORCE)
+	add_subdirectory(deps/pugixml)
+endif()
 add_subdirectory(deps/miniz)
 
 # When cross-compiling, import the executable targets from a file
@@ -90,11 +103,14 @@ if (SL_UNDO_AUDIT OR CMAKE_BUILD_TYPE STREQUAL "Debug")
 	target_compile_definitions(starlane-core PRIVATE SL_UNDO_AUDIT)
 endif()
 
-target_link_libraries(starlane-core miniz pugixml slc_exprparser)
+target_link_libraries(starlane-core miniz pugixml::pugixml slc_exprparser)
 if (WIN32)  # DbgHelp provides symbol resolution for captured backtraces
 	target_link_libraries(starlane-core dbghelp)
 endif()
-target_include_directories(starlane-core PRIVATE deps/miniz deps/pugixml/src deps/magicenum ${CMAKE_CURRENT_BINARY_DIR})
+target_include_directories(starlane-core PRIVATE deps/miniz deps/magicenum ${CMAKE_CURRENT_BINARY_DIR})
+if (NOT SL_USE_SYSTEM_PUGIXML)
+	target_include_directories(starlane-core PRIVATE deps/pugixml/src)
+endif()
 if (BUILD_SHARED_LIBS)
 	target_compile_definitions(starlane-core PUBLIC SL_SHARED_CORE)
 endif()

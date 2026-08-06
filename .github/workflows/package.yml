@@ -155,7 +155,7 @@ jobs:
             install_git: apt-get update && DEBIAN_FRONTEND=noninteractive apt-get install -y --no-install-recommends git ca-certificates
             install_deps: >
               apt-get install -y --no-install-recommends
-              cmake ninja-build g++ qt6-base-dev qt6-base-dev-tools qt6-multimedia-dev dpkg-dev file
+              cmake ninja-build g++ qt6-base-dev qt6-base-dev-tools qt6-multimedia-dev dpkg-dev file libpugixml-dev
             package_cmd: cpack -G DEB
             artifact_glob: build/*.deb
           - name: Debian 13
@@ -164,14 +164,14 @@ jobs:
             install_git: apt-get update && DEBIAN_FRONTEND=noninteractive apt-get install -y --no-install-recommends git ca-certificates
             install_deps: >
               apt-get install -y --no-install-recommends
-              cmake ninja-build g++ qt6-base-dev qt6-base-dev-tools qt6-multimedia-dev dpkg-dev file
+              cmake ninja-build g++ qt6-base-dev qt6-base-dev-tools qt6-multimedia-dev dpkg-dev file libpugixml-dev
             package_cmd: cpack -G DEB
             artifact_glob: build/*.deb
           - name: Fedora 44
             slug: fedora-44
             image: fedora:44
             install_git: dnf install -y git
-            install_deps: dnf install -y cmake ninja-build gcc-c++ qt6-qtbase-devel qt6-qtmultimedia-devel rpm-build
+            install_deps: dnf install -y cmake ninja-build gcc-c++ qt6-qtbase-devel qt6-qtmultimedia-devel rpm-build pugixml-devel
             package_cmd: cpack -G RPM
             artifact_glob: build/*.rpm
           - name: openSUSE Tumbleweed
@@ -183,7 +183,7 @@ jobs:
             # drop it first (tolerating its absence on other base images).
             install_deps: |
               zypper --non-interactive remove busybox-gawk || true
-              zypper --non-interactive install cmake ninja gcc-c++ qt6-base-common-devel qt6-widgets-devel qt6-multimedia-devel rpm-build
+              zypper --non-interactive install cmake ninja gcc-c++ qt6-base-common-devel qt6-widgets-devel qt6-multimedia-devel rpm-build pugixml-devel
             package_cmd: cpack -G RPM
             artifact_glob: build/*.rpm
     steps:
@@ -209,6 +209,7 @@ jobs:
           cmake -S . -B build -GNinja
           -DCMAKE_BUILD_TYPE="${{ env.BUILD_TYPE }}"
           -DSL_BUILD_CONSOLE=OFF -DSL_BUILD_GLK=OFF -DSL_BUILD_TOOLS=OFF -DSL_BUILD_C_WRAPPER=OFF
+          -DSL_USE_SYSTEM_PUGIXML=ON
 
       - name: Build
         run: cmake --build build --target starlane
