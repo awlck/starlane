@@ -22,7 +22,8 @@ if(GIT_EXECUTABLE)
 		WORKING_DIRECTORY "${CMAKE_CURRENT_SOURCE_DIR}"
 		OUTPUT_VARIABLE STARLANE_GIT_TAG
 		OUTPUT_STRIP_TRAILING_WHITESPACE
-		ERROR_QUIET
+		ERROR_VARIABLE STARLANE_GIT_DESCRIBE_ERROR
+		ERROR_STRIP_TRAILING_WHITESPACE
 		RESULT_VARIABLE STARLANE_GIT_DESCRIBE_RESULT
 	)
 	# --match is a glob, not a strict pattern (e.g. "v1.2.3-rc1" would still
@@ -31,5 +32,17 @@ if(GIT_EXECUTABLE)
 	# not-quite-right tag falls back rather than breaking configure entirely.
 	if(STARLANE_GIT_DESCRIBE_RESULT EQUAL 0 AND STARLANE_GIT_TAG MATCHES "^v[0-9]+\\.[0-9]+\\.[0-9]+$")
 		string(REGEX REPLACE "^v" "" STARLANE_VERSION "${STARLANE_GIT_TAG}")
+	elseif(NOT STARLANE_GIT_DESCRIBE_RESULT EQUAL 0)
+		# git describe --exact-match exits non-zero both for the ordinary
+		# case (HEAD just isn't on a tag -- most dev builds) and for actual
+		# failures (e.g. a CI container job's git refusing to touch a
+		# checkout it doesn't consider "safe", which silently produced this
+		# exact fallback once already). There's no reliable way to tell those
+		# apart from the exit code alone, so report git's own message either
+		# way and let a human judge whether it's expected.
+		message(STATUS "cmake/Version.cmake: git describe exited ${STARLANE_GIT_DESCRIBE_RESULT}, "
+			"falling back to ${STARLANE_VERSION_FALLBACK}: ${STARLANE_GIT_DESCRIBE_ERROR}")
 	endif()
 endif()
+
+message(STATUS "STARLANE_VERSION: ${STARLANE_VERSION}")

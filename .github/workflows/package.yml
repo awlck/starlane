@@ -204,6 +204,17 @@ jobs:
           # checkout doesn't fetch tags at all.
           fetch-depth: 0
 
+      # actions/checkout only allowlists the checkout as a git
+      # safe.directory for its own internal git operations; it doesn't
+      # persist that for later steps in a container job (unlike host-runner
+      # jobs, where the runner's own git config already covers this). Without
+      # it, cmake/Version.cmake's `git describe` fails with "detected
+      # dubious ownership" -- silently, since it's meant to fall back
+      # quietly on a shallow/tagless checkout too -- and the package quietly
+      # ends up versioned 0.0.0 instead of the release tag.
+      - name: Allow git operations on the checked-out repo
+        run: git config --global --add safe.directory "$GITHUB_WORKSPACE"
+
       - name: Install build dependencies
         run: ${{ matrix.install_deps }}
 
