@@ -69,6 +69,7 @@ jobs:
           cmake -S . -B build -GNinja
           -DCMAKE_BUILD_TYPE="${{ env.BUILD_TYPE }}"
           -DCMAKE_PREFIX_PATH="${{ env.QT_ROOT_DIR }}"
+          -DBUILD_SHARED_LIBS=ON
           -DSL_BUILD_CONSOLE=OFF -DSL_BUILD_GLK=OFF -DSL_BUILD_TOOLS=OFF -DSL_BUILD_C_WRAPPER=OFF
 
       - name: Build
@@ -78,6 +79,8 @@ jobs:
         shell: pwsh
         run: |
           New-Item -ItemType Directory -Path dist | Out-Null
+          Copy-Item build/starlane-core/starlane-core.dll dist/
+          Copy-Item build/starlane-core/dist/pugixml/pugixml.dll dist/
           Copy-Item build/starlane-qt/starlane.exe dist/
           windeployqt --release dist/starlane.exe
 
