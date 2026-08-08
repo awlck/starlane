@@ -127,10 +127,10 @@ void MainWindow::CreateMenus() {
 	// and therefore unremarkable, for games that don't use <window> markup at all.
 	windowsMenu = menuBar()->addMenu(tr("&Windows"));
 
-	auto *debugMenu = menuBar()->addMenu(tr("&Debug"));
-	QAction *debugLogAction = debugLogWindow->toggleViewAction();
+	debugLogAction = debugLogWindow->toggleViewAction();
 	debugLogAction->setText(tr("&Debug Log"));
-	debugMenu->addAction(debugLogAction);
+	windowsMenu->addAction(debugLogAction);
+
 }
 
 void MainWindow::UpdateActionState() {
@@ -252,6 +252,7 @@ void MainWindow::ClearSecondaryWindows() {
 	}
 	secondaryWindows.clear();
 	windowsMenu->clear();
+	windowsMenu->addAction(debugLogAction);
 }
 
 void MainWindow::BeginOutputBatch() {

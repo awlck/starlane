@@ -4,6 +4,7 @@
 #include <QtWidgets/QApplication>
 
 #include <starlane-core.h>
+#include <starlane-version.h>
 #include <cctype>
 #include <clocale>
 #include <QtGui/QFileOpenEvent>

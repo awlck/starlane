@@ -95,6 +95,7 @@ private:
 	// same way the "Open Game"/menu actions are, since debug events (e.g. GameLoad ones) can fire
 	// before a game even finishes loading.
 	DebugLogWindow *debugLogWindow;
+	QAction *debugLogAction;
 
 	QAction *openGameAction;
 	QAction *saveGameAction;
