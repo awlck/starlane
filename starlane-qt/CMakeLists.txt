@@ -52,8 +52,7 @@ endif()
 add_executable(starlane WIN32 MACOSX_BUNDLE "starlane.cpp" mainwindow.cpp mainwindow.h outputformatter.cpp outputformatter.h blorbfile.cpp blorbfile.h debuglogwindow.cpp debuglogwindow.h)
 target_link_libraries(starlane Qt6::Core Qt6::Gui Qt6::Widgets Qt6::Multimedia starlane-core)
 # ../starlane-core: the core's public API. ${CMAKE_BINARY_DIR}/generated:
-# starlane-version.h (see the top-level CMakeLists.txt), for a future About
-# dialog to report the running version from.
+# starlane-version.h (see the top-level CMakeLists.txt).
 target_include_directories(starlane PRIVATE "../starlane-core" "${CMAKE_BINARY_DIR}/generated")
 
 if(APPLE)

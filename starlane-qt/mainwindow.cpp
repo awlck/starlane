@@ -5,6 +5,7 @@
 #include "mainwindow.h"
 
 #include <starlane-core.h>
+#include <starlane-version.h>
 
 #include <QtCore/QCoreApplication>
 #include <QtCore/QDir>
@@ -13,6 +14,7 @@
 #include <QtCore/QTextStream>
 #include <QtCore/QUrl>
 #include <QtGui/QCloseEvent>
+#include <QtGui/QDesktopServices>
 #include <QtGui/QGuiApplication>
 #include <QtGui/QKeyEvent>
 #include <QtGui/QMouseEvent>
@@ -131,6 +133,29 @@ void MainWindow::CreateMenus() {
 	debugLogAction->setText(tr("&Debug Log"));
 	windowsMenu->addAction(debugLogAction);
 
+	auto *helpMenu = menuBar()->addMenu(tr("Help"));
+	helpMenu->setToolTipsVisible(true);
+	auto *checkForUpdatesAction = helpMenu->addAction(tr("Check for updates..."));
+	checkForUpdatesAction->setToolTip(tr("Open your default browser to check GitHub for new releases."));
+	connect(checkForUpdatesAction, &QAction::triggered, this, [this] {
+		bool ok = QDesktopServices::openUrl(tr("https://github.com/awlck/starlane/releases"));
+		if (!ok) {
+			QMessageBox::warning(this, tr("Update Check Failed"), tr("An error occurred, and I was unable to open "
+			"the releases page in any browser."));
+		}
+	});
+	auto *aboutQtAction = helpMenu->addAction(tr("About Qt"));
+	aboutQtAction->setMenuRole(QAction::AboutQtRole);
+	connect(aboutQtAction, &QAction::triggered, this, [this]{ QMessageBox::aboutQt(this); });
+	auto *aboutSlAction = helpMenu->addAction(tr("About Starlane"));
+	aboutSlAction->setMenuRole(QAction::AboutRole);
+	connect(aboutSlAction, &QAction::triggered, this, [this] {
+		QMessageBox::about(this, tr("About Starlane"),
+			tr("Starlane: a reimplementation of the ADRIFT 5 engine.\n\n"
+			       "Version: %1\n"
+			       "Copyright (c) 2022-26 Adrian Welcker, licensed under the Apache License 2.0\n"
+			       "Check out the source and contribute at https://github.com/awlck/starlane").arg(Starlane::Version));
+	});
 }
 
 void MainWindow::UpdateActionState() {
