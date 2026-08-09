@@ -485,7 +485,7 @@
       playback (FFmpeg backend, correct extracted ID3 metadata, playback position advancing over
       time, no errors); and the real app was launched against that same game (whose intro plays
       music from the very first frame) with no crash.
-- [ ] ensure the Qt frontend can be compiled for the web (WASM)
+- [x] ensure the Qt frontend can be compiled for the web (WASM)
 - [x] Qt frontend: implement an ABOUT dialog.
 - [x] begin work on a Glk frontend (can probably rip off most of the implementation from FrankenDrift)
 - [x] implement image support in Glk frontend
