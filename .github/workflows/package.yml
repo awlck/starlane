@@ -288,9 +288,6 @@ jobs:
           target: desktop
           dir: ${{ github.workspace }}/qt
           set-env: false
-          use-official: true
-          email: ${{ secrets.QT_EMAIL }}
-          pw: ${{ secrets.QT_PW }}
 
       - name: Install Qt for WebAssembly
         uses: jurplel/install-qt-action@v4.3.1
@@ -300,9 +297,6 @@ jobs:
           target: wasm
           arch: wasm_singlethread
           dir: ${{ github.workspace }}/qt
-          use-official: true
-          email: ${{ secrets.QT_EMAIL }}
-          pw: ${{ secrets.QT_PW }}
 
       # Must match the Emscripten version Qt itself was built against
       # (see https://doc.qt.io/qt-6/wasm.html) -- a mismatched version
