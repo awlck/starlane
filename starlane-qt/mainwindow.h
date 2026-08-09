@@ -46,6 +46,12 @@ namespace SlQt {
 // WasmRestorePath() itself before Starlane::RestoreGame() reads it back.
 QString WasmSavePath();
 QString WasmRestorePath();
+// Native window.confirm() wrapper; defined in starlane.cpp alongside AskYesNo() (see the comment
+// there for why this is used over QMessageBox::question() on WASM). Declared here too since
+// MainWindow::LoadGameData() needs the same genuinely-synchronous yes/no answer when asking to
+// discard the game currently in progress. extern "C" to match EM_JS's own generated declaration
+// (see em_js.h) -- a plain C++-linkage redeclaration doesn't match it.
+extern "C" int WasmConfirm(const char *question);
 }
 #endif
 

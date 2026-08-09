@@ -336,10 +336,17 @@ bool MainWindow::LoadGameFile(const QString &path) {
 
 bool MainWindow::LoadGameData(const QString &displayName, QByteArray data) {
 	if (Starlane::GameIsOngoing()) {
-		auto result = QMessageBox::question(this, QStringLiteral("Starlane"),
-			tr("Loading a new game will discard the current one. Continue?"),
+		QString question = tr("Loading a new game will discard the current one. Continue?");
+#ifdef __EMSCRIPTEN__
+		// See SlQt::WasmConfirm's own comment (starlane.cpp, alongside AskYesNo()): this needs a
+		// real synchronous answer before deciding whether to proceed, which QMessageBox::question()
+		// can't give on WebAssembly's real browser main thread without asyncify.
+		if (!SlQt::WasmConfirm(qUtf8Printable(question))) return false;
+#else
+		auto result = QMessageBox::question(this, QStringLiteral("Starlane"), question,
 			QMessageBox::Yes | QMessageBox::No);
 		if (result != QMessageBox::Yes) return false;
+#endif
 	}
 
 	// ADRIFT games are commonly distributed as a Blorb archive bundling the game itself (as the

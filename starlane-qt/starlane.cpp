@@ -130,6 +130,9 @@ std::string StrToSentenceCase(const std::string &s) {
 // on WebAssembly's real browser main thread, but window.confirm() -- an old, native browser API,
 // not a Qt one -- genuinely can: unlike anything Qt itself offers there, it's actually,
 // synchronously blocking, even on the main thread, so it works here with no restructuring at all.
+// MainWindow::LoadGameData() (mainwindow.cpp) reuses this same helper for its own "discard the
+// current game?" confirmation, for the same reason -- it needs the answer before deciding whether
+// to proceed too.
 EM_JS(int, WasmConfirm, (const char *question), {
 	return confirm(UTF8ToString(question)) ? 1 : 0;
 });
