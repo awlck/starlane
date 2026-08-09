@@ -122,13 +122,47 @@ std::string StrToSentenceCase(const std::string &s) {
 	return QString::fromUcs4(codepoints32.data(), codepoints32.size()).toUtf8().toStdString();
 }
 
+#ifdef __EMSCRIPTEN__
+// AskYesNo() below needs a real synchronous bool back -- its only caller, Game::
+// AttemptMatchEndOfGameCommand()'s QUIT handling (parser.cpp), decides right there whether to
+// proceed based on the return value, the same way file access needs actual bytes back rather
+// than a promise of some arriving later. QMessageBox::question()'s QDialog::exec() can't do that
+// on WebAssembly's real browser main thread, but window.confirm() -- an old, native browser API,
+// not a Qt one -- genuinely can: unlike anything Qt itself offers there, it's actually,
+// synchronously blocking, even on the main thread, so it works here with no restructuring at all.
+EM_JS(int, WasmConfirm, (const char *question), {
+	return confirm(UTF8ToString(question)) ? 1 : 0;
+});
+#endif
+
 bool AskYesNo(const char *question) {
+#ifdef __EMSCRIPTEN__
+	return WasmConfirm(question) != 0;
+#else
 	return QMessageBox::question(theWin, "Starlane", QString::fromUtf8(question),
 	                             QMessageBox::Yes | QMessageBox::No) == QMessageBox::Yes;
+#endif
 }
 
 void QuitGame() {
+#ifdef __EMSCRIPTEN__
+	// QApplication::quit() -- appropriate on every other platform, where this is a whole desktop
+	// app's own window to close -- goes through Qt's synchronous window-closing machinery
+	// (QGuiApplicationPrivate::quit() -> ... -> QWindowSystemInterface::
+	// handleApplicationTermination<SynchronousDelivery>()), which needs Asyncify on WebAssembly's
+	// real browser main thread and aborts outright without it (confirmed empirically: answering
+	// "yes" to the QUIT confirmation crashes the tab). There's also no real equivalent action to
+	// take here in the first place -- this is a browser tab, not a process, and nothing closes it
+	// for the player short of them doing that themselves. Game::AttemptMatchEndOfGameCommand()
+	// (parser.cpp), this function's only caller, has already cleared gameHasBegun/sessionActive
+	// before calling it, so the engine's own state is already consistent; MainWindow::
+	// SubmitCommand()'s post-command UpdateActionState()/UpdateStatusBar() calls already reflect
+	// that the session has ended (Save/Restore/Transcript/Replay disabled) the same way they do
+	// for any other way a game can end.
+	OutputText("\n\n<i>The game has ended.</i>\n");
+#else
 	QApplication::quit();
+#endif
 }
 
 void PumpEvents() {

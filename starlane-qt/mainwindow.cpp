@@ -448,6 +448,7 @@ void MainWindow::StopSound(int channel) {
 }
 
 void MainWindow::SubmitCommand(const QString &cmd) {
+	if (!Starlane::GameIsOngoing()) { return; }
 	BeginOutputBatch();
 	// The echoed command flows through the same tag parser as everything else, so escape
 	// anything the player typed that would otherwise be misread as markup.
