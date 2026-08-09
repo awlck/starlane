@@ -63,3 +63,43 @@ jobs:
             --draft \
             --generate-notes \
             release-assets/*
+
+  # Publishes the WASM build from this same tag to GitHub Pages, alongside
+  # (not gated on) the draft release above -- unlike the release itself,
+  # which stays private until manually published, the live demo just
+  # tracks whatever the latest tagged build is. Requires the repo's Pages
+  # source to be set to "GitHub Actions" (Settings -> Pages) once; nothing
+  # here can flip that setting itself.
+  pages:
+    name: Publish WASM build to GitHub Pages
+    needs: build
+    runs-on: ubuntu-latest
+    permissions:
+      pages: write
+      id-token: write
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    steps:
+      # No submodules needed here -- just the static web/ landing page
+      # this repo already carries alongside the workflow.
+      - uses: actions/checkout@v5
+
+      - uses: actions/download-artifact@v4
+        with:
+          name: starlane-wasm
+
+      - name: Assemble Pages site
+        run: |
+          mkdir -p site/app
+          cp web/index.html web/starlane-logo.png web/favicon.png site/
+          unzip -q starlane-wasm.zip -d site/app
+
+      - uses: actions/configure-pages@v5
+
+      - uses: actions/upload-pages-artifact@v3
+        with:
+          path: site
+
+      - id: deployment
+        uses: actions/deploy-pages@v4
