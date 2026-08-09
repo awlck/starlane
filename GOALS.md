@@ -354,7 +354,7 @@
       already-said-this-turn set that suppressed the second was turn-wide; ADRIFT clears its
       response tables on entering any top-level task execution, so a location-triggered task
       running after a command may repeat what the command said. Scoped by Game::ResponseScope.
-- [ ] Qt frontend: actually implement StrToSentenceCase
+- [x] Qt frontend: actually implement StrToSentenceCase
 - [x] Qt frontend: implement transcript. `OutputFormatter` gained `SetTranscriptSink()`, a
       callback invoked from the same two places output already funnels through once ADRIFT's tag
       markup has been stripped -- `FlushTextRun()` (decoded text) and `InsertLineBreak()` (a "\n"
@@ -486,6 +486,7 @@
       time, no errors); and the real app was launched against that same game (whose intro plays
       music from the very first frame) with no crash.
 - [ ] ensure the Qt frontend can be compiled for the web (WASM)
+- [x] Qt frontend: implement an ABOUT dialog.
 - [x] begin work on a Glk frontend (can probably rip off most of the implementation from FrankenDrift)
 - [x] implement image support in Glk frontend
 - [x] implement font color support in Glk frontend
