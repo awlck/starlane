@@ -145,7 +145,24 @@ void MainWindow::CreateMenus() {
 	});
 	auto *aboutQtAction = helpMenu->addAction(tr("About Qt"));
 	aboutQtAction->setMenuRole(QAction::AboutQtRole);
-	connect(aboutQtAction, &QAction::triggered, this, [this]{ QMessageBox::aboutQt(this); });
+	connect(aboutQtAction, &QAction::triggered, this, [this]{
+#ifdef __EMSCRIPTEN__
+		// QMessageBox::aboutQt() always calls QDialog::exec() internally, with no
+		// non-blocking variant offered -- same problem as the QMessageBox::question()
+		// this replaced in SlQt::AskYesNo, but here there's no return value to wait for,
+		// so instead of reaching for a native browser dialog we can just show our own
+		// approximation non-modally via QDialog::open() (shows the dialog without
+		// entering a nested event loop, unlike exec()).
+		auto *box = new QMessageBox(QMessageBox::Information, tr("About Qt"),
+			tr("This program uses Qt version %1.\n\n"
+			       "Qt is a C++ toolkit for cross-platform application development.\n"
+			       "See https://www.qt.io for more information.").arg(QT_VERSION_STR), QMessageBox::Ok, this);
+		box->setAttribute(Qt::WA_DeleteOnClose);
+		box->open();
+#else
+		QMessageBox::aboutQt(this);
+#endif
+	});
 	auto *aboutSlAction = helpMenu->addAction(tr("About Starlane"));
 	aboutSlAction->setMenuRole(QAction::AboutRole);
 	connect(aboutSlAction, &QAction::triggered, this, [this] {
@@ -154,11 +171,19 @@ void MainWindow::CreateMenus() {
 			version = QStringLiteral("<development build>");
 		else
 			version = Starlane::Version;
-		QMessageBox::about(this, tr("About Starlane"),
-			tr("Starlane: a reimplementation of the ADRIFT 5 engine.\n\n"
+		QString text = tr("Starlane: a reimplementation of the ADRIFT 5 engine.\n\n"
 			       "Version: %1\n"
 			       "Copyright (c) 2022-26 Adrian Welcker, licensed under the Apache License 2.0\n"
-			       "Check out the source and contribute at https://github.com/awlck/starlane").arg(version));
+			       "Check out the source and contribute at https://github.com/awlck/starlane").arg(version);
+#ifdef __EMSCRIPTEN__
+		// See the About Qt handler above: same non-blocking QDialog::open() swap,
+		// since QMessageBox::about() is exec()-based too.
+		auto *box = new QMessageBox(QMessageBox::Information, tr("About Starlane"), text, QMessageBox::Ok, this);
+		box->setAttribute(Qt::WA_DeleteOnClose);
+		box->open();
+#else
+		QMessageBox::about(this, tr("About Starlane"), text);
+#endif
 	});
 }
 
