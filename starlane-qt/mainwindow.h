@@ -15,8 +15,6 @@
 #include <QtCore/QTimer>
 #include <QtGui/QAction>
 #include <QtGui/QImage>
-#include <QtMultimedia/QAudioOutput>
-#include <QtMultimedia/QMediaPlayer>
 #include <QtWidgets/QVBoxLayout>
 #include <QtWidgets/QDockWidget>
 #include <QtWidgets/QLabel>
@@ -24,6 +22,11 @@
 #include <QtWidgets/QMainWindow>
 #include <QtWidgets/QMenu>
 #include <QtWidgets/QTextBrowser>
+
+#ifndef __EMSCRIPTEN__
+#include <QtMultimedia/QAudioOutput>
+#include <QtMultimedia/QMediaPlayer>
+#endif
 
 #include <starlane-core.h>
 
@@ -60,12 +63,26 @@ public:
 	// (asking for confirmation first if one is ongoing). Used by the "Open Game" menu action, a
 	// command-line argument, and OS "open with"/double-click delivery alike.
 	bool LoadGameFile(const QString &path);
+	// Same as LoadGameFile(), but from game data already in memory rather than a filesystem path
+	// -- `displayName` is used only for messages shown to the player (e.g. "not a valid Blorb
+	// file"), not to (re-)read anything. `path` above just funnels through here after reading the
+	// file itself; on WebAssembly, where QFileDialog::exec()'s usual "get a path, then open it"
+	// flow isn't available at all (see OpenGameTriggered()), this is called directly with the
+	// data QFileDialog::getOpenFileContent() hands back.
+	bool LoadGameData(const QString &displayName, QByteArray data);
+
+	// True once closeEvent() has run. See main() in starlane.cpp for why it needs this (not
+	// isVisible(), which -- unlike on desktop platforms -- doesn't reliably reflect a close on
+	// WebAssembly, where the initial show() hasn't necessarily been rendered/composited yet).
+	bool WasClosed() const { return wasClosed; }
 
 protected:
 	bool eventFilter(QObject *watched, QEvent *event) override;
 	void closeEvent(QCloseEvent *event) override;
 
 private:
+	bool wasClosed = false;
+
 	QTextBrowser *output;
 	QLineEdit *input;
 	// Real-time events run on wall-clock seconds, so the core wants a tick a second. It ignores
@@ -135,6 +152,7 @@ private:
 	// resolved or read -- OutputFormatter treats that as "skip this image".
 	QImage LoadImage(const QString &path) const;
 
+#ifndef __EMSCRIPTEN__
 	// One of ADRIFT's 8 sound channels (numbered 1-8; index 0 of `soundChannels` below is unused
 	// so a channel number can index it directly). Mirrors starlane-glk/multimedia.cpp's
 	// gSoundChannels/gRecentlyPlayedSound, adapted to QtMultimedia: each channel keeps its own
@@ -151,11 +169,16 @@ private:
 	};
 	std::array<SoundChannel, 9> soundChannels;
 
-	// Creates the 8 QMediaPlayer/QAudioOutput pairs backing soundChannels[1..8]. Called once from
-	// the constructor -- unlike currentBlorb-style per-game state, the channels themselves persist
-	// across LoadGameFile() calls; only what's currently playing on each does not (see
-	// LoadGameFile()'s StopAllSounds() call).
-	void InitSoundChannels();
+	// Creates channel's QMediaPlayer/QAudioOutput pair on first use (a no-op if already created).
+	// Constructing a QAudioOutput triggers Qt Multimedia's platform audio-device enumeration,
+	// which on WebAssembly deadlocks the browser's main thread if done eagerly for all 8 channels
+	// at startup (before the page has had a chance to do anything else) -- so channels are created
+	// lazily via this, from PlaySound(), instead. Once created, a channel persists for the
+	// process's lifetime (parented to `this`), same as before; unlike currentBlorb-style per-game
+	// state, channels themselves persist across LoadGameFile() calls -- only what's currently
+	// playing on each does not (see LoadGameFile()'s StopAllSounds() call).
+	void EnsureSoundChannel(SoundChannel &ch);
+#endif
 	// Stops whatever is playing/paused on every channel and forgets recentlyPlayedSrc for each --
 	// called when a new game is loaded, so the previous game's audio doesn't keep playing over it.
 	void StopAllSounds();

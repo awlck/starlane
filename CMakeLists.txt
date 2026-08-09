@@ -46,6 +46,17 @@ else()
 	)
 endif()
 
+if(EMSCRIPTEN)
+	# Qt's multi-threaded WASM build links the whole binary with shared
+	# memory enabled, which requires every object file in the link -- not
+	# just Qt's own -- to be compiled with atomics/bulk-memory support.
+	# Without this, static libraries built here (e.g. starlane-core, which
+	# never links against Qt) fail to link with a "--shared-memory is
+	# disallowed" error from wasm-ld.
+	add_compile_options("-pthread")
+	add_link_options("-pthread")
+endif()
+
 if(NOT ${CMAKE_BUILD_TYPE} STREQUAL "Debug")
 	if(${SL_IPO_SUPPORTED})
 		set(CMAKE_INTERPROCEDURAL_OPTIMIZATION ON)

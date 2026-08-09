@@ -5,7 +5,11 @@ set(CMAKE_CXX_STANDARD 17)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
 set(CMAKE_CXX_EXTENSIONS OFF)
 
-find_package(Qt6 COMPONENTS Core Gui Widgets Multimedia CONFIG REQUIRED)
+if(EMSCRIPTEN)
+	find_package(Qt6 COMPONENTS Core Gui Widgets CONFIG REQUIRED)
+else()
+	find_package(Qt6 COMPONENTS Core Gui Widgets Multimedia CONFIG REQUIRED)
+endif()
 set(CMAKE_AUTOMOC ON)
 set(CMAKE_AUTORCC ON)
 
@@ -46,11 +50,25 @@ if(APPLE)
 		)
 	endif()
 endif()
-# Needed on macOS for macdeployqt (and to get a real .app instead of a bare
-# Mach-O executable): it only knows how to deploy into a bundle. Ignored on
-# other platforms.
-add_executable(starlane WIN32 MACOSX_BUNDLE "starlane.cpp" mainwindow.cpp mainwindow.h outputformatter.cpp outputformatter.h blorbfile.cpp blorbfile.h debuglogwindow.cpp debuglogwindow.h)
-target_link_libraries(starlane Qt6::Core Qt6::Gui Qt6::Widgets Qt6::Multimedia starlane-core)
+
+set(SLQT_SOURCES starlane.cpp mainwindow.cpp mainwindow.h outputformatter.cpp outputformatter.h blorbfile.cpp blorbfile.h debuglogwindow.cpp debuglogwindow.h)
+
+# On Emscripten, use qt_add_executable() instead of plain add_executable().
+# Qt only wires up the WASM-specific link flags (embind, MODULARIZE, the
+# .html shell, pthread pool size, etc.) through the deferred finalizer that
+# qt_add_executable()/qt_finalize_target() trigger; a plain add_executable()
+# skips all of it, which is why the WASM build was failing to link with
+# undefined _emval_* symbols. Left as plain add_executable() on other
+# platforms to avoid changing the well-tested native (macOS/Windows/Linux)
+# build and packaging behavior.
+if(EMSCRIPTEN)
+	qt_add_executable(starlane MANUAL_FINALIZATION ${SLQT_SOURCES})
+	target_link_options(starlane PUBLIC --emrun)
+	target_link_libraries(starlane PRIVATE Qt6::Core Qt6::Gui Qt6::Widgets starlane-core)
+else()
+	add_executable(starlane WIN32 MACOSX_BUNDLE ${SLQT_SOURCES})
+	target_link_libraries(starlane PRIVATE Qt6::Core Qt6::Gui Qt6::Widgets Qt6::Multimedia starlane-core)
+endif()
 # ../starlane-core: the core's public API. ${CMAKE_BINARY_DIR}/generated:
 # starlane-version.h (see the top-level CMakeLists.txt).
 target_include_directories(starlane PRIVATE "../starlane-core" "${CMAKE_BINARY_DIR}/generated")
@@ -81,4 +99,8 @@ if(CMAKE_SYSTEM_NAME STREQUAL "Linux")
 	# starlane.desktop's Icon=starlane so desktop environments (app grids,
 	# taskbars, Discover/Software Center...) can look it up by theme name.
 	install(DIRECTORY packaging/icons/hicolor DESTINATION share/icons)
+endif()
+
+if(EMSCRIPTEN)
+	qt_finalize_target(starlane)
 endif()

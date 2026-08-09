@@ -73,8 +73,6 @@ MainWindow::MainWindow() : QMainWindow(nullptr) {
 		[this](int channel){ StopSound(channel); },
 		[this](const QString &name){ return GetOrCreateSecondaryWindow(name); });
 
-	InitSoundChannels();
-
 	eventTimer = new QTimer(this);
 	eventTimer->setInterval(1000);  // the core counts real-time events in whole seconds
 	connect(eventTimer, &QTimer::timeout, this, &MainWindow::HandleTimeTick);
@@ -298,13 +296,6 @@ void MainWindow::EndOutputBatch() {
 bool MainWindow::LoadGameFile(const QString &path) {
 	if (path.isEmpty()) return false;
 
-	if (Starlane::GameIsOngoing()) {
-		auto result = QMessageBox::question(this, QStringLiteral("Starlane"),
-			tr("Loading a new game will discard the current one. Continue?"),
-			QMessageBox::Yes | QMessageBox::No);
-		if (result != QMessageBox::Yes) return false;
-	}
-
 	QFile file(path);
 	if (!file.open(QIODevice::ReadOnly)) {
 		QMessageBox::warning(this, QStringLiteral("Starlane"),
@@ -313,6 +304,17 @@ bool MainWindow::LoadGameFile(const QString &path) {
 	}
 	QByteArray data = file.readAll();
 	file.close();
+
+	return LoadGameData(path, std::move(data));
+}
+
+bool MainWindow::LoadGameData(const QString &displayName, QByteArray data) {
+	if (Starlane::GameIsOngoing()) {
+		auto result = QMessageBox::question(this, QStringLiteral("Starlane"),
+			tr("Loading a new game will discard the current one. Continue?"),
+			QMessageBox::Yes | QMessageBox::No);
+		if (result != QMessageBox::Yes) return false;
+	}
 
 	// ADRIFT games are commonly distributed as a Blorb archive bundling the game itself (as the
 	// "Exec" resource) together with its images and sounds -- extract the game from there rather
@@ -323,14 +325,14 @@ bool MainWindow::LoadGameFile(const QString &path) {
 		blorb = BlorbFile::Parse(data);
 		if (!blorb) {
 			QMessageBox::warning(this, QStringLiteral("Starlane"),
-				tr("\"%1\" does not appear to be a valid Blorb file.").arg(QDir::toNativeSeparators(path)));
+				tr("\"%1\" does not appear to be a valid Blorb file.").arg(QDir::toNativeSeparators(displayName)));
 			return false;
 		}
 		data = blorb->GetExecResource();
 		if (data.isEmpty()) {
 			QMessageBox::warning(this, QStringLiteral("Starlane"),
 				tr("\"%1\" is a Blorb file, but it doesn't contain a game -- it can only be used "
-				   "alongside a separate .taf file.").arg(QDir::toNativeSeparators(path)));
+				   "alongside a separate .taf file.").arg(QDir::toNativeSeparators(displayName)));
 			return false;
 		}
 	}
@@ -374,21 +376,23 @@ QImage MainWindow::LoadImage(const QString &path) const {
 	return QImage(resolved);
 }
 
-void MainWindow::InitSoundChannels() {
-	for (int i = 1; i <= 8; i++) {
-		SoundChannel &ch = soundChannels[i];
-		ch.player = new QMediaPlayer(this);
-		ch.output = new QAudioOutput(this);
-		ch.player->setAudioOutput(ch.output);
-	}
+#ifndef __EMSCRIPTEN__
+void MainWindow::EnsureSoundChannel(SoundChannel &ch) {
+	if (ch.player) return;
+	ch.player = new QMediaPlayer(this);
+	ch.output = new QAudioOutput(this);
+	ch.player->setAudioOutput(ch.output);
 }
+#endif
 
 void MainWindow::StopAllSounds() {
 	for (int i = 1; i <= 8; i++) StopSound(i);
 }
 
 void MainWindow::PlaySound(const QString &src, int channel, bool loop) {
+#ifndef __EMSCRIPTEN__
 	SoundChannel &ch = soundChannels[channel];
+	EnsureSoundChannel(ch);
 	if (ch.recentlyPlayedSrc == src) {
 		// Already the current sound on this channel: resume rather than restart from the top,
 		// same as the Glk frontend's PlaySound() (multimedia.cpp).
@@ -424,16 +428,22 @@ void MainWindow::PlaySound(const QString &src, int channel, bool loop) {
 	ch.player->setLoops(loop ? QMediaPlayer::Infinite : QMediaPlayer::Once);
 	ch.player->play();
 	ch.recentlyPlayedSrc = src;
+#endif
 }
 
 void MainWindow::PauseSound(int channel) {
-	soundChannels[channel].player->pause();
+#ifndef __EMSCRIPTEN__
+	SoundChannel &ch = soundChannels[channel];
+	if (ch.player) ch.player->pause();
+#endif
 }
 
 void MainWindow::StopSound(int channel) {
+#ifndef __EMSCRIPTEN__
 	SoundChannel &ch = soundChannels[channel];
-	ch.player->stop();
+	if (ch.player) ch.player->stop();
 	ch.recentlyPlayedSrc.clear();
+#endif
 }
 
 void MainWindow::SubmitCommand(const QString &cmd) {
@@ -458,9 +468,23 @@ void MainWindow::InputReturnPressed() {
 }
 
 void MainWindow::OpenGameTriggered() {
+#ifdef __EMSCRIPTEN__
+	// QFileDialog::getOpenFileName() (below, for every other platform) shows a modal dialog via
+	// QDialog::exec() -- a nested event loop, which isn't supported on WebAssembly's real browser
+	// main thread. getOpenFileContent() is Qt's WebAssembly-specific replacement: it drives the
+	// browser's native <input type="file"> picker asynchronously instead of blocking, and hands
+	// back the picked file's content directly rather than a path -- WebAssembly has no real
+	// filesystem for a path to mean anything outside the app's own virtual one.
+	QFileDialog::getOpenFileContent(tr("ADRIFT Game Files (*.taf *.blorb *.adriftblorb)"),
+		[this](const QString &fileName, const QByteArray &fileContent) {
+			if (fileName.isEmpty()) return;  // dialog was cancelled
+			LoadGameData(fileName, fileContent);
+		});
+#else
 	const QString path = QFileDialog::getOpenFileName(this, tr("Open Game"), QString(),
 		tr("ADRIFT Game Files (*.taf *.blorb *.adriftblorb)"));
 	if (!path.isEmpty()) LoadGameFile(path);
+#endif
 }
 
 void MainWindow::SaveGameTriggered() {
@@ -570,6 +594,7 @@ void MainWindow::closeEvent(QCloseEvent *event) {
 	// whole app) is gone. See main() in starlane.cpp for the closely related hazard of a game's
 	// *initial* <waitkey> (almost every game has one) getting closed before app.exec() has even
 	// been reached yet.
+	wasClosed = true;
 	if (waitKeyLoop) waitKeyLoop->quit();
 	StopTranscript();
 	QSettings().setValue(kGeometrySettingsKey, saveGeometry());

@@ -4,7 +4,6 @@
 #include <QtWidgets/QApplication>
 
 #include <starlane-core.h>
-#include <starlane-version.h>
 #include <cctype>
 #include <clocale>
 #include <QtGui/QFileOpenEvent>
@@ -12,6 +11,10 @@
 #include <QtWidgets/QFileDialog>
 #include <QtWidgets/QMessageBox>
 #include <QtWidgets/QStyleFactory>
+
+#ifdef __EMSCRIPTEN__
+#include <emscripten/em_js.h>
+#endif
 
 #include "mainwindow.h"
 
@@ -52,7 +55,9 @@ protected:
 				// instance" behavior above is just Launch Services' default routing for an
 				// open-document request, not a hard constraint on the bundle -- going around it
 				// like this doesn't confuse Launch Services or the Dock.)
+#ifndef __EMSCRIPTEN__
 				QProcess::startDetached(QCoreApplication::applicationFilePath(), {path});
+#endif
 			} else {
 				// No game ongoing (either none loaded yet, or the last one ended and was fully
 				// quit): safe to just load it here. The window may be minimized or behind others
@@ -231,6 +236,19 @@ void ApplyDarkTheme() {
 	qApp->setPalette(pal);
 }
 
+#ifdef __EMSCRIPTEN__
+// Directly (and permanently) increments Emscripten's runtime-keepalive reference count -- see the
+// long comment at its call site in main() below for why. A plain call into the generated JS
+// runtime's own runtimeKeepalivePush(), rather than the documented emscripten_exit_with_live_
+// runtime() API for this: that one is marked noreturn and, true to its name, unwinds the whole C++
+// stack via a throw the moment it's called (the same mechanism Qt's own QCoreApplication::exec()
+// apparently already uses to return control to the browser on WASM) -- so calling it after
+// app.exec() never actually ran any code of ours, it just never returned to begin with.
+EM_JS(void, KeepWasmRuntimeAliveForever, (), {
+	runtimeKeepalivePush();
+});
+#endif
+
 }
 
 #include "../starlane-core/game.h"
@@ -239,6 +257,12 @@ int main(int argc, char **argv) {
 	using namespace SlQt;
 
 	StarlaneApplication app(argc, argv);
+#ifdef __EMSCRIPTEN__
+	// See KeepWasmRuntimeAliveForever()'s own comment. Called as early as possible so it's in
+	// place before any of the dozens of one-shot startup callbacks that drain the runtime's
+	// keepalive count get a chance to run.
+	KeepWasmRuntimeAliveForever();
+#endif
 	// Needed for QSettings' default constructor (used to persist window geometry, see
 	// MainWindow) to resolve a sensible, stable preferences location -- matching the reversed
 	// form of MACOSX_BUNDLE_GUI_IDENTIFIER (CMakeLists.txt) so macOS's ~/Library/Preferences
@@ -290,7 +314,12 @@ int main(int argc, char **argv) {
 	// later would start an unrelated, indefinitely-running session with no window left to show
 	// for it (a wholly separate hazard from a close reaching MainWindow::closeEvent() once the
 	// real main loop is already running, which the closeEvent() override already handles fine).
-	if (!theWin->isVisible())
+	//
+	// Checked via WasClosed() rather than isVisible(): on WebAssembly, show() doesn't necessarily
+	// make isVisible() true synchronously (rendering/compositing there is asynchronous), so that
+	// check was true on every WASM launch -- returning before app.exec() ever ran, at which point
+	// tearing down the still-running pthread workers via the runtime's normal exit crashed the tab.
+	if (theWin->WasClosed())
 		return 0;
 
 	return app.exec();
