@@ -80,7 +80,7 @@ jobs:
         run: |
           New-Item -ItemType Directory -Path dist | Out-Null
           Copy-Item build/starlane-core/starlane-core.dll dist/
-          Copy-Item build/starlane-core/dist/pugixml/pugixml.dll dist/
+          Copy-Item build/starlane-core/deps/pugixml/pugixml.dll dist/
           Copy-Item build/starlane-qt/starlane.exe dist/
           windeployqt --release dist/starlane.exe
 
