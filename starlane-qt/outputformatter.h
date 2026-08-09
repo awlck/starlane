@@ -37,7 +37,10 @@ public:
 	// first time it's seen, and reuses it afterward). Passed identically to every OutputFormatter
 	// instance -- the main window's and every secondary window's alike -- so a <window> tag nested
 	// inside another window's own redirected content keeps working, recursively.
-	OutputFormatter(QTextBrowser *browser, std::function<void()> waitKeyHandler,
+	// `waitKeyHandler` is called (with `this`) once AppendText() has paused at a <waitkey> tag,
+	// having stashed whatever text came after it -- it must return immediately, without blocking:
+	// rendering only continues once (and if) the caller later calls ResumeAfterWaitKey().
+	OutputFormatter(QTextBrowser *browser, std::function<void(OutputFormatter *)> waitKeyHandler,
 	                 std::function<QImage(const QString &)> imageLoader,
 	                 std::function<void(const QString &src, int channel, bool loop)> playSound,
 	                 std::function<void(int channel)> pauseSound,
@@ -72,6 +75,12 @@ public:
 	// every single one, fighting a player who had scrolled up to reread.
 	void EndBatch();
 
+	// Resumes parsing wherever AppendText() left off when it paused at a <waitkey> tag (see the
+	// constructor's `waitKeyHandler` doc comment) -- call once the player has actually pressed a
+	// key or clicked. May immediately hit another <waitkey> and re-pause, calling
+	// `waitKeyHandler` again, exactly as the first one did.
+	void ResumeAfterWaitKey();
+
 private:
 	struct CharFormatFrame {
 		QString tagName;  // "b", "i", "u", "c", "font" -- used to match up closing tags
@@ -79,7 +88,7 @@ private:
 	};
 
 	QTextBrowser *browser;
-	std::function<void()> waitKeyHandler;
+	std::function<void(OutputFormatter *)> waitKeyHandler;
 	std::function<QImage(const QString &)> imageLoader;
 	std::function<void(const QString &src, int channel, bool loop)> playSound;
 	std::function<void(int channel)> pauseSound;
@@ -104,6 +113,16 @@ private:
 	QString tagBuffer;
 	QString textRun;
 
+	// True from the moment a <waitkey> tag is handled until ResumeAfterWaitKey() is called.
+	// AppendText() checks this itself (rather than ProcessChunk() alone) so that further chunks
+	// arriving while paused -- e.g. from an unrelated TimeTick firing during the wait -- queue up
+	// in `pendingText` instead of being parsed early.
+	bool waitingForKey = false;
+	// Whatever of the most recent chunk (own or, once queued, from a later AppendText() call)
+	// hadn't been parsed yet when the pause happened -- fed back through ProcessChunk() by
+	// ResumeAfterWaitKey().
+	QString pendingText;
+
 	// True while scanning the body of an HTML-style comment (opened by "<!--" or, since something
 	// upstream "helpfully" collapses "--" into an en dash before it reaches us, "<!–" too) --
 	// its content is discarded outright rather than being parsed as tags/text. `commentTail` holds
@@ -124,6 +143,14 @@ private:
 	int redirectDepth = 0;
 	QString redirectBuffer;
 
+	// The real body of AppendText()/ResumeAfterWaitKey(): tokenizes `chunk` from `startIndex`
+	// onward, same as AppendText() always did from index 0 -- except that hitting a <waitkey> tag
+	// (via HandleTag()) stashes whatever's left of `chunk` into pendingText and returns
+	// immediately, instead of blocking, leaving the trailing CommitTextRun() call unreached until
+	// ResumeAfterWaitKey() picks up from there. Safe to stop right after HandleTag() either way:
+	// a tag's closing '>' always commits the text run *before* HandleTag() runs, so nothing is
+	// ever left uncommitted at a pause point.
+	void ProcessChunk(const QString &chunk, int startIndex);
 	void ResetFormattingState();
 	void FlushTextRun();
 	// Routes the pending text run to redirectBuffer (verbatim) if a <window> redirect is active,
