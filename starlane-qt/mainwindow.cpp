@@ -150,11 +150,16 @@ void MainWindow::CreateMenus() {
 	auto *aboutSlAction = helpMenu->addAction(tr("About Starlane"));
 	aboutSlAction->setMenuRole(QAction::AboutRole);
 	connect(aboutSlAction, &QAction::triggered, this, [this] {
+		QString version;
+		if (QString(Starlane::Version) == QStringLiteral("0.0.0"))
+			version = QStringLiteral("<development build>");
+		else
+			version = Starlane::Version;
 		QMessageBox::about(this, tr("About Starlane"),
 			tr("Starlane: a reimplementation of the ADRIFT 5 engine.\n\n"
 			       "Version: %1\n"
 			       "Copyright (c) 2022-26 Adrian Welcker, licensed under the Apache License 2.0\n"
-			       "Check out the source and contribute at https://github.com/awlck/starlane").arg(Starlane::Version));
+			       "Check out the source and contribute at https://github.com/awlck/starlane").arg(version));
 	});
 }
 
