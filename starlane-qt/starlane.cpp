@@ -197,21 +197,16 @@ void *OpenSaveFile() {
 	// nothing staged here finds no file, same as a cancelled dialog on native platforms
 	// (Game::Restore() already handles that case: it just returns false).
 	auto file = new QFile(WasmRestorePath());
-	if (!file->open(QIODevice::ReadOnly)) {
-		delete file;
-		return nullptr;
-	}
-	return file;
 #else
 	const auto result = QFileDialog::getOpenFileName(theWin, "Select a save file", QString(), "Starlane Save File (*.sls)");
 	if (result.isEmpty()) return nullptr;
 	auto file = new QFile(result);
+#endif
 	if (!file->open(QIODevice::ReadOnly)) {
 		delete file;
 		return nullptr;
 	}
 	return file;
-#endif
 }
 
 size_t ReadFile(void *hFile, uint8_t *buffer, size_t bufsize) {

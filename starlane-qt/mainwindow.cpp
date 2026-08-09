@@ -469,23 +469,20 @@ void MainWindow::InputReturnPressed() {
 }
 
 void MainWindow::OpenGameTriggered() {
-#ifdef __EMSCRIPTEN__
-	// QFileDialog::getOpenFileName() (below, for every other platform) shows a modal dialog via
-	// QDialog::exec() -- a nested event loop, which isn't supported on WebAssembly's real browser
-	// main thread. getOpenFileContent() is Qt's WebAssembly-specific replacement: it drives the
-	// browser's native <input type="file"> picker asynchronously instead of blocking, and hands
-	// back the picked file's content directly rather than a path -- WebAssembly has no real
-	// filesystem for a path to mean anything outside the app's own virtual one.
+	// QFileDialog::getOpenFileName() shows a modal dialog via QDialog::exec() -- a nested event loop,
+	// which isn't supported on WebAssembly's real browser main thread. getOpenFileContent() is Qt's
+	// WebAssembly-specific replacement: it drives the browser's native <input type="file"> picker
+	// asynchronously instead of blocking, and hands back the picked file's content directly rather
+	// than a path -- WebAssembly has no real filesystem for a path to mean anything outside the app's
+	// own virtual one.
+	// For convenience, on desktop platforms, this just calls `QFileDialog::getOpenFileName()`,
+	// reads in the file specified, and calls the callback, so there is no need for us to maintain
+	// separate code paths here.
 	QFileDialog::getOpenFileContent(tr("ADRIFT Game Files (*.taf *.blorb *.adriftblorb)"),
 		[this](const QString &fileName, const QByteArray &fileContent) {
 			if (fileName.isEmpty()) return;  // dialog was cancelled
 			LoadGameData(fileName, fileContent);
 		});
-#else
-	const QString path = QFileDialog::getOpenFileName(this, tr("Open Game"), QString(),
-		tr("ADRIFT Game Files (*.taf *.blorb *.adriftblorb)"));
-	if (!path.isEmpty()) LoadGameFile(path);
-#endif
 }
 
 void MainWindow::SaveGameTriggered() {
