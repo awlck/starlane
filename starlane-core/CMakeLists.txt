@@ -122,3 +122,47 @@ endif()
 if(NOT CROSSCOMPILING)
 	EXPORT(TARGETS packcc FILE "${CMAKE_BINARY_DIR}/ImportExecutables.cmake")
 endif()
+
+if(EMSCRIPTEN)
+	# List of functions in the core that need to catch exceptions. Needed for emscripten.
+	# (Also these need to be mangled function names because screw you, apparently.)
+	SET(SLC_CATCHING_FUNCTIONS
+			# Expr::Value Starlane::Expression::ValImpl(ast_node_tag const*) const
+			_ZNK8Starlane10Expression7ValImplEPK12ast_node_tag
+			# std::string Starlane::Expression::InterpolateRefs(const std::string &) const
+			_ZNK8Starlane10Expression15InterpolateRefsERKNSt3__212basic_stringIcNS1_11char_traitsIcEENS1_9allocatorIcEEEE
+			# Restriction *Starlane::Restriction::CreateFromXML(const pugi::xml_node &)
+			_ZN8Starlane11Restriction13CreateFromXMLERKN4pugi8xml_nodeE
+			# std::pair<...> Starlane::Restriction::PassRestrictionBlock(size_t &, size_t &, size_t, bool) const
+			_ZNK8Starlane11Restriction20PassRestrictionBlockERmS1_mb
+			# void Starlane::Restriction::Single::Translate()
+			_ZN8Starlane11Restriction6Single9TranslateEv
+			# Task *Starlane::Task::CreateFromXML(Game *, const pugi::xml_node &)
+			_ZN8Starlane4Task13CreateFromXMLEPNS_4GameERKN4pugi8xml_nodeE
+			# void Starlane::Task::RunActions()
+			_ZN8Starlane4Task10RunActionsEv
+			# std::string Task::Action::ResolveParam(const TaskParam &)
+			_ZN8Starlane4Task6Action12ResolveParamERKNS1_9TaskParamE
+			# Starlane::Save::AstNode *Starlane::Save::Parser::Parse()
+			_ZN8Starlane4Save6Parser5ParseEv
+			# Starlane::Save::Writer::~Writer()
+			_ZN8Starlane4Save6WriterD2Ev
+			# bool Starlane::Game::Restore()
+			_ZN8Starlane4Game7RestoreEv
+			# bool Starlane::Game::GetStatusBar(Starlane::StatusBar &)
+			_ZN8Starlane4Game12GetStatusBarERNS_9StatusBarE
+			# void Starlane::Game::ExecuteMatchedTask(Starlane::Task *)
+			_ZN8Starlane4Game18ExecuteMatchedTaskEPNS_4TaskE
+			# void Starlane::CreateGame(const uint8_t *, size_t)
+			_ZN8Starlane10CreateGameEPKhm
+			# void Starlane::BeginGame()
+			_ZN8Starlane9BeginGameEv
+			# void Starlane::TimeTick()
+			_ZN8Starlane8TimeTickEv
+			# void Starlane::ProcessInput(const std::string &)
+			_ZN8Starlane12ProcessInputERKNSt3__212basic_stringIcNS0_11char_traitsIcEENS0_9allocatorIcEEEE
+	)
+	string(REPLACE ";" "','" _stringified_catching_fns "${SLC_CATCHING_FUNCTIONS}")
+	target_compile_options(starlane-core PUBLIC "-sEXCEPTION_CATCHING_ALLOWED=['${_stringified_catching_fns}']")
+	target_link_options(starlane-core PUBLIC "-sEXCEPTION_CATCHING_ALLOWED=['${_stringified_catching_fns}']")
+endif()

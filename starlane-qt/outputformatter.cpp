@@ -68,7 +68,7 @@ QColor OutputFormatter::CommandColor() {
 	return Qt::red;
 }
 
-OutputFormatter::OutputFormatter(QTextBrowser *browser, std::function<void()> waitKeyHandler,
+OutputFormatter::OutputFormatter(QTextBrowser *browser, std::function<void(OutputFormatter *)> waitKeyHandler,
                                   std::function<QImage(const QString &)> imageLoader,
                                   std::function<void(const QString &, int, bool)> playSound,
                                   std::function<void(int)> pauseSound,
@@ -364,7 +364,9 @@ void OutputFormatter::HandleTag(const QString &tagRaw) {
 
 	if (name == "waitkey") {
 		browser->ensureCursorVisible();
-		if (waitKeyHandler) waitKeyHandler();
+		// The actual pause happens in ProcessChunk(), right after this returns: it stashes
+		// whatever's left unparsed and calls waitKeyHandler(this) -- see its own doc comment.
+		waitingForKey = true;
 		return;
 	}
 
@@ -406,7 +408,26 @@ void OutputFormatter::HandleRedirectedTag(const QString &tagRaw) {
 }
 
 void OutputFormatter::AppendText(const QString &chunk) {
-	for (const QChar &c : chunk) {
+	if (waitingForKey) {
+		// Paused mid-<waitkey> -- e.g. this chunk is from an unrelated TimeTick that fired while
+		// waiting on a *previous* one. Queue it rather than parsing it early; ResumeAfterWaitKey()
+		// will get to it once the player actually presses a key or clicks.
+		pendingText += chunk;
+		return;
+	}
+	ProcessChunk(chunk, 0);
+}
+
+void OutputFormatter::ResumeAfterWaitKey() {
+	waitingForKey = false;
+	const QString remaining = pendingText;
+	pendingText.clear();
+	ProcessChunk(remaining, 0);
+}
+
+void OutputFormatter::ProcessChunk(const QString &chunk, int startIndex) {
+	for (int i = startIndex; i < chunk.length(); ++i) {
+		const QChar c = chunk[i];
 		if (inComment) {
 			// The closing marker is "-->", or "–>" if the "--" got collapsed into an en dash the
 			// same way the opening one did -- either way, it's recognized as soon as '>' arrives
@@ -447,6 +468,14 @@ void OutputFormatter::AppendText(const QString &chunk) {
 				else HandleTag(tagBuffer);
 				tagBuffer.clear();
 				inTag = false;
+				if (waitingForKey) {
+					// HandleTag() just hit <waitkey> (only it sets this): stash whatever's left of
+					// this chunk unparsed and stop here instead of continuing on -- see this
+					// class's constructor and ResumeAfterWaitKey() for the other halves of this.
+					pendingText = chunk.mid(i + 1);
+					if (waitKeyHandler) waitKeyHandler(this);
+					return;
+				}
 				continue;
 			}
 			tagBuffer += c;

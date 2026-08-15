@@ -8,10 +8,12 @@
 #if defined(_WIN32)
 #include <windows.h>
 #include <dbghelp.h>
-#elif defined(__unix__) || defined(__APPLE__)
+#elif (defined(__unix__) || defined(__APPLE__)) && !defined(__EMSCRIPTEN__)
 #include <cstdlib>
 #include <execinfo.h>
 #define SLC_HAVE_EXECINFO 1
+#elif defined(__EMSCRIPTEN__)
+#include <emscripten.h>
 #endif
 
 namespace Starlane {
@@ -70,7 +72,13 @@ std::string CaptureBacktrace() {
 }
 
 Exception::Exception(const std::string &what)
-	: std::runtime_error(what), backtrace(CaptureBacktrace()) {}
+	: std::runtime_error(what), backtrace(CaptureBacktrace())
+{
+#ifdef __EMSCRIPTEN__
+	// emscripten cannot capture a backtrace, but we can print one immediately:
+	emscripten_log(EM_LOG_ERROR | EM_LOG_C_STACK | EM_LOG_JS_STACK, "%s", what.c_str());
+#endif
+}
 
 MissingObjectException::MissingObjectException(const std::string &key)
 	: Exception("Reference to nonexistent object with key: " + key), key(key) {}

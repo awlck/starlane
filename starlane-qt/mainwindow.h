@@ -9,14 +9,11 @@
 #include <optional>
 
 #include <QtCore/QBuffer>
-#include <QtCore/QEventLoop>
 #include <QtCore/QFile>
 #include <QtCore/QMap>
 #include <QtCore/QTimer>
 #include <QtGui/QAction>
 #include <QtGui/QImage>
-#include <QtMultimedia/QAudioOutput>
-#include <QtMultimedia/QMediaPlayer>
 #include <QtWidgets/QVBoxLayout>
 #include <QtWidgets/QDockWidget>
 #include <QtWidgets/QLabel>
@@ -24,6 +21,11 @@
 #include <QtWidgets/QMainWindow>
 #include <QtWidgets/QMenu>
 #include <QtWidgets/QTextBrowser>
+
+#ifndef __EMSCRIPTEN__
+#include <QtMultimedia/QAudioOutput>
+#include <QtMultimedia/QMediaPlayer>
+#endif
 
 #include <starlane-core.h>
 
@@ -33,7 +35,25 @@
 
 QT_BEGIN_NAMESPACE
 class QCloseEvent;
+class QIODevice;
 QT_END_NAMESPACE
+
+#ifdef __EMSCRIPTEN__
+namespace SlQt {
+// Fixed scratch paths in Emscripten's virtual MEMFS backing the WASM-specific save/restore flow.
+// Defined in starlane.cpp, alongside CreateSaveFile()/OpenSaveFile()/CloseFile() (see the long
+// comment there) -- declared here too since MainWindow::RestoreGameTriggered() needs to write to
+// WasmRestorePath() itself before Starlane::RestoreGame() reads it back.
+QString WasmSavePath();
+QString WasmRestorePath();
+// Native window.confirm() wrapper; defined in starlane.cpp alongside AskYesNo() (see the comment
+// there for why this is used over QMessageBox::question() on WASM). Declared here too since
+// MainWindow::LoadGameData() needs the same genuinely-synchronous yes/no answer when asking to
+// discard the game currently in progress. extern "C" to match EM_JS's own generated declaration
+// (see em_js.h) -- a plain C++-linkage redeclaration doesn't match it.
+extern "C" int WasmConfirm(const char *question);
+}
+#endif
 
 class MainWindow: public QMainWindow {
 	Q_OBJECT
@@ -60,12 +80,26 @@ public:
 	// (asking for confirmation first if one is ongoing). Used by the "Open Game" menu action, a
 	// command-line argument, and OS "open with"/double-click delivery alike.
 	bool LoadGameFile(const QString &path);
+	// Same as LoadGameFile(), but from game data already in memory rather than a filesystem path
+	// -- `displayName` is used only for messages shown to the player (e.g. "not a valid Blorb
+	// file"), not to (re-)read anything. `path` above just funnels through here after reading the
+	// file itself; on WebAssembly, where QFileDialog::exec()'s usual "get a path, then open it"
+	// flow isn't available at all (see OpenGameTriggered()), this is called directly with the
+	// data QFileDialog::getOpenFileContent() hands back.
+	bool LoadGameData(const QString &displayName, QByteArray data);
+
+	// True once closeEvent() has run. See main() in starlane.cpp for why it needs this (not
+	// isVisible(), which -- unlike on desktop platforms -- doesn't reliably reflect a close on
+	// WebAssembly, where the initial show() hasn't necessarily been rendered/composited yet).
+	bool WasClosed() const { return wasClosed; }
 
 protected:
 	bool eventFilter(QObject *watched, QEvent *event) override;
 	void closeEvent(QCloseEvent *event) override;
 
 private:
+	bool wasClosed = false;
+
 	QTextBrowser *output;
 	QLineEdit *input;
 	// Real-time events run on wall-clock seconds, so the core wants a tick a second. It ignores
@@ -120,9 +154,11 @@ private:
 	// handler knows not to block the replay on player input that isn't coming.
 	bool isReplaying = false;
 
-	// Set while a <waitkey> tag is blocking on WaitForKeyOrClick(), so eventFilter() knows to
-	// consume the next key/click instead of letting it reach whatever widget it landed on.
-	QEventLoop *waitKeyLoop = nullptr;
+	// Non-null while a <waitkey> tag has paused output rendering (see OnWaitKey()/OutputFormatter::
+	// ResumeAfterWaitKey()) -- the formatter to resume, so eventFilter() knows to consume the next
+	// key/click (instead of letting it reach whatever widget it landed on) and which formatter to
+	// tell about it.
+	OutputFormatter *waitingFormatter = nullptr;
 
 	// Set once LoadGameFile() has extracted the current game from a Blorb archive; reset (back to
 	// std::nullopt) for a game loaded from a bare .taf. LoadImage() consults this to decide how an
@@ -135,6 +171,7 @@ private:
 	// resolved or read -- OutputFormatter treats that as "skip this image".
 	QImage LoadImage(const QString &path) const;
 
+#ifndef __EMSCRIPTEN__
 	// One of ADRIFT's 8 sound channels (numbered 1-8; index 0 of `soundChannels` below is unused
 	// so a channel number can index it directly). Mirrors starlane-glk/multimedia.cpp's
 	// gSoundChannels/gRecentlyPlayedSound, adapted to QtMultimedia: each channel keeps its own
@@ -151,11 +188,16 @@ private:
 	};
 	std::array<SoundChannel, 9> soundChannels;
 
-	// Creates the 8 QMediaPlayer/QAudioOutput pairs backing soundChannels[1..8]. Called once from
-	// the constructor -- unlike currentBlorb-style per-game state, the channels themselves persist
-	// across LoadGameFile() calls; only what's currently playing on each does not (see
-	// LoadGameFile()'s StopAllSounds() call).
-	void InitSoundChannels();
+	// Creates channel's QMediaPlayer/QAudioOutput pair on first use (a no-op if already created).
+	// Constructing a QAudioOutput triggers Qt Multimedia's platform audio-device enumeration,
+	// which on WebAssembly deadlocks the browser's main thread if done eagerly for all 8 channels
+	// at startup (before the page has had a chance to do anything else) -- so channels are created
+	// lazily via this, from PlaySound(), instead. Once created, a channel persists for the
+	// process's lifetime (parented to `this`), same as before; unlike currentBlorb-style per-game
+	// state, channels themselves persist across LoadGameFile() calls -- only what's currently
+	// playing on each does not (see LoadGameFile()'s StopAllSounds() call).
+	void EnsureSoundChannel(SoundChannel &ch);
+#endif
 	// Stops whatever is playing/paused on every channel and forgets recentlyPlayedSrc for each --
 	// called when a new game is loaded, so the previous game's audio doesn't keep playing over it.
 	void StopAllSounds();
@@ -208,9 +250,14 @@ private:
 	// new game is loaded or the window is closing.
 	void StopTranscript();
 	void ReplayCommandsTriggered();
-	// Blocks (via a nested event loop) until the next keypress or mouse click anywhere in the
-	// app. Used to implement the <waitkey> tag.
-	void WaitForKeyOrClick();
+	// Shared by ReplayCommandsTriggered()'s native (QFile) and WebAssembly (QBuffer over
+	// getOpenFileContent()'s bytes) code paths: feeds `source`'s lines through SubmitCommand()
+	// one at a time until either it runs out or the game ends.
+	void RunReplay(QIODevice &source);
+	// `fmt` just paused (see OutputFormatter::ResumeAfterWaitKey()'s doc comment) implementing a
+	// <waitkey> tag -- disables player input and remembers `fmt` so eventFilter() can resume it
+	// on the next keypress or mouse click anywhere in the app.
+	void OnWaitKey(OutputFormatter *fmt);
 };
 
 #endif  // !STARLANE_MAINWINDOW_H

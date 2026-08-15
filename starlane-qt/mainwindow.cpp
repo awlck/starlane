@@ -7,6 +7,7 @@
 #include <starlane-core.h>
 #include <starlane-version.h>
 
+#include <QtCore/QBuffer>
 #include <QtCore/QCoreApplication>
 #include <QtCore/QDir>
 #include <QtCore/QFile>
@@ -66,14 +67,12 @@ MainWindow::MainWindow() : QMainWindow(nullptr) {
 	dummy->setLayout(box);
 	setCentralWidget(dummy);
 
-	formatter = new OutputFormatter(output, [this]{ if (!isReplaying) WaitForKeyOrClick(); },
+	formatter = new OutputFormatter(output, [this](OutputFormatter *fmt){ if (!isReplaying) OnWaitKey(fmt); },
 		[this](const QString &path){ return LoadImage(path); },
 		[this](const QString &src, int channel, bool loop){ PlaySound(src, channel, loop); },
 		[this](int channel){ PauseSound(channel); },
 		[this](int channel){ StopSound(channel); },
 		[this](const QString &name){ return GetOrCreateSecondaryWindow(name); });
-
-	InitSoundChannels();
 
 	eventTimer = new QTimer(this);
 	eventTimer->setInterval(1000);  // the core counts real-time events in whole seconds
@@ -146,7 +145,24 @@ void MainWindow::CreateMenus() {
 	});
 	auto *aboutQtAction = helpMenu->addAction(tr("About Qt"));
 	aboutQtAction->setMenuRole(QAction::AboutQtRole);
-	connect(aboutQtAction, &QAction::triggered, this, [this]{ QMessageBox::aboutQt(this); });
+	connect(aboutQtAction, &QAction::triggered, this, [this]{
+#ifdef __EMSCRIPTEN__
+		// QMessageBox::aboutQt() always calls QDialog::exec() internally, with no
+		// non-blocking variant offered -- same problem as the QMessageBox::question()
+		// this replaced in SlQt::AskYesNo, but here there's no return value to wait for,
+		// so instead of reaching for a native browser dialog we can just show our own
+		// approximation non-modally via QDialog::open() (shows the dialog without
+		// entering a nested event loop, unlike exec()).
+		auto *box = new QMessageBox(QMessageBox::Information, tr("About Qt"),
+			tr("This program uses Qt version %1.\n\n"
+			       "Qt is a C++ toolkit for cross-platform application development.\n"
+			       "See https://www.qt.io for more information.").arg(QT_VERSION_STR), QMessageBox::Ok, this);
+		box->setAttribute(Qt::WA_DeleteOnClose);
+		box->open();
+#else
+		QMessageBox::aboutQt(this);
+#endif
+	});
 	auto *aboutSlAction = helpMenu->addAction(tr("About Starlane"));
 	aboutSlAction->setMenuRole(QAction::AboutRole);
 	connect(aboutSlAction, &QAction::triggered, this, [this] {
@@ -155,11 +171,19 @@ void MainWindow::CreateMenus() {
 			version = QStringLiteral("<development build>");
 		else
 			version = Starlane::Version;
-		QMessageBox::about(this, tr("About Starlane"),
-			tr("Starlane: a reimplementation of the ADRIFT 5 engine.\n\n"
+		QString text = tr("Starlane: a reimplementation of the ADRIFT 5 engine.\n\n"
 			       "Version: %1\n"
 			       "Copyright (c) 2022-26 Adrian Welcker, licensed under the Apache License 2.0\n"
-			       "Check out the source and contribute at https://github.com/awlck/starlane").arg(version));
+			       "Check out the source and contribute at https://github.com/awlck/starlane").arg(version);
+#ifdef __EMSCRIPTEN__
+		// See the About Qt handler above: same non-blocking QDialog::open() swap,
+		// since QMessageBox::about() is exec()-based too.
+		auto *box = new QMessageBox(QMessageBox::Information, tr("About Starlane"), text, QMessageBox::Ok, this);
+		box->setAttribute(Qt::WA_DeleteOnClose);
+		box->open();
+#else
+		QMessageBox::about(this, tr("About Starlane"), text);
+#endif
 	});
 }
 
@@ -247,7 +271,7 @@ OutputFormatter *MainWindow::GetOrCreateSecondaryWindow(const QString &name) {
 	dock->setAllowedAreas(Qt::AllDockWidgetAreas);
 
 	auto *secondaryFormatter = new OutputFormatter(browser,
-		[this]{ if (!isReplaying) WaitForKeyOrClick(); },
+		[this](OutputFormatter *fmt){ if (!isReplaying) OnWaitKey(fmt); },
 		[this](const QString &path){ return LoadImage(path); },
 		[this](const QString &src, int channel, bool loop){ PlaySound(src, channel, loop); },
 		[this](int channel){ PauseSound(channel); },
@@ -298,13 +322,6 @@ void MainWindow::EndOutputBatch() {
 bool MainWindow::LoadGameFile(const QString &path) {
 	if (path.isEmpty()) return false;
 
-	if (Starlane::GameIsOngoing()) {
-		auto result = QMessageBox::question(this, QStringLiteral("Starlane"),
-			tr("Loading a new game will discard the current one. Continue?"),
-			QMessageBox::Yes | QMessageBox::No);
-		if (result != QMessageBox::Yes) return false;
-	}
-
 	QFile file(path);
 	if (!file.open(QIODevice::ReadOnly)) {
 		QMessageBox::warning(this, QStringLiteral("Starlane"),
@@ -313,6 +330,24 @@ bool MainWindow::LoadGameFile(const QString &path) {
 	}
 	QByteArray data = file.readAll();
 	file.close();
+
+	return LoadGameData(path, std::move(data));
+}
+
+bool MainWindow::LoadGameData(const QString &displayName, QByteArray data) {
+	if (Starlane::GameIsOngoing()) {
+		QString question = tr("Loading a new game will discard the current one. Continue?");
+#ifdef __EMSCRIPTEN__
+		// See SlQt::WasmConfirm's own comment (starlane.cpp, alongside AskYesNo()): this needs a
+		// real synchronous answer before deciding whether to proceed, which QMessageBox::question()
+		// can't give on WebAssembly's real browser main thread without asyncify.
+		if (!SlQt::WasmConfirm(qUtf8Printable(question))) return false;
+#else
+		auto result = QMessageBox::question(this, QStringLiteral("Starlane"), question,
+			QMessageBox::Yes | QMessageBox::No);
+		if (result != QMessageBox::Yes) return false;
+#endif
+	}
 
 	// ADRIFT games are commonly distributed as a Blorb archive bundling the game itself (as the
 	// "Exec" resource) together with its images and sounds -- extract the game from there rather
@@ -323,14 +358,14 @@ bool MainWindow::LoadGameFile(const QString &path) {
 		blorb = BlorbFile::Parse(data);
 		if (!blorb) {
 			QMessageBox::warning(this, QStringLiteral("Starlane"),
-				tr("\"%1\" does not appear to be a valid Blorb file.").arg(QDir::toNativeSeparators(path)));
+				tr("\"%1\" does not appear to be a valid Blorb file.").arg(QDir::toNativeSeparators(displayName)));
 			return false;
 		}
 		data = blorb->GetExecResource();
 		if (data.isEmpty()) {
 			QMessageBox::warning(this, QStringLiteral("Starlane"),
 				tr("\"%1\" is a Blorb file, but it doesn't contain a game -- it can only be used "
-				   "alongside a separate .taf file.").arg(QDir::toNativeSeparators(path)));
+				   "alongside a separate .taf file.").arg(QDir::toNativeSeparators(displayName)));
 			return false;
 		}
 	}
@@ -374,21 +409,23 @@ QImage MainWindow::LoadImage(const QString &path) const {
 	return QImage(resolved);
 }
 
-void MainWindow::InitSoundChannels() {
-	for (int i = 1; i <= 8; i++) {
-		SoundChannel &ch = soundChannels[i];
-		ch.player = new QMediaPlayer(this);
-		ch.output = new QAudioOutput(this);
-		ch.player->setAudioOutput(ch.output);
-	}
+#ifndef __EMSCRIPTEN__
+void MainWindow::EnsureSoundChannel(SoundChannel &ch) {
+	if (ch.player) return;
+	ch.player = new QMediaPlayer(this);
+	ch.output = new QAudioOutput(this);
+	ch.player->setAudioOutput(ch.output);
 }
+#endif
 
 void MainWindow::StopAllSounds() {
 	for (int i = 1; i <= 8; i++) StopSound(i);
 }
 
 void MainWindow::PlaySound(const QString &src, int channel, bool loop) {
+#ifndef __EMSCRIPTEN__
 	SoundChannel &ch = soundChannels[channel];
+	EnsureSoundChannel(ch);
 	if (ch.recentlyPlayedSrc == src) {
 		// Already the current sound on this channel: resume rather than restart from the top,
 		// same as the Glk frontend's PlaySound() (multimedia.cpp).
@@ -424,19 +461,26 @@ void MainWindow::PlaySound(const QString &src, int channel, bool loop) {
 	ch.player->setLoops(loop ? QMediaPlayer::Infinite : QMediaPlayer::Once);
 	ch.player->play();
 	ch.recentlyPlayedSrc = src;
+#endif
 }
 
 void MainWindow::PauseSound(int channel) {
-	soundChannels[channel].player->pause();
+#ifndef __EMSCRIPTEN__
+	SoundChannel &ch = soundChannels[channel];
+	if (ch.player) ch.player->pause();
+#endif
 }
 
 void MainWindow::StopSound(int channel) {
+#ifndef __EMSCRIPTEN__
 	SoundChannel &ch = soundChannels[channel];
-	ch.player->stop();
+	if (ch.player) ch.player->stop();
 	ch.recentlyPlayedSrc.clear();
+#endif
 }
 
 void MainWindow::SubmitCommand(const QString &cmd) {
+	if (!Starlane::GameIsOngoing()) { return; }
 	BeginOutputBatch();
 	// The echoed command flows through the same tag parser as everything else, so escape
 	// anything the player typed that would otherwise be misread as markup.
@@ -458,9 +502,20 @@ void MainWindow::InputReturnPressed() {
 }
 
 void MainWindow::OpenGameTriggered() {
-	const QString path = QFileDialog::getOpenFileName(this, tr("Open Game"), QString(),
-		tr("ADRIFT Game Files (*.taf *.blorb *.adriftblorb)"));
-	if (!path.isEmpty()) LoadGameFile(path);
+	// QFileDialog::getOpenFileName() shows a modal dialog via QDialog::exec() -- a nested event loop,
+	// which isn't supported on WebAssembly's real browser main thread. getOpenFileContent() is Qt's
+	// WebAssembly-specific replacement: it drives the browser's native <input type="file"> picker
+	// asynchronously instead of blocking, and hands back the picked file's content directly rather
+	// than a path -- WebAssembly has no real filesystem for a path to mean anything outside the app's
+	// own virtual one.
+	// For convenience, on desktop platforms, this just calls `QFileDialog::getOpenFileName()`,
+	// reads in the file specified, and calls the callback, so there is no need for us to maintain
+	// separate code paths here.
+	QFileDialog::getOpenFileContent(tr("ADRIFT Game Files (*.taf *.blorb *.adriftblorb)"),
+		[this](const QString &fileName, const QByteArray &fileContent) {
+			if (fileName.isEmpty()) return;  // dialog was cancelled
+			LoadGameData(fileName, fileContent);
+		});
 }
 
 void MainWindow::SaveGameTriggered() {
@@ -470,11 +525,33 @@ void MainWindow::SaveGameTriggered() {
 }
 
 void MainWindow::RestoreGameTriggered() {
+#ifdef __EMSCRIPTEN__
+	// Starlane::RestoreGame() -> Game::Restore() calls SlQt::OpenSaveFile() (starlane.cpp)
+	// synchronously and needs a file already sitting at SlQt::WasmRestorePath() by the time it
+	// does -- WebAssembly has no synchronous file picker to call from there. So the picking
+	// happens here instead, first and asynchronously, before Starlane::RestoreGame() ever runs.
+	QFileDialog::getOpenFileContent(tr("Starlane Save File (*.sls)"),
+		[this](const QString &fileName, const QByteArray &fileContent) {
+			if (fileName.isEmpty()) return;  // dialog was cancelled
+
+			QFile staged(SlQt::WasmRestorePath());
+			if (!staged.open(QIODevice::WriteOnly)) return;
+			staged.write(fileContent);
+			staged.close();
+
+			BeginOutputBatch();
+			Starlane::RestoreGame();
+			EndOutputBatch();
+			UpdateActionState();
+			UpdateStatusBar();
+		});
+#else
 	BeginOutputBatch();
 	Starlane::RestoreGame();
 	EndOutputBatch();
 	UpdateActionState();
 	UpdateStatusBar();
+#endif
 }
 
 void MainWindow::ToggleTranscript() {
@@ -483,9 +560,16 @@ void MainWindow::ToggleTranscript() {
 		return;
 	}
 
+#ifdef __EMSCRIPTEN__
+	// No dialog: WebAssembly has no synchronous "pick a save location". Write to a fixed scratch
+	// path instead, and offer the accumulated content as a real download once transcribing stops
+	// (see StopTranscript()) -- there's no interactive choice to make until then anyway.
+	const QString path = QDir::tempPath() + QStringLiteral("/starlane-transcript.txt");
+#else
 	const QString path = QFileDialog::getSaveFileName(this, tr("Start Transcript"), QString(),
 		tr("Text Files (*.txt)"));
 	if (path.isEmpty()) return;
+#endif
 
 	auto *file = new QFile(path, this);
 	if (!file->open(QIODevice::WriteOnly | QIODevice::Text)) {
@@ -509,14 +593,40 @@ void MainWindow::WriteTranscript(const QString &text) {
 void MainWindow::StopTranscript() {
 	if (!transcriptFile) return;
 	formatter->SetTranscriptSink(nullptr);
+#ifdef __EMSCRIPTEN__
+	const QString path = transcriptFile->fileName();
+#endif
 	transcriptFile->close();
 	delete transcriptFile;
 	transcriptFile = nullptr;
 	transcribing = false;
 	transcriptAction->setText(tr("Start &Transcript"));
+
+#ifdef __EMSCRIPTEN__
+	// Offer the finished transcript as a real download now -- there was no chance to ask the
+	// player where to put it up front (see ToggleTranscript()). Covers both this being reached
+	// via the explicit "Stop Transcript" action and implicitly (LoadGameData(), window close):
+	// either way, the transcript would otherwise be silently discarded on WASM specifically,
+	// unlike native where it was already safely on disk the whole time.
+	QFile finished(path);
+	if (finished.open(QIODevice::ReadOnly))
+		QFileDialog::saveFileContent(finished.readAll(), QStringLiteral("transcript.txt"), this);
+#endif
 }
 
 void MainWindow::ReplayCommandsTriggered() {
+#ifdef __EMSCRIPTEN__
+	// No dialog: same reason as OpenGameTriggered()/RestoreGameTriggered() -- getOpenFileContent()
+	// hands back the picked file's content directly, asynchronously, rather than a path.
+	QFileDialog::getOpenFileContent(tr("Command Files (*.txt)"),
+		[this](const QString &fileName, const QByteArray &fileContent) {
+			if (fileName.isEmpty()) return;  // dialog was cancelled
+			QBuffer buffer;
+			buffer.setData(fileContent);
+			buffer.open(QIODevice::ReadOnly);
+			RunReplay(buffer);
+		});
+#else
 	const QString path = QFileDialog::getOpenFileName(this, tr("Replay Commands"), QString(),
 		tr("Command Files (*.txt)"));
 	if (path.isEmpty()) return;
@@ -527,12 +637,16 @@ void MainWindow::ReplayCommandsTriggered() {
 			tr("Could not open \"%1\".").arg(QDir::toNativeSeparators(path)));
 		return;
 	}
+	RunReplay(file);
+#endif
+}
 
+void MainWindow::RunReplay(QIODevice &source) {
 	isReplaying = true;
 	input->setEnabled(false);
 	UpdateActionState();
 
-	QTextStream in(&file);
+	QTextStream in(&source);
 	while (!in.atEnd() && Starlane::GameIsOngoing()) {
 		const QString line = in.readLine();
 		SubmitCommand(line);
@@ -545,32 +659,28 @@ void MainWindow::ReplayCommandsTriggered() {
 	UpdateActionState();
 }
 
-void MainWindow::WaitForKeyOrClick() {
+void MainWindow::OnWaitKey(OutputFormatter *fmt) {
 	input->setEnabled(false);
-	QEventLoop loop;
-	waitKeyLoop = &loop;
-	loop.exec();
-	waitKeyLoop = nullptr;
-	input->setEnabled(true);
-	input->setFocus();
+	waitingFormatter = fmt;
 }
 
 bool MainWindow::eventFilter(QObject *watched, QEvent *event) {
-	if (waitKeyLoop && (event->type() == QEvent::KeyPress || event->type() == QEvent::MouseButtonPress)) {
-		waitKeyLoop->quit();
+	if (waitingFormatter && (event->type() == QEvent::KeyPress || event->type() == QEvent::MouseButtonPress)) {
+		OutputFormatter *fmt = waitingFormatter;
+		waitingFormatter = nullptr;
+		input->setEnabled(true);
+		input->setFocus();
+		fmt->ResumeAfterWaitKey();  // may hit another <waitkey> and call OnWaitKey() again, immediately
 		return true;  // consume: don't let this key/click also reach whatever widget it landed on
 	}
 	return QMainWindow::eventFilter(watched, event);
 }
 
 void MainWindow::closeEvent(QCloseEvent *event) {
-	// A <waitkey> tag blocks in WaitForKeyOrClick()'s own nested QEventLoop. Closing the window
-	// while that's running should release it -- otherwise it just sits there blocked on input
-	// that will never come once the window (and, via quitOnLastWindowClosed below, soon the
-	// whole app) is gone. See main() in starlane.cpp for the closely related hazard of a game's
-	// *initial* <waitkey> (almost every game has one) getting closed before app.exec() has even
-	// been reached yet.
-	if (waitKeyLoop) waitKeyLoop->quit();
+	wasClosed = true;
+	// Nothing to resume -- OutputFormatter::ResumeAfterWaitKey() would just render more text into
+	// a window that's going away.
+	waitingFormatter = nullptr;
 	StopTranscript();
 	QSettings().setValue(kGeometrySettingsKey, saveGeometry());
 	QMainWindow::closeEvent(event);

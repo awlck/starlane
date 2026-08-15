@@ -1,0 +1,160 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Starlane</title>
+<meta name="description" content="Starlane is a C++ reimplementation of the ADRIFT 5 interactive fiction engine, playable in your browser.">
+<link rel="icon" type="image/png" href="favicon.png">
+<style>
+  :root {
+    color-scheme: light dark;
+    --bg: #f7f5f2;
+    --fg: #1e1c1a;
+    --muted: #6b6560;
+    --card-bg: #ffffff;
+    --border: #e4dfd8;
+    --accent: #7a4fd6;
+    --accent-fg: #ffffff;
+    --warn-bg: #fdf3d8;
+    --warn-border: #e6c766;
+    --warn-fg: #5c4a06;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root {
+      --bg: #16141b;
+      --fg: #ece8f0;
+      --muted: #a49dae;
+      --card-bg: #201c27;
+      --border: #322c3c;
+      --accent: #a37bf2;
+      --accent-fg: #16141b;
+      --warn-bg: #382e12;
+      --warn-border: #6b551d;
+      --warn-fg: #f0d585;
+    }
+  }
+  * { box-sizing: border-box; }
+  body {
+    margin: 0;
+    min-height: 100vh;
+    background: var(--bg);
+    color: var(--fg);
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+    display: flex;
+    justify-content: center;
+    padding: 3rem 1.25rem;
+  }
+  main {
+    max-width: 640px;
+    width: 100%;
+  }
+  .card {
+    background: var(--card-bg);
+    border: 1px solid var(--border);
+    border-radius: 16px;
+    padding: 2.5rem 2rem;
+  }
+  .logo {
+    display: block;
+    width: 96px;
+    height: 96px;
+    margin: 0 auto 1.25rem;
+  }
+  h1 {
+    text-align: center;
+    font-size: 2rem;
+    margin: 0 0 0.4rem;
+  }
+  .tagline {
+    text-align: center;
+    color: var(--muted);
+    margin: 0 0 1.75rem;
+    font-size: 1.05rem;
+  }
+  p {
+    line-height: 1.6;
+  }
+  .actions {
+    text-align: center;
+    margin: 2rem 0 1.5rem;
+  }
+  .launch {
+    display: inline-block;
+    background: var(--accent);
+    color: var(--accent-fg);
+    text-decoration: none;
+    font-weight: 600;
+    font-size: 1.1rem;
+    padding: 0.85rem 2.25rem;
+    border-radius: 999px;
+    transition: opacity 0.15s ease;
+  }
+  .launch:hover { opacity: 0.85; }
+  .warning {
+    display: flex;
+    gap: 0.65rem;
+    align-items: flex-start;
+    background: var(--warn-bg);
+    border: 1px solid var(--warn-border);
+    color: var(--warn-fg);
+    border-radius: 10px;
+    padding: 0.9rem 1.1rem;
+    font-size: 0.92rem;
+    line-height: 1.5;
+    margin: 1.5rem 0;
+  }
+  .warning svg { flex-shrink: 0; margin-top: 0.15rem; }
+  footer {
+    text-align: center;
+    color: var(--muted);
+    font-size: 0.85rem;
+    margin-top: 1.75rem;
+    line-height: 1.7;
+  }
+  footer a { color: inherit; }
+  a { color: var(--accent); }
+</style>
+</head>
+<body>
+<main>
+  <div class="card">
+    <img class="logo" src="starlane-logo.png" alt="Starlane logo">
+    <h1>Starlane</h1>
+    <p class="tagline">Play ADRIFT&nbsp;5 interactive fiction, right in your browser.</p>
+
+    <p>
+      Starlane is a C++ reimplementation of the
+      <a href="http://www.adrift.co" target="_blank" rel="noopener">ADRIFT&nbsp;5</a>
+      interactive fiction engine. It loads and plays ADRIFT&nbsp;5 <code>.taf</code> game
+      files, aiming to reproduce the original runner's behavior as closely as possible.
+      This build runs entirely client-side via WebAssembly &mdash; nothing you open or play
+      is uploaded anywhere.
+    </p>
+
+    <div class="warning">
+      <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M10.29 3.86 1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0Z"/><line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12.01" y2="17"/></svg>
+      <span>
+        The app is a roughly <strong>15&nbsp;MB</strong> download (it bundles a full Qt
+        UI toolkit compiled to WebAssembly). Give it a moment to load, especially on a
+        slow connection.
+      </span>
+    </div>
+
+    <div class="actions">
+      <a class="launch" href="app/">Launch Starlane &rarr;</a>
+    </div>
+
+    <footer>
+      <p>
+        <a href="https://github.com/awlck/starlane" target="_blank" rel="noopener">Source on GitHub</a>
+        &nbsp;&middot;&nbsp;
+        <a href="https://github.com/awlck/starlane#known-limitations" target="_blank" rel="noopener">Known limitations</a>
+        &nbsp;&middot;&nbsp;
+        Licensed under the Apache License 2.0
+      </p>
+    </footer>
+  </div>
+</main>
+</body>
+</html>

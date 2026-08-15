@@ -254,6 +254,100 @@ jobs:
           name: starlane-${{ matrix.slug }}-x86_64
           path: ${{ matrix.artifact_glob }}
 
+  wasm:
+    name: WebAssembly
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v5
+        with:
+          submodules: true
+          # Full history + tags: cmake/Version.cmake runs `git describe
+          # --tags --exact-match`, which needs the tag itself to be present
+          # (a release build's version depends on it) -- the default shallow
+          # checkout doesn't fetch tags at all.
+          fetch-depth: 0
+
+      - name: Install Ninja
+        run: sudo apt-get update && sudo apt-get install -y ninja-build
+
+      # Qt's WASM build cross-compiles: moc/rcc/qmake etc. have to run
+      # natively during the build, so a plain desktop Qt install of the
+      # same version is required alongside the WASM one purely to supply
+      # those host tools. Installing both under the same `dir` lays them
+      # out as siblings (Qt/<version>/gcc_64 next to
+      # Qt/<version>/wasm_singlethread), which is what lets the WASM
+      # install's target_qt.conf resolve the host tools automatically --
+      # `set-env: false` here keeps this call from clobbering the PATH/
+      # QT_ROOT_DIR that the WASM install below sets up for the actual
+      # build.
+      - name: Install host Qt (for WASM cross-build tools)
+        uses: jurplel/install-qt-action@v4.3.1
+        with:
+          version: ${{ env.QT_VERSION }}
+          host: linux
+          target: desktop
+          dir: ${{ github.workspace }}/qt
+          set-env: false
+
+      - name: Install Qt for WebAssembly
+        uses: jurplel/install-qt-action@v4.3.1
+        with:
+          version: ${{ env.QT_VERSION }}
+          host: all_os
+          target: wasm
+          arch: wasm_singlethread
+          dir: ${{ github.workspace }}/qt
+
+      # Must match the Emscripten version Qt itself was built against
+      # (see https://doc.qt.io/qt-6/wasm.html) -- a mismatched version
+      # tends to fail in confusing ways deep inside Qt's own WASM glue
+      # code rather than with a clear version-check error up front.
+      - name: Install matching Emscripten SDK
+        uses: emscripten-core/setup-emsdk@v15
+        with:
+          version: "4.0.7"
+
+      # starlane-core's expression grammar is compiled by packcc (see
+      # starlane-core/CMakeLists.txt) -- a build-time code generator, not
+      # part of the shipped product, so it has to run on the CI host, not
+      # under Emscripten. A native host configure exports its location via
+      # ImportExecutables.cmake (EXPORT(TARGETS packcc ...), only emitted
+      # when NOT cross-compiling), which the WASM configure below then
+      # imports via IMPORT_EXECUTABLES instead of trying to build packcc
+      # itself.
+      - name: Configure and build host packcc
+        run: |
+          cmake -S . -B build-host -GNinja \
+            -DCMAKE_BUILD_TYPE=Release \
+            -DSL_BUILD_QT=OFF -DSL_BUILD_CONSOLE=OFF -DSL_BUILD_GLK=OFF -DSL_BUILD_TOOLS=OFF -DSL_BUILD_C_WRAPPER=OFF
+          cmake --build build-host --target packcc
+
+      - name: Configure
+        run: >
+          cmake -S . -B build -GNinja
+          -DCMAKE_BUILD_TYPE="${{ env.BUILD_TYPE }}"
+          -DCMAKE_TOOLCHAIN_FILE="${{ env.QT_ROOT_DIR }}/lib/cmake/Qt6/qt.toolchain.cmake"
+          -DIMPORT_EXECUTABLES="${{ github.workspace }}/build-host/ImportExecutables.cmake"
+          -DSL_BUILD_CONSOLE=OFF -DSL_BUILD_GLK=OFF -DSL_BUILD_TOOLS=OFF -DSL_BUILD_C_WRAPPER=OFF
+
+      - name: Build
+        run: cmake --build build --target starlane
+
+      # starlane.html is Qt's default app shell; renamed to index.html so
+      # it serves directly at whatever path this bundle is unpacked under
+      # (see the Pages job in release.yml, which unpacks it to app/).
+      - name: Assemble WASM bundle
+        run: |
+          mkdir -p dist
+          cp build/starlane-qt/starlane.html dist/index.html
+          cp build/starlane-qt/starlane.js build/starlane-qt/starlane.wasm build/starlane-qt/qtloader.js build/starlane-qt/qtlogo.svg dist/
+          (cd dist && zip -r ../starlane-wasm.zip .)
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: starlane-wasm
+          path: starlane-wasm.zip
+
   snap:
     name: Snap (x86_64)
     runs-on: ubuntu-latest
