@@ -23,11 +23,17 @@ struct WindowRedirect {
 	std::string buffer;
 };
 
+static bool gSetEchoLineEventSupported = false;
+
 void EnsureMainWindowOpen() {
 	if (gMainWin) return;
 	gMainWin = glk_window_open(nullptr, 0, 0, wintype_TextBuffer, 0);
 	if (!gMainWin) glk_exit();
 	gMainStream = glk_window_get_stream(gMainWin);
+
+	// whether this library supports suppressing the user input (needed to make
+	// timers useful.)
+	gSetEchoLineEventSupported = glk_gestalt(gestalt_LineInputEcho, 0);
 
 	// A style hint only affects windows opened *after* the call -- gMainWin, just above, already
 	// exists by this point, so setting ReverseColor here gives the status window(s) below a reverse
@@ -302,7 +308,8 @@ std::string GetLineInput(const std::string &prompt) {
 	// style. Turning it off is also what makes the cancel-and-restore dance below leave no trace
 	// of the player's not-yet-submitted partial input on screen, so all that's left to tear down
 	// around a timer tick's output is the prompt itself.
-	glk_set_echo_line_event(gMainWin, 0);
+	if (gSetEchoLineEventSupported)
+		glk_set_echo_line_event(gMainWin, 0);
 	OutputStyled(prompt, kStyleInput);
 	glk_request_line_event_uni(gMainWin, buf.data(), kCapacity, initlen);
 	event_t ev;
@@ -310,8 +317,10 @@ std::string GetLineInput(const std::string &prompt) {
 		glk_select(&ev);
 		if (ev.type == evtype_LineInput && ev.win == gMainWin) {
 			std::string result = Utf32ToUtf8(buf.data(), ev.val1);
-			OutputStyled(result, kStyleInput);
-			OutputStyled("\n", kStyleNormal);
+			if (gSetEchoLineEventSupported) {
+				OutputStyled(result, kStyleInput);
+				OutputStyled("\n", kStyleNormal);
+			}
 			return result;
 		}
 		if (ev.type == evtype_Timer) {
