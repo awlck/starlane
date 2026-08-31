@@ -11,6 +11,7 @@
 #include <QtCore/QBuffer>
 #include <QtCore/QFile>
 #include <QtCore/QMap>
+#include <QtCore/QRegularExpression>
 #include <QtCore/QTimer>
 #include <QtGui/QAction>
 #include <QtGui/QImage>
@@ -258,6 +259,9 @@ private:
 	// <waitkey> tag -- disables player input and remembers `fmt` so eventFilter() can resume it
 	// on the next keypress or mouse click anywhere in the app.
 	void OnWaitKey(OutputFormatter *fmt);
+
+	// Regex to strip XML-ish tags out of the status bar texts:
+	QRegularExpression tagStripRegex {"<.+?>", QRegularExpression::MultilineOption};
 };
 
 #endif  // !STARLANE_MAINWINDOW_H

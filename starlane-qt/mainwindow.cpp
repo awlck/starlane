@@ -104,6 +104,8 @@ MainWindow::MainWindow() : QMainWindow(nullptr) {
 	addDockWidget(Qt::BottomDockWidgetArea, debugLogWindow);
 	debugLogWindow->hide();
 
+	tagStripRegex.optimize();
+
 	CreateMenus();
 	UpdateActionState();
 	UpdateStatusBar();
@@ -203,8 +205,12 @@ void MainWindow::UpdateStatusBar() {
 		scoreLabel->hide();
 		return;
 	}
-	locationLabel->setText(QString::fromUtf8(sb.location.c_str()));
-	userStatusLabel->setText(QString::fromUtf8(sb.userStatus.c_str()));
+	locationLabel->setText(QString::fromUtf8(sb.location.c_str()).replace("<>", "").replace(tagStripRegex, ""));
+	QString userStatus = QString::fromUtf8(sb.userStatus.c_str()).replace("<>", "").replace(tagStripRegex, "");
+	if (!userStatus.isEmpty())
+		userStatusLabel->setText(userStatus);
+	else
+		userStatusLabel->clear();
 	if (sb.scoringUsed) {
 		scoreLabel->setText(tr("Score: %1").arg(sb.score));
 		scoreLabel->show();

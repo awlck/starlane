@@ -4,10 +4,17 @@
 
 #include "starlane-glk-internal.h"
 
+#include <regex>
+
 namespace {
 
 std::string FormatScore(const Starlane::StatusBar &statusBar) {
 	return statusBar.scoringUsed ? ("Score: " + std::to_string(statusBar.score)) : "";
+}
+
+std::string StripTags(const std::string &text) {
+	static std::regex tagStripRegex("<.+?>", std::regex::ECMAScript | std::regex::optimize | std::regex::multiline);
+	return std::regex_replace(text, tagStripRegex, "");
 }
 
 }  // namespace
@@ -36,11 +43,11 @@ void UpdateStatusBar() {
 	Starlane::StatusBar sb;
 	if (!Starlane::GetStatusBar(sb)) return;
 
-	SetColumnText(gStatusLocWin, style_Normal, sb.location);
+	SetColumnText(gStatusLocWin, style_Normal, StripTags(sb.location));
 	// style_BlockQuote's Justification hint is Centered -- see the comment in starlane-glk.cpp.
 	SetColumnText(gStatusScoreWin, style_BlockQuote, FormatScore(sb));
 	// style_User1's Justification hint is RightFlush -- likewise.
-	SetColumnText(gStatusUserWin, style_User1, sb.userStatus);
+	SetColumnText(gStatusUserWin, style_User1, StripTags(sb.userStatus));
 }
 
 #else  // !SLGLK_STATUSBAR_JUSTIFIED_WINDOWS
@@ -52,6 +59,8 @@ void UpdateStatusBar() {
 	Starlane::StatusBar sb;
 	if (!Starlane::GetStatusBar(sb)) return;
 	std::string score = FormatScore(sb);
+	std::string userStatus = StripTags(sb.userStatus);
+	std::string location = StripTags(sb.location);
 
 	glui32 width = 0, height = 0;
 	glk_window_get_size(gStatusWin, &width, &height);
@@ -59,14 +68,14 @@ void UpdateStatusBar() {
 	if (width == 0) return;
 
 	std::string line;
-	if (sb.userStatus.empty()) {
-		int spaces = (int) width - (int) sb.location.size() - (int) score.size();
+	if (userStatus.empty()) {
+		int spaces = (int) width - (int) location.size() - (int) score.size();
 		if (spaces < 2) spaces = 2;
-		line = sb.location + std::string(spaces, ' ') + score;
+		line = location + std::string(spaces, ' ') + score;
 	} else {
-		int spaces = ((int) width - (int) sb.location.size() - (int) score.size() - (int) sb.userStatus.size()) / 2;
+		int spaces = ((int) width - (int) location.size() - (int) score.size() - (int) userStatus.size()) / 2;
 		if (spaces < 2) spaces = 2;
-		line = sb.location + std::string(spaces, ' ') + score + std::string(spaces, ' ') + sb.userStatus;
+		line = location + std::string(spaces, ' ') + score + std::string(spaces, ' ') + userStatus;
 	}
 
 	auto codepoints = Utf8ToUtf32(line);
